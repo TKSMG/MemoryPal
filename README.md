@@ -2,8 +2,6 @@
 
 This folder is the recovered working package for MemoryPal.
 
-The original `outputs` folder was empty when this recovery was made, so the latest app here is a rebuilt single-file Python version based on the requirements and revision history from this project.
-
 ## What to Open
 
 - Latest app: `latest_app/MemoryPalDesktop.py`
@@ -38,4 +36,4 @@ The app stores its local data in:
 
 ## About the Development Stages
 
-The development version files are reconstructed milestone prototypes, not exact historical source snapshots. They exist so you can show the development path of the project across the revisions that were requested.
+The development version files are reconstructed milestone prototypes, not exact historical source snapshots. They exist so I can show the project's development path across the revisions.
