@@ -5,7 +5,7 @@ This folder is the recovered working package for MemoryPal.
 ## What to Open
 
 - Latest app: `latest_app/MemoryPalDesktop.py`
-- Human notesheet: `notes/MemoryPal_Memory_Techniques_Human_Notesheet.md`
+- Notesheet: `notes/MemoryPal_Memory_Techniques_Human_Notesheet.md`
 - Development stages: `development_versions/`
 - Readable program outline: `development_versions/MemoryPalDesktop_readable_outline.py`
 
@@ -36,4 +36,4 @@ The app stores its local data in:
 
 ## About the Development Stages
 
-The development version files are reconstructed milestone prototypes, not exact historical source snapshots. They exist so I can show the project's development path across the revisions.
+The development version files are reconstructed milestone prototypes. They exist so I can show the project's development path across the revisions.
