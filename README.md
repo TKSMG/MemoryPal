@@ -47,7 +47,7 @@ The app stores its local data in:
 
 ## About the Development Stages
 
-The development version files are reconstructed milestone prototypes, not exact historical source snapshots. They exist so you can show the development path of the project across the revisions that were requested.
+The development version files are reconstructed milestone prototypes, not exact historical source snapshots. They exist so I can show the development path of the project across the revisions that were requested.
 
 Each `MemoryPal_vXX_*.py` file is now standalone, so it does not import a shared stage helper.
 
