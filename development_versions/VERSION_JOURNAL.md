@@ -32,7 +32,7 @@ This version changed shuffle into an intentional practice order. The user could 
 
 ## v08 Beta - Notes And Design
 
-This version added a human notesheet for the memory techniques. It also started recording the design direction alongside the code.
+This version added project notes for the memory techniques. It also started recording the design direction alongside the code.
 
 ## v09 Test - Button Scaling
 

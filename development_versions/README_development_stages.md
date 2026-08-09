@@ -61,7 +61,7 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 
 ### v08 Beta - Notesheet and design artifacts
 
-- Added a human-readable memory techniques notesheet.
+- Added memory technique project notes.
 - Added design/development documentation alongside the code.
 
 ### v09 Test - Home button scaling fixes

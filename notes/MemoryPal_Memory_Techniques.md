@@ -1,6 +1,6 @@
-# MemoryPal Memory Techniques Notesheet
+# MemoryPal Memory Techniques
 
-This is a simple working notesheet for the memory ideas used in MemoryPal. It is written to be easy to read later, not to look like a polished report.
+These are the main memory ideas used in MemoryPal. The notes are written to be easy to read later and useful when explaining the project.
 
 ## The Main Idea
 

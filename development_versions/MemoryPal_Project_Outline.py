@@ -1,14 +1,14 @@
 """
-MemoryPalDesktop_readable_outline.py
+MemoryPal_Project_Outline.py
 
-This is a human-readable guide to the current recovered MemoryPal program structure.
+This is a plain-language guide to the current MemoryPal program structure.
 
 The working program itself is:
 
     ../latest_app/MemoryPalDesktop.py
 
 This file exists so someone reading the project later can understand how the
-single-file app is organized without having to decode the whole source at once.
+single-file app is organized without having to read the whole source at once.
 It does not replace the app.
 """
 
