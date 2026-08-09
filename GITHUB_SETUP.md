@@ -62,7 +62,43 @@ git push -u origin main
 
 Git Credential Manager may open a browser window for login. Sign in there, then return to PowerShell.
 
-If `git push` says the repository was not found, create the empty GitHub repo first, then run the push command again.
+## If Git Says Repository Not Found
+
+If Git shows:
+
+```text
+remote: Repository not found.
+fatal: repository 'https://github.com/TKSMG/MemoryPal.git/' not found
+```
+
+That means one of these is true:
+
+- The GitHub repository has not been created yet.
+- The GitHub username is different.
+- The repository name is different.
+- You are not signed in to the GitHub account that owns that repository.
+
+Create an empty GitHub repository first, then push again.
+
+Recommended GitHub repository settings:
+
+```text
+Owner: TKSMG
+Repository name: MemoryPal
+Visibility: Public or Private
+Initialize with README: Off
+Add .gitignore: Off
+Choose a license: Off
+```
+
+After creating it, run:
+
+```cmd
+git remote set-url origin https://github.com/TKSMG/MemoryPal.git
+git push -u origin main
+```
+
+If your GitHub username or repo name is different, replace `TKSMG/MemoryPal` in the command.
 
 ## If Push Says Remote Contains Work
 
