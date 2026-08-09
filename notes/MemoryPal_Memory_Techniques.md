@@ -1,16 +1,18 @@
 # MemoryPal Memory Techniques
 
-These are the main memory ideas used in MemoryPal. The notes are written to be easy to read later and useful when explaining the project.
+## App Note
 
-## The Main Idea
+I designed MemoryPal around the idea that memory practice should feel calm, practical, and easy to return to. The app combines recall, repetition, cues, and small practice games so study material can be reviewed in several different ways without switching between separate tools.
 
-MemoryPal is meant to help someone remember things by breaking information into small study bits, showing prompts, letting the user answer from memory, and then giving gentle ways to check or repeat the answer.
+## Main Idea
 
-The app is especially aimed at learners and elderly users, so the methods should stay simple, calm, and predictable.
+MemoryPal breaks information into small study bits, shows prompts, accepts recall attempts, and gives gentle ways to check or repeat answers.
+
+The design is aimed at learners and older adults, so each method should stay simple, predictable, and low-pressure.
 
 ## Study Bits
 
-A study bit is one small thing to remember.
+A study bit is one small piece of information to remember.
 
 Examples:
 
@@ -21,13 +23,13 @@ Examples:
 - A step in a process.
 - A sentence from a lesson.
 
-The important thing is that one bit should not be a whole page of notes. Smaller chunks are easier to practise and easier to repeat.
+One study bit should not be a full page of notes. Smaller chunks are easier to practise, repeat, and turn into cards.
 
-## Prompt and Answer Practice
+## Prompt And Answer Practice
 
-This is the basic card idea.
+Prompt-answer practice is the main flashcard idea.
 
-The app shows a title, question, or cue first. The user tries to answer without seeing the answer. Then they can reveal it or smart-check their response.
+The app shows a title, question, or cue first. The learner answers from memory, then reveals the saved answer or uses Smart Check.
 
 Example:
 
@@ -35,117 +37,126 @@ Prompt: What is photosynthesis?
 
 Answer: The process plants use to turn light, water, and carbon dioxide into food.
 
-This is useful because it makes the brain retrieve the answer instead of just rereading it.
+This method supports active recall instead of rereading.
 
-In the app, exact prompt-answer material can now be entered with separate question and answer boxes. This is easier than forcing every card into one pasted field.
+Exact prompt-answer material can be entered with separate question and answer boxes. This is clearer than forcing every card into one pasted field.
 
-The answer can also be left out on purpose. In that case, the card becomes a self-check prompt where the user answers from memory and rates themselves.
+The answer can also be left blank on purpose. In that case, the card becomes a self-check prompt.
 
 ## Spaced Review
 
-Spaced review means revisiting information after some time has passed.
+Spaced review means revisiting information after time has passed.
 
-If something was hard, it comes back sooner. If it was easy, it can wait longer.
+Hard material returns sooner. Easy material returns later.
 
-This helps because memory gets stronger when it is recalled right before it would have started fading.
+Memory becomes stronger when information is recalled near the point where it would have started fading.
 
 ## Focus Queue
 
-The focus queue is the app's daily study plan.
+The focus queue is the daily study plan.
 
-It brings together cards that are due, cards that were weak before, and fresh cards that have not been practised much yet.
+It groups due cards, weak cards, and fresh cards so the next study step is easier to choose.
 
-This is closer to how common study apps guide users, because the user does not have to decide where to begin every time.
+This makes MemoryPal feel closer to a guided study app instead of a folder of disconnected tools.
 
 ## Test Lab
 
-Test Lab is a separate page for focused answering.
+Test Lab is the focused answering page.
 
-Review cards and self-check quiz cards can open there so the prompt, answer box, reveal button, Smart Check, bucket highlight, and rating controls stay together.
+Review cards and self-check quiz cards can open there so the prompt, answer box, reveal button, Smart Check result, bucket highlight, and rating controls stay together.
 
-This keeps review cleaner than placing all controls directly below the normal review prompt.
+This keeps review cleaner than placing every control under the normal review prompt.
 
 ## Smart Check
 
-Smart Check compares what the user wrote with the expected answer.
+Smart Check compares a typed response with the expected answer.
 
-It does not need the wording to be exact. It looks for whether the important ideas are close enough.
+Exact wording is not required. The check looks for whether the important ideas are close enough.
 
-This is useful for learners because a correct answer might be written in different words.
+This helps when a correct answer can be written in different words.
 
-The app now highlights the suggested bucket after Smart Check. This makes the result easier to understand at a glance.
+Smart Check also highlights a suggested review bucket, making the result easier to understand quickly.
 
 ## Repetition Path
 
-The repetition path is for practising a group of study bits in a controlled order.
+Repetition Path practises a group of study bits in a controlled order.
 
-The current rule is:
+Current rule:
 
-If the user starts at item 5 with range 3, the app practises:
+If the start item is 5 and the range is 3, the app practises:
 
+```text
 5
-
 5-4
-
 5-4-3
-
-Then it walks back to the first item:
-
 3-2-1
+```
 
-This helps the user revise older material while still focusing on the newer item.
+This keeps attention on the newer item while still walking back through older material.
 
 ## Quick Quiz
 
-Quick Quiz can work in two ways.
+Quick Quiz has two modes.
 
 Self Check:
 
-The user sees the question, answers it themselves, then reveals or smart-checks the answer.
+The learner sees the question, opens Test Lab, answers, reveals, or uses Smart Check.
 
 Multiple Choice:
 
-The user picks from answer choices.
+The learner selects from answer choices.
 
-Self Check is better for real recall. Multiple choice is useful when the user wants something faster or easier.
+Self Check is better for real recall. Multiple Choice is useful for quicker confidence checks.
 
 ## Associations
 
-Associations help connect hard information to something easier to remember.
+Associations connect difficult material to easier memory hooks.
 
 Examples:
 
 - Acronyms.
 - Mini stories.
-- Routes.
-- Images.
-- Silly or unusual links.
+- Peg lists.
+- Memory palace routes.
+- Chunk maps.
+- Link chains.
+- Unusual images or actions.
 
-The point is not to make the memory perfect. The point is to give the brain a hook.
-
-The mini-story tool can now auto-generate ordered scenes from the user's ideas. The scenes give each item a place and an action, which makes the list easier to replay mentally.
+The goal is not perfect memorization. The goal is to give the brain a useful hook.
 
 ## Sequence Recall
 
-Sequence recall is for remembering things in order.
+Sequence Recall briefly shows a sequence, hides it, and asks for the same sequence back.
 
-The app briefly shows a sequence, hides it, and asks the user to reproduce it.
-
-This can help with numbers, steps, routines, or ordered lists.
+This can help with numbers, steps, routines, and ordered lists.
 
 ## Word Recall
 
-Word recall shows a small group of words for a short time.
+Word Recall briefly shows a small group of words.
 
-The user then tries to say or type them back.
+The learner then tries to type the words back from memory.
 
-This is simple, but good for attention and short-term memory practice.
+This is simple but useful for attention and short-term recall.
+
+## Pair Recall
+
+Pair Recall practises prompt-answer pairs one at a time.
+
+This is useful for names, definitions, vocabulary, and short facts.
+
+## Missing Item
+
+Missing Item hides one item from a small sequence.
+
+The learner identifies the missing word or idea.
+
+This supports order memory and attention to detail.
 
 ## Media Cues
 
-MemoryPal can attach image, audio, and video cues.
+MemoryPal can attach image, audio, video, and text cues.
 
-These can help when text alone is not enough.
+These cues help when text alone is not enough.
 
 Examples:
 
@@ -153,24 +164,23 @@ Examples:
 - A voice reminder.
 - A short explanation video.
 - A photo of an object.
+- A saved text note.
 
-For elderly users, familiar images and voices can be especially helpful.
+For older adults, familiar images and voices can be especially helpful.
 
 ## Chunking
 
 Chunking means grouping information into smaller meaningful pieces.
 
-Instead of studying one long note, the user studies several smaller chunks.
+Instead of studying one long note, MemoryPal turns material into smaller study bits.
 
-MemoryPal now uses this idea directly through study bits.
+This makes review easier to start and easier to repeat.
 
 ## Memory Palace
 
-This is not fully built yet, but it is a good future idea.
+Memory palace practice places each memory item in a familiar location.
 
-The user imagines a familiar place and puts each memory item in a location.
-
-Example:
+Example route:
 
 Front door: first item.
 
@@ -178,21 +188,19 @@ Kitchen: second item.
 
 Bedroom: third item.
 
-Then they mentally walk through the place to remember the list.
+The route is reviewed mentally in the same order.
 
 ## Error Practice
 
-The app should pay attention to weak items.
+Weak items should return more often than strong items.
 
-If the user keeps missing the same card or chunk, that item should come back more often.
+If the same card or chunk keeps being missed, that item should receive more review time.
 
-This is useful because the app should not waste time equally on everything.
+This avoids wasting equal effort on material that already feels secure.
 
 ## Progress And Mastery
 
-MemoryPal now shows progress as something the user can see quickly.
-
-This matters because learners need to know what to do next, not just how much content exists.
+Progress should be visible quickly.
 
 Useful progress signals:
 
@@ -201,67 +209,57 @@ Useful progress signals:
 - Items that seem mastered.
 - A short daily goal, such as one review or one capture.
 
-This keeps the app feeling calm and purposeful.
+These signals keep the app calm and purposeful.
 
 ## Helpful Interface Cues
 
-Hover hints explain buttons without adding too much text to the screen.
+Hover hints explain controls without adding too much permanent text to the screen.
 
-This is useful for elderly users, new learners, and anyone who forgets what a mode does.
+Short hints are helpful for new learners, older adults, and anyone returning after time away.
 
-Good hints are short. They explain the action, not the whole app.
+Good hints explain the action, not the whole app.
 
 ## Clear Prompt And Answer Entry
 
-Repetition practice works better when the prompt and answer are not mixed into one field.
+Repetition practice is clearer when the prompt and answer are not mixed into one field.
 
-The user can now add a question or title, then place the answer or recall content in its own box.
+A separate question/title box and answer box makes the material easier to read and correct.
 
-This is easier to read, easier to correct, and better for people who may be overwhelmed by symbols like prompt arrows.
+This also avoids relying on symbols such as prompt arrows.
 
 ## Comfortable Scrolling
 
 Long study screens should not hide buttons or answers below the window.
 
-The Repetition page now keeps the builder and practice rounds in one scrollable flow.
+The Repetition page keeps the builder and practice rounds in one scrollable flow.
 
-This is especially important for laptop screens and for users who need larger text.
-
-## Puzzle Practice
-
-Short puzzles can help the user warm up before deeper review.
-
-The app now includes sequence recall, word recall, pair recall, and missing-item recall.
-
-These are quick exercises, not replacements for spaced review.
+This is important for laptop screens and larger text settings.
 
 ## Cue-Based Recall
 
-Images, text notes, audio, and video work best when they are visible at the moment of testing.
+Images, text notes, audio, and video work best when visible during testing.
 
-MemoryPal now shows text previews, image previews when possible, and clear play buttons for audio or video.
+MemoryPal shows text previews, image previews when possible, and clear play buttons for audio or video.
 
-This helps the cue feel like part of the study activity instead of just a saved file.
+This makes each cue part of the study activity instead of just a saved file.
 
 ## Calm Visual Design
 
-The app should feel modern, but still fast and easy to understand.
+The interface should feel modern, fast, and easy to understand.
 
-The latest polish pass uses a softer app header, clearer status chips, cleaner buttons, and subtle hover feedback.
-
-This keeps the interface from feeling plain without turning it into a heavy or distracting design.
+A softer app header, clear status chips, clean buttons, and subtle hover feedback help the app feel less plain without becoming distracting.
 
 ## Preserving Work
 
-Users should be able to move around the app without losing unfinished work.
+Study apps should not erase unfinished work during navigation.
 
-MemoryPal now keeps page drafts in memory for the main working screens.
+MemoryPal keeps page drafts in memory for the main working screens.
 
-This makes the app feel more forgiving and more like a real study tool.
+This makes the app more forgiving during normal use.
 
 ## Caregiver-Friendly Memory
 
-For elderly users, another person might help create the study bits.
+For older adults, another person may help create study bits.
 
 Good caregiver prompts are simple and practical:
 
@@ -270,20 +268,21 @@ Good caregiver prompts are simple and practical:
 - Where is this item kept?
 - What should happen next?
 
-These should be calm and respectful, not overwhelming.
+Prompts should stay calm, respectful, and not overwhelming.
 
 ## Short Summary
 
 MemoryPal combines:
 
 - Small study bits.
-- A focus queue for due, weak, and fresh cards.
+- Focus queue.
 - Prompt and answer practice.
 - Spaced review.
-- Smart checking.
+- Smart Check.
 - Repetition paths.
 - Associations.
-- Simple recall games.
+- Recall puzzles.
 - Media cues.
+- Draft preservation.
 
-The main design goal is to make memory practice feel clear, gentle, and useful.
+The main design goal is clear, gentle, useful memory practice.
