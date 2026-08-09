@@ -64,6 +64,23 @@ Git Credential Manager may open a browser window for login. Sign in there, then 
 
 If `git push` says the repository was not found, create the empty GitHub repo first, then run the push command again.
 
+## If Push Says Remote Contains Work
+
+If Git shows:
+
+```text
+Updates were rejected because the remote contains work that you do not have locally.
+```
+
+Run:
+
+```cmd
+git pull origin main --allow-unrelated-histories
+git push -u origin main
+```
+
+If Git opens a merge message editor, save and close it. If Git reports a conflict, ask Codex before continuing.
+
 ## If Git Says Dubious Ownership
 
 If Git shows a message like `detected dubious ownership`, run this once:
