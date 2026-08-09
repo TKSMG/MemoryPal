@@ -18,13 +18,6 @@ cd /d "C:\Users\hp\Documents\Codex\2026-06-08\files-mentioned-by-the-user-memory
 SETUP_GITHUB_REPO.cmd
 ```
 
-There is also a launcher one folder above `MemoryPal Newest`:
-
-```cmd
-cd /d "C:\Users\hp\Documents\Codex\2026-06-08\files-mentioned-by-the-user-memorypalpackages"
-RUN_GITHUB_SETUP.cmd
-```
-
 The no-script manual method is below.
 
 ## 1. Open The Project Folder
