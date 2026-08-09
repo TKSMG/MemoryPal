@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+env/
+build/
+dist/
+*.spec
+*.log
+.DS_Store
+Thumbs.db
+
+# Local runtime data is stored outside the repo by default, but keep
+# accidental exports or attachment folders out of source control.
+MemoryPalData/
+attachments/
+memorypal-data.json
