@@ -108,7 +108,7 @@ Also update:
 README.md
 development_versions/README_development_stages.md
 development_versions/VERSION_JOURNAL.md
-notes/MemoryPal_Memory_Techniques_Human_Notesheet.md
+notes/MemoryPal_Memory_Techniques.md
 ```
 
 ## Current Latest Milestone

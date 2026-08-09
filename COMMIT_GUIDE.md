@@ -17,7 +17,7 @@ This commit should include:
 
 ## Suggested Future Commit Style
 
-Use short, human-readable messages:
+Use short, clear commit messages:
 
 ```text
 Improve Test Lab media cue previews
@@ -34,7 +34,7 @@ When the app reaches a meaningful milestone, add a standalone file named like:
 MemoryPal_v30_beta_short_feature_name.py
 ```
 
-Then update the README, development stages, version journal, and notesheet.
+Then update the README, development stages, version journal, and memory techniques notes.
 
 ## What Not To Commit
 

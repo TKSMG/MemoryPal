@@ -1,17 +1,15 @@
-# MemoryPal Recovery Package
+# MemoryPal
 
-This folder is the recovered working package for MemoryPal.
-
-The original `outputs` folder was empty when this recovery was made, so the latest app here is a rebuilt single-file Python version based on the requirements and revision history from this project.
+This folder contains the current MemoryPal desktop app, project notes, and development history.
 
 ## What to Open
 
 - Latest app: `latest_app/MemoryPalDesktop.py`
-- Human notesheet: `notes/MemoryPal_Memory_Techniques_Human_Notesheet.md`
+- Memory techniques notes: `notes/MemoryPal_Memory_Techniques.md`
 - Development stages: `development_versions/`
 - Version journal: `development_versions/VERSION_JOURNAL.md`
-- Readable program outline: `development_versions/MemoryPalDesktop_readable_outline.py`
-- GitHub setup guide: `GITHUB_SETUP.md`
+- Program outline: `development_versions/MemoryPal_Project_Outline.py`
+- GitHub setup: `GITHUB_SETUP.md`
 - Commit guide: `COMMIT_GUIDE.md`
 - Command Prompt GitHub helper: `SETUP_GITHUB_REPO.cmd`
 
