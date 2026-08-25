@@ -32,7 +32,11 @@ Local app data is stored in:
 ## Current Features
 
 - Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover-highlight cards, and lightweight page loading.
+- Separate local profiles, so different learners or study areas can keep independent data.
+- Dark and light appearance modes.
 - In-progress page drafts for Capture, Repetition, Test Lab, Quiz, Associations, and Puzzles while switching sections.
+- Study Plan page that builds a short session plan from time, goal, deck choice, and preferred study habits.
+- Stats page with daily goal editing, streaks, activity heatmap, and upcoming review preview.
 - Focus queue for due, weak, and fresh cards.
 - Dashboard next-step recommendations, mastery progress, due/learning/mastered chips, and a small daily-action prompt.
 - Chunk-based capture, with each study bit stored separately.
@@ -42,8 +46,9 @@ Local app data is stored in:
 - Text previews, image previews when supported, and clear play/open buttons for audio or video cues.
 - Compact cue menus for text, image, audio, and video imports or recordings.
 - Test Lab for focused answering, revealing, Smart Check, bucket highlighting, and review scheduling.
+- Review quality shortcuts, skip-for-today, undo last rating, and leech warnings for repeatedly missed cards.
 - Smart Check for close-enough typed responses.
-- Repetition Path with separate prompt and answer fields, staged items, and the clarified pattern: `5`, `5-4`, `5-4-3`, then `3-2-1`.
+- Repetition Path with separate prompt and answer fields, staged items, a focused round player, and the clarified pattern: `5`, `5-4`, `5-4-3`, then `3-2-1`.
 - Quick Quiz with self-check and multiple-choice modes.
 - Association tools for acronyms, mini-stories, peg lists, memory palace routes, chunk maps, and link chains.
 - Puzzles for Sequence Recall, Word Recall, Pair Recall, and Missing Item practice.
@@ -58,6 +63,8 @@ The latest milestone file is:
 
 ```text
 development_versions/MemoryPal_v29_beta_page_draft_preservation.py
+development_versions/MemoryPal_v30_beta_profiles_planning_stats.py
+development_versions/MemoryPal_v31_beta_repetition_player_polish.py
 ```
 
 ## Mobile Version Note
