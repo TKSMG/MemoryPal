@@ -1,8 +1,8 @@
 # MemoryPal Development Versions
 
-This folder contains standalone milestone versions of MemoryPal. Each `MemoryPal_vXX_*.py` file is an independent Python/Tkinter program and can be copied or run by itself.
+This folder contains standalone milestone versions of MemoryPal. Each `MemoryPal_vXX_*.py` file is an independent Python/Tkinter program and can be run by itself.
 
-The versions are reconstructed from the request history in this project. They are not exact saved snapshots from the past, because the earlier states were not preserved as separate files, but each file now behaves like the feature request it represents.
+The versions are reconstructed from the project history. They are not exact saved snapshots from every edit, because the earliest states were not preserved as separate files, but each one represents a meaningful development stage.
 
 ## Current Full App
 
