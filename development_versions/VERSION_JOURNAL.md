@@ -125,3 +125,7 @@ This version made MemoryPal feel more complete as a study app instead of one loc
 ## v31 Beta - Repetition Player Polish
 
 This version made Repetition Path calmer by replacing the long generated stack with a round-by-round player. It keeps the requested 5, 5-4, 5-4-3, 3-2-1 pattern while adding progress, navigation, reveal, and Smart Check in one focused exercise.
+
+## v32 Beta - Collapsible Navigation And Document Notes
+
+This version made the interface easier to focus on by adding a collapsible left navigation rail and stronger scaling behavior. It also added document-note imports so PDFs, Word files, and text notes can become study bits and stay accessible as resources across study pages.

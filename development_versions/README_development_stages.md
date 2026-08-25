@@ -12,6 +12,7 @@ The current full recovered app is:
 
 It includes DPI-aware scaling, chunk-based capture, prompt-answer modes, smart checking, repetition paths, text/image/audio/video file imports, and on-demand text/audio/video capture controls.
 It also includes profiles, study planning, stats, dark/light themes, review repair controls, and a focused Repetition round player.
+The newest build adds a collapsible navigation rail, document-note importing, resource strips on study pages, and improved scaling on Study Plan and shared button rows.
 
 ## How to Run a Version
 
@@ -187,6 +188,13 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Changed Repetition Path output from a long generated stack into a focused round-by-round player.
 - Added round progress, previous/next controls, current-prompt grouping, Smart Check, reveal, and bucket feedback inside the player.
 - Kept the requested start/range behavior while making the exercise easier to use on smaller screens.
+
+### v32 Beta - Collapsible navigation and document notes
+
+- Added a focus-friendly collapsible left navigation rail with compact labels, hover hints, and different open/closed toggle colors.
+- Reworked Study Plan controls and shared button rows so larger scaling does not cut off important actions.
+- Added note/document importing for text, Markdown, CSV, Word `.docx`, and PDFs when a PDF reader is available.
+- Added compact resource strips so saved notes, audio, images, and video cues remain reachable from major study pages.
 
 ## Mobile Version Note
 

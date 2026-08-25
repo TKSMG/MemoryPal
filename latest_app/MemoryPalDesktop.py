@@ -6,6 +6,7 @@ import sys
 import tkinter as tk
 import ctypes
 import webbrowser
+import zipfile
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
@@ -13,6 +14,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from uuid import uuid4
+import xml.etree.ElementTree as ET
 
 
 APP_NAME = "MemoryPal"
@@ -292,6 +294,39 @@ def parse_prompt_answer_lines(raw):
         if answer:
             items.append({"prompt": prompt or f"Study bit {index}", "answer": answer})
     return items
+
+
+def extract_document_text(path):
+    source = Path(path)
+    suffix = source.suffix.lower()
+    if suffix in {".txt", ".md", ".csv"}:
+        try:
+            return source.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return source.read_text(encoding="utf-8", errors="ignore")
+    if suffix == ".docx":
+        with zipfile.ZipFile(source) as archive:
+            xml = archive.read("word/document.xml")
+        root = ET.fromstring(xml)
+        namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        pieces = []
+        for paragraph in root.findall(".//w:p", namespace):
+            text = "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace))
+            if text.strip():
+                pieces.append(text.strip())
+        return "\n".join(pieces)
+    if suffix == ".pdf":
+        for module_name in ("pypdf", "PyPDF2"):
+            try:
+                module = __import__(module_name)
+                reader = module.PdfReader(str(source))
+                return "\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
+            except Exception:
+                continue
+        raise RuntimeError("PDF text extraction needs pypdf or PyPDF2 installed for this Python environment.")
+    if suffix == ".doc":
+        raise RuntimeError("Older .doc files can be attached, but automatic extraction needs the file converted to .docx first.")
+    return ""
 
 
 STOP_WORDS = {
@@ -916,6 +951,7 @@ class MemoryPalApp(tk.Tk):
         self.draft_savers = {}
         self.theme = "dark"
         self.deck_filter = None
+        self.rail_collapsed = False
         self._hotkeys_bound = False
         self.is_fullscreen = False
 
@@ -1018,50 +1054,80 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("Nav.TButton", padding=self.pad(20, 15), background=COLORS["rail"], foreground="#d7def0", anchor="w", borderwidth=0, relief="flat", focuscolor=COLORS["rail"], font=self.font("Segoe UI", 12))
         self.style.map("Nav.TButton", background=[("active", COLORS["rail_hover"])], foreground=[("active", COLORS["white"])])
         self.style.configure("ActiveNav.TButton", padding=self.pad(20, 15), background=COLORS["primary"], foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", focuscolor=COLORS["primary"], font=self.font("Segoe UI Semibold", 12))
+        self.style.configure("CollapsedNav.TButton", padding=self.pad(8, 13), background=COLORS["rail"], foreground="#d7def0", anchor="center", borderwidth=0, relief="flat", focuscolor=COLORS["rail"], font=self.font("Segoe UI Semibold", 10))
+        self.style.map("CollapsedNav.TButton", background=[("active", COLORS["rail_hover"])], foreground=[("active", COLORS["white"])])
+        self.style.configure("ActiveCollapsedNav.TButton", padding=self.pad(8, 13), background=COLORS["primary"], foreground=COLORS["white"], anchor="center", borderwidth=0, relief="flat", focuscolor=COLORS["primary"], font=self.font("Segoe UI Semibold", 10))
 
     def _shell(self):
         root = ttk.Frame(self, style="Root.TFrame")
         root.pack(fill="both", expand=True)
 
-        self.rail = ttk.Frame(root, width=self.px(276), style="Rail.TFrame")
+        rail_width = 78 if self.rail_collapsed else 276
+        self.rail = ttk.Frame(root, width=self.px(rail_width), style="Rail.TFrame")
         self.rail.pack(side="left", fill="y")
         self.rail.pack_propagate(False)
 
         brand = ttk.Frame(self.rail, style="Rail.TFrame")
-        brand.pack(fill="x", padx=self.px(22), pady=self.pad(30, 26))
+        brand.pack(fill="x", padx=self.px(12 if self.rail_collapsed else 22), pady=self.pad(20 if self.rail_collapsed else 30, 18))
         mark_size = self.px(54)
         mark = tk.Canvas(brand, width=mark_size, height=mark_size, bg=COLORS["rail"], highlightthickness=0)
-        mark.pack(side="left", padx=(0, self.px(14)))
+        mark.pack(side="left", padx=(0, 0 if self.rail_collapsed else self.px(14)))
         mark.create_oval(self.px(5), self.px(5), self.px(49), self.px(49), fill=COLORS["primary"], outline="")
         mark.create_text(mark_size // 2, mark_size // 2, text="M", fill=COLORS["white"], font=self.font("Segoe UI Semibold", 23))
-        label_box = ttk.Frame(brand, style="Rail.TFrame")
-        label_box.pack(side="left")
-        ttk.Label(label_box, text="MemoryPal", style="RailTitle.TLabel").pack(anchor="w")
-        ttk.Label(label_box, text="Memory training", style="RailText.TLabel").pack(anchor="w")
+        if not self.rail_collapsed:
+            label_box = ttk.Frame(brand, style="Rail.TFrame")
+            label_box.pack(side="left")
+            ttk.Label(label_box, text="MemoryPal", style="RailTitle.TLabel").pack(anchor="w")
+            ttk.Label(label_box, text="Memory training", style="RailText.TLabel").pack(anchor="w")
+
+        toggle_color = COLORS["orange"] if self.rail_collapsed else COLORS["primary"]
+        toggle_button = tk.Button(
+            self.rail,
+            text=">" if self.rail_collapsed else "<",
+            command=self.toggle_nav_rail,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            bg=toggle_color,
+            fg=COLORS["white"],
+            activebackground=self.tint(toggle_color, -16),
+            activeforeground=COLORS["white"],
+            font=self.font("Segoe UI Semibold", 14),
+            padx=self.px(8),
+            pady=self.px(6),
+        )
+        toggle_button.pack(fill="x", padx=self.px(12 if self.rail_collapsed else 18), pady=(0, self.px(12)))
+        self.add_tooltip(toggle_button, "Collapse the navigation rail." if not self.rail_collapsed else "Reopen the navigation rail.")
 
         self.nav_buttons = {}
-        for key, label in [
-            ("dashboard", "Dashboard"),
-            ("decks", "Decks"),
-            ("plan", "Study Plan"),
-            ("focus", "Focus"),
-            ("capture", "Capture"),
-            ("review", "Review"),
-            ("testing", "Test Lab"),
-            ("quiz", "Quiz"),
-            ("shuffle", "Repetition"),
-            ("tools", "Associations"),
-            ("cuelab", "Cue Lab"),
-            ("games", "Puzzles"),
-            ("library", "Library"),
-            ("stats", "Stats"),
+        for key, label, short in [
+            ("dashboard", "Dashboard", "D"),
+            ("decks", "Decks", "De"),
+            ("plan", "Study Plan", "P"),
+            ("focus", "Focus", "F"),
+            ("capture", "Capture", "C"),
+            ("review", "Review", "R"),
+            ("testing", "Test Lab", "T"),
+            ("quiz", "Quiz", "Q"),
+            ("shuffle", "Repetition", "Rp"),
+            ("tools", "Associations", "A"),
+            ("cuelab", "Cue Lab", "Cu"),
+            ("games", "Puzzles", "Pu"),
+            ("library", "Library", "L"),
+            ("stats", "Stats", "S"),
         ]:
-            button = ttk.Button(self.rail, text=label, style="Nav.TButton", command=lambda view=key: self.show_view(view))
-            button.pack(fill="x", padx=self.px(20), pady=self.px(5))
+            button = ttk.Button(
+                self.rail,
+                text=short if self.rail_collapsed else label,
+                style="CollapsedNav.TButton" if self.rail_collapsed else "Nav.TButton",
+                command=lambda view=key: self.show_view(view),
+            )
+            button.pack(fill="x", padx=self.px(12 if self.rail_collapsed else 20), pady=self.px(4 if self.rail_collapsed else 5))
             self.add_tooltip(button, self.nav_hint(key))
             self.nav_buttons[key] = button
 
-        ttk.Label(self.rail, text="Data is saved locally on this PC.", style="RailText.TLabel", wraplength=self.px(230)).pack(side="bottom", padx=self.px(22), pady=self.px(26))
+        if not self.rail_collapsed:
+            ttk.Label(self.rail, text="Data is saved locally on this PC.", style="RailText.TLabel", wraplength=self.px(230)).pack(side="bottom", padx=self.px(22), pady=self.px(26))
 
         self.main = ttk.Frame(root, style="Page.TFrame")
         self.main.pack(side="left", fill="both", expand=True)
@@ -1097,6 +1163,16 @@ class MemoryPalApp(tk.Tk):
         self.content.pack(fill="both", expand=True, padx=self.px(36), pady=(0, self.px(30)))
         self.toast_var = tk.StringVar()
         self.toast = tk.Label(self, textvariable=self.toast_var, bg=COLORS["rail"], fg=COLORS["white"], padx=self.px(20), pady=self.px(14), font=self.font("Segoe UI Semibold", 12))
+
+    def toggle_nav_rail(self):
+        self.save_current_draft()
+        current = self.current_view
+        self.rail_collapsed = not self.rail_collapsed
+        for child in self.winfo_children():
+            child.destroy()
+        self.configure(bg=COLORS["bg"])
+        self._shell()
+        self.show_view(current)
 
     def nav_hint(self, key):
         return {
@@ -1142,7 +1218,10 @@ class MemoryPalApp(tk.Tk):
         self.eyebrow.configure(text=titles[view][0])
         self.title_label.configure(text=titles[view][1])
         for key, button in self.nav_buttons.items():
-            button.configure(style="ActiveNav.TButton" if key == view else "Nav.TButton")
+            if self.rail_collapsed:
+                button.configure(style="ActiveCollapsedNav.TButton" if key == view else "CollapsedNav.TButton")
+            else:
+                button.configure(style="ActiveNav.TButton" if key == view else "Nav.TButton")
         for child in self.content.winfo_children():
             child.destroy()
         self.render_loading_skeleton(titles[view][1], token)
@@ -1429,11 +1508,19 @@ class MemoryPalApp(tk.Tk):
     def button_row(self, parent, buttons, style="Card.TFrame"):
         row = ttk.Frame(parent, style=style)
         row.pack(fill="x")
+        columns = 3 if len(buttons) > 3 else max(1, len(buttons))
         for index, (label, command, button_style) in enumerate(buttons):
+            grid_row, grid_col = divmod(index, columns)
             button = ttk.Button(row, text=label, command=command, style=button_style)
-            button.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else self.px(8), 0))
+            button.grid(
+                row=grid_row,
+                column=grid_col,
+                sticky="ew",
+                padx=(0 if grid_col == 0 else self.px(8), 0),
+                pady=(0 if grid_row == 0 else self.px(8), 0),
+            )
             self.add_tooltip(button, self.action_hint(label))
-            row.columnconfigure(index, weight=1, uniform="buttons")
+            row.columnconfigure(grid_col, weight=1, uniform="buttons")
         return row
 
     def cue_menu_button(self, parent, text, actions, hint=""):
@@ -1462,8 +1549,9 @@ class MemoryPalApp(tk.Tk):
         button.configure(menu=menu)
         return button
 
-    def pill_group(self, parent, variable, options, on_change=None, max_columns=None):
-        row = tk.Frame(parent, bg=COLORS["surface"])
+    def pill_group(self, parent, variable, options, on_change=None, max_columns=None, bg=None):
+        bg = bg or COLORS["surface"]
+        row = tk.Frame(parent, bg=bg)
         buttons = {}
 
         def refresh():
@@ -1490,7 +1578,8 @@ class MemoryPalApp(tk.Tk):
                 highlightthickness=0, command=lambda value=option: choose(value),
             )
             grid_row, grid_col = divmod(index, columns)
-            btn.grid(row=grid_row, column=grid_col, padx=(0 if grid_col == 0 else self.px(6), 0), pady=(0 if grid_row == 0 else self.px(6), 0))
+            btn.grid(row=grid_row, column=grid_col, sticky="ew", padx=(0 if grid_col == 0 else self.px(6), 0), pady=(0 if grid_row == 0 else self.px(6), 0))
+            row.columnconfigure(grid_col, weight=1)
             buttons[option] = btn
         refresh()
         return row
@@ -1553,6 +1642,7 @@ class MemoryPalApp(tk.Tk):
             "IMG": "Attach an image cue.",
             "AUD": "Import or record an audio cue.",
             "VID": "Import or record a video cue.",
+            "NOTE": "Import a note, PDF, or Word document, or save the current text as a note.",
             "Use All": "Load saved captures and cards into the repetition builder.",
             "Use Captures": "Load saved capture bits into this practice mode.",
             "Use Cards": "Load saved cards into this practice mode.",
@@ -1874,24 +1964,27 @@ class MemoryPalApp(tk.Tk):
         intro.pack(fill="x", padx=(0, 8), pady=(0, 14))
         ttk.Label(intro, text="Tell me what you're working with", style="WarmH2.TLabel").pack(anchor="w")
         ttk.Label(intro, text="This builds a rule-based plan from your due cards, deck size, and habits below \u2014 no internet required.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
+        self.render_resource_strip(page.inner, "Available notes and cues")
 
         form = self.card(page.inner)
         form.pack(fill="x", padx=(0, 8), pady=(0, 14))
         grid = ttk.Frame(form, style="Card.TFrame")
         grid.pack(fill="x")
 
-        ttk.Label(grid, text="How much time do you have?", style="CardMuted.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
+        time_section = self.card(grid, "AltCard.TFrame", 14)
+        time_section.pack(fill="x", pady=(0, 10))
+        ttk.Label(time_section, text="How much time do you have?", style="AltMuted.TLabel").pack(anchor="w", pady=(0, 4))
         unit_var = tk.StringVar(value=draft.get("unit", "minutes") if draft.get("unit", "minutes") in TIME_UNIT_ORDER else "minutes")
         amount_var = tk.StringVar(value=draft.get("amount", "30"))
         if amount_var.get() not in TIME_UNIT_OPTIONS[unit_var.get()]:
             amount_var.set(TIME_UNIT_OPTIONS[unit_var.get()][0])
-        amount_host = tk.Frame(grid, bg=COLORS["surface"])
-        amount_host.grid(row=1, column=0, sticky="w", padx=(0, 20), pady=(0, 4))
+        amount_host = tk.Frame(time_section, bg=COLORS["alt"])
+        amount_host.pack(fill="x", pady=(0, 4))
 
         def render_amount_pills():
             for child in amount_host.winfo_children():
                 child.destroy()
-            self.pill_group(amount_host, amount_var, TIME_UNIT_OPTIONS[unit_var.get()]).pack(anchor="w")
+            self.pill_group(amount_host, amount_var, TIME_UNIT_OPTIONS[unit_var.get()], max_columns=4, bg=COLORS["alt"]).pack(fill="x")
 
         def cycle_unit(_event=None):
             current_index = TIME_UNIT_ORDER.index(unit_var.get())
@@ -1905,20 +1998,33 @@ class MemoryPalApp(tk.Tk):
             return f"{unit_var.get()}  \u2022  click to change"
 
         render_amount_pills()
-        unit_label = tk.Label(grid, text=unit_display(), bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), cursor="hand2")
-        unit_label.grid(row=2, column=0, sticky="w", padx=(0, 20), pady=(2, 14))
+        unit_label = tk.Label(time_section, text=unit_display(), bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), cursor="hand2")
+        unit_label.pack(anchor="w", pady=(2, 0))
         unit_label.bind("<Button-1>", cycle_unit)
         self.add_tooltip(unit_label, "Click to switch between minutes, hours, days, and weeks.")
 
-        ttk.Label(grid, text="What material?", style="CardMuted.TLabel").grid(row=0, column=1, sticky="w", pady=(0, 4))
+        deck_section = self.card(grid, "AltCard.TFrame", 14)
+        deck_section.pack(fill="x", pady=(0, 10))
+        ttk.Label(deck_section, text="What material?", style="AltMuted.TLabel").pack(anchor="w", pady=(0, 4))
         deck_values = ["All decks"] + self.store.decks() + ["New material"]
         deck_var = tk.StringVar(value=draft.get("deck", "All decks") if draft.get("deck", "All decks") in deck_values else "All decks")
-        self.select_button(grid, deck_var, deck_values, width=22).grid(row=1, column=1, sticky="w", padx=(0, 20), pady=(0, 14))
+        self.select_button(deck_section, deck_var, deck_values).pack(fill="x")
 
-        ttk.Label(grid, text="What's the goal?", style="CardMuted.TLabel").grid(row=0, column=2, sticky="w", pady=(0, 4))
-        goal_labels = {"cram": "Cram before a test soon", "exam_prep": "Steady prep for an exam", "long_term": "Build long-term retention"}
+        goal_section = self.card(grid, "AltCard.TFrame", 14)
+        goal_section.pack(fill="x", pady=(0, 10))
+        ttk.Label(goal_section, text="What's the goal?", style="AltMuted.TLabel").pack(anchor="w", pady=(0, 4))
+        goal_labels = {"cram": "Cram", "exam_prep": "Exam prep", "long_term": "Long-term retention"}
         goal_var = tk.StringVar(value=draft.get("goal_label", goal_labels["long_term"]))
-        self.pill_group(grid, goal_var, list(goal_labels.values())).grid(row=1, column=2, sticky="w", pady=(0, 14))
+        old_goal_labels = {
+            "Cram before a test soon": "Cram",
+            "Steady prep for an exam": "Exam prep",
+            "Build long-term retention": "Long-term retention",
+        }
+        if goal_var.get() in old_goal_labels:
+            goal_var.set(old_goal_labels[goal_var.get()])
+        if goal_var.get() not in goal_labels.values():
+            goal_var.set(goal_labels["long_term"])
+        self.pill_group(goal_section, goal_var, list(goal_labels.values()), max_columns=3, bg=COLORS["alt"]).pack(fill="x")
 
         ttk.Label(form, text="How do you study best? (pick any)", style="CardMuted.TLabel").pack(anchor="w", pady=(4, 6))
         habit_vars = {}
@@ -1928,7 +2034,8 @@ class MemoryPalApp(tk.Tk):
         for index, (key, label) in enumerate(STUDY_HABIT_OPTIONS):
             var = tk.BooleanVar(value=key in saved_habits)
             habit_vars[key] = var
-            self.check_toggle(habit_row, var, label).grid(row=index // 2, column=index % 2, sticky="w", padx=(0, 20), pady=(0, 6))
+            toggle = self.check_toggle(habit_row, var, label, wraplength=900)
+            toggle.pack(fill="x", pady=(0, 6))
 
         result_holder = ttk.Frame(page.inner, style="Page.TFrame")
         result_holder.pack(fill="both", expand=True, padx=(0, 8))
@@ -1951,7 +2058,9 @@ class MemoryPalApp(tk.Tk):
                 tk.Label(title_box, text=step["title"], bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14)).pack(anchor="w")
                 tk.Label(title_box, text=f"~{step['minutes']} min", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w")
                 ttk.Label(row, text=step["blurb"], style="Card.TLabel", wraplength=900).pack(anchor="w", pady=(8, 10))
-                self.solid_button(row, "Start this step", lambda s=step: self.start_plan_step(s), COLORS["primary"]).pack(anchor="w")
+                start_button = ttk.Button(row, text="Start this step", style="Primary.TButton", command=lambda s=step: self.start_plan_step(s))
+                start_button.pack(fill="x")
+                self.add_tooltip(start_button, "Open the app section for this plan step.")
 
         def render_plan():
             for child in result_holder.winfo_children():
@@ -2023,6 +2132,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(hero, text="Next best study queue", style="AltH2.TLabel").pack(anchor="w")
         ttk.Label(hero, text=f"Due: {len(due)} | Weak/new: {len(weak)} | Fresh: {len(new_cards)}", style="AltCard.TLabel").pack(anchor="w", pady=(6, 12))
         self.button_row(hero, [("Start Due Review", lambda: self.show_view("review"), "Primary.TButton"), ("Build Repetition Path", lambda: self.show_view("shuffle"), "TButton"), ("Add Material", lambda: self.show_view("capture"), "TButton")], "AltCard.TFrame")
+        self.render_resource_strip(page.inner, "Recent study cues")
 
         def practice(card):
             card.next_review = today_iso()
@@ -2052,12 +2162,12 @@ class MemoryPalApp(tk.Tk):
 
     def attach_media(self, kind, labels, text_target=None):
         filetypes = {
-            "text_file": [("Text notes", "*.txt *.md *.csv")],
+            "text_file": [("Notes and documents", "*.txt *.md *.csv *.pdf *.docx *.doc"), ("Text notes", "*.txt *.md *.csv"), ("PDF", "*.pdf"), ("Word documents", "*.docx *.doc")],
             "image": [("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp")],
             "audio": [("Audio", "*.mp3 *.wav *.m4a *.ogg *.webm *.aac")],
             "video": [("Video", "*.mp4 *.mov *.avi *.mkv *.webm *.wmv")],
         }.get(kind, [("All files", "*.*")])
-        label_name = "text" if kind == "text_file" else kind
+        label_name = "note/document" if kind == "text_file" else kind
         selected = filedialog.askopenfilename(title=f"Choose {label_name}", filetypes=filetypes + [("All files", "*.*")])
         if not selected:
             return
@@ -2069,15 +2179,16 @@ class MemoryPalApp(tk.Tk):
         labels[kind].configure(text=target.name)
         if kind == "text_file" and text_target is not None:
             try:
-                text = source.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                text = source.read_text(encoding="utf-8", errors="ignore")
-            except OSError as exc:
-                self.toast_message(f"Text imported as a file, but could not be read: {exc}")
+                text = extract_document_text(source)
+            except (OSError, RuntimeError, KeyError, zipfile.BadZipFile, ET.ParseError) as exc:
+                self.toast_message(f"Note attached, but automatic text extraction was not available: {exc}")
+                return
+            if not normalize_space(text):
+                self.toast_message("Note attached, but no readable text was found.")
                 return
             text_target.delete("1.0", "end")
             text_target.insert("1.0", text)
-            self.toast_message("Text file imported into the study bit box.")
+            self.toast_message("Note imported and extracted into the study bit box.")
 
     def record_text_note(self, labels, text_target):
         text = normalize_space(text_target.get("1.0", "end"))
@@ -2159,11 +2270,12 @@ class MemoryPalApp(tk.Tk):
 
     def attach_file_to_card(self, card, kind, refresh=None):
         filetypes = {
-            "text_file": [("Text notes", "*.txt *.md *.csv")],
+            "text_file": [("Notes and documents", "*.txt *.md *.csv *.pdf *.docx *.doc"), ("Text notes", "*.txt *.md *.csv"), ("PDF", "*.pdf"), ("Word documents", "*.docx *.doc")],
             "image": [("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp")],
             "audio": [("Audio", "*.mp3 *.wav *.m4a *.ogg *.webm *.aac")],
+            "video": [("Video", "*.mp4 *.mov *.avi *.mkv *.webm *.wmv")],
         }.get(kind, [("All files", "*.*")])
-        label_name = "text" if kind == "text_file" else kind
+        label_name = "note/document" if kind == "text_file" else kind
         selected = filedialog.askopenfilename(title=f"Choose {label_name}", filetypes=filetypes + [("All files", "*.*")])
         if not selected:
             return
@@ -2470,13 +2582,13 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(form, text="Attach cues", style="CardMuted.TLabel").pack(anchor="w", pady=(16, 6))
         self.pending_media = dict(draft.get("pending_media", {"text_file": "", "image": "", "audio": "", "video": ""}))
         labels = {
-            kind: ttk.Label(side, text=(Path(self.pending_media.get(kind, "")).name if self.pending_media.get(kind) else f"No {'text' if kind == 'text_file' else kind} selected"), style="AltCard.TLabel", wraplength=500)
+            kind: ttk.Label(side, text=(Path(self.pending_media.get(kind, "")).name if self.pending_media.get(kind) else f"No {'note/document' if kind == 'text_file' else kind} selected"), style="AltCard.TLabel", wraplength=500)
             for kind in ("text_file", "image", "audio", "video")
         }
         cue_bar = ttk.Frame(form, style="Card.TFrame")
         cue_bar.pack(fill="x")
         cue_actions = [
-            ("TXT", [("Import text file", lambda: self.attach_media("text_file", labels, entry)), ("Save current note", lambda: self.record_text_note(labels, entry))]),
+            ("NOTE", [("Import note/PDF/Word", lambda: self.attach_media("text_file", labels, entry)), ("Save current note", lambda: self.record_text_note(labels, entry))]),
             ("IMG", [("Import image", lambda: self.attach_media("image", labels))]),
             ("AUD", [("Import audio", lambda: self.attach_media("audio", labels)), ("Record audio", lambda: self.record_audio(labels))]),
             ("VID", [("Import video", lambda: self.attach_media("video", labels)), ("Record video", lambda: self.record_video(labels))]),
@@ -2530,7 +2642,7 @@ class MemoryPalApp(tk.Tk):
             self.pending_media = {"text_file": "", "image": "", "audio": "", "video": ""}
             self.view_drafts["capture"] = {}
             for kind, label in labels.items():
-                label.configure(text=f"No {'text' if kind == 'text_file' else kind} selected")
+                label.configure(text=f"No {'note/document' if kind == 'text_file' else kind} selected")
             self.toast_message(f"Capture saved and {created} cards created." if make_cards else "Capture saved.")
 
         ttk.Frame(form, style="Card.TFrame").pack(pady=(10, 0))
@@ -2599,7 +2711,7 @@ class MemoryPalApp(tk.Tk):
         action_row = ttk.Frame(panel, style="AltCard.TFrame")
         action_row.pack(fill="x")
         for index, (kind, path) in enumerate(media):
-            label = "Text" if kind == "text_file" else kind.title()
+            label = "Note" if kind == "text_file" else kind.title()
             action = "Read" if kind == "text_file" else "Display" if kind == "image" else "Play"
             button = ttk.Button(action_row, text=f"{action} {label}", command=lambda value=path: self.open_media(value))
             button.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else 8, 0))
@@ -2610,13 +2722,13 @@ class MemoryPalApp(tk.Tk):
             source = Path(path)
             if kind == "text_file" and source.exists():
                 try:
-                    preview = source.read_text(encoding="utf-8", errors="ignore").strip()
-                except OSError:
+                    preview = extract_document_text(source).strip()
+                except Exception:
                     preview = ""
                 if preview:
                     text_panel = self.card(panel, "WarmCard.TFrame", 12)
                     text_panel.pack(fill="x", pady=(10, 0))
-                    ttk.Label(text_panel, text="Text cue preview", style="WarmH2.TLabel").pack(anchor="w")
+                    ttk.Label(text_panel, text="Note preview", style="WarmH2.TLabel").pack(anchor="w")
                     ttk.Label(text_panel, text=preview[:900] + ("..." if len(preview) > 900 else ""), style="WarmCard.TLabel", wraplength=1000).pack(anchor="w", pady=(4, 0))
             elif kind == "image":
                 photo = self.image_photo(path)
@@ -2628,6 +2740,36 @@ class MemoryPalApp(tk.Tk):
             elif kind in ("audio", "video"):
                 hint = "Audio/video plays in your default desktop player so the app stays lightweight."
                 ttk.Label(panel, text=hint, style="AltMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(8, 0))
+
+    def resource_items(self, limit=3):
+        pool = list(reversed(self.store.captures)) + list(reversed(self.store.cards))
+        return [item for item in pool if any(getattr(item, kind, "") for kind in ("text_file", "image", "audio", "video"))][:limit]
+
+    def render_resource_strip(self, parent, title="Study resources"):
+        items = self.resource_items()
+        if not items:
+            return
+        panel = self.card(parent, "AltCard.TFrame", 14)
+        panel.pack(fill="x", padx=(0, 8), pady=(0, 12))
+        ttk.Label(panel, text=title, style="AltH2.TLabel").pack(anchor="w")
+        ttk.Label(panel, text="Attached notes, images, audio, and video stay reachable from study pages.", style="AltMuted.TLabel", wraplength=980).pack(anchor="w", pady=(4, 8))
+        for item in items:
+            name = getattr(item, "title", "") or getattr(item, "front", "") or "Saved material"
+            row = tk.Frame(panel, bg=COLORS["alt"])
+            row.pack(fill="x", pady=(0, self.px(6)))
+            tk.Label(row, text=name, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(side="left", fill="x", expand=True, padx=(0, self.px(8)))
+            for kind, label, action in [
+                ("text_file", "Note", "Read"),
+                ("image", "Image", "Display"),
+                ("audio", "Audio", "Play"),
+                ("video", "Video", "Play"),
+            ]:
+                path = getattr(item, kind, "")
+                if not path:
+                    continue
+                button = ttk.Button(row, text=label, command=lambda value=path: self.open_media(value))
+                button.pack(side="left", padx=(self.px(6), 0))
+                self.add_tooltip(button, f"{action} the attached {label.lower()} cue.")
 
     def view_review(self):
         page = ScrollFrame(self.view_host)
@@ -3003,6 +3145,7 @@ class MemoryPalApp(tk.Tk):
         guide.pack(fill="x", pady=(0, 12))
         ttk.Label(guide, text="Best for list recall", style="WarmH2.TLabel").pack(anchor="w")
         ttk.Label(guide, text="Start from any item, set a loop range, and MemoryPal walks the sequence backward before returning to item 1.", style="WarmCard.TLabel", wraplength=980).pack(anchor="w", pady=(4, 0))
+        self.render_resource_strip(page.inner, "Notes and media cues")
 
         form = self.card(panel, "AltCard.TFrame", 18)
         form.pack(fill="x", pady=(0, 12))
@@ -3233,6 +3376,7 @@ class MemoryPalApp(tk.Tk):
         panel.pack(fill="x", padx=(0, 8), pady=(0, 12))
         ttk.Label(panel, text="Association builder", style="H2.TLabel").pack(anchor="w")
         ttk.Label(panel, text="Add ideas separated by commas, new lines, or slashes. Then choose a memory hook style.", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(6, 12))
+        self.render_resource_strip(page.inner, "Reference cues")
         ideas = self.text_box(panel, 4, 12)
         ideas.insert("1.0", draft.get("ideas", "mitosis, meiosis, chromosomes"))
         ideas.pack(fill="x", pady=(0, 12))
@@ -3334,6 +3478,7 @@ class MemoryPalApp(tk.Tk):
         intro.pack(fill="x", padx=(0, 8), pady=(0, 12))
         ttk.Label(intro, text="Short recall puzzles", style="WarmH2.TLabel").pack(anchor="w")
         ttk.Label(intro, text="Use these as quick warmups between study modes. They pull from saved material when possible and fall back to sample prompts.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
+        self.render_resource_strip(page.inner, "Recent notes and audio")
 
         grid = ttk.Frame(page.inner, style="Page.TFrame")
         grid.pack(fill="both", expand=True, padx=(0, 8))

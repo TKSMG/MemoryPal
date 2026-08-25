@@ -32,6 +32,8 @@ Local app data is stored in:
 ## Current Features
 
 - Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover-highlight cards, and lightweight page loading.
+- Collapsible left navigation rail for focus mode, with compact labels and hover hints.
+- More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
 - Separate local profiles, so different learners or study areas can keep independent data.
 - Dark and light appearance modes.
 - In-progress page drafts for Capture, Repetition, Test Lab, Quiz, Associations, and Puzzles while switching sections.
@@ -40,10 +42,13 @@ Local app data is stored in:
 - Focus queue for due, weak, and fresh cards.
 - Dashboard next-step recommendations, mastery progress, due/learning/mastered chips, and a small daily-action prompt.
 - Chunk-based capture, with each study bit stored separately.
+- Note/document imports for `.txt`, `.md`, `.csv`, `.docx`, and PDFs when a PDF reader library is available.
+- Imported note/document text can be extracted into the study bit box and turned into decks/cards.
 - Separate question/title and answer boxes for prompt-answer cards.
 - Optional self-check cards without a saved answer.
 - Text, image, audio, and video cues attached to study material where useful.
 - Text previews, image previews when supported, and clear play/open buttons for audio or video cues.
+- Compact resource strips on major study pages so attached notes, audio, images, and videos stay reachable while planning or practicing.
 - Compact cue menus for text, image, audio, and video imports or recordings.
 - Test Lab for focused answering, revealing, Smart Check, bucket highlighting, and review scheduling.
 - Review quality shortcuts, skip-for-today, undo last rating, and leech warnings for repeatedly missed cards.
@@ -65,6 +70,7 @@ The latest milestone file is:
 development_versions/MemoryPal_v29_beta_page_draft_preservation.py
 development_versions/MemoryPal_v30_beta_profiles_planning_stats.py
 development_versions/MemoryPal_v31_beta_repetition_player_polish.py
+development_versions/MemoryPal_v32_beta_collapsible_nav_document_notes.py
 ```
 
 ## Mobile Version Note
