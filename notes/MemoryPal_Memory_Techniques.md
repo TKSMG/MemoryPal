@@ -190,6 +190,16 @@ Examples:
 
 For older adults, familiar images and voices can be especially helpful.
 
+## Note And Document Import
+
+Longer notes can become study material if they are broken down into smaller pieces.
+
+MemoryPal can attach notes and documents, including plain text, Markdown, CSV, Word `.docx`, and PDFs when a PDF text reader is available.
+
+Extracted document text can be split into study bits, then reused in decks, repetition practice, plans, and review.
+
+Older `.doc` files can still be attached as cues, but they should be converted to `.docx` for automatic extraction.
+
 ## Chunking
 
 Chunking means grouping information into smaller meaningful pieces.
@@ -245,6 +255,12 @@ Short hints are helpful for new learners, older adults, and anyone returning aft
 
 Good hints explain the action, not the whole app.
 
+## Focus Navigation
+
+The navigation rail can collapse when the learner wants more space for the current task.
+
+Collapsed navigation keeps short labels and hover hints, so the app can stay understandable without taking up the full left side.
+
 ## Clear Prompt And Answer Entry
 
 Repetition practice is clearer when the prompt and answer are not mixed into one field.
@@ -260,6 +276,10 @@ Long study screens should not hide buttons or answers below the window.
 The Repetition page keeps the builder and practice rounds in one scrollable flow.
 
 This is important for laptop screens and larger text settings.
+
+Study Plan controls should also stack instead of forcing wide columns.
+
+Button rows should wrap before labels are clipped.
 
 ## Cue-Based Recall
 

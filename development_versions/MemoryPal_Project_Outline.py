@@ -61,9 +61,11 @@ PROGRAM_MAP = [
             "ScrollFrame also supports Page Up, Page Down, Home, and End when focused.",
             "Tooltip gives short hover hints for navigation and important actions.",
             "card_frame creates consistent panels.",
-            "button_grid keeps action rows evenly spaced.",
+            "button_grid keeps action rows evenly spaced and wraps longer rows before text clips.",
             "media helpers attach, preview, and open image/audio/video files.",
+            "document helpers extract study text from plain notes, `.docx`, and PDFs when a PDF reader library is available.",
             "media rendering shows text and image previews where possible and play/open buttons for audio/video.",
+            "resource strips expose saved notes, image, audio, and video cues from major study pages.",
         ],
     ),
     (
@@ -76,6 +78,7 @@ PROGRAM_MAP = [
             "Route changes use a quick reveal animation so page changes feel less abrupt.",
             "The theme button rebuilds the shell with the selected light or dark palette.",
             "The profile manager switches, creates, renames, and deletes local profiles.",
+            "The navigation rail can collapse to a compact focus mode and reopen with a colored toggle button.",
         ],
     ),
     (
@@ -113,6 +116,7 @@ PROGRAM_MAP = [
             "Lets the user add study bits one at a time.",
             "Provides separate question and answer fields for exact flashcards.",
             "Can split pasted material into multiple chunks.",
+            "Can import notes and documents, then extract readable text into study bits.",
             "Can create direct question-answer cards from question => answer lines.",
             "Can save question-only self-check prompts when no saved answer is wanted.",
             "Can attach image, audio, and video cues.",
