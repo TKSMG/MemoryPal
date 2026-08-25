@@ -2,13 +2,13 @@
 
 ## App Note
 
-I designed MemoryPal around the idea that memory practice should feel calm, practical, and easy to return to. The app combines recall, repetition, cues, and small practice games so study material can be reviewed in several different ways without switching between separate tools.
+I designed MemoryPal around the idea that memory practice should feel calm, practical, and easy to return to. I wanted the app to combine recall, repetition, cues, and small practice games so the same study material could be approached in a few different ways.
 
 ## Main Idea
 
 MemoryPal breaks information into small study bits, shows prompts, accepts recall attempts, and gives gentle ways to check or repeat answers.
 
-The design is aimed at learners and older adults, so each method should stay simple, predictable, and low-pressure.
+The design is aimed at learners and older adults, so each method should stay simple, predictable, and low-pressure. The goal is not to make studying feel gamified for no reason; the goal is to make it easier to start and easier to come back.
 
 ## Study Bits
 
@@ -293,7 +293,7 @@ This makes each cue part of the study activity instead of just a saved file.
 
 The interface should feel modern, fast, and easy to understand.
 
-A softer app header, clear status chips, clean buttons, and subtle hover feedback help the app feel less plain without becoming distracting.
+A softer app header, clear status chips, clean buttons, and subtle hover feedback help the app feel less plain without becoming distracting. This matters because the app is supposed to support memory, not compete for attention.
 
 ## Preserving Work
 

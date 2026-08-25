@@ -2,7 +2,9 @@
 
 ## Project Note
 
-I built MemoryPal as a desktop memory trainer for learners, older adults, and anyone who benefits from calm, structured recall practice. I wanted the app to bring several memory techniques into one place while still feeling lightweight enough to run quickly on a normal PC.
+I built MemoryPal as a desktop memory trainer for learners, older adults, and anyone who benefits from calm, structured recall practice. The main idea was to put several useful memory techniques in one place without making the program feel heavy or complicated.
+
+This version is a Python/Tkinter desktop app. It is meant to show the working concept clearly before a future mobile version is built.
 
 ## Project Files
 
@@ -11,9 +13,6 @@ I built MemoryPal as a desktop memory trainer for learners, older adults, and an
 - Development versions: `development_versions/`
 - Version journal: `development_versions/VERSION_JOURNAL.md`
 - Program outline: `development_versions/MemoryPal_Project_Outline.py`
-- GitHub setup: `GITHUB_SETUP.md`
-- Commit guide: `COMMIT_GUIDE.md`
-- Command Prompt GitHub helper: `SETUP_GITHUB_REPO.cmd`
 
 ## Running The App
 
@@ -31,7 +30,7 @@ Local app data is stored in:
 
 ## Current Features
 
-- Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover-highlight cards, and lightweight page loading.
+- Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover feedback, and lightweight page loading.
 - Collapsible left navigation rail for focus mode, with compact labels and hover hints.
 - More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
 - Separate local profiles, so different learners or study areas can keep independent data.
@@ -62,7 +61,7 @@ Local app data is stored in:
 
 ## Development History
 
-The `development_versions/` folder contains standalone milestone prototypes that show the feature path of the project. These versions are reconstructed milestones rather than exact historical snapshots from every edit, but each file represents a meaningful stage in the app's development.
+The `development_versions/` folder contains standalone milestone prototypes that show the feature path of the project. They are not exact saved snapshots from every tiny edit, but each file represents a real stage in how the app grew.
 
 The latest milestone file is:
 
@@ -75,4 +74,4 @@ development_versions/MemoryPal_v32_beta_collapsible_nav_document_notes.py
 
 ## Mobile Version Note
 
-A separate mobile version should be built later with native phone APIs for microphone recording, camera/video recording, file picking, permissions, storage, and large touch controls. The desktop Tkinter interface should not be copied directly onto mobile.
+A separate mobile version should be built later with native phone APIs for microphone recording, camera/video recording, file picking, permissions, storage, and large touch controls. The desktop Tkinter interface should guide the feature set, but the mobile UI should be redesigned for touch.
