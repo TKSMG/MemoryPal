@@ -11,6 +11,7 @@ The current full recovered app is:
 `../latest_app/MemoryPalDesktop.py`
 
 It includes DPI-aware scaling, chunk-based capture, prompt-answer modes, smart checking, repetition paths, text/image/audio/video file imports, and on-demand text/audio/video capture controls.
+It also includes profiles, study planning, stats, dark/light themes, review repair controls, and a focused Repetition round player.
 
 ## How to Run a Version
 
@@ -174,6 +175,18 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Added in-memory draft saving before page switches.
 - Capture, Repetition, Test Lab, Quiz, Associations, and Puzzles restore in-progress work when the user returns.
 - Drafts are cleared where appropriate after a capture is saved or a review is scheduled.
+
+### v30 Beta - Profiles, planning, and stats
+
+- Added separate local profiles so different learners or study areas can keep independent data.
+- Added a Study Plan page that turns available time, deck choice, goal, and study habits into a short session plan.
+- Added stats features such as daily goal editing, streaks, activity history, upcoming reviews, and stronger dashboard progress signals.
+
+### v31 Beta - Repetition player polish
+
+- Changed Repetition Path output from a long generated stack into a focused round-by-round player.
+- Added round progress, previous/next controls, current-prompt grouping, Smart Check, reveal, and bucket feedback inside the player.
+- Kept the requested start/range behavior while making the exercise easier to use on smaller screens.
 
 ## Mobile Version Note
 

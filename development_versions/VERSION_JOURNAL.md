@@ -117,3 +117,11 @@ This version focused on making MemoryPal feel more like a real desktop app witho
 ## v29 Beta - Page Draft Preservation
 
 This version fixed the problem where switching pages could wipe unsaved work. It keeps page drafts in memory for capture, repetition, testing, quiz, associations, and puzzles.
+
+## v30 Beta - Profiles, Planning, And Stats
+
+This version made MemoryPal feel more complete as a study app instead of one local deck. It added separate profiles, study planning, progress stats, streaks, and stronger daily guidance.
+
+## v31 Beta - Repetition Player Polish
+
+This version made Repetition Path calmer by replacing the long generated stack with a round-by-round player. It keeps the requested 5, 5-4, 5-4-3, 3-2-1 pattern while adding progress, navigation, reveal, and Smart Check in one focused exercise.

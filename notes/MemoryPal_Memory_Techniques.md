@@ -59,6 +59,24 @@ It groups due cards, weak cards, and fresh cards so the next study step is easie
 
 This makes MemoryPal feel closer to a guided study app instead of a folder of disconnected tools.
 
+## Study Planning
+
+Study planning turns a vague intention into a small session.
+
+The current planner asks about available time, deck choice, study goal, and preferred habits.
+
+The plan can mix review, repetition, association work, quiz practice, and short games.
+
+This keeps the app practical when the learner does not know where to start.
+
+## Profiles
+
+Profiles keep study data separate.
+
+This is useful when one PC is shared, when a learner wants separate subjects, or when a caregiver helps more than one person.
+
+Each profile keeps its own cards, captures, activity, streak, and attachments.
+
 ## Test Lab
 
 Test Lab is the focused answering page.
@@ -93,6 +111,10 @@ If the start item is 5 and the range is 3, the app practises:
 ```
 
 This keeps attention on the newer item while still walking back through older material.
+
+The latest interface uses a round player instead of showing every generated round at once.
+
+This makes practice less overwhelming and keeps the answer box close to the current prompts.
 
 ## Quick Quiz
 
@@ -211,6 +233,10 @@ Useful progress signals:
 
 These signals keep the app calm and purposeful.
 
+Stats, streaks, daily goals, and upcoming reviews show whether practice is happening regularly.
+
+These signals should guide the next study action without making the learner feel judged.
+
 ## Helpful Interface Cues
 
 Hover hints explain controls without adding too much permanent text to the screen.
@@ -256,6 +282,16 @@ Study apps should not erase unfinished work during navigation.
 MemoryPal keeps page drafts in memory for the main working screens.
 
 This makes the app more forgiving during normal use.
+
+## Review Repair
+
+Mistakes during review should be easy to handle.
+
+Skip-for-today lets a card come back tomorrow without counting it as a miss.
+
+Undo last rating fixes accidental clicks.
+
+Repeated misses can be flagged as weak cards so the prompt, answer, or memory hook can be rewritten.
 
 ## Caregiver-Friendly Memory
 

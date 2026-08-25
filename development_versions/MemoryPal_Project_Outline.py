@@ -21,8 +21,9 @@ PROGRAM_MAP = [
         "Configuration",
         [
             "App name and data paths.",
+            "Profile folders and the active-profile configuration file.",
             "Default window sizes.",
-            "Color palette.",
+            "Light and dark color palettes.",
             "DPI-awareness helper for Windows.",
         ],
     ),
@@ -46,7 +47,10 @@ PROGRAM_MAP = [
         "Persistence",
         [
             "MemoryStore loads and saves JSON data locally.",
+            "Each active profile points to its own data file and attachment folder.",
             "Review scheduling updates intervals, repetitions, ease, and lapses.",
+            "Skip-for-today can bury a card until tomorrow without counting it as a miss.",
+            "Undo stores the last rating action so accidental ratings can be rolled back.",
         ],
     ),
     (
@@ -67,9 +71,11 @@ PROGRAM_MAP = [
         [
             "MemoryPalApp builds the sidebar, top bar, content area, and toast messages.",
             "The top bar is styled like an app header with a local-save status chip and backup action.",
-            "show_view switches between dashboard, capture, review, quiz, repetition, tools, games, and library.",
+            "show_view switches between dashboard, decks, study plan, stats, focus, capture, review, test lab, quiz, repetition, tools, cue lab, games, and library.",
             "save_current_draft stores in-progress page work before a view is destroyed.",
             "Route changes use a quick reveal animation so page changes feel less abrupt.",
+            "The theme button rebuilds the shell with the selected light or dark palette.",
+            "The profile manager switches, creates, renames, and deletes local profiles.",
         ],
     ),
     (
@@ -83,6 +89,14 @@ PROGRAM_MAP = [
             "Shows counts for due cards, total cards, captures, and practised items.",
             "Shows weak/new focus counts.",
             "Provides entry points into the main modes.",
+        ],
+    ),
+    (
+        "Study Plan and Stats",
+        [
+            "Study Plan builds a short session from time, goal, deck choice, and learning preferences.",
+            "Planner steps point back into the matching app section.",
+            "Stats shows the daily goal, current streak, activity heatmap, upcoming reviews, and weak-card count.",
         ],
     ),
     (
@@ -137,10 +151,11 @@ PROGRAM_MAP = [
         [
             "Uses separate question/title and answer fields for staged repetition items.",
             "Can still split pasted notes when the user wants bulk entry.",
-            "Keeps builder controls and generated practice rounds in one continuous scrollable page.",
+            "Keeps builder controls and the round player in one continuous scrollable page.",
             "Shows prompts first.",
             "Uses the start/range pattern.",
             "Example: 5, 5-4, 5-4-3, then 3-2-1.",
+            "The focused round player shows one generated round at a time with progress, reveal, Smart Check, and previous/next controls.",
         ],
     ),
     (
