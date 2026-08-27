@@ -261,6 +261,14 @@ The navigation rail can collapse when the learner wants more space for the curre
 
 Collapsed navigation keeps short labels and hover hints, so the app can stay understandable without taking up the full left side.
 
+## Mobile Practice
+
+The mobile direction should focus on short sessions, large touch targets, and fewer controls on each screen.
+
+Capture, review, repetition, and resources should each feel like one simple action at a time.
+
+Audio, camera, and file picking should use native phone controls instead of desktop-style file dialogs.
+
 ## Clear Prompt And Answer Entry
 
 Repetition practice is clearer when the prompt and answer are not mixed into one field.
@@ -340,5 +348,7 @@ MemoryPal combines:
 - Recall puzzles.
 - Media cues.
 - Draft preservation.
+- A desktop release path.
+- A mobile prototype direction.
 
 The main design goal is clear, gentle, useful memory practice.

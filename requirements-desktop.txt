@@ -1,0 +1,15 @@
+# Core app uses Python's standard library and Tkinter.
+
+# Optional document extraction
+pypdf>=4.0
+
+# Optional image previews beyond Tkinter's built-in formats
+Pillow>=10.0
+
+# Optional desktop audio/video capture and spoken cues
+pyttsx3>=2.90
+sounddevice>=0.4
+opencv-python>=4.8
+
+# Optional Windows packaging
+pyinstaller>=6.0

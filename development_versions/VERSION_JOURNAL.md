@@ -129,3 +129,7 @@ This version made Repetition Path calmer by replacing the long generated stack w
 ## v32 Beta - Collapsible Navigation And Document Notes
 
 This version made the interface easier to focus on by adding a collapsible left navigation rail and stronger scaling behavior. It also added document-note imports so PDFs, Word files, and text notes can become study bits and stay accessible as resources across study pages.
+
+## v33 Release Candidate - Testing, Build, And Mobile Start
+
+This version moved MemoryPal closer to something that can be tested like a real app. It added release notes, a testing checklist, Windows build files, a mobile prototype, and a few useful comments in the main desktop code.

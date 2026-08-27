@@ -27,6 +27,8 @@ BASE_WINDOW = (1420, 900)
 BASE_MIN_WINDOW = (1080, 720)
 
 
+# Profiles keep family members, subjects, or demo data apart without needing
+# separate installs of the app.
 def slugify_profile(name):
     slug = re.sub(r"[^A-Za-z0-9_-]+", "-", (name or "").strip()).strip("-")
     return slug or "profile"
@@ -264,6 +266,8 @@ def normalize_space(value):
 
 
 def split_study_bits(raw):
+    # Pasted notes are usually messy, so this accepts common separators before
+    # falling back to sentences or comma-separated fragments.
     raw = (raw or "").replace("\\n", "\n").replace("/n", "\n")
     raw = re.sub(r"\s+(?=\d+[.)]\s+)", "\n", raw)
     raw = re.sub(r"\s*[|;]\s*", "\n", raw)
@@ -297,6 +301,8 @@ def parse_prompt_answer_lines(raw):
 
 
 def extract_document_text(path):
+    # Keep document import local and dependency-light. DOCX is parsed directly;
+    # PDFs use pypdf/PyPDF2 if the user's Python environment already has one.
     source = Path(path)
     suffix = source.suffix.lower()
     if suffix in {".txt", ".md", ".csv"}:
@@ -622,6 +628,8 @@ def sample_cards():
 
 
 class MemoryStore:
+    """Small JSON-backed store for cards, captures, scheduling, and progress."""
+
     def __init__(self):
         self.cards = []
         self.captures = []
@@ -823,6 +831,8 @@ class MemoryStore:
 
 
 class ScrollFrame(ttk.Frame):
+    """A page frame whose mouse wheel follows the section under the pointer."""
+
     def __init__(self, parent):
         super().__init__(parent)
         self.canvas = tk.Canvas(self, highlightthickness=0, bg=COLORS["bg"])
@@ -1059,6 +1069,8 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("ActiveCollapsedNav.TButton", padding=self.pad(8, 13), background=COLORS["primary"], foreground=COLORS["white"], anchor="center", borderwidth=0, relief="flat", focuscolor=COLORS["primary"], font=self.font("Segoe UI Semibold", 10))
 
     def _shell(self):
+        # Collapsed navigation keeps focus on the active page while preserving
+        # tooltips and one-click access to every section.
         root = ttk.Frame(self, style="Root.TFrame")
         root.pack(fill="both", expand=True)
 
@@ -1957,6 +1969,8 @@ class MemoryPalApp(tk.Tk):
         self.show_view(self.current_view)
 
     def view_plan(self):
+        # This page stays stacked instead of column-heavy so it survives larger
+        # Windows scaling, laptop screens, and fullscreen/non-fullscreen changes.
         draft = self.view_drafts.get("plan", {})
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
@@ -2746,6 +2760,8 @@ class MemoryPalApp(tk.Tk):
         return [item for item in pool if any(getattr(item, kind, "") for kind in ("text_file", "image", "audio", "video"))][:limit]
 
     def render_resource_strip(self, parent, title="Study resources"):
+        # A small practice-hub strip keeps notes and media nearby without
+        # turning every study page into a full library view.
         items = self.resource_items()
         if not items:
             return
@@ -3116,6 +3132,8 @@ class MemoryPalApp(tk.Tk):
 
     @staticmethod
     def repetition_steps(bits, start, span):
+        # Requested pattern example: start 5 with range 3 becomes
+        # 5, 5-4, 5-4-3, then 3-2-1.
         if not bits:
             return []
         start_index = min(max(start, 1), len(bits)) - 1
