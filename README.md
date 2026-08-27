@@ -4,15 +4,21 @@
 
 I built MemoryPal as a desktop memory trainer for learners, older adults, and anyone who benefits from calm, structured recall practice. The main idea was to put several useful memory techniques in one place without making the program feel heavy or complicated.
 
-This version is a Python/Tkinter desktop app. It is meant to show the working concept clearly before a future mobile version is built.
+This version is a Python/Tkinter desktop app. It is meant to show the working concept clearly while the mobile version is still in prototype form.
 
 ## Project Files
 
 - Latest app: `latest_app/MemoryPalDesktop.py`
+- Testing checklist: `TESTING_CHECKLIST.md`
+- Build notes: `BUILDING_APP.md`
+- Design notes: `DESIGN_NOTES.md`
 - Memory techniques notes: `notes/MemoryPal_Memory_Techniques.md`
+- Mobile prototype: `mobile_app/MemoryPalMobile.py`
 - Development versions: `development_versions/`
 - Version journal: `development_versions/VERSION_JOURNAL.md`
 - Program outline: `development_versions/MemoryPal_Project_Outline.py`
+- Desktop dependencies: `requirements-desktop.txt`
+- Mobile prototype dependencies: `requirements-mobile.txt`
 
 ## Running The App
 
@@ -27,6 +33,18 @@ Local app data is stored in:
 ```text
 %USERPROFILE%\MemoryPalData
 ```
+
+## Building An EXE
+
+The Windows build path is documented in `BUILDING_APP.md`.
+
+From this folder, run:
+
+```powershell
+build_windows.cmd
+```
+
+The built app should appear in `release\MemoryPal.exe`. The release folder is ignored by Git so the repository stays focused on source code and documentation.
 
 ## Current Features
 
@@ -70,8 +88,9 @@ development_versions/MemoryPal_v29_beta_page_draft_preservation.py
 development_versions/MemoryPal_v30_beta_profiles_planning_stats.py
 development_versions/MemoryPal_v31_beta_repetition_player_polish.py
 development_versions/MemoryPal_v32_beta_collapsible_nav_document_notes.py
+development_versions/MemoryPal_v33_release_candidate.py
 ```
 
 ## Mobile Version Note
 
-A separate mobile version should be built later with native phone APIs for microphone recording, camera/video recording, file picking, permissions, storage, and large touch controls. The desktop Tkinter interface should guide the feature set, but the mobile UI should be redesigned for touch.
+The `mobile_app/` folder now contains a Kivy prototype for Android and iOS planning. A finished mobile app still needs native phone APIs for microphone recording, camera/video recording, file picking, permissions, storage, and large touch controls. The desktop Tkinter interface should guide the feature set, but the mobile UI should be redesigned for touch.

@@ -82,6 +82,16 @@ PROGRAM_MAP = [
         ],
     ),
     (
+        "Release preparation",
+        [
+            "TESTING_CHECKLIST.md describes the main manual tests before sharing the app.",
+            "BUILDING_APP.md and build_windows.cmd describe the Windows executable build path.",
+            "DESIGN_NOTES.md records the user-experience direction in plain language.",
+            "requirements-desktop.txt lists optional desktop packages for document extraction, media, and packaging.",
+            "mobile_app/ contains a Kivy prototype for the future iOS and Android direction.",
+        ],
+    ),
+    (
         "Dashboard",
         [
             "Shows quick actions.",

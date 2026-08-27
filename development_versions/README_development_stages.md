@@ -13,6 +13,7 @@ The current full recovered app is:
 It includes DPI-aware scaling, chunk-based capture, prompt-answer modes, smart checking, repetition paths, text/image/audio/video file imports, and on-demand text/audio/video capture controls.
 It also includes profiles, study planning, stats, dark/light themes, review repair controls, and a focused Repetition round player.
 The newest build adds a collapsible navigation rail, document-note importing, resource strips on study pages, and improved scaling on Study Plan and shared button rows.
+The release-prep build adds testing notes, Windows build instructions, and a mobile prototype path.
 
 ## How to Run a Version
 
@@ -196,6 +197,13 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Added note/document importing for text, Markdown, CSV, Word `.docx`, and PDFs when a PDF reader is available.
 - Added compact resource strips so saved notes, audio, images, and video cues remain reachable from major study pages.
 
+### v33 Release candidate - Testing, build, and mobile start
+
+- Added a release testing checklist for first run, capture, review, repetition, planning, library, resources, and accessibility checks.
+- Added Windows build instructions, dependency files, and a `build_windows.cmd` helper for making `MemoryPal.exe`.
+- Added a Kivy mobile prototype that carries the core MemoryPal flow toward iOS and Android.
+- Added light comments to the main desktop code where future maintenance needs orientation.
+
 ## Mobile Version Note
 
-A separate mobile version is still needed later. It should use native phone APIs for the microphone, camera, file picker, storage permissions, and large touch controls instead of trying to copy the desktop Tkinter interface directly.
+A separate production mobile version is still needed later. The Kivy prototype in `mobile_app/` is a starting point, but the finished app should use native phone APIs for the microphone, camera, file picker, storage permissions, and large touch controls instead of copying the desktop Tkinter interface directly.

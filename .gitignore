@@ -7,6 +7,9 @@ venv/
 env/
 build/
 dist/
+release/
+.build_deps/
+build_deps_local/
 *.spec
 *.log
 .DS_Store
