@@ -29,6 +29,8 @@ The goal is not to add decoration everywhere. The goal is to make the app feel i
 
 Dialogs should feel like part of the app. Stock system prompts are still useful for file picking, but app decisions such as profile names, reset confirmation, recording length, and error messages should use MemoryPal's own modal style.
 
+Page changes should fade in gently. Fast feedback still matters, but the transition should not flash, slide, or pull attention away from the study task.
+
 ## Mobile Feel
 
 The mobile version should not copy the desktop layout. It should use fewer controls per screen, larger buttons, simple bottom navigation, and native phone features for recording and file picking.

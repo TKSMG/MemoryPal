@@ -14,6 +14,7 @@ It includes DPI-aware scaling, chunk-based capture, prompt-answer modes, smart c
 It also includes profiles, study planning, stats, dark/light themes, review repair controls, and a focused Repetition round player.
 The newest build adds a collapsible navigation rail, document-note importing, resource strips on study pages, and improved scaling on Study Plan and shared button rows.
 The release-prep build adds testing notes, Windows build instructions, and a mobile prototype path.
+The latest desktop UI uses a calm fade-in page transition instead of the older skeleton/slide reveal.
 
 ## How to Run a Version
 
@@ -210,6 +211,12 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Updated profile naming, daily goal editing, recording length prompts, reset confirmation, media errors, import errors, and optional-feature warnings.
 - Aligned the mobile prototype and applicable later milestone files so app-owned feedback does not fall back to old system message boxes.
 - Kept native file pickers for file selection while making app-owned decisions feel visually consistent.
+
+### v35 Test - Speech-to-text capture
+
+- Added a standalone desktop prototype for microphone dictation and audio-file transcription.
+- Transcripts can be inserted into separate question and answer boxes, edited, and saved as normal study cards.
+- Speech recognition stays optional, with a clear in-app message when the needed packages are not installed. The default recognizer may need an internet connection.
 
 ## Mobile Version Note
 

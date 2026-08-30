@@ -48,7 +48,7 @@ The built app should appear in `release\MemoryPal.exe`. The release folder is ig
 
 ## Current Features
 
-- Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover feedback, and lightweight page loading.
+- Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover feedback, and calm fade-in page transitions.
 - App-styled modal dialogs for profile names, recording lengths, alerts, confirmations, and errors.
 - The mobile prototype also uses in-app validation and confirmation modals instead of silent or system-style feedback.
 - Collapsible left navigation rail for focus mode, with compact labels and hover hints.
@@ -92,6 +92,7 @@ development_versions/MemoryPal_v31_beta_repetition_player_polish.py
 development_versions/MemoryPal_v32_beta_collapsible_nav_document_notes.py
 development_versions/MemoryPal_v33_release_candidate.py
 development_versions/MemoryPal_v34_beta_modern_dialogs.py
+development_versions/MemoryPal_v35_test_speech_to_text.py
 ```
 
 ## Mobile Version Note
