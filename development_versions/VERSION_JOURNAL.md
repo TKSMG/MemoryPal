@@ -133,3 +133,7 @@ This version made the interface easier to focus on by adding a collapsible left 
 ## v33 Release Candidate - Testing, Build, And Mobile Start
 
 This version moved MemoryPal closer to something that can be tested like a real app. It added release notes, a testing checklist, Windows build files, a mobile prototype, and a few useful comments in the main desktop code.
+
+## v34 Beta - Modern Dialogs
+
+This version removed the remaining old-looking prompt and warning boxes from the desktop app. Profile names, recording lengths, confirmations, and errors now use a MemoryPal-styled modal surface.

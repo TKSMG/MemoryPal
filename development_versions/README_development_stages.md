@@ -204,6 +204,12 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Added a Kivy mobile prototype that carries the core MemoryPal flow toward iOS and Android.
 - Added light comments to the main desktop code where future maintenance needs orientation.
 
+### v34 Beta - Modern dialogs
+
+- Replaced old stock Tk prompts and message boxes with app-styled MemoryPal modal dialogs.
+- Updated profile naming, daily goal editing, recording length prompts, reset confirmation, media errors, import errors, and optional-feature warnings.
+- Kept native file pickers for file selection while making app-owned decisions feel visually consistent.
+
 ## Mobile Version Note
 
 A separate production mobile version is still needed later. The Kivy prototype in `mobile_app/` is a starting point, but the finished app should use native phone APIs for the microphone, camera, file picker, storage permissions, and large touch controls instead of copying the desktop Tkinter interface directly.

@@ -11,6 +11,7 @@ The current direction is based on a few patterns that good learning apps tend to
 - Keep audio, notes, images, and other cues close to the task.
 - Let the user hide navigation when they need more focus.
 - Make mistakes easy to recover from with undo, skip, and repeat options.
+- Keep dialogs visually consistent with the app so profile names, recording prompts, warnings, and confirmations do not feel like a separate older program.
 
 ## Main UX Goals
 
@@ -25,6 +26,8 @@ The app should always answer three questions quickly:
 The desktop app should stay fast and lightweight, but it should not feel unfinished. The visual style uses a modern dark interface, clear cards, hover hints, a collapsible rail, and simple page transitions.
 
 The goal is not to add decoration everywhere. The goal is to make the app feel intentional and easy to trust.
+
+Dialogs should feel like part of the app. Stock system prompts are still useful for file picking, but app decisions such as profile names, reset confirmation, recording length, and error messages should use MemoryPal's own modal style.
 
 ## Mobile Feel
 

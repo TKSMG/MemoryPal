@@ -303,6 +303,8 @@ The interface should feel modern, fast, and easy to understand.
 
 A softer app header, clear status chips, clean buttons, and subtle hover feedback help the app feel less plain without becoming distracting. This matters because the app is supposed to support memory, not compete for attention.
 
+Dialog boxes should follow the same design language as the rest of the app. Recording prompts, profile names, warnings, and confirmations should feel calm and readable instead of looking like old system popups.
+
 ## Preserving Work
 
 Study apps should not erase unfinished work during navigation.

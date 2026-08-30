@@ -79,6 +79,7 @@ PROGRAM_MAP = [
             "The theme button rebuilds the shell with the selected light or dark palette.",
             "The profile manager switches, creates, renames, and deletes local profiles.",
             "The navigation rail can collapse to a compact focus mode and reopen with a colored toggle button.",
+            "App-owned prompts, alerts, confirmations, and errors use MemoryPal-styled modal dialogs instead of stock Tk dialogs.",
         ],
     ),
     (
