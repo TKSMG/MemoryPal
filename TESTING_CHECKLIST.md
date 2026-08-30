@@ -9,6 +9,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Switch between dark and light mode.
 - Collapse and reopen the left navigation rail.
 - Resize the window smaller than fullscreen and check that no main button disappears.
+- Open profile, recording, reset, import-error, and media-error dialogs and confirm they match the MemoryPal visual style.
 
 ## Capture And Cards
 
@@ -20,6 +21,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Import a `.docx` note and confirm readable text is extracted.
 - Import a PDF and confirm extraction works when `pypdf` or `PyPDF2` is installed.
 - Attach image, audio, and video cues.
+- Try audio/video recording without the optional packages installed and confirm the modern unavailable dialog appears.
 
 ## Study Modes
 

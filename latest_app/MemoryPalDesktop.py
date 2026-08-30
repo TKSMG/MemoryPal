@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import filedialog, ttk
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
@@ -1305,7 +1305,7 @@ class MemoryPalApp(tk.Tk):
             pass
 
     def edit_daily_goal(self):
-        goal = simpledialog.askinteger("Daily goal", "Cards to review per day:", initialvalue=self.store.daily_goal, minvalue=1, maxvalue=500)
+        goal = self.dialog_integer("Daily goal", "Cards to review per day:", initial=self.store.daily_goal, minvalue=1, maxvalue=500)
         if goal:
             self.store.daily_goal = goal
             self.store.save()
@@ -1364,13 +1364,13 @@ class MemoryPalApp(tk.Tk):
                     delete_btn.pack(side="left")
 
         def do_rename(name):
-            new_name = simpledialog.askstring("Rename profile", f"New name for \"{name}\":", initialvalue=name, parent=top)
+            new_name = self.dialog_text("Rename profile", f"New name for \"{name}\":", initial=name, parent=top)
             if new_name is None:
                 return
             was_active = name == active_profile_name()
             ok, error = rename_profile(name, new_name)
             if not ok:
-                messagebox.showerror("Rename failed", error, parent=top)
+                self.dialog_alert("Rename failed", error, "error", parent=top)
                 return
             if was_active:
                 switch_active_profile_paths(new_name)
@@ -1384,12 +1384,12 @@ class MemoryPalApp(tk.Tk):
             render_list()
 
         def do_delete(name):
-            if not messagebox.askyesno("Delete profile", f"Delete \"{name}\" and everything in it? This can't be undone.", parent=top):
+            if not self.dialog_confirm("Delete profile", f"Delete \"{name}\" and everything in it? This can't be undone.", "Delete profile", parent=top, destructive=True):
                 return
             was_active = name == active_profile_name()
             ok, error = delete_profile(name)
             if not ok:
-                messagebox.showerror("Delete failed", error, parent=top)
+                self.dialog_alert("Delete failed", error, "error", parent=top)
                 return
             render_list()
             if was_active:
@@ -1397,12 +1397,12 @@ class MemoryPalApp(tk.Tk):
                 self.switch_profile(active_profile_name(), force=True)
 
         def do_create():
-            new_name = simpledialog.askstring("New profile", "Profile name:", parent=top)
+            new_name = self.dialog_text("New profile", "Profile name:", parent=top)
             if new_name is None:
                 return
             ok, error = create_profile(new_name)
             if not ok:
-                messagebox.showerror("Couldn't create profile", error, parent=top)
+                self.dialog_alert("Couldn't create profile", error, "error", parent=top)
                 return
             render_list()
 
@@ -1449,6 +1449,125 @@ class MemoryPalApp(tk.Tk):
         self.toast_var.set(text)
         self.toast.place(relx=1, rely=1, anchor="se", x=-self.px(24), y=-self.px(24))
         self.after(2600, self.toast.place_forget)
+
+    def dialog_window(self, title, body="", parent=None, width=480):
+        # MemoryPal uses its own small modal surface so prompts, warnings, and
+        # confirmations do not fall back to old stock Tk dialog boxes.
+        owner = parent or self
+        top = tk.Toplevel(owner)
+        top.title(title)
+        top.configure(bg=COLORS["bg"])
+        top.transient(owner)
+        top.resizable(False, False)
+        top.grab_set()
+        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20), highlightthickness=1, highlightbackground=COLORS["line"])
+        shell.pack(fill="both", expand=True, padx=self.px(14), pady=self.px(14))
+        tk.Label(shell, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w", justify="left").pack(fill="x")
+        if body:
+            tk.Label(shell, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(width - 70), justify="left", anchor="w").pack(fill="x", pady=(self.px(6), self.px(14)))
+        content = ttk.Frame(shell, style="Card.TFrame")
+        content.pack(fill="x")
+        actions = ttk.Frame(shell, style="Card.TFrame")
+        actions.pack(fill="x", pady=(self.px(18), 0))
+        top.update_idletasks()
+        x = owner.winfo_rootx() + max(0, (owner.winfo_width() - self.px(width)) // 2)
+        y = owner.winfo_rooty() + max(0, (owner.winfo_height() - top.winfo_height()) // 3)
+        top.minsize(self.px(width), 1)
+        top.geometry(f"+{x}+{y}")
+        return top, content, actions
+
+    def dialog_alert(self, title, body, kind="info", parent=None):
+        top, _content, actions = self.dialog_window(title, body, parent=parent)
+        color = COLORS["danger"] if kind == "error" else COLORS["primary"]
+        ok = self.solid_button(actions, "OK", top.destroy, color)
+        ok.pack(fill="x")
+        top.bind("<Return>", lambda _event: top.destroy())
+        top.bind("<Escape>", lambda _event: top.destroy())
+        ok.focus_set()
+        top.wait_window()
+
+    def dialog_confirm(self, title, body, confirm_text="Continue", parent=None, destructive=False):
+        result = {"value": False}
+        top, _content, actions = self.dialog_window(title, body, parent=parent)
+
+        def finish(value):
+            result["value"] = value
+            top.destroy()
+
+        cancel = ttk.Button(actions, text="Cancel", command=lambda: finish(False))
+        cancel.grid(row=0, column=0, sticky="ew", padx=(0, self.px(8)))
+        confirm = self.solid_button(actions, confirm_text, lambda: finish(True), COLORS["danger"] if destructive else COLORS["primary"])
+        confirm.grid(row=0, column=1, sticky="ew")
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        top.bind("<Escape>", lambda _event: finish(False))
+        confirm.focus_set()
+        top.wait_window()
+        return result["value"]
+
+    def dialog_text(self, title, body, initial="", parent=None, required=True):
+        result = {"value": None}
+        top, content, actions = self.dialog_window(title, body, parent=parent)
+        entry = ttk.Entry(content)
+        entry.insert(0, initial or "")
+        entry.pack(fill="x")
+        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["danger"], font=self.font("Segoe UI", 10), anchor="w")
+        error.pack(fill="x", pady=(self.px(6), 0))
+
+        def submit():
+            value = normalize_space(entry.get())
+            if required and not value:
+                error.configure(text="This field cannot be empty.")
+                return
+            result["value"] = value
+            top.destroy()
+
+        cancel = ttk.Button(actions, text="Cancel", command=top.destroy)
+        cancel.grid(row=0, column=0, sticky="ew", padx=(0, self.px(8)))
+        save = self.solid_button(actions, "Save", submit, COLORS["primary"])
+        save.grid(row=0, column=1, sticky="ew")
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        top.bind("<Return>", lambda _event: submit())
+        top.bind("<Escape>", lambda _event: top.destroy())
+        entry.focus_set()
+        entry.selection_range(0, "end")
+        top.wait_window()
+        return result["value"]
+
+    def dialog_integer(self, title, body, initial=10, minvalue=1, maxvalue=120, parent=None):
+        result = {"value": None}
+        top, content, actions = self.dialog_window(title, body, parent=parent)
+        entry = ttk.Entry(content)
+        entry.insert(0, str(initial))
+        entry.pack(fill="x")
+        error = tk.Label(content, text=f"Enter a number from {minvalue} to {maxvalue}.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w")
+        error.pack(fill="x", pady=(self.px(6), 0))
+
+        def submit():
+            try:
+                value = int(entry.get().strip())
+            except ValueError:
+                error.configure(text="Please enter a whole number.", fg=COLORS["danger"])
+                return
+            if value < minvalue or value > maxvalue:
+                error.configure(text=f"Choose between {minvalue} and {maxvalue}.", fg=COLORS["danger"])
+                return
+            result["value"] = value
+            top.destroy()
+
+        cancel = ttk.Button(actions, text="Cancel", command=top.destroy)
+        cancel.grid(row=0, column=0, sticky="ew", padx=(0, self.px(8)))
+        start = self.solid_button(actions, "Continue", submit, COLORS["primary"])
+        start.grid(row=0, column=1, sticky="ew")
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        top.bind("<Return>", lambda _event: submit())
+        top.bind("<Escape>", lambda _event: top.destroy())
+        entry.focus_set()
+        entry.selection_range(0, "end")
+        top.wait_window()
+        return result["value"]
 
     def card(self, parent, style="Card.TFrame", padding=24):
         return ttk.Frame(parent, style=style, padding=self.px(padding))
@@ -2217,14 +2336,14 @@ class MemoryPalApp(tk.Tk):
         self.toast_message("Text note saved as an attached file.")
 
     def record_audio(self, labels):
-        seconds = simpledialog.askinteger("Record Audio", "Seconds to record:", initialvalue=10, minvalue=1, maxvalue=120)
+        seconds = self.dialog_integer("Record audio", "How many seconds should MemoryPal record?", initial=10, minvalue=1, maxvalue=120)
         if not seconds:
             return
         try:
             import wave
             import sounddevice as sd
         except ImportError:
-            messagebox.showinfo(
+            self.dialog_alert(
                 "Audio recorder unavailable",
                 "Import an audio file for now, or install sounddevice for desktop recording. The planned mobile version should use the phone's native recorder.",
             )
@@ -2241,20 +2360,20 @@ class MemoryPalApp(tk.Tk):
                 handle.setframerate(samplerate)
                 handle.writeframes(data.tobytes())
         except Exception as exc:
-            messagebox.showerror("Audio recording failed", str(exc))
+            self.dialog_alert("Audio recording failed", str(exc), "error")
             return
         self.pending_media["audio"] = str(target)
         labels["audio"].configure(text=target.name)
         self.toast_message("Audio recording attached.")
 
     def record_video(self, labels):
-        seconds = simpledialog.askinteger("Record Video", "Seconds to record:", initialvalue=8, minvalue=1, maxvalue=60)
+        seconds = self.dialog_integer("Record video", "How many seconds should MemoryPal record from the webcam?", initial=8, minvalue=1, maxvalue=60)
         if not seconds:
             return
         try:
             import cv2
         except ImportError:
-            messagebox.showinfo(
+            self.dialog_alert(
                 "Video recorder unavailable",
                 "Import a video file for now, or install opencv-python for desktop webcam recording. The planned mobile version should use the phone's camera recorder.",
             )
@@ -2263,7 +2382,7 @@ class MemoryPalApp(tk.Tk):
         target = ATTACHMENT_DIR / f"video-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.avi"
         camera = cv2.VideoCapture(0)
         if not camera.isOpened():
-            messagebox.showerror("Video recording failed", "No webcam was found.")
+            self.dialog_alert("Video recording failed", "No webcam was found.", "error")
             return
         width = int(camera.get(cv2.CAP_PROP_FRAME_WIDTH) or 640)
         height = int(camera.get(cv2.CAP_PROP_FRAME_HEIGHT) or 480)
@@ -2326,7 +2445,7 @@ class MemoryPalApp(tk.Tk):
             webbrowser.open(f"https://www.google.com/search?tbm=isch&q={quote_plus(query)}")
             self.toast_message("Opened an image search in your browser. Save an image, then use Attach Image below.")
         except Exception as exc:
-            messagebox.showerror("Could not open browser", str(exc))
+            self.dialog_alert("Could not open browser", str(exc), "error")
 
     def generate_tts_cue(self, card, text, refresh=None):
         text = normalize_space(text)
@@ -2336,7 +2455,7 @@ class MemoryPalApp(tk.Tk):
         try:
             import pyttsx3
         except ImportError:
-            messagebox.showinfo(
+            self.dialog_alert(
                 "Offline voice unavailable",
                 "Install pyttsx3 (pip install pyttsx3) for offline text-to-speech cues, or import an audio file instead.",
             )
@@ -2348,7 +2467,7 @@ class MemoryPalApp(tk.Tk):
             engine.save_to_file(text, str(target))
             engine.runAndWait()
         except Exception as exc:
-            messagebox.showerror("Voice generation failed", str(exc))
+            self.dialog_alert("Voice generation failed", str(exc), "error")
             return
         card.audio = str(target)
         self.store.save()
@@ -2696,7 +2815,7 @@ class MemoryPalApp(tk.Tk):
             import os
             os.startfile(path)
         except OSError as exc:
-            messagebox.showerror("Could not open media", str(exc))
+            self.dialog_alert("Could not open media", str(exc), "error")
 
     def image_photo(self, path, max_width=620, max_height=360):
         source = Path(path)
@@ -3750,10 +3869,10 @@ class MemoryPalApp(tk.Tk):
             self.store.save()
             self.show_view("library")
         except (OSError, json.JSONDecodeError, ValueError) as exc:
-            messagebox.showerror("Import failed", str(exc))
+            self.dialog_alert("Import failed", str(exc), "error")
 
     def reset_data(self):
-        if messagebox.askyesno("Reset MemoryPal", "Clear local data and restore sample cards?"):
+        if self.dialog_confirm("Reset MemoryPal", "Clear local data and restore sample cards?", "Reset", destructive=True):
             self.store.reset()
             self.show_view("library")
 
