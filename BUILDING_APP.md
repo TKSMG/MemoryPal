@@ -36,6 +36,8 @@ release\MemoryPal.exe
 
 The build script checks that Python can import `tkinter` before packaging. This matters because an EXE made with a Python installation that does not include Tkinter will open with an error such as `No module named 'tkinter'`.
 
+If an older `release\MemoryPal.exe` already shows that Tkinter error, delete it and run `build_windows.cmd` again after installing a normal Python build with Tcl/Tk. The current script is designed to stop before creating that broken kind of EXE.
+
 The `release` folder is ignored by Git on purpose. The source code and build instructions belong in the repository; the `.exe` is better attached later as a GitHub Release file.
 
 The build script installs packaging tools into `%TEMP%\memorypal-build-tools`, builds from a temporary `%TEMP%\memorypal-py-build-*` folder, and then copies the finished file into `release\MemoryPal.exe`. The `release` folder is ignored by Git.
@@ -44,7 +46,7 @@ If the copy step is blocked by a restricted workspace, the script prints the tem
 
 ## Why The EXE Might Not Build Here
 
-The Codex workspace can compile the source, but the bundled Python environment is not a full desktop Python install with working Tkinter packaging support. If Codex cannot run the installed desktop Python directly, run the same build command from a normal Command Prompt or PowerShell window.
+The Codex workspace can compile the source, but the bundled Python environment may not always be a full desktop Python install with working Tkinter packaging support. The build script tests Tkinter before packaging so it does not create a broken EXE. If Codex cannot run a Tkinter-capable Python directly, run the same build command from a normal Command Prompt or PowerShell window.
 
 If the script says no usable desktop Python was found, install Python 3.11 or newer from python.org, keep Tcl/Tk selected, and enable the PATH option during setup.
 

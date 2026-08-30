@@ -15,11 +15,12 @@ if not defined PYTHON_EXE call :try_python "%LOCALAPPDATA%\Programs\Python\Pytho
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python313\python.exe"
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python312\python.exe"
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python311\python.exe"
+if not defined PYTHON_EXE call :try_python "%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 
 if not defined PYTHON_EXE (
   echo No usable desktop Python with Tkinter was found.
   echo Install Python 3.11+ from python.org and keep Tcl/Tk selected during setup.
-  echo The Codex bundled Python cannot build this Tkinter app into a working EXE.
+  echo A Python install without Tkinter cannot build this app into a working EXE.
   exit /b 1
 )
 
@@ -70,7 +71,7 @@ if defined PYTHON_EXE exit /b 0
 set "CANDIDATE=%~1"
 set "CANDIDATE_ARGS=%~2"
 if "%CANDIDATE%"=="" exit /b 0
-"%CANDIDATE%" %CANDIDATE_ARGS% -c "import sys, tkinter; print(sys.executable)" >nul 2>nul
+"%CANDIDATE%" %CANDIDATE_ARGS% -c "import sys, tkinter as tk; root=tk.Tk(); root.withdraw(); root.destroy(); print(sys.executable)" >nul 2>nul
 if not errorlevel 1 (
   set "PYTHON_EXE=%CANDIDATE%"
   set "PYTHON_ARGS=%CANDIDATE_ARGS%"
