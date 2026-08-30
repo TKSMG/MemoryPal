@@ -50,6 +50,7 @@ The built app should appear in `release\MemoryPal.exe`. The release folder is ig
 
 - Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover feedback, and lightweight page loading.
 - App-styled modal dialogs for profile names, recording lengths, alerts, confirmations, and errors.
+- The mobile prototype also uses in-app validation and confirmation modals instead of silent or system-style feedback.
 - Collapsible left navigation rail for focus mode, with compact labels and hover hints.
 - More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
 - Separate local profiles, so different learners or study areas can keep independent data.
@@ -95,4 +96,4 @@ development_versions/MemoryPal_v34_beta_modern_dialogs.py
 
 ## Mobile Version Note
 
-The `mobile_app/` folder now contains a Kivy prototype for Android and iOS planning. A finished mobile app still needs native phone APIs for microphone recording, camera/video recording, file picking, permissions, storage, and large touch controls. The desktop Tkinter interface should guide the feature set, but the mobile UI should be redesigned for touch.
+The `mobile_app/` folder now contains a Kivy prototype for Android and iOS planning. It keeps the core card, review, repetition, and resources flow touch-friendly, with simple app-styled feedback for empty prompts and saved cards. A finished mobile app still needs native phone APIs for microphone recording, camera/video recording, file picking, permissions, storage, and large touch controls. The desktop Tkinter interface should guide the feature set, but the mobile UI should be redesigned for touch.

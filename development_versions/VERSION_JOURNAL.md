@@ -136,4 +136,4 @@ This version moved MemoryPal closer to something that can be tested like a real 
 
 ## v34 Beta - Modern Dialogs
 
-This version removed the remaining old-looking prompt and warning boxes from the desktop app. Profile names, recording lengths, confirmations, and errors now use a MemoryPal-styled modal surface.
+This version removed the remaining old-looking prompt and warning boxes from the desktop app. Profile names, recording lengths, confirmations, errors, mobile capture feedback, and applicable milestone notices now use a MemoryPal-styled modal surface.

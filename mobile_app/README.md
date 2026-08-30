@@ -8,6 +8,7 @@ The desktop app should stay in Tkinter for the PC version. The mobile app needs 
 
 - A touch-friendly dashboard.
 - Capture for separate question and answer cards.
+- In-app validation and confirmation dialogs for the capture flow.
 - Review with prompt, answer, Smart Check, and reveal.
 - Repetition path using the same `5`, `5-4`, `5-4-3`, `3-2-1` idea.
 - A simple resources screen for notes, audio, images, and video.

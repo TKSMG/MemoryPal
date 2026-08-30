@@ -10,7 +10,7 @@ import re
 import tkinter as tk
 import zipfile
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 import xml.etree.ElementTree as ET
 
 
@@ -130,6 +130,22 @@ class App(tk.Tk):
         frame.pack(fill="x", pady=(0, 14))
         return frame
 
+    def alert(self, title, body):
+        dialog = tk.Toplevel(self)
+        dialog.title(title)
+        dialog.configure(bg=COLORS["bg"])
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        card = tk.Frame(dialog, bg=COLORS["panel"], padx=22, pady=20)
+        card.pack(fill="both", expand=True, padx=14, pady=14)
+        tk.Label(card, text=title, bg=COLORS["panel"], fg=COLORS["ink"], font=("Segoe UI Semibold", 18)).pack(anchor="w")
+        tk.Label(card, text=body, bg=COLORS["panel"], fg=COLORS["muted"], font=("Segoe UI", 12), wraplength=420, justify="left").pack(anchor="w", pady=(10, 18))
+        ttk.Button(card, text="OK", style="Primary.TButton", command=dialog.destroy).pack(anchor="e")
+        dialog.update_idletasks()
+        dialog.geometry(f"+{self.winfo_rootx() + 120}+{self.winfo_rooty() + 120}")
+        self.wait_window(dialog)
+
     def show(self, name):
         self.clear()
         getattr(self, f"view_{name}")()
@@ -172,7 +188,7 @@ class App(tk.Tk):
         try:
             text = extract_document_text(path)
         except Exception as exc:
-            messagebox.showinfo("Attached only", str(exc))
+            self.alert("Attached only", str(exc))
             text = ""
         if text:
             self.text.delete("1.0", "end")
@@ -183,7 +199,7 @@ class App(tk.Tk):
     def make_cards(self):
         bits = split_bits(self.text.get("1.0", "end"))
         self.cards.extend({"prompt": f"Study bit {len(self.cards) + index + 1}", "answer": bit} for index, bit in enumerate(bits))
-        messagebox.showinfo("Cards", f"Created {len(bits)} cards.")
+        self.alert("Cards", f"Created {len(bits)} cards.")
 
 
 if __name__ == "__main__":
