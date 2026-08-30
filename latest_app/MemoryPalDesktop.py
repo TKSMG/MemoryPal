@@ -1234,55 +1234,68 @@ class MemoryPalApp(tk.Tk):
                 button.configure(style="ActiveCollapsedNav.TButton" if key == view else "CollapsedNav.TButton")
             else:
                 button.configure(style="ActiveNav.TButton" if key == view else "Nav.TButton")
+        cover = self.start_transition_cover()
         for child in self.content.winfo_children():
-            child.destroy()
-        self.after_idle(lambda: self.finish_show_view(view, token))
+            if child is not cover:
+                child.destroy()
+        self.after_idle(lambda: self.finish_show_view(view, token, cover))
 
-    def finish_show_view(self, view, token):
+    def start_transition_cover(self):
+        self.update_idletasks()
+        width = self.content.winfo_width()
+        height = self.content.winfo_height()
+        if width <= 1 or height <= 1 or not self.content.winfo_viewable():
+            return None
+        try:
+            cover = tk.Toplevel(self)
+            cover.withdraw()
+            cover.overrideredirect(True)
+            cover.configure(bg=COLORS["bg"])
+            cover.geometry(f"{width}x{height}+{self.content.winfo_rootx()}+{self.content.winfo_rooty()}")
+            cover.attributes("-alpha", 1.0)
+            cover.deiconify()
+            cover.lift(self)
+            return cover
+        except tk.TclError:
+            return None
+
+    def finish_show_view(self, view, token, cover=None):
         if token != self.route_token:
+            self.destroy_transition_cover(cover)
             return
         self.view_host = ttk.Frame(self.content, style="Page.TFrame")
         self.view_host.pack(fill="both", expand=True)
         getattr(self, f"view_{view}")()
         if token != self.route_token or not self.view_host.winfo_exists():
+            self.destroy_transition_cover(cover)
             return
         self.update_idletasks()
-        self.fade_in_view(token)
+        if cover:
+            self.fade_transition_cover(token, cover)
 
-    def fade_in_view(self, token):
-        if token != self.route_token or not self.content.winfo_viewable():
+    def destroy_transition_cover(self, cover):
+        if cover and cover.winfo_exists():
+            cover.destroy()
+
+    def fade_transition_cover(self, token, cover, step=0):
+        if token != self.route_token or not cover.winfo_exists():
+            self.destroy_transition_cover(cover)
             return
         width = self.content.winfo_width()
         height = self.content.winfo_height()
-        if width <= 1 or height <= 1:
-            return
-        cover = tk.Toplevel(self)
-        cover.overrideredirect(True)
-        cover.configure(bg=COLORS["bg"])
-        cover.geometry(f"{width}x{height}+{self.content.winfo_rootx()}+{self.content.winfo_rooty()}")
-        cover.transient(self)
-        cover.lift(self)
-        try:
-            cover.attributes("-alpha", 0.62)
-        except tk.TclError:
-            cover.destroy()
-            return
-        self.fade_cover(token, cover)
-
-    def fade_cover(self, token, cover, step=0):
-        if token != self.route_token or not cover.winfo_exists():
-            return
-        alpha_steps = (0.62, 0.46, 0.32, 0.20, 0.11, 0.04, 0.0)
+        alpha_steps = (1.0, 0.82, 0.64, 0.46, 0.30, 0.17, 0.08, 0.0)
         alpha = alpha_steps[min(step, len(alpha_steps) - 1)]
         try:
+            if width > 1 and height > 1:
+                cover.geometry(f"{width}x{height}+{self.content.winfo_rootx()}+{self.content.winfo_rooty()}")
             cover.attributes("-alpha", alpha)
         except tk.TclError:
-            cover.destroy()
+            self.destroy_transition_cover(cover)
             return
         if step < len(alpha_steps) - 1:
-            self.after(18, lambda: self.fade_cover(token, cover, step + 1))
+            self.after(18, lambda: self.fade_transition_cover(token, cover, step + 1))
         else:
-            cover.destroy()
+            self.destroy_transition_cover(cover)
 
     def register_draft_saver(self, view, saver):
         self.draft_savers[view] = saver
