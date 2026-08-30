@@ -208,6 +208,7 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 
 - Replaced old stock Tk prompts and message boxes with app-styled MemoryPal modal dialogs.
 - Updated profile naming, daily goal editing, recording length prompts, reset confirmation, media errors, import errors, and optional-feature warnings.
+- Aligned the mobile prototype and applicable later milestone files so app-owned feedback does not fall back to old system message boxes.
 - Kept native file pickers for file selection while making app-owned decisions feel visually consistent.
 
 ## Mobile Version Note

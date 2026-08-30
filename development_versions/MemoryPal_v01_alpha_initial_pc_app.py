@@ -4,7 +4,7 @@ import ctypes
 import tkinter as tk
 from difflib import SequenceMatcher
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 
 
 VERSION = "v01 Alpha"

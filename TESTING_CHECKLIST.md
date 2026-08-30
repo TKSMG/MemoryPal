@@ -10,6 +10,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Collapse and reopen the left navigation rail.
 - Resize the window smaller than fullscreen and check that no main button disappears.
 - Open profile, recording, reset, import-error, and media-error dialogs and confirm they match the MemoryPal visual style.
+- In the mobile prototype, try saving an empty card and a complete card; confirm both use in-app feedback instead of silent behavior.
 
 ## Capture And Cards
 

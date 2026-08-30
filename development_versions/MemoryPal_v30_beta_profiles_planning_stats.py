@@ -13,7 +13,7 @@ import tkinter as tk
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import ttk
 
 
 APP_DIR = Path.home() / "MemoryPal_v30_ProfileDemo"
@@ -141,6 +141,48 @@ class App(tk.Tk):
         frame.pack(fill="x", pady=(0, 14))
         return frame
 
+    def modal_shell(self, title):
+        dialog = tk.Toplevel(self)
+        dialog.title(title)
+        dialog.configure(bg=COLORS["bg"])
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        card = tk.Frame(dialog, bg=COLORS["panel"], padx=22, pady=20)
+        card.pack(fill="both", expand=True, padx=14, pady=14)
+        tk.Label(card, text=title, bg=COLORS["panel"], fg=COLORS["ink"], font=("Segoe UI Semibold", 18)).pack(anchor="w")
+        return dialog, card
+
+    def alert(self, title, body):
+        dialog, card = self.modal_shell(title)
+        tk.Label(card, text=body, bg=COLORS["panel"], fg=COLORS["muted"], font=("Segoe UI", 12), wraplength=420, justify="left").pack(anchor="w", pady=(10, 18))
+        ttk.Button(card, text="OK", style="Primary.TButton", command=dialog.destroy).pack(anchor="e")
+        dialog.update_idletasks()
+        dialog.geometry(f"+{self.winfo_rootx() + 120}+{self.winfo_rooty() + 120}")
+        self.wait_window(dialog)
+
+    def ask_text(self, title, body):
+        result = {"value": None}
+        dialog, card = self.modal_shell(title)
+        tk.Label(card, text=body, bg=COLORS["panel"], fg=COLORS["muted"], font=("Segoe UI", 12), wraplength=420, justify="left").pack(anchor="w", pady=(10, 10))
+        entry = tk.Entry(card, bg="#0b1220", fg=COLORS["ink"], insertbackground=COLORS["primary"], relief="flat", font=("Segoe UI", 12))
+        entry.pack(fill="x", ipady=9)
+
+        def submit():
+            result["value"] = entry.get()
+            dialog.destroy()
+
+        row = tk.Frame(card, bg=COLORS["panel"])
+        row.pack(fill="x", pady=(16, 0))
+        ttk.Button(row, text="Cancel", command=dialog.destroy).pack(side="right")
+        ttk.Button(row, text="Save", style="Primary.TButton", command=submit).pack(side="right", padx=(0, 8))
+        entry.focus_set()
+        dialog.bind("<Return>", lambda _event: submit())
+        dialog.update_idletasks()
+        dialog.geometry(f"+{self.winfo_rootx() + 120}+{self.winfo_rooty() + 120}")
+        self.wait_window(dialog)
+        return result["value"]
+
     def show(self, view):
         self.view.set(view)
         self.clear()
@@ -161,17 +203,17 @@ class App(tk.Tk):
     def review_one(self):
         due = self.store.due_cards()
         if not due:
-            messagebox.showinfo("Review", "Nothing is due right now.")
+            self.alert("Review", "Nothing is due right now.")
             return
         card = due[0]
-        response = simpledialog.askstring(card.prompt, "Answer from memory:")
+        response = self.ask_text(card.prompt, "Answer from memory:")
         if response is None:
             return
         card.rating = "Reviewed"
         card.next_review = (date.today() + timedelta(days=2)).isoformat()
         self.store.log_review()
         self.store.save()
-        messagebox.showinfo("Answer", card.answer)
+        self.alert("Answer", card.answer)
         self.show("dashboard")
 
     def view_plan(self):
@@ -203,7 +245,7 @@ class App(tk.Tk):
         self.show("dashboard")
 
     def new_profile(self):
-        name = clean(simpledialog.askstring("New profile", "Profile name:"))
+        name = clean(self.ask_text("New profile", "Profile name:"))
         if not name:
             return
         if name not in self.config_data["profiles"]:

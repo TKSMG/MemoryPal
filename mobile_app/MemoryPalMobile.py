@@ -10,11 +10,13 @@ import re
 from difflib import SequenceMatcher
 
 from kivy.app import App
+from kivy.graphics import Color, RoundedRectangle
 from kivy.metrics import dp
 from kivy.properties import ListProperty, NumericProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.uix.modalview import ModalView
 from kivy.uix.screenmanager import FadeTransition, Screen, ScreenManager
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
@@ -70,6 +72,39 @@ class MemoryState:
         self.resources = ["Notes, audio, images, and video cues will live here."]
 
 
+class MemoryDialog(ModalView):
+    def __init__(self, title, body, **kwargs):
+        super().__init__(size_hint=(0.86, None), height=dp(230), background_color=(0, 0, 0, 0.35), **kwargs)
+        card = BoxLayout(orientation="vertical", padding=dp(18), spacing=dp(12))
+        with card.canvas.before:
+            Color(0.08, 0.12, 0.20, 1)
+            self._surface = RoundedRectangle(radius=[dp(22)], pos=card.pos, size=card.size)
+        card.bind(pos=self._sync_surface, size=self._sync_surface)
+        title_label = Label(text=title, font_size=dp(22), bold=True, size_hint_y=None, height=dp(38))
+        body_label = Label(text=body, font_size=dp(15), halign="left", valign="middle")
+        body_label.bind(size=lambda label, size: setattr(label, "text_size", (size[0], None)))
+        ok_button = Button(
+            text="OK",
+            size_hint_y=None,
+            height=dp(50),
+            background_normal="",
+            background_color=(0.30, 0.55, 1.0, 1),
+            on_release=lambda _btn: self.dismiss(),
+        )
+        card.add_widget(title_label)
+        card.add_widget(body_label)
+        card.add_widget(ok_button)
+        self.add_widget(card)
+
+    def _sync_surface(self, widget, _value):
+        self._surface.pos = widget.pos
+        self._surface.size = widget.size
+
+
+def show_dialog(title, body):
+    MemoryDialog(title, body).open()
+
+
 class BaseScreen(Screen):
     def page(self):
         outer = BoxLayout(orientation="vertical", padding=dp(18), spacing=dp(12))
@@ -110,10 +145,13 @@ class CaptureScreen(BaseScreen):
         body.add_widget(answer)
 
         def save(_button):
-            if clean(question.text):
-                self.manager.state.cards.insert(0, {"question": clean(question.text), "answer": clean(answer.text) or "Self-check card"})
-                question.text = ""
-                answer.text = ""
+            if not clean(question.text):
+                show_dialog("Add a question", "Each study bit needs a question or title before it can be saved.")
+                return
+            self.manager.state.cards.insert(0, {"question": clean(question.text), "answer": clean(answer.text) or "Self-check card"})
+            question.text = ""
+            answer.text = ""
+            show_dialog("Card saved", "This card is ready for review, repetition, and smart checking.")
 
         body.add_widget(Button(text="Save card", size_hint_y=None, height=dp(54), on_release=save))
         self.add_widget(root)

@@ -2,7 +2,7 @@ import sys
 import ctypes
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 
 
 VERSION = "v17 Test"
@@ -57,9 +57,25 @@ class StageApp(tk.Tk):
         self.media["text note"] = path
         status.configure(text=f"Saved text note: {Path(path).name}")
 
+    def alert(self, title, body):
+        dialog = tk.Toplevel(self)
+        dialog.title(title)
+        dialog.configure(bg="#f6f7fb")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        card = tk.Frame(dialog, bg="#ffffff", padx=self.px(22), pady=self.px(20))
+        card.pack(fill="both", expand=True, padx=self.px(14), pady=self.px(14))
+        tk.Label(card, text=title, bg="#ffffff", fg="#111827", font=("Segoe UI Semibold", 18)).pack(anchor="w")
+        tk.Label(card, text=body, bg="#ffffff", fg="#4b5563", font=("Segoe UI", 12), wraplength=self.px(460), justify="left").pack(anchor="w", pady=(self.px(10), self.px(18)))
+        ttk.Button(card, text="OK", command=dialog.destroy).pack(anchor="e")
+        dialog.update_idletasks()
+        dialog.geometry(f"+{self.winfo_rootx() + self.px(120)}+{self.winfo_rooty() + self.px(120)}")
+        self.wait_window(dialog)
+
     def recorder_notice(self, kind):
         package = "sounddevice" if kind == "audio" else "opencv-python"
-        messagebox.showinfo(
+        self.alert(
             f"Record {kind.title()}",
             f"The latest desktop app can record {kind} when {package} is installed. A future mobile version should use the phone's native recorder.",
         )

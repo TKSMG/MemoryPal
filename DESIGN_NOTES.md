@@ -33,4 +33,4 @@ Dialogs should feel like part of the app. Stock system prompts are still useful 
 
 The mobile version should not copy the desktop layout. It should use fewer controls per screen, larger buttons, simple bottom navigation, and native phone features for recording and file picking.
 
-The Kivy prototype is only a starting point. A real mobile release should be tested on actual phones before it is treated as finished.
+The Kivy prototype is only a starting point. Its validation and save feedback should use the same calm in-app language as the desktop app, while a real mobile release should still be tested on actual phones before it is treated as finished.
