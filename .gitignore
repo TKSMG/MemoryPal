@@ -3,6 +3,9 @@ __pycache__/
 *.pyo
 .Python
 .venv/
+.venv-build/
+.build-tools/
+build_tools*/
 venv/
 env/
 build/

@@ -13,6 +13,12 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Switch between several pages and confirm the content fades in instead of flashing or sliding.
 - In the mobile prototype, try saving an empty card and a complete card; confirm both use in-app feedback instead of silent behavior.
 
+## Windows Build
+
+- Run `build_windows.cmd` from a normal Command Prompt or PowerShell window.
+- Confirm the script says it is using a Python install that can import Tkinter.
+- Open `release\MemoryPal.exe` and confirm the app loads without a `No module named 'tkinter'` error.
+
 ## Capture And Cards
 
 - Add a study bit manually.

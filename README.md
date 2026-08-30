@@ -18,6 +18,7 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 - Version journal: `development_versions/VERSION_JOURNAL.md`
 - Program outline: `development_versions/MemoryPal_Project_Outline.py`
 - Desktop dependencies: `requirements-desktop.txt`
+- EXE build dependency: `requirements-build.txt`
 - Mobile prototype dependencies: `requirements-mobile.txt`
 
 ## Running The App
