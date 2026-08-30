@@ -1236,61 +1236,53 @@ class MemoryPalApp(tk.Tk):
                 button.configure(style="ActiveNav.TButton" if key == view else "Nav.TButton")
         for child in self.content.winfo_children():
             child.destroy()
-        self.render_loading_skeleton(titles[view][1], token)
-        self.after(90, lambda: self.finish_show_view(view, token))
-
-    def render_loading_skeleton(self, title, token):
-        loader = ttk.Frame(self.content, style="Page.TFrame")
-        loader.pack(fill="both", expand=True)
-        head = self.card(loader, "WarmCard.TFrame", 16)
-        head.pack(fill="x", padx=(0, 8), pady=(0, 14))
-        spin = ttk.Label(head, text=f"Loading {title} |", style="WarmH2.TLabel")
-        spin.pack(anchor="w")
-        ttk.Label(head, text="Preparing the page layout and practice controls.", style="WarmCard.TLabel").pack(anchor="w", pady=(4, 0))
-        for width in (0.72, 0.94, 0.58):
-            block = tk.Frame(loader, bg=COLORS["surface"], height=self.px(76), highlightthickness=1, highlightbackground=COLORS["line"])
-            block.pack(fill="x", padx=(0, 8), pady=(0, 10))
-            line = tk.Frame(block, bg=COLORS["alt"], height=self.px(14))
-            line.place(relx=0.03, rely=0.34, relwidth=width, height=self.px(14))
-            small = tk.Frame(block, bg=COLORS["soft_line"], height=self.px(10))
-            small.place(relx=0.03, rely=0.64, relwidth=max(0.28, width - 0.22), height=self.px(10))
-
-        def tick(step=0):
-            if token != self.route_token or not spin.winfo_exists():
-                return
-            frames = ["|", "/", "-", "\\"]
-            spin.configure(text=f"Loading {title} {frames[step % len(frames)]}")
-            self.after(90, lambda: tick(step + 1))
-
-        tick()
+        self.after_idle(lambda: self.finish_show_view(view, token))
 
     def finish_show_view(self, view, token):
         if token != self.route_token:
             return
         self.view_host = ttk.Frame(self.content, style="Page.TFrame")
+        self.view_host.pack(fill="both", expand=True)
         getattr(self, f"view_{view}")()
         if token != self.route_token or not self.view_host.winfo_exists():
             return
-        for child in self.content.winfo_children():
-            if child is not self.view_host:
-                child.destroy()
-        self.view_host.place(relx=0, rely=0, relwidth=1, relheight=1)
-        curtain = tk.Frame(self.content, bg=COLORS["bg"], highlightthickness=0)
-        curtain.place(relx=0, rely=0, relwidth=1, relheight=1)
-        curtain.lift()
         self.update_idletasks()
-        self.reveal_view(token, curtain)
+        self.fade_in_view(token)
 
-    def reveal_view(self, token, curtain, step=0):
-        if token != self.route_token or not curtain.winfo_exists():
+    def fade_in_view(self, token):
+        if token != self.route_token or not self.content.winfo_viewable():
             return
-        progress_steps = (0.0, 0.30, 0.55, 0.75, 0.89, 0.97, 1.0)
-        progress = progress_steps[min(step, len(progress_steps) - 1)]
-        curtain.place(relx=progress, rely=0, relwidth=max(0.0005, 1 - progress), relheight=1)
-        if step < len(progress_steps) - 1:
-            self.after(14, lambda: self.reveal_view(token, curtain, step + 1))
+        width = self.content.winfo_width()
+        height = self.content.winfo_height()
+        if width <= 1 or height <= 1:
+            return
+        cover = tk.Toplevel(self)
+        cover.overrideredirect(True)
+        cover.configure(bg=COLORS["bg"])
+        cover.geometry(f"{width}x{height}+{self.content.winfo_rootx()}+{self.content.winfo_rooty()}")
+        cover.transient(self)
+        cover.lift(self)
+        try:
+            cover.attributes("-alpha", 0.62)
+        except tk.TclError:
+            cover.destroy()
+            return
+        self.fade_cover(token, cover)
+
+    def fade_cover(self, token, cover, step=0):
+        if token != self.route_token or not cover.winfo_exists():
+            return
+        alpha_steps = (0.62, 0.46, 0.32, 0.20, 0.11, 0.04, 0.0)
+        alpha = alpha_steps[min(step, len(alpha_steps) - 1)]
+        try:
+            cover.attributes("-alpha", alpha)
+        except tk.TclError:
+            cover.destroy()
+            return
+        if step < len(alpha_steps) - 1:
+            self.after(18, lambda: self.fade_cover(token, cover, step + 1))
         else:
-            curtain.destroy()
+            cover.destroy()
 
     def register_draft_saver(self, view, saver):
         self.draft_savers[view] = saver

@@ -269,6 +269,10 @@ Capture, review, repetition, and resources should each feel like one simple acti
 
 Audio, camera, and file picking should use native phone controls instead of desktop-style file dialogs.
 
+Speech-to-text can make capture easier for learners who think out loud, have trouble typing, or want to turn spoken explanations into study cards.
+
+The transcript should always stay editable before it becomes a card, because automatic transcription can misunderstand names, dates, and subject vocabulary.
+
 ## Clear Prompt And Answer Entry
 
 Repetition practice is clearer when the prompt and answer are not mixed into one field.

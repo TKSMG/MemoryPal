@@ -10,6 +10,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Collapse and reopen the left navigation rail.
 - Resize the window smaller than fullscreen and check that no main button disappears.
 - Open profile, recording, reset, import-error, and media-error dialogs and confirm they match the MemoryPal visual style.
+- Switch between several pages and confirm the content fades in instead of flashing or sliding.
 - In the mobile prototype, try saving an empty card and a complete card; confirm both use in-app feedback instead of silent behavior.
 
 ## Capture And Cards
@@ -23,6 +24,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Import a PDF and confirm extraction works when `pypdf` or `PyPDF2` is installed.
 - Attach image, audio, and video cues.
 - Try audio/video recording without the optional packages installed and confirm the modern unavailable dialog appears.
+- Run `development_versions/MemoryPal_v35_test_speech_to_text.py`; confirm it opens without speech packages installed and shows a clear unavailable message when dictation is requested.
 
 ## Study Modes
 

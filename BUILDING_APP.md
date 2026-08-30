@@ -12,6 +12,8 @@ Then install the optional packages:
 python -m pip install -r requirements-desktop.txt
 ```
 
+Speech-to-text is optional. `SpeechRecognition` supports the prototype transcription flow, and microphone dictation may also need `PyAudio`, which can require a normal Windows Python setup. The default recognizer used in the prototype may need an internet connection.
+
 ## Build The Windows App
 
 From the project folder:

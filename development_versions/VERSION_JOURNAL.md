@@ -137,3 +137,7 @@ This version moved MemoryPal closer to something that can be tested like a real 
 ## v34 Beta - Modern Dialogs
 
 This version removed the remaining old-looking prompt and warning boxes from the desktop app. Profile names, recording lengths, confirmations, errors, mobile capture feedback, and applicable milestone notices now use a MemoryPal-styled modal surface.
+
+## v35 Test - Speech-To-Text Capture
+
+This version added a desktop speech-to-text prototype for spoken study capture. It lets dictated or transcribed text become editable question and answer cards while keeping the speech packages optional.
