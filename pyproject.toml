@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memorypal-trainer"
+version = "0.35.0"
+description = "A desktop memory trainer for recall practice, study planning, multimedia cues, and spaced review."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+documents = [
+    "pypdf>=4.0",
+]
+image-previews = [
+    "Pillow>=10.0",
+]
+media = [
+    "pyttsx3>=2.90",
+    "sounddevice>=0.4",
+    "opencv-python>=4.8",
+]
+speech = [
+    "SpeechRecognition>=3.10",
+    "PyAudio>=0.2",
+]
+build = [
+    "nuitka>=2.5",
+    "ordered-set>=4.1",
+    "zstandard>=0.22",
+    "pyinstaller>=6.0",
+]
+mobile = [
+    "kivy>=2.3",
+]
+
+[project.scripts]
+memorypal = "MemoryPalDesktop:main"
+
+[tool.setuptools]
+package-dir = {"" = "latest_app"}
+py-modules = ["MemoryPalDesktop"]
+
+[tool.setuptools.packages.find]
+where = ["latest_app"]
+include = ["memorypal*"]

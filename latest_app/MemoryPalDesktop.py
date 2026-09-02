@@ -138,7 +138,8 @@ def current_data_paths():
     return directory / "memorypal-data.json", directory / "attachments"
 
 
-DATA_FILE, ATTACHMENT_DIR = current_data_paths()
+DATA_FILE = DATA_DIR / "profiles" / DEFAULT_PROFILE / "memorypal-data.json"
+ATTACHMENT_DIR = DATA_DIR / "profiles" / DEFAULT_PROFILE / "attachments"
 
 
 def switch_active_profile_paths(name):
@@ -828,6 +829,50 @@ class MemoryStore:
         self.daily_goal = 15
         self.last_action = None
         self.save()
+
+
+# Core behavior now lives in the memorypal package. The desktop file keeps the
+# Tkinter screens and event flow, while storage, parsing, models, and planning
+# are imported from smaller modules.
+from memorypal import paths as app_paths
+from memorypal.constants import (
+    BASE_DPI,
+    BASE_MIN_WINDOW,
+    BASE_WINDOW,
+    COLORS,
+    DARK_COLORS,
+    LIGHT_COLORS,
+    SELF_CHECK_ANSWER,
+)
+from memorypal.core import (
+    answer_assessment,
+    clamp,
+    enable_dpi_awareness,
+    extract_document_text,
+    hangman_hint,
+    mnemonic_sentence,
+    normalize_space,
+    parse_prompt_answer_lines,
+    split_study_bits,
+    today_iso,
+)
+from memorypal.models import Card, Capture, sample_cards
+from memorypal.paths import (
+    active_profile_name,
+    create_profile,
+    delete_profile,
+    list_profiles,
+    rename_profile,
+    switch_active_profile_paths,
+)
+from memorypal.planning import (
+    STUDY_HABIT_OPTIONS,
+    TIME_UNIT_OPTIONS,
+    TIME_UNIT_ORDER,
+    build_multi_day_plan,
+    build_study_plan,
+)
+from memorypal.store import MemoryStore
 
 
 class ScrollFrame(ttk.Frame):
@@ -2309,9 +2354,9 @@ class MemoryPalApp(tk.Tk):
         selected = filedialog.askopenfilename(title=f"Choose {label_name}", filetypes=filetypes + [("All files", "*.*")])
         if not selected:
             return
-        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
         source = Path(selected)
-        target = ATTACHMENT_DIR / f"{uuid4().hex}{source.suffix.lower()}"
+        target = app_paths.ATTACHMENT_DIR / f"{uuid4().hex}{source.suffix.lower()}"
         shutil.copy2(source, target)
         self.pending_media[kind] = str(target)
         labels[kind].configure(text=target.name)
@@ -2333,8 +2378,8 @@ class MemoryPalApp(tk.Tk):
         if not text:
             self.toast_message("Type or dictate text first, then save it as a note.")
             return
-        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = ATTACHMENT_DIR / f"text-note-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
+        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        target = app_paths.ATTACHMENT_DIR / f"text-note-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
         target.write_text(text + "\n", encoding="utf-8")
         self.pending_media["text_file"] = str(target)
         labels["text_file"].configure(text=target.name)
@@ -2353,8 +2398,8 @@ class MemoryPalApp(tk.Tk):
                 "Import an audio file for now, or install sounddevice for desktop recording. The planned mobile version should use the phone's native recorder.",
             )
             return
-        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = ATTACHMENT_DIR / f"audio-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
+        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        target = app_paths.ATTACHMENT_DIR / f"audio-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
         samplerate = 44100
         try:
             data = sd.rec(int(seconds * samplerate), samplerate=samplerate, channels=1, dtype="int16")
@@ -2383,8 +2428,8 @@ class MemoryPalApp(tk.Tk):
                 "Import a video file for now, or install opencv-python for desktop webcam recording. The planned mobile version should use the phone's camera recorder.",
             )
             return
-        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = ATTACHMENT_DIR / f"video-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.avi"
+        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        target = app_paths.ATTACHMENT_DIR / f"video-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.avi"
         camera = cv2.VideoCapture(0)
         if not camera.isOpened():
             self.dialog_alert("Video recording failed", "No webcam was found.", "error")
@@ -2417,9 +2462,9 @@ class MemoryPalApp(tk.Tk):
         selected = filedialog.askopenfilename(title=f"Choose {label_name}", filetypes=filetypes + [("All files", "*.*")])
         if not selected:
             return
-        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
         source = Path(selected)
-        target = ATTACHMENT_DIR / f"{uuid4().hex}{source.suffix.lower()}"
+        target = app_paths.ATTACHMENT_DIR / f"{uuid4().hex}{source.suffix.lower()}"
         shutil.copy2(source, target)
         setattr(card, kind, str(target))
         self.store.save()
@@ -2432,8 +2477,8 @@ class MemoryPalApp(tk.Tk):
         if not text:
             self.toast_message("Generate a hint first.")
             return
-        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = ATTACHMENT_DIR / f"cue-{uuid4().hex}.txt"
+        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        target = app_paths.ATTACHMENT_DIR / f"cue-{uuid4().hex}.txt"
         target.write_text(text + "\n", encoding="utf-8")
         card.text_file = str(target)
         self.store.save()
@@ -2465,8 +2510,8 @@ class MemoryPalApp(tk.Tk):
                 "Install pyttsx3 (pip install pyttsx3) for offline text-to-speech cues, or import an audio file instead.",
             )
             return
-        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = ATTACHMENT_DIR / f"voice-cue-{uuid4().hex}.wav"
+        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        target = app_paths.ATTACHMENT_DIR / f"voice-cue-{uuid4().hex}.wav"
         try:
             engine = pyttsx3.init()
             engine.save_to_file(text, str(target))
@@ -3857,7 +3902,7 @@ class MemoryPalApp(tk.Tk):
         path = filedialog.asksaveasfilename(title="Export MemoryPal data", defaultextension=".json", initialfile="memorypal-data.json", filetypes=[("JSON files", "*.json")])
         if path:
             self.store.save()
-            shutil.copy2(DATA_FILE, path)
+            shutil.copy2(app_paths.DATA_FILE, path)
             self.toast_message("Data exported.")
 
     def import_data(self):

@@ -1,0 +1,22 @@
+version: "3"
+
+tasks:
+  windows:
+    desc: Build the Windows MemoryPal executable with Nuitka
+    generates:
+      - release/MemoryPal.exe
+    cmds:
+      - >
+        python -m nuitka
+        --assume-yes-for-downloads
+        --onefile
+        --enable-plugin=tk-inter
+        --output-dir=release
+        --output-filename=MemoryPal.exe
+        --company-name="MemoryPal"
+        --product-name="MemoryPal"
+        --file-description="MemoryPal desktop memory trainer"
+        --product-version="0.35.0"
+        --file-version="0.35.0"
+        --windows-console-mode=disable
+        latest_app/MemoryPalDesktop.py

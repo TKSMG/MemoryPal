@@ -141,3 +141,7 @@ This version removed the remaining old-looking prompt and warning boxes from the
 ## v35 Test - Speech-To-Text Capture
 
 This version added a desktop speech-to-text prototype for spoken study capture. It lets dictated or transcribed text become editable question and answer cards while keeping the speech packages optional.
+
+## v36 Beta - Modular Project Structure
+
+This version responded to code review feedback by moving core paths, models, storage, planning, and study helpers into a small `memorypal` package. It also added platform-correct app data storage, `pyproject.toml`, Taskfile build notes, and a GitHub Actions Windows build workflow.
