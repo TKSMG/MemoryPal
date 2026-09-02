@@ -1,0 +1,50 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+
+      - name: Install build tools
+        run: python -m pip install --upgrade -r requirements-build.txt
+
+      - name: Check Tkinter
+        run: python -c "import tkinter as tk; root=tk.Tk(); root.withdraw(); root.destroy(); print('Tkinter is available')"
+
+      - name: Build MemoryPal
+        run: >
+          python -m nuitka
+          --assume-yes-for-downloads
+          --onefile
+          --enable-plugin=tk-inter
+          --output-dir=release
+          --output-filename=MemoryPal.exe
+          --company-name="MemoryPal"
+          --product-name="MemoryPal"
+          --file-description="MemoryPal desktop memory trainer"
+          --product-version="0.35.0"
+          --file-version="0.35.0"
+          --windows-console-mode=disable
+          latest_app\MemoryPalDesktop.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MemoryPal-Windows
+          path: release/MemoryPal.exe

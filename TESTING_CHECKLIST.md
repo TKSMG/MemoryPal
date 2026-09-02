@@ -6,6 +6,8 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 
 - Open `latest_app/MemoryPalDesktop.py`.
 - Confirm the dashboard loads without errors.
+- Confirm data is created in the normal app-data folder, not directly in the home folder.
+- If old `%USERPROFILE%\MemoryPalData` data exists, confirm it is copied into the new app-data profile folder.
 - Switch between dark and light mode.
 - Collapse and reopen the left navigation rail.
 - Resize the window smaller than fullscreen and check that no main button disappears.
@@ -16,8 +18,11 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 ## Windows Build
 
 - Run `build_windows.cmd` from a normal Command Prompt or PowerShell window.
+- Confirm the build output mentions Nuitka and the `tk-inter` plugin.
 - Confirm the script says it is using a Python install that can import Tkinter.
 - Open `release\MemoryPal.exe` and confirm the app loads without a `No module named 'tkinter'` error.
+- If the Nuitka build fails for a local setup reason, try `build_pyinstaller_windows.cmd` as a fallback.
+- In GitHub, run the `Build Windows App` workflow and confirm the `MemoryPal-Windows` artifact is created.
 
 ## Capture And Cards
 
@@ -72,3 +77,9 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Check that long button text wraps into new rows instead of clipping.
 - Use the app with the nav rail collapsed for a full review flow.
 - Confirm hover hints appear on compact navigation and important controls.
+
+## Code Structure
+
+- Confirm the desktop entry point imports core logic from `latest_app/memorypal/`.
+- Confirm `pyproject.toml` lists core dependencies and optional extras.
+- Confirm `requirements-*.txt` files still work for simple setup.

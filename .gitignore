@@ -6,11 +6,16 @@ __pycache__/
 .venv-build/
 .build-tools/
 build_tools*/
+*.egg-info/
+.pytest_cache/
 venv/
 env/
 build/
 dist/
 release/
+*.build/
+*.dist/
+*.onefile-build/
 .build_deps/
 build_deps_local/
 *.spec

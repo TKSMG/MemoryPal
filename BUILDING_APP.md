@@ -1,23 +1,35 @@
 # Building MemoryPal
 
-MemoryPal is currently a Python/Tkinter desktop app. The easiest shipping path for PC is a Windows `.exe` made with PyInstaller.
+MemoryPal is currently a Python/Tkinter desktop app. The recommended Windows build path uses Nuitka because it can package Tkinter with its `tk-inter` plugin and gives the project a clearer release workflow.
 
 ## Desktop Requirements
 
-Install Python 3.11 or newer from the official Python website. During install, enable the option that adds Python to PATH.
+Install Python 3.11 or newer from the official Python website. During install, keep Tcl/Tk selected and enable the option that adds Python to PATH.
 
-The app can run with Python's standard library. Optional packages unlock document extraction, image previews, recording, spoken cues, and speech-to-text experiments:
+The desktop app uses `platformdirs` for the local data folder. Optional packages unlock document extraction, image previews, recording, spoken cues, and speech-to-text experiments:
 
 ```powershell
 python -m pip install -r requirements-desktop.txt
 ```
 
+The same dependencies can also be installed from `pyproject.toml`:
+
+```powershell
+python -m pip install -e ".[documents,image-previews,media,speech]"
+```
+
 Speech-to-text is optional. `SpeechRecognition` supports the prototype transcription flow, and microphone dictation may also need `PyAudio`, which can require a normal Windows Python setup. The default recognizer used in the prototype may need an internet connection.
 
-The `.exe` build only needs the build requirements:
+The Windows build tools are listed separately:
 
 ```powershell
 python -m pip install -r requirements-build.txt
+```
+
+Or from the project config:
+
+```powershell
+python -m pip install -e ".[build]"
 ```
 
 ## Build The Windows App
@@ -28,27 +40,45 @@ From the project folder:
 build_windows.cmd
 ```
 
-If the build succeeds, the app appears here:
+The main build command calls `build_nuitka_windows.cmd`. If the build succeeds, the app appears here:
 
 ```text
 release\MemoryPal.exe
 ```
 
-The build script checks that Python can import `tkinter` before packaging. This matters because an EXE made with a Python installation that does not include Tkinter will open with an error such as `No module named 'tkinter'`.
+The script checks that Python can import `tkinter` and open a hidden Tk window before packaging. This matters because an EXE made with a Python installation that does not include Tkinter can open with an error such as `No module named 'tkinter'`.
 
 If an older `release\MemoryPal.exe` already shows that Tkinter error, delete it and run `build_windows.cmd` again after installing a normal Python build with Tcl/Tk. The current script is designed to stop before creating that broken kind of EXE.
 
-The `release` folder is ignored by Git on purpose. The source code and build instructions belong in the repository; the `.exe` is better attached later as a GitHub Release file.
+The `release` folder is ignored by Git on purpose. Source code, documentation, and build instructions belong in the repository; the `.exe` is better attached later as a GitHub Release file or downloaded from a GitHub Actions artifact.
 
-The build script installs packaging tools into `%TEMP%\memorypal-build-tools`, builds from a temporary `%TEMP%\memorypal-py-build-*` folder, and then copies the finished file into `release\MemoryPal.exe`. The `release` folder is ignored by Git.
+## GitHub Actions Build
 
-If the copy step is blocked by a restricted workspace, the script prints the temporary EXE path. On a normal Windows folder, the copy step should place the file in `release` automatically.
+The repository includes this workflow:
 
-## Why The EXE Might Not Build Here
+```text
+.github\workflows\build-windows.yml
+```
 
-The Codex workspace can compile the source, but the bundled Python environment may not always be a full desktop Python install with working Tkinter packaging support. The build script tests Tkinter before packaging so it does not create a broken EXE. If Codex cannot run a Tkinter-capable Python directly, run the same build command from a normal Command Prompt or PowerShell window.
+GitHub can build the Windows executable on push to `main` or from the manual **Run workflow** button in the Actions tab. The finished file is uploaded as an artifact named `MemoryPal-Windows`.
 
-If the script says no usable desktop Python was found, install Python 3.11 or newer from python.org, keep Tcl/Tk selected, and enable the PATH option during setup.
+This is the cleanest option when a local computer has Python path issues, PowerShell policy restrictions, or a Python installation without working Tkinter support.
+
+## Fallback PyInstaller Build
+
+The previous PyInstaller build is still available:
+
+```powershell
+build_pyinstaller_windows.cmd
+```
+
+Use it only as a fallback. It keeps the same Tkinter preflight check and writes the finished app to `release\MemoryPal.exe` when successful.
+
+## Why The EXE Might Not Build Locally
+
+The Codex workspace can compile the source, but the bundled Python environment may not always be a full desktop Python install with working Tkinter packaging support. The build scripts test Tkinter before packaging so they do not create a broken EXE.
+
+If the script says no usable desktop Python was found, install Python 3.11 or newer from python.org, keep Tcl/Tk selected, and enable the PATH option during setup. Then run the build command again from a normal Command Prompt or PowerShell window opened inside the project folder.
 
 ## Mobile Direction
 

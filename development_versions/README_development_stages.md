@@ -15,6 +15,7 @@ It also includes profiles, study planning, stats, dark/light themes, review repa
 The newest build adds a collapsible navigation rail, document-note importing, resource strips on study pages, and improved scaling on Study Plan and shared button rows.
 The release-prep build adds testing notes, Windows build instructions, and a mobile prototype path.
 The latest desktop UI uses a calm fade-in page transition instead of the older skeleton/slide reveal.
+The current project structure moves paths, models, storage, planning, and study helpers into `../latest_app/memorypal/` so the desktop entry point is no longer responsible for every layer of the app.
 
 ## How to Run a Version
 

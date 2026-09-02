@@ -9,16 +9,21 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 ## Project Files
 
 - Latest app: `latest_app/MemoryPalDesktop.py`
+- Desktop support package: `latest_app/memorypal/`
 - Testing checklist: `TESTING_CHECKLIST.md`
 - Build notes: `BUILDING_APP.md`
 - Design notes: `DESIGN_NOTES.md`
 - Memory techniques notes: `notes/MemoryPal_Memory_Techniques.md`
+- Python project config: `pyproject.toml`
 - Mobile prototype: `mobile_app/MemoryPalMobile.py`
 - Development versions: `development_versions/`
 - Version journal: `development_versions/VERSION_JOURNAL.md`
 - Program outline: `development_versions/MemoryPal_Project_Outline.py`
 - Desktop dependencies: `requirements-desktop.txt`
-- EXE build dependency: `requirements-build.txt`
+- Windows build dependencies: `requirements-build.txt`
+- Windows build command: `build_windows.cmd`
+- Fallback PyInstaller build command: `build_pyinstaller_windows.cmd`
+- GitHub Actions Windows build: `.github/workflows/build-windows.yml`
 - Mobile prototype dependencies: `requirements-mobile.txt`
 
 ## Running The App
@@ -29,11 +34,19 @@ Open a terminal in this folder and run:
 python latest_app\MemoryPalDesktop.py
 ```
 
-Local app data is stored in:
+For a full optional desktop setup:
+
+```powershell
+python -m pip install -e ".[documents,image-previews,media,speech]"
+```
+
+Local app data uses the normal app-data folder for the operating system. On Windows, this is usually:
 
 ```text
-%USERPROFILE%\MemoryPalData
+%LOCALAPPDATA%\MemoryPal
 ```
+
+Older `%USERPROFILE%\MemoryPalData` data is copied forward automatically the first time the new storage layer runs.
 
 ## Building An EXE
 
@@ -45,16 +58,20 @@ From this folder, run:
 build_windows.cmd
 ```
 
-The built app should appear in `release\MemoryPal.exe`. The release folder is ignored by Git so the repository stays focused on source code and documentation.
+The default build uses Nuitka with Tkinter support enabled. The built app should appear in `release\MemoryPal.exe`. The release folder is ignored by Git so the repository stays focused on source code and documentation.
+
+GitHub Actions can also build the Windows app from `.github/workflows/build-windows.yml` and upload it as an artifact.
 
 ## Current Features
 
 - Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover feedback, and calm fade-in page transitions.
+- Page transitions use a matching color cover so content fades in without a white flash.
 - App-styled modal dialogs for profile names, recording lengths, alerts, confirmations, and errors.
 - The mobile prototype also uses in-app validation and confirmation modals instead of silent or system-style feedback.
 - Collapsible left navigation rail for focus mode, with compact labels and hover hints.
 - More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
 - Separate local profiles, so different learners or study areas can keep independent data.
+- App data uses a platform-correct local data folder with automatic migration from the older home-folder location.
 - Dark and light appearance modes.
 - In-progress page drafts for Capture, Repetition, Test Lab, Quiz, Associations, and Puzzles while switching sections.
 - Study Plan page that builds a short session plan from time, goal, deck choice, and preferred study habits.
@@ -79,6 +96,8 @@ The built app should appear in `release\MemoryPal.exe`. The release folder is ig
 - Puzzles for Sequence Recall, Word Recall, Pair Recall, and Missing Item practice.
 - Library search with All, Due, Weak, and Captures filters.
 - Pointer-aware page scrolling plus keyboard scrolling with Page Up, Page Down, Home, and End.
+- Build scripts check for a Tkinter-capable Python before packaging, with Nuitka as the recommended Windows EXE path and PyInstaller kept as a fallback.
+- The latest desktop build separates core paths, models, storage, planning, and study helpers into `latest_app/memorypal/`.
 
 ## Development History
 
@@ -94,6 +113,7 @@ development_versions/MemoryPal_v32_beta_collapsible_nav_document_notes.py
 development_versions/MemoryPal_v33_release_candidate.py
 development_versions/MemoryPal_v34_beta_modern_dialogs.py
 development_versions/MemoryPal_v35_test_speech_to_text.py
+latest_app/memorypal/
 ```
 
 ## Mobile Version Note

@@ -1,2 +1,6 @@
-# Build-only dependency for creating the Windows executable.
+# Build-only dependencies for creating the Windows executable.
+platformdirs>=4.0
+nuitka>=2.5
+ordered-set>=4.1
+zstandard>=0.22
 pyinstaller>=6.0
