@@ -16,6 +16,7 @@ class MemoryStore:
         self.practiced = 0
         self.activity = {}
         self.daily_goal = 15
+        self.nav_order = []
         self.last_action = None
         self.load()
 
@@ -34,12 +35,14 @@ class MemoryStore:
             self.practiced = int(raw.get("practiced", 0))
             self.activity = dict(raw.get("activity", {}))
             self.daily_goal = int(raw.get("daily_goal", 15))
+            self.nav_order = list(raw.get("nav_order", []))
         except (OSError, json.JSONDecodeError, ValueError):
             self.cards = sample_cards()
             self.captures = []
             self.practiced = 0
             self.activity = {}
             self.daily_goal = 15
+            self.nav_order = []
 
     def save(self):
         paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -51,6 +54,7 @@ class MemoryStore:
                     "practiced": self.practiced,
                     "activity": self.activity,
                     "daily_goal": self.daily_goal,
+                    "nav_order": self.nav_order,
                 },
                 indent=2,
             ),
@@ -207,5 +211,6 @@ class MemoryStore:
         self.practiced = 0
         self.activity = {}
         self.daily_goal = 15
+        self.nav_order = []
         self.last_action = None
         self.save()

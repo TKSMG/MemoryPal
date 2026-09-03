@@ -38,10 +38,16 @@ if not exist "%BUILD_TOOLS%" mkdir "%BUILD_TOOLS%"
 if errorlevel 1 exit /b 1
 
 set "PYTHONPATH=%BUILD_TOOLS%;%PYTHONPATH%"
+set "MEMORYPAL_ICON=%TEMP%\memorypal-icon.ico"
+
+"%PYTHON_EXE%" %PYTHON_ARGS% -c "from pathlib import Path; import sys; sys.path.insert(0, r'latest_app'); from memorypal.icon import ensure_icon_file; ensure_icon_file(Path(r'%MEMORYPAL_ICON%'))"
+if errorlevel 1 exit /b 1
 
 mkdir "%TEMP_BUILD%"
 mkdir "%TEMP_BUILD%\release"
 copy /Y "latest_app\MemoryPalDesktop.py" "%TEMP_BUILD%\MemoryPalDesktop.py" >nul
+if errorlevel 1 exit /b 1
+xcopy /E /I /Y "latest_app\memorypal" "%TEMP_BUILD%\memorypal" >nul
 if errorlevel 1 exit /b 1
 
 "%PYTHON_EXE%" %PYTHON_ARGS% -m PyInstaller ^
@@ -50,6 +56,7 @@ if errorlevel 1 exit /b 1
   --onefile ^
   --windowed ^
   --name MemoryPal ^
+  --icon "%MEMORYPAL_ICON%" ^
   --distpath "%TEMP_BUILD%\release" ^
   --workpath "%TEMP_BUILD%\build" ^
   --specpath "%TEMP_BUILD%\build" ^

@@ -10,6 +10,7 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 
 - Latest app: `latest_app/MemoryPalDesktop.py`
 - Desktop support package: `latest_app/memorypal/`
+- App icon exports: `assets/memorypal.ico`, `assets/memorypal-logo-preview.png`, `assets/memorypal-logo.svg`
 - Testing checklist: `TESTING_CHECKLIST.md`
 - Build notes: `BUILDING_APP.md`
 - Design notes: `DESIGN_NOTES.md`
@@ -64,11 +65,25 @@ GitHub Actions can also build the Windows app from `.github/workflows/build-wind
 
 ## Current Features
 
-- Modern Tkinter desktop interface with a warm app header, local-save status, styled cue menus, hover feedback, and calm fade-in page transitions.
-- Page transitions use a matching color cover so content fades in without a white flash.
+- Modern Tkinter desktop interface with a soft app header, local-save status, styled cue menus, hover feedback, and steadier page reveals.
+- Page transitions use an in-window same-theme cover, including while already in fullscreen or focus mode, so content changes do not flash through during redraws.
+- Page switches, resize release, navigation collapse, fullscreen, and focus changes use a gentle overlay reveal after the layout settles, keeping the main app background solid.
 - App-styled modal dialogs for profile names, recording lengths, alerts, confirmations, and errors.
+- Generated MemoryPal app icon for the Windows title/taskbar icon, custom title strip, packaged executable, and exported project assets.
 - The mobile prototype also uses in-app validation and confirmation modals instead of silent or system-style feedback.
-- Collapsible left navigation rail for focus mode, with compact labels and hover hints.
+- Collapsible left navigation rail for focus mode, with compact labels, a cleaner capsule toggle, hover hints, and its own scroll area for smaller screens.
+- Settings page can reorder the main navigation pages per profile.
+- Settings page for theme, navigation, profiles, daily goal, storage, backups, reset, focus mode, and true fullscreen.
+- Settings stays pinned at the bottom of the navigation rail so the header has more room for status and profile controls.
+- Window controls separate true fullscreen from borderless focus mode: F11 uses true fullscreen, while the app buttons use focus mode.
+- Windowed page changes, theme changes, and interface rebuilds use matching in-window covers to hide redraw flashes without the older strip-opening effect.
+- Collapsing or reopening the navigation rail now redraws only the rail, so the active study page and unsaved work stay in place.
+- Fullscreen and focus changes preserve the active page instead of rebuilding the interface.
+- Custom window resizing applies after the user releases the resize grip, then fades the settled layout back in.
+- Custom titlebar and navigation shapes use optional Pillow-backed antialiasing when Pillow is installed, with a normal Tk fallback.
+- The titlebar and left navigation use the same generated MemoryPal logo artwork.
+- The generated logo renders directly through Tk, so the rail mark and titlebar mark stay consistent even without Pillow.
+- The main desktop window is resizable from the right edge, bottom edge, and corner while keeping the custom app chrome and DPI-scaled title bar controls.
 - More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
 - Separate local profiles, so different learners or study areas can keep independent data.
 - App data uses a platform-correct local data folder with automatic migration from the older home-folder location.
@@ -76,9 +91,12 @@ GitHub Actions can also build the Windows app from `.github/workflows/build-wind
 - In-progress page drafts for Capture, Repetition, Test Lab, Quiz, Associations, and Puzzles while switching sections.
 - Study Plan page that builds a short session plan from time, goal, deck choice, and preferred study habits.
 - Stats page with daily goal editing, streaks, activity heatmap, and upcoming review preview.
+- Stats page includes weekly pace, active-day count, best-day signal, weak-card count, daily goal, streaks, and heatmap.
 - Focus queue for due, weak, and fresh cards.
 - Dashboard next-step recommendations, mastery progress, due/learning/mastered chips, and a small daily-action prompt.
+- Memory Gym page with separate student-study and everyday-memory practice paths.
 - Chunk-based capture, with each study bit stored separately.
+- Capture has horizontal scrolling for the two-column set builder, so the right-side captured/cue panel remains reachable on smaller or scaled windows.
 - Note/document imports for `.txt`, `.md`, `.csv`, `.docx`, and PDFs when a PDF reader library is available.
 - Imported note/document text can be extracted into the study bit box and turned into decks/cards.
 - Separate question/title and answer boxes for prompt-answer cards.
@@ -92,11 +110,13 @@ GitHub Actions can also build the Windows app from `.github/workflows/build-wind
 - Smart Check for close-enough typed responses.
 - Repetition Path with separate prompt and answer fields, staged items, a focused round player, and the clarified pattern: `5`, `5-4`, `5-4-3`, then `3-2-1`.
 - Quick Quiz with self-check and multiple-choice modes.
-- Association tools for acronyms, mini-stories, peg lists, memory palace routes, chunk maps, and link chains.
-- Puzzles for Sequence Recall, Word Recall, Pair Recall, and Missing Item practice.
+- Association tools for acronyms, mini-stories, peg lists, memory palace routes, chunk maps, link chains, and practical technique plans.
+- Technique planning for retrieval practice, spaced practice, interleaving, elaboration, concrete examples, dual coding, and spaced retrieval.
+- Puzzles for Sequence Recall, Word Recall, Pair Recall, Missing Item, Visual Search, N-Back Lite, Category Sort, and Routine Recall practice.
 - Library search with All, Due, Weak, and Captures filters.
 - Pointer-aware page scrolling plus keyboard scrolling with Page Up, Page Down, Home, and End.
 - Build scripts check for a Tkinter-capable Python before packaging, with Nuitka as the recommended Windows EXE path and PyInstaller kept as a fallback.
+- Build scripts generate the MemoryPal `.ico` during packaging and pass it to Nuitka or PyInstaller.
 - The latest desktop build separates core paths, models, storage, planning, and study helpers into `latest_app/memorypal/`.
 
 ## Development History
@@ -113,7 +133,22 @@ development_versions/MemoryPal_v32_beta_collapsible_nav_document_notes.py
 development_versions/MemoryPal_v33_release_candidate.py
 development_versions/MemoryPal_v34_beta_modern_dialogs.py
 development_versions/MemoryPal_v35_test_speech_to_text.py
+development_versions/MemoryPal_v44_beta_memory_gym_fades.py
+development_versions/MemoryPal_v45_beta_memory_games.py
+development_versions/MemoryPal_v46_beta_fullscreen_icon_polish.py
+development_versions/MemoryPal_v47_beta_custom_navigation_stats.py
+development_versions/MemoryPal_v48_beta_stable_transitions_soft_themes.py
+development_versions/MemoryPal_v49_beta_no_reload_focus_nav.py
+development_versions/MemoryPal_v50_beta_nav_alignment_antialias.py
+development_versions/MemoryPal_v51_beta_soft_fade_logo_polish.py
+development_versions/MemoryPal_v52_beta_capture_scroll_resize_fade.py
+development_versions/MemoryPal_v53_beta_element_fade_logo_fix.py
+development_versions/MemoryPal_v54_beta_logo_assets.py
+assets/memorypal.ico
+assets/memorypal-logo-preview.png
+assets/memorypal-logo.svg
 latest_app/memorypal/
+latest_app/MemoryPalDesktop.py
 ```
 
 ## Mobile Version Note

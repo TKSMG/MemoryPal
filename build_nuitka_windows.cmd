@@ -38,6 +38,10 @@ if not exist "%BUILD_TOOLS%" mkdir "%BUILD_TOOLS%"
 if errorlevel 1 exit /b 1
 
 set "PYTHONPATH=%BUILD_TOOLS%;%PYTHONPATH%"
+set "MEMORYPAL_ICON=%TEMP%\memorypal-icon.ico"
+
+"%PYTHON_EXE%" %PYTHON_ARGS% -c "from pathlib import Path; import sys; sys.path.insert(0, r'latest_app'); from memorypal.icon import ensure_icon_file; ensure_icon_file(Path(r'%MEMORYPAL_ICON%'))"
+if errorlevel 1 exit /b 1
 
 if not exist release mkdir release
 
@@ -50,8 +54,9 @@ if not exist release mkdir release
   --company-name="MemoryPal" ^
   --product-name="MemoryPal" ^
   --file-description="MemoryPal desktop memory trainer" ^
-  --product-version="0.35.0" ^
-  --file-version="0.35.0" ^
+  --product-version="0.36.0" ^
+  --file-version="0.36.0" ^
+  --windows-icon-from-ico="%MEMORYPAL_ICON%" ^
   %WINDOWS_CONSOLE_MODE% ^
   latest_app\MemoryPalDesktop.py
 

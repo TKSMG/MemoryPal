@@ -69,6 +69,18 @@ The plan can mix review, repetition, association work, quiz practice, and short 
 
 This keeps the app practical when the learner does not know where to start.
 
+## Memory Gym
+
+Memory Gym is the page that brings the main practice paths together.
+
+It has a student study track for school material and an everyday memory track for gentler recall work.
+
+The student track points toward retrieval practice, spaced practice, interleaving, elaboration, concrete examples, and dual coding.
+
+The everyday memory track points toward spaced retrieval, names, routines, attention games, and cue-based practice.
+
+The goal is to make the app easier to approach for different people without making the home page too crowded.
+
 ## Profiles
 
 Profiles keep study data separate.
@@ -146,6 +158,22 @@ Examples:
 
 The goal is not perfect memorization. The goal is to give the brain a useful hook.
 
+## Technique Planning
+
+Technique planning turns pasted notes or saved material into one practical exercise.
+
+The current planner supports:
+
+- Retrieval practice.
+- Spaced practice.
+- Interleaving.
+- Elaboration.
+- Concrete examples.
+- Dual coding.
+- Spaced retrieval.
+
+This helps the learner choose what to do with the material instead of only storing it.
+
 ## Sequence Recall
 
 Sequence Recall briefly shows a sequence, hides it, and asks for the same sequence back.
@@ -173,6 +201,42 @@ Missing Item hides one item from a small sequence.
 The learner identifies the missing word or idea.
 
 This supports order memory and attention to detail.
+
+## Visual Search
+
+Visual Search asks the learner to find every tile that matches a target word.
+
+This is meant to practise scanning, attention, and focus without needing a long study session.
+
+It can be especially useful as a quick warmup before review.
+
+## N-Back Lite
+
+N-Back Lite shows one item at a time.
+
+The learner decides whether the current item matches the one just before it.
+
+This is a short working-memory exercise, so it should stay simple and not feel punishing.
+
+## Category Sort
+
+Category Sort asks the learner to group bits of information into rough categories.
+
+This can help students organize topics before revision.
+
+It can also help older adults practise sorting familiar objects, appointments, places, names, and daily tasks.
+
+The exercise should stay flexible because the goal is organization, not perfect labels.
+
+## Routine Recall
+
+Routine Recall briefly shows a small set of steps.
+
+The learner then types the steps back in order.
+
+This is useful for everyday sequences such as morning tasks, appointments, packing items, or simple safety routines.
+
+The activity should feel gentle. Missing a step means the routine needs another pass, not that the learner failed.
 
 ## Media Cues
 
@@ -247,6 +311,10 @@ Stats, streaks, daily goals, and upcoming reviews show whether practice is happe
 
 These signals should guide the next study action without making the learner feel judged.
 
+Weekly pace, active days, best-day count, and weak-card count give more context than a streak alone.
+
+The goal is to show momentum without making the learner feel punished for missing a day.
+
 ## Helpful Interface Cues
 
 Hover hints explain controls without adding too much permanent text to the screen.
@@ -260,6 +328,16 @@ Good hints explain the action, not the whole app.
 The navigation rail can collapse when the learner wants more space for the current task.
 
 Collapsed navigation keeps short labels and hover hints, so the app can stay understandable without taking up the full left side.
+
+The page order can also be changed in Settings.
+
+This matters because a student might want Decks, Study Plan, and Test Lab near the top, while an older adult or caregiver might want Memory Gym, Capture, Puzzles, and Review first.
+
+Settings works best as a stable pinned navigation item instead of appearing in several places at once.
+
+Collapsing the rail should not reset the page. Learners may be halfway through a prompt, answer, or plan when they decide they need more space.
+
+The expanded collapse control should sit centered in the rail so the sidebar feels intentional instead of slightly off-balance.
 
 ## Mobile Practice
 
@@ -307,6 +385,20 @@ The interface should feel modern, fast, and easy to understand.
 
 A softer app header, clear status chips, clean buttons, and subtle hover feedback help the app feel less plain without becoming distracting. This matters because the app is supposed to support memory, not compete for attention.
 
+Dark and light themes should share the same calm personality: soft surfaces, readable contrast, gentle borders, and vivid accents only where they help the user act.
+
+Page changes should hide redraw flashes with a same-theme cover. The transition should feel quiet and steady, not like the page is disappearing after it has already loaded.
+
+Custom rounded controls can look jagged in Tkinter. Optional antialiased drawing helps the app feel softer while keeping the normal Tk fallback for computers without image extras installed.
+
+The generated MemoryPal logo should be used anywhere the app needs a main mark. The connected-dot M now has exported `.ico`, PNG, and SVG versions, so the project can use the same identity in the window, titlebar, build output, and documentation.
+
+The startup fade feels calm, but page and layout changes should not dim the whole app. A same-color overlay can fade away over the changed area while the shell stays solid.
+
+Capture can become wide because it has both a builder and a saved-material panel. Horizontal scrolling keeps those tools reachable without making every box cramped.
+
+Resize should wait until release when using custom grips. Constant resizing can make a Tkinter app feel jittery, especially with larger text and media previews.
+
 Dialog boxes should follow the same design language as the rest of the app. Recording prompts, profile names, warnings, and confirmations should feel calm and readable instead of looking like old system popups.
 
 ## Preserving Work
@@ -316,6 +408,8 @@ Study apps should not erase unfinished work during navigation.
 MemoryPal keeps page drafts in memory for the main working screens.
 
 This makes the app more forgiving during normal use.
+
+Fullscreen and focus mode should preserve the active task too. Changing the window shape is a viewing preference, not a new study session.
 
 ## Review Repair
 
@@ -345,13 +439,17 @@ Prompts should stay calm, respectful, and not overwhelming.
 MemoryPal combines:
 
 - Small study bits.
+- Memory Gym.
 - Focus queue.
 - Prompt and answer practice.
 - Spaced review.
 - Smart Check.
 - Repetition paths.
 - Associations.
+- Technique planning.
 - Recall puzzles.
+- Category sorting.
+- Routine recall.
 - Media cues.
 - Draft preservation.
 - A desktop release path.

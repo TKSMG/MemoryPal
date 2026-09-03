@@ -27,6 +27,9 @@ jobs:
       - name: Check Tkinter
         run: python -c "import tkinter as tk; root=tk.Tk(); root.withdraw(); root.destroy(); print('Tkinter is available')"
 
+      - name: Generate app icon
+        run: python -c "from pathlib import Path; import sys; sys.path.insert(0, 'latest_app'); from memorypal.icon import ensure_icon_file; ensure_icon_file(Path('release/memorypal.ico'))"
+
       - name: Build MemoryPal
         run: >
           python -m nuitka
@@ -40,6 +43,7 @@ jobs:
           --file-description="MemoryPal desktop memory trainer"
           --product-version="0.35.0"
           --file-version="0.35.0"
+          --windows-icon-from-ico=release\memorypal.ico
           --windows-console-mode=disable
           latest_app\MemoryPalDesktop.py
 
