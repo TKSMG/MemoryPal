@@ -14,7 +14,8 @@ It includes DPI-aware scaling, chunk-based capture, prompt-answer modes, smart c
 It also includes profiles, study planning, stats, dark/light themes, review repair controls, and a focused Repetition round player.
 The newest build adds a collapsible navigation rail, document-note importing, resource strips on study pages, and improved scaling on Study Plan and shared button rows.
 The release-prep build adds testing notes, Windows build instructions, and a mobile prototype path.
-The latest desktop UI uses a calm fade-in page transition instead of the older skeleton/slide reveal.
+The latest desktop UI uses a steady same-theme page cover for page switches, while fullscreen/focus and sidebar collapse preserve the active page instead of rebuilding it.
+The newest polish pass changes transition fades from whole-window opacity to content/root overlay reveals, keeping the app shell solid while elements appear.
 The current project structure moves paths, models, storage, planning, and study helpers into `../latest_app/memorypal/` so the desktop entry point is no longer responsible for every layer of the app.
 
 ## How to Run a Version
@@ -218,6 +219,132 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Added a standalone desktop prototype for microphone dictation and audio-file transcription.
 - Transcripts can be inserted into separate question and answer boxes, edited, and saved as normal study cards.
 - Speech recognition stays optional, with a clear in-app message when the needed packages are not installed. The default recognizer may need an internet connection.
+
+### v36 Beta - Modular project structure
+
+- Moved paths, models, storage, planning, and study helpers into the `memorypal` package.
+- Added platform-correct app data storage, `pyproject.toml`, Taskfile notes, and GitHub Actions build support.
+- Kept the desktop launcher as the simple file to run while making the codebase easier to maintain.
+
+### v37 Beta - Custom window chrome and flash polish
+
+- Replaced old native-looking title bars with MemoryPal-styled chrome for the main window and app-owned popups.
+- Added startup and popup fade-ins, fuller window controls, and custom resize grips.
+- Preserved normal desktop usability while improving the app's visual identity.
+
+### v38 Beta - Settings and window controls
+
+- Added Settings for theme, navigation, profiles, daily goal, storage, backup, reset, focus mode, and fullscreen.
+- Separated true fullscreen from borderless focus mode.
+- Added taskbar-presence handling so MemoryPal behaves more like its own Windows app when launched normally.
+
+### v39 Beta - Settings access and fade polish
+
+- Added easier Settings access and improved the navigation collapse control.
+- Restored same-color covers around page, focus, fullscreen, resize, and rebuild moments.
+- Improved scaling around the title bar and compact controls.
+
+### v40 Beta - Stable fullscreen polish
+
+- Simplified fullscreen and focus transitions to avoid freezing while Windows changes display state.
+- Removed risky overlay behavior from fullscreen enter and exit.
+- Kept the app responsive while hiding resize flashes with a same-color blocker.
+
+### v41 Beta - Softer transition pass
+
+- Removed the floating Settings cog after it created a square artifact in Tkinter.
+- Kept Settings in the header and the pinned bottom navigation item.
+- Softened the transition system without fading the entire app window.
+
+### v42 Beta - Fade cover balance
+
+- Brought back real fading covers for normal windowed page switches and interface rebuilds.
+- Kept fullscreen and focus mode steadier during the actual resize operation.
+- Improved the balance between visual polish and app stability.
+
+### v43 Beta - Page flash fix
+
+- Replaced a flashing page overlay with an in-app same-color veil.
+- Prevented the whole app from blinking during quick navigation.
+- Marked the final strip-reveal attempt before the current fade pass.
+
+### v44 Beta - Memory Gym and softer fades
+
+- Added the standalone `MemoryPal_v44_beta_memory_gym_fades.py` milestone.
+- Added Memory Gym as a clearer hub for student study and everyday memory practice.
+- Added technique planning plus Visual Search and N-Back Lite to the latest desktop app.
+
+### v45 Beta - Everyday memory games
+
+- Added the standalone `MemoryPal_v45_beta_memory_games.py` milestone.
+- Added Category Sort and Routine Recall for gentle everyday-memory practice.
+- Restored fading page covers while already in fullscreen or focus mode, while keeping fullscreen enter and exit stable.
+
+### v46 Beta - Fullscreen and icon polish
+
+- Added the standalone `MemoryPal_v46_beta_fullscreen_icon_polish.py` milestone.
+- Debounced fullscreen and focus transitions so repeated clicks or F11 presses do not stack window-manager calls.
+- Removed double-cover transitions during shell rebuilds such as theme, navigation, and profile changes.
+- Added a generated MemoryPal icon for the app window, custom title strip, Windows build scripts, and GitHub Actions packaging.
+
+### v47 Beta - Custom navigation and stats rhythm
+
+- Added the standalone `MemoryPal_v47_beta_custom_navigation_stats.py` milestone.
+- Forced transition covers to render before page rebuilds and removed the color-flash fallback that made some page switches feel odd.
+- Added per-profile page ordering in Settings with Move Up, Move Down, Apply Order, and Reset Order controls.
+- Changed the header into a title row plus a control row so page titles do not crowd streak, daily goal, profile, settings, or backup controls.
+- Added Stats rhythm cards for this week, active days, best day, and weak-card attention.
+
+### v48 Beta - Stable transitions and soft themes
+
+- Added the standalone `MemoryPal_v48_beta_stable_transitions_soft_themes.py` milestone.
+- Replaced page-level top-window fade covers with in-window same-theme covers so page switches do not flash, blink, or briefly show half-built content.
+- Removed the duplicate header Settings button and kept Settings pinned in the left navigation rail.
+- Softened both dark and light palettes so cards, inputs, borders, and status chips feel calmer.
+
+### v49 Beta - No-reload focus and navigation
+
+- Added the standalone `MemoryPal_v49_beta_no_reload_focus_nav.py` milestone.
+- Changed navigation collapse/reopen so only the left rail is redrawn.
+- Changed fullscreen and focus toggles so they preserve the active page instead of adding a full-window cover.
+- Kept the no-flash page-switch behavior from v48.
+
+### v50 Beta - Navigation alignment and antialiasing
+
+- Added the standalone `MemoryPal_v50_beta_nav_alignment_antialias.py` milestone.
+- Centered the expanded navigation collapse capsule.
+- Added optional Pillow-backed antialiasing for custom titlebar buttons, the app mark, and the navigation toggle.
+- Kept a normal Tk drawing fallback so the app remains runnable without optional image dependencies.
+
+### v51 Beta - Soft fade and logo polish
+
+- Added the standalone `MemoryPal_v51_beta_soft_fade_logo_polish.py` milestone.
+- Reintroduced a gentle startup-style opacity reveal for page switches, resize release, navigation collapse, focus mode, and fullscreen.
+- Kept the no-reload behavior for focus and navigation changes.
+- Replaced the large rail letter mark with the generated MemoryPal logo artwork when Pillow is available.
+
+### v52 Beta - Capture scroll, resize release, and fade tuning
+
+- Added the standalone `MemoryPal_v52_beta_capture_scroll_resize_fade.py` milestone.
+- Added horizontal scrolling to the Capture page so the right-side captured/cue panel remains accessible.
+- Changed custom resizing so the window resizes after the user releases the grip.
+- Made page/layout fades more visible by fading after the same-theme cover comes off.
+- Removed the navigation collapse toast while keeping notifications for real user actions.
+- Matched the titlebar and navigation logo artwork when image support is available.
+
+### v53 Beta - Element fade and logo fix
+
+- Added the standalone `MemoryPal_v53_beta_element_fade_logo_fix.py` milestone.
+- Replaced whole-window opacity changes during page/layout transitions with temporary overlay reveals.
+- Kept startup and popup fade behavior, since those are separate windows and do not dim an already-visible shell.
+- Rendered the generated MemoryPal logo directly through Tk for the titlebar and navigation mark.
+
+### v54 Beta - Logo assets
+
+- Added the standalone `MemoryPal_v54_beta_logo_assets.py` milestone.
+- Added reusable logo exports in `../assets/`: `.ico`, PNG preview, and SVG.
+- Updated the desktop app to prefer the checked-in `.ico` while keeping generated-icon fallback behavior.
+- Added a small export entry point in `latest_app/memorypal/icon.py` for refreshing the icon assets later.
 
 ## Mobile Version Note
 

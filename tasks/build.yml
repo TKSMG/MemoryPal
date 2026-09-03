@@ -7,6 +7,9 @@ tasks:
       - release/MemoryPal.exe
     cmds:
       - >
+        python -c
+        "from pathlib import Path; import sys; sys.path.insert(0, 'latest_app'); from memorypal.icon import ensure_icon_file; ensure_icon_file(Path('release/memorypal.ico'))"
+      - >
         python -m nuitka
         --assume-yes-for-downloads
         --onefile
@@ -16,7 +19,8 @@ tasks:
         --company-name="MemoryPal"
         --product-name="MemoryPal"
         --file-description="MemoryPal desktop memory trainer"
-        --product-version="0.35.0"
-        --file-version="0.35.0"
+        --product-version="0.36.0"
+        --file-version="0.36.0"
+        --windows-icon-from-ico=release/memorypal.ico
         --windows-console-mode=disable
         latest_app/MemoryPalDesktop.py

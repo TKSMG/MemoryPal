@@ -48,6 +48,8 @@ release\MemoryPal.exe
 
 The script checks that Python can import `tkinter` and open a hidden Tk window before packaging. This matters because an EXE made with a Python installation that does not include Tkinter can open with an error such as `No module named 'tkinter'`.
 
+The build scripts generate the MemoryPal icon from source code before packaging. Nuitka and PyInstaller both receive that `.ico`, so the finished Windows app should use the MemoryPal mark instead of the default Python/Tk icon. The repository also keeps reusable icon exports in `assets/` for previews, README use, and later packaging polish.
+
 If an older `release\MemoryPal.exe` already shows that Tkinter error, delete it and run `build_windows.cmd` again after installing a normal Python build with Tcl/Tk. The current script is designed to stop before creating that broken kind of EXE.
 
 The `release` folder is ignored by Git on purpose. Source code, documentation, and build instructions belong in the repository; the `.exe` is better attached later as a GitHub Release file or downloaded from a GitHub Actions artifact.

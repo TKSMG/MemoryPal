@@ -145,3 +145,75 @@ This version added a desktop speech-to-text prototype for spoken study capture. 
 ## v36 Beta - Modular Project Structure
 
 This version responded to code review feedback by moving core paths, models, storage, planning, and study helpers into a small `memorypal` package. It also added platform-correct app data storage, `pyproject.toml`, Taskfile build notes, and a GitHub Actions Windows build workflow.
+
+## v37 Beta - Custom Window Chrome And Flash Polish
+
+This version replaced the old native-looking title bars with MemoryPal-styled window chrome on the main app and in-app popups. It also added fade-in startup, popup fade-ins, fullscreen/rebuild covers, and a custom resize grip so the app keeps a modern feel without losing normal desktop usability.
+
+## v38 Beta - Settings And Window Controls
+
+This version added a real Settings page for theme, navigation, profile, daily-goal, storage, backup, and reset controls. It also separated true fullscreen from borderless focus mode, restored normal resizable-window behavior, and nudged Windows to show MemoryPal as its own app in the taskbar.
+
+## v39 Beta - Settings Access And Fade Polish
+
+This version made Settings easier to find with a floating bottom-right cog and replaced the plain navigation collapse button with a cleaner capsule control. It also restored same-color fade covers around focus, fullscreen, resize, popup, and page transitions, with extra scaling attention for the title bar and floating controls.
+
+## v40 Beta - Stable Fullscreen Polish
+
+This version simplified fullscreen and focus transitions so they use an in-window blocker instead of a separate cover window. It also cleaned up the settings cog into a simpler scaled circle and kept fade protection around resize, fullscreen, focus, page, and popup changes.
+
+## v41 Beta - Softer Transition Pass
+
+This version removed the floating Settings cog after it created an unavoidable square artifact in Tkinter. Settings now appears in the header and as a pinned bottom navigation item, while page, fullscreen, focus, resize, and rebuild transitions use in-window covers instead of fading the entire app window.
+
+## v42 Beta - Fade Cover Balance
+
+This version brought back real fading covers for normal windowed page switches and interface rebuilds. Fullscreen and borderless focus still use simpler in-window blockers, which keeps those modes steadier while hiding the white flash.
+
+## v43 Beta - Page Flash Fix
+
+This version removed the separate page-transition overlay window that could still flash during navigation. Page switches now use an in-app same-color veil with a quick strip reveal, so fast navigation stays hidden and the whole app window does not blink.
+
+## v44 Beta - Memory Gym And Softer Fades
+
+This version removed the strip-opening page transition and brought back a calmer fade cover for normal page switches. It also added Memory Gym, technique planning, Visual Search, and N-Back Lite so the app better supports both students and older adults practicing memory skills.
+
+## v45 Beta - Everyday Memory Games
+
+This version kept the Memory Gym direction going by adding Category Sort and Routine Recall. It also let page transitions use fading covers while already in fullscreen or focus mode, while fullscreen enter and exit still use the steadier resize blocker.
+
+## v46 Beta - Fullscreen And Icon Polish
+
+This version made fullscreen and focus changes less buggy by debouncing window transitions and removing stacked covers during shell rebuilds. It also added a generated MemoryPal icon for the running app, custom title strip, Windows build scripts, and GitHub Actions packaging.
+
+## v47 Beta - Custom Navigation And Stats Rhythm
+
+This version made page transitions more consistent by forcing the cover to render before rebuilding each page and removing the color-flash fallback. It also added per-profile page ordering in Settings, a less cramped two-row header, and stronger Stats rhythm cards for weekly practice, active days, best day, and weak-card attention.
+
+## v48 Beta - Stable Transitions And Soft Themes
+
+This version replaced the fragile page fade overlay with a steadier in-window cover that stays above the old and new page until the rebuild is ready. It also removed the duplicate Settings button from the header and softened both themes so light mode and dark mode feel more like the same finished app.
+
+## v49 Beta - No-Reload Focus And Navigation
+
+This version made the app feel less jumpy by keeping the current page alive while the sidebar collapses or the window enters focus/fullscreen. It keeps the clean no-flash page switches, but avoids rebuilding the interface when the user only wants more screen space.
+
+## v50 Beta - Navigation Alignment And Softer Edges
+
+This version centered the expanded navigation collapse control and made the hand-drawn titlebar/nav shapes smoother when Pillow is installed. The app still falls back to normal Tk drawing, but polished installs can use the optional image preview dependency for softer rounded edges.
+
+## v51 Beta - Soft Fade And Logo Polish
+
+This version brought back the pleasant startup-style fade for page switches and layout changes without returning to the buggy overlay-window transition. It also changed the large rail mark to use the generated MemoryPal logo art when Pillow is available, with the hand-drawn logo as a fallback.
+
+## v52 Beta - Capture Scroll, Resize Release, And Fade Tuning
+
+This version fixed the Capture page when the two-column builder is wider than the window by adding horizontal scrolling. It also changed custom resizing to happen on mouse release, made the fade visible after the transition cover drops away, removed the unnecessary navigation-collapse notification, and matched the titlebar and rail logo artwork.
+
+## v53 Beta - Element Fade And Logo Fix
+
+This version corrected the fade approach so page and layout changes no longer dim the entire app window. The app now keeps the shell background solid and fades away a same-color overlay over the changed area, while the generated MemoryPal logo renders consistently in both the titlebar and navigation rail.
+
+## v54 Beta - Logo Assets
+
+This version settled the current MemoryPal logo into reusable project assets. It kept the sharper connected-dot M, exported `.ico`, PNG, and SVG versions, and made the desktop app prefer the checked-in icon before falling back to generated files.

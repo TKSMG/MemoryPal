@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">MemoryPal Logo</title>
+  <desc id="desc">A rounded blue and violet MemoryPal mark with a crisp connected M path and recall dots.</desc>
+  <defs>
+    <linearGradient id="memorypal-bg" x1="180" y1="96" x2="844" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6ec5ff"/>
+      <stop offset="0.48" stop-color="#4f8fff"/>
+      <stop offset="1" stop-color="#7868ff"/>
+    </linearGradient>
+    <radialGradient id="memorypal-glow" cx="760" cy="160" r="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ccfbff" stop-opacity="0.42"/>
+      <stop offset="0.56" stop-color="#ccfbff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#ccfbff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="mark-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="10" dy="16" stdDeviation="10" flood-color="#10213f" flood-opacity="0.26"/>
+    </filter>
+  </defs>
+  <rect x="80" y="80" width="864" height="864" rx="230" fill="url(#memorypal-bg)"/>
+  <rect x="80" y="80" width="864" height="864" rx="230" fill="url(#memorypal-glow)"/>
+  <path d="M254 718 L254 312 L512 640 L770 312 L770 718" fill="none" stroke="#ffffff" stroke-width="112" stroke-linecap="round" stroke-linejoin="round" filter="url(#mark-shadow)"/>
+  <path d="M254 718 L254 312 L512 640 L770 312 L770 718" fill="none" stroke="#ffffff" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M254 704 L432 336 L590 584 L770 300" fill="none" stroke="#83ffd8" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" opacity="0.32"/>
+  <circle cx="254" cy="312" r="58" fill="#ffffff"/>
+  <circle cx="512" cy="640" r="55" fill="#ffffff"/>
+  <circle cx="770" cy="312" r="58" fill="#ffffff"/>
+  <circle cx="254" cy="312" r="21" fill="#67b7ff" opacity="0.26"/>
+  <circle cx="512" cy="640" r="20" fill="#7868ff" opacity="0.28"/>
+  <circle cx="770" cy="312" r="21" fill="#67b7ff" opacity="0.26"/>
+</svg>
