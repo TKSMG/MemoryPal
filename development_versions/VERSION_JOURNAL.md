@@ -217,3 +217,7 @@ This version corrected the fade approach so page and layout changes no longer di
 ## v54 Beta - Logo Assets
 
 This version settled the current MemoryPal logo into reusable project assets. It kept the sharper connected-dot M, exported `.ico`, PNG, and SVG versions, and made the desktop app prefer the checked-in icon before falling back to generated files.
+
+## v55 Beta - Testing Feedback And Installer
+
+This version prepared MemoryPal for longer testing by adding a local Feedback Log with ratings, categories, affected pages, notes, and CSV export. It also made legacy data migration non-destructive and added an Inno Setup installer path so the Windows build can become a tester-friendly setup file once the EXE is built.

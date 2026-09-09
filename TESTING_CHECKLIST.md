@@ -11,7 +11,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Confirm the app appears as its own taskbar item when launched normally.
 - Confirm the right edge, bottom edge, and corner resize grips let the app resize when it is not in true fullscreen.
 - Confirm data is created in the normal app-data folder, not directly in the home folder.
-- If old `%USERPROFILE%\MemoryPalData` data exists, confirm it is copied into the new app-data profile folder.
+- If old `%USERPROFILE%\MemoryPalData` data exists, confirm it is copied into the new app-data profile folder without overwriting newer profile edits.
 - Switch between dark and light mode and confirm the app does not freeze, flash white, or keep old-theme colors stuck on screen.
 - Collapse and reopen the left navigation rail using the capsule toggle.
 - Type something into a page field, collapse/reopen the navigation rail, and confirm the typed work is still there.
@@ -54,7 +54,9 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Confirm the script says it is using a Python install that can import Tkinter.
 - Open `release\MemoryPal.exe` and confirm the app loads without a `No module named 'tkinter'` error.
 - If the Nuitka build fails for a local setup reason, try `build_pyinstaller_windows.cmd` as a fallback.
-- In GitHub, run the `Build Windows App` workflow and confirm the `MemoryPal-Windows` artifact is created.
+- After the EXE exists and Inno Setup 6 is installed, run `build_installer_windows.cmd`.
+- Confirm `release\MemoryPalSetup.exe` is created and opens the normal MemoryPal installer flow.
+- In GitHub, run the `Build Windows App` workflow and confirm the `MemoryPal-Windows` artifact includes the EXE and installer when the workflow succeeds.
 
 ## Capture And Cards
 
@@ -105,6 +107,9 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Confirm the Study Plan page scrolls correctly and no button is cut off.
 - Check the Stats page after completing reviews.
 - Confirm Stats shows this week, active days, best day, weak-card count, streak, daily goal, heatmap, and deck breakdown.
+- Add a note in Feedback Log and confirm it stays after switching pages.
+- Close and reopen the app, then confirm Feedback Log still shows the saved note.
+- Export Feedback Log and confirm the CSV opens with rating, category, page, note, and created date.
 - Switch profiles and confirm each profile has separate data.
 - Confirm each profile can keep a different navigation order.
 

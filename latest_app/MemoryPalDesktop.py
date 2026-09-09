@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import random
@@ -866,7 +867,7 @@ from memorypal.core import (
     today_iso,
 )
 from memorypal.icon import ensure_icon_file, render_icon_pixels
-from memorypal.models import Card, Capture, sample_cards
+from memorypal.models import Card, Capture, FeedbackEntry, sample_cards
 from memorypal.paths import (
     active_profile_name,
     create_profile,
@@ -882,7 +883,7 @@ from memorypal.planning import (
     build_multi_day_plan,
     build_study_plan,
 )
-from memorypal.store import MemoryStore
+from memorypal.store import MemoryStore, load_items, safe_int
 
 
 class ScrollFrame(ttk.Frame):
@@ -1413,6 +1414,7 @@ class MemoryPalApp(tk.Tk):
             ("games", "Puzzles", "Pu"),
             ("library", "Library", "L"),
             ("stats", "Stats", "S"),
+            ("feedback", "Feedback", "Fb"),
         ]
 
     def ordered_nav_items(self):
@@ -1929,6 +1931,7 @@ class MemoryPalApp(tk.Tk):
             "cuelab": "Generate text, image, and audio cues for any card.",
             "games": "Short recall games for attention and memory.",
             "library": "Search, filter, import, export, and review saved material.",
+            "feedback": "Record tester ratings, bug notes, accessibility comments, and feature ideas.",
             "settings": "Personalize appearance, profiles, storage, backups, and focus behavior.",
         }.get(key, "")
 
@@ -1949,6 +1952,7 @@ class MemoryPalApp(tk.Tk):
             "cuelab": ("MemoryPal", "Cue Lab"),
             "games": ("MemoryPal", "Puzzles"),
             "library": ("MemoryPal", "Library"),
+            "feedback": ("Testing", "Feedback Log"),
             "settings": ("Personalize", "Settings"),
         }
         if self.current_view != view:
@@ -2582,6 +2586,9 @@ class MemoryPalApp(tk.Tk):
             "Move Down": "Move the selected page lower in the navigation rail.",
             "Apply Order": "Save this navigation order and refresh the side rail.",
             "Reset Order": "Return the navigation rail to the default MemoryPal order.",
+            "Save Feedback": "Add this tester note to the local feedback log.",
+            "Export Feedback": "Save tester notes and ratings as a CSV file.",
+            "Open Feedback": "Open the feedback log for tester notes and bug reports.",
             "Back": "Return to the previous section.",
             "Settings": "Personalize MemoryPal's appearance, profiles, storage, and window behavior.",
             "Edit Daily Goal": "Change how many cards count as a completed study day.",
@@ -2771,6 +2778,7 @@ class MemoryPalApp(tk.Tk):
             ("Puzzles", "Short recall games with large, steady controls.", "games", COLORS["pink"]),
             ("Library", "Browse captures, cards, media cues, and exports.", "library", COLORS["cyan"]),
             ("Stats", "Streaks, daily goal, and a full activity heatmap.", "stats", COLORS["orange"]),
+            ("Feedback", "Log tester notes, ratings, bugs, and accessibility comments.", "feedback", COLORS["green"]),
             ("Settings", "Tune the app, profiles, storage, and focus controls.", "settings", COLORS["violet"]),
         ]
         for index, (title, body, target, color) in enumerate(cards):
@@ -4974,6 +4982,116 @@ class MemoryPalApp(tk.Tk):
         app_paths.refresh_current_data_paths()
         self.open_path(app_paths.DATA_DIR)
 
+    def export_feedback(self):
+        if not self.store.feedback:
+            self.toast_message("No feedback to export yet.")
+            return
+        path = filedialog.asksaveasfilename(
+            title="Export MemoryPal feedback",
+            defaultextension=".csv",
+            initialfile="memorypal-feedback.csv",
+            filetypes=[("CSV files", "*.csv")],
+        )
+        if not path:
+            return
+        with open(path, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["created_at", "rating", "category", "page", "note"])
+            writer.writeheader()
+            for entry in self.store.feedback:
+                writer.writerow({
+                    "created_at": entry.created_at,
+                    "rating": entry.rating,
+                    "category": entry.category,
+                    "page": entry.page,
+                    "note": entry.note,
+                })
+        self.toast_message("Feedback exported.")
+
+    def view_feedback(self):
+        page = ScrollFrame(self.view_host)
+        page.pack(fill="both", expand=True)
+        draft = self.view_drafts.get("feedback", {})
+        summary = self.store.feedback_summary()
+
+        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]), hover=COLORS["green"])
+        hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        tk.Frame(hero, bg=COLORS["green"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
+        tk.Label(hero, text="Testing feedback", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
+        tk.Label(hero, text="Use this during real test sessions to collect ratings, bug reports, confusing moments, and accessibility notes.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(6, 0))
+
+        stats = ttk.Frame(page.inner, style="Page.TFrame")
+        stats.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        stat_items = [
+            ("Entries", str(summary["total"]), "tester notes saved locally", COLORS["primary"]),
+            ("Average", f"{summary['average']}/5" if summary["average"] else "None", "rated feedback score", COLORS["green"]),
+            ("Latest", summary["latest"], "most recent feedback note", COLORS["orange"]),
+        ]
+        for index, (title, value, caption, color) in enumerate(stat_items):
+            tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color)
+            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else self.px(10), 0))
+            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w")
+            tk.Label(tile, text=value, bg=COLORS["surface"], fg=color, font=self.font("Segoe UI Semibold", 20), wraplength=self.px(290), justify="left").pack(anchor="w", pady=(self.px(2), 0))
+            tk.Label(tile, text=caption, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9), wraplength=self.px(290), justify="left").pack(anchor="w")
+            stats.columnconfigure(index, weight=1)
+
+        form = self.card(page.inner, "Card.TFrame", 22)
+        form.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(form, text="Add tester note", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(form, text="Short notes are enough. Capture what felt confusing, broken, helpful, too small, too cluttered, or worth keeping.", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(4, 12))
+
+        controls = ttk.Frame(form, style="Card.TFrame")
+        controls.pack(fill="x", pady=(0, 12))
+        rating_var = tk.StringVar(value=draft.get("rating", "5"))
+        category_var = tk.StringVar(value=draft.get("category", "Usability"))
+        page_var = tk.StringVar(value=draft.get("page", "Overall app"))
+        categories = ["Usability", "Bug", "Confusing", "Accessibility", "Feature idea", "Performance", "General"]
+        page_options = ["Overall app"] + [label for _key, label, _short in self.default_nav_items()]
+
+        tk.Label(controls, text="Rating", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).grid(row=0, column=0, sticky="w")
+        tk.Label(controls, text="Category", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).grid(row=0, column=1, sticky="w", padx=(self.px(12), 0))
+        tk.Label(controls, text="Page", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).grid(row=0, column=2, sticky="w", padx=(self.px(12), 0))
+        self.pill_group(controls, rating_var, ["1", "2", "3", "4", "5"], max_columns=5).grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        self.select_button(controls, category_var, categories).grid(row=1, column=1, sticky="ew", padx=(self.px(12), 0), pady=(4, 0))
+        self.select_button(controls, page_var, page_options).grid(row=1, column=2, sticky="ew", padx=(self.px(12), 0), pady=(4, 0))
+        controls.columnconfigure(0, weight=2)
+        controls.columnconfigure(1, weight=2)
+        controls.columnconfigure(2, weight=3)
+
+        note = self.text_box(form, height=5)
+        note.pack(fill="x", pady=(0, 12))
+        note.insert("1.0", draft.get("note", ""))
+
+        def save_feedback():
+            note_text = note.get("1.0", "end").strip()
+            rating = int(rating_var.get()) if rating_var.get().isdigit() else 0
+            if not note_text:
+                self.toast_message("Add a quick note before saving feedback.")
+                return
+            self.store.add_feedback(rating, category_var.get(), page_var.get(), note_text)
+            self.view_drafts["feedback"] = {}
+            self.toast_message("Feedback saved.")
+            self.show_view("feedback")
+
+        self.button_row(form, [("Save Feedback", save_feedback, "Primary.TButton"), ("Export Feedback", self.export_feedback, "TButton")])
+
+        recent = self.card(page.inner, "AltCard.TFrame", 22)
+        recent.pack(fill="x", padx=(0, 8))
+        ttk.Label(recent, text="Recent feedback", style="AltH2.TLabel").pack(anchor="w")
+        if not self.store.feedback:
+            ttk.Label(recent, text="No tester notes yet.", style="AltMuted.TLabel").pack(anchor="w", pady=(6, 0))
+        for entry in self.store.feedback[:10]:
+            item = tk.Frame(recent, bg=COLORS["surface"], padx=self.px(14), pady=self.px(12), highlightthickness=1, highlightbackground=COLORS["soft_line"])
+            item.pack(fill="x", pady=(10, 0))
+            tk.Label(item, text=f"{entry.rating}/5 | {entry.category} | {entry.page} | {entry.created_at}", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="w")
+            tk.Label(item, text=entry.note, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 11), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(4, 0))
+
+        self.register_draft_saver("feedback", lambda: {
+            "rating": rating_var.get(),
+            "category": category_var.get(),
+            "page": page_var.get(),
+            "note": note.get("1.0", "end").strip(),
+        })
+
     def view_settings(self):
         app_paths.refresh_current_data_paths()
         page = ScrollFrame(self.view_host)
@@ -5226,12 +5344,13 @@ class MemoryPalApp(tk.Tk):
             return
         try:
             raw = json.loads(Path(path).read_text(encoding="utf-8"))
-            self.store.cards = [Card.from_dict(item) for item in raw.get("cards", [])]
-            self.store.captures = [Capture.from_dict(item) for item in raw.get("captures", [])]
-            self.store.practiced = int(raw.get("practiced", 0))
+            self.store.cards = load_items(raw.get("cards", []), Card.from_dict)
+            self.store.captures = load_items(raw.get("captures", []), Capture.from_dict)
+            self.store.practiced = safe_int(raw.get("practiced", 0), 0)
             self.store.activity = dict(raw.get("activity", {}))
-            self.store.daily_goal = int(raw.get("daily_goal", 15))
+            self.store.daily_goal = safe_int(raw.get("daily_goal", 15), 15)
             self.store.nav_order = list(raw.get("nav_order", []))
+            self.store.feedback = load_items(raw.get("feedback", []), FeedbackEntry.from_dict)
             self.store.save()
             self.show_view("library")
         except (OSError, json.JSONDecodeError, ValueError) as exc:

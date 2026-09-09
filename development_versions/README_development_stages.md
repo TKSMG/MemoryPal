@@ -346,6 +346,14 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Updated the desktop app to prefer the checked-in `.ico` while keeping generated-icon fallback behavior.
 - Added a small export entry point in `latest_app/memorypal/icon.py` for refreshing the icon assets later.
 
+### v55 Beta - Testing feedback and installer
+
+- Added the standalone `MemoryPal_v55_beta_testing_feedback_installer.py` milestone.
+- Added a Feedback Log page for tester ratings, bug notes, accessibility comments, and feature ideas.
+- Saved feedback in the active profile data and added CSV export for longer testing periods.
+- Made legacy data migration non-destructive so old home-folder data does not overwrite newer app-data edits.
+- Added an Inno Setup installer script and `build_installer_windows.cmd`.
+
 ## Mobile Version Note
 
 A separate production mobile version is still needed later. The Kivy prototype in `mobile_app/` is a starting point, but the finished app should use native phone APIs for the microphone, camera, file picker, storage permissions, and large touch controls instead of copying the desktop Tkinter interface directly.

@@ -54,8 +54,8 @@ if not exist release mkdir release
   --company-name="MemoryPal" ^
   --product-name="MemoryPal" ^
   --file-description="MemoryPal desktop memory trainer" ^
-  --product-version="0.36.0" ^
-  --file-version="0.36.0" ^
+  --product-version="0.37.0" ^
+  --file-version="0.37.0" ^
   --windows-icon-from-ico="%MEMORYPAL_ICON%" ^
   %WINDOWS_CONSOLE_MODE% ^
   latest_app\MemoryPalDesktop.py

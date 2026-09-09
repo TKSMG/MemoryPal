@@ -62,9 +62,31 @@ The repository includes this workflow:
 .github\workflows\build-windows.yml
 ```
 
-GitHub can build the Windows executable on push to `main` or from the manual **Run workflow** button in the Actions tab. The finished file is uploaded as an artifact named `MemoryPal-Windows`.
+GitHub can build the Windows executable and installer on push to `main` or from the manual **Run workflow** button in the Actions tab. The finished files are uploaded as an artifact named `MemoryPal-Windows`.
 
 This is the cleanest option when a local computer has Python path issues, PowerShell policy restrictions, or a Python installation without working Tkinter support.
+
+## Build The Installer
+
+The repository includes an Inno Setup script:
+
+```text
+installer\inno\MemoryPal.iss
+```
+
+After `release\MemoryPal.exe` exists, run:
+
+```powershell
+build_installer_windows.cmd
+```
+
+The script looks for Inno Setup 6, compiles the installer, and writes:
+
+```text
+release\MemoryPalSetup.exe
+```
+
+The installer uses a per-user install location under local app data, so testers can install MemoryPal without needing administrator access.
 
 ## Fallback PyInstaller Build
 

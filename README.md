@@ -23,6 +23,8 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 - Desktop dependencies: `requirements-desktop.txt`
 - Windows build dependencies: `requirements-build.txt`
 - Windows build command: `build_windows.cmd`
+- Windows installer command: `build_installer_windows.cmd`
+- Installer script: `installer/inno/MemoryPal.iss`
 - Fallback PyInstaller build command: `build_pyinstaller_windows.cmd`
 - GitHub Actions Windows build: `.github/workflows/build-windows.yml`
 - Mobile prototype dependencies: `requirements-mobile.txt`
@@ -61,7 +63,15 @@ build_windows.cmd
 
 The default build uses Nuitka with Tkinter support enabled. The built app should appear in `release\MemoryPal.exe`. The release folder is ignored by Git so the repository stays focused on source code and documentation.
 
-GitHub Actions can also build the Windows app from `.github/workflows/build-windows.yml` and upload it as an artifact.
+GitHub Actions can also build the Windows app and installer from `.github/workflows/build-windows.yml` and upload them as artifacts.
+
+To make a Windows installer after the EXE exists, install Inno Setup 6 and run:
+
+```powershell
+build_installer_windows.cmd
+```
+
+The installer output should appear at `release\MemoryPalSetup.exe`.
 
 ## Current Features
 
@@ -86,12 +96,13 @@ GitHub Actions can also build the Windows app from `.github/workflows/build-wind
 - The main desktop window is resizable from the right edge, bottom edge, and corner while keeping the custom app chrome and DPI-scaled title bar controls.
 - More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
 - Separate local profiles, so different learners or study areas can keep independent data.
-- App data uses a platform-correct local data folder with automatic migration from the older home-folder location.
+- App data uses a platform-correct local data folder with non-destructive migration from the older home-folder location.
 - Dark and light appearance modes.
 - In-progress page drafts for Capture, Repetition, Test Lab, Quiz, Associations, and Puzzles while switching sections.
 - Study Plan page that builds a short session plan from time, goal, deck choice, and preferred study habits.
 - Stats page with daily goal editing, streaks, activity heatmap, and upcoming review preview.
 - Stats page includes weekly pace, active-day count, best-day signal, weak-card count, daily goal, streaks, and heatmap.
+- Feedback Log page for tester ratings, bug notes, confusing moments, accessibility comments, and CSV export.
 - Focus queue for due, weak, and fresh cards.
 - Dashboard next-step recommendations, mastery progress, due/learning/mastered chips, and a small daily-action prompt.
 - Memory Gym page with separate student-study and everyday-memory practice paths.
@@ -117,6 +128,7 @@ GitHub Actions can also build the Windows app from `.github/workflows/build-wind
 - Pointer-aware page scrolling plus keyboard scrolling with Page Up, Page Down, Home, and End.
 - Build scripts check for a Tkinter-capable Python before packaging, with Nuitka as the recommended Windows EXE path and PyInstaller kept as a fallback.
 - Build scripts generate the MemoryPal `.ico` during packaging and pass it to Nuitka or PyInstaller.
+- Inno Setup installer script and command file for making a user-friendly Windows setup file.
 - The latest desktop build separates core paths, models, storage, planning, and study helpers into `latest_app/memorypal/`.
 
 ## Development History
@@ -144,6 +156,7 @@ development_versions/MemoryPal_v51_beta_soft_fade_logo_polish.py
 development_versions/MemoryPal_v52_beta_capture_scroll_resize_fade.py
 development_versions/MemoryPal_v53_beta_element_fade_logo_fix.py
 development_versions/MemoryPal_v54_beta_logo_assets.py
+development_versions/MemoryPal_v55_beta_testing_feedback_installer.py
 assets/memorypal.ico
 assets/memorypal-logo-preview.png
 assets/memorypal-logo.svg
