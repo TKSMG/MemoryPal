@@ -70,6 +70,31 @@ class Capture:
         )
 
 
+@dataclass
+class FeedbackEntry:
+    id: str = field(default_factory=uid)
+    rating: int = 0
+    category: str = "General"
+    page: str = "Overall app"
+    note: str = ""
+    created_at: str = field(default_factory=now_label)
+
+    @classmethod
+    def from_dict(cls, raw):
+        try:
+            rating = int(raw.get("rating", 0))
+        except (TypeError, ValueError):
+            rating = 0
+        return cls(
+            id=raw.get("id", uid()),
+            rating=max(0, min(5, rating)),
+            category=raw.get("category", "General") or "General",
+            page=raw.get("page", "Overall app") or "Overall app",
+            note=raw.get("note", ""),
+            created_at=raw.get("created_at", raw.get("createdAt", now_label())),
+        )
+
+
 def sample_cards():
     return [
         Card(

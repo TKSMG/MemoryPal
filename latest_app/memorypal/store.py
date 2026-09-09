@@ -4,7 +4,26 @@ from datetime import date, timedelta
 
 from . import paths
 from .core import add_days, today_iso
-from .models import Card, Capture, sample_cards
+from .models import Card, Capture, FeedbackEntry, sample_cards
+
+
+def safe_int(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def load_items(raw_items, factory):
+    items = []
+    for raw in raw_items or []:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            items.append(factory(raw))
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return items
 
 
 class MemoryStore:
@@ -17,6 +36,7 @@ class MemoryStore:
         self.activity = {}
         self.daily_goal = 15
         self.nav_order = []
+        self.feedback = []
         self.last_action = None
         self.load()
 
@@ -30,12 +50,13 @@ class MemoryStore:
             return
         try:
             raw = json.loads(paths.DATA_FILE.read_text(encoding="utf-8"))
-            self.cards = [Card.from_dict(item) for item in raw.get("cards", [])]
-            self.captures = [Capture.from_dict(item) for item in raw.get("captures", [])]
-            self.practiced = int(raw.get("practiced", 0))
+            self.cards = load_items(raw.get("cards", []), Card.from_dict)
+            self.captures = load_items(raw.get("captures", []), Capture.from_dict)
+            self.practiced = safe_int(raw.get("practiced", 0), 0)
             self.activity = dict(raw.get("activity", {}))
-            self.daily_goal = int(raw.get("daily_goal", 15))
+            self.daily_goal = safe_int(raw.get("daily_goal", 15), 15)
             self.nav_order = list(raw.get("nav_order", []))
+            self.feedback = load_items(raw.get("feedback", []), FeedbackEntry.from_dict)
         except (OSError, json.JSONDecodeError, ValueError):
             self.cards = sample_cards()
             self.captures = []
@@ -43,6 +64,7 @@ class MemoryStore:
             self.activity = {}
             self.daily_goal = 15
             self.nav_order = []
+            self.feedback = []
 
     def save(self):
         paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -55,11 +77,31 @@ class MemoryStore:
                     "activity": self.activity,
                     "daily_goal": self.daily_goal,
                     "nav_order": self.nav_order,
+                    "feedback": [asdict(entry) for entry in self.feedback],
                 },
                 indent=2,
             ),
             encoding="utf-8",
         )
+
+    def add_feedback(self, rating, category, page, note):
+        entry = FeedbackEntry(rating=rating, category=category, page=page, note=note)
+        self.feedback.insert(0, entry)
+        self.save()
+        return entry
+
+    def feedback_summary(self):
+        rated = [entry.rating for entry in self.feedback if entry.rating > 0]
+        average = round(sum(rated) / len(rated), 1) if rated else 0
+        categories = {}
+        for entry in self.feedback:
+            categories[entry.category] = categories.get(entry.category, 0) + 1
+        return {
+            "total": len(self.feedback),
+            "average": average,
+            "categories": categories,
+            "latest": self.feedback[0].created_at if self.feedback else "None yet",
+        }
 
     def log_activity(self, count=1):
         key = today_iso()
@@ -212,5 +254,6 @@ class MemoryStore:
         self.activity = {}
         self.daily_goal = 15
         self.nav_order = []
+        self.feedback = []
         self.last_action = None
         self.save()

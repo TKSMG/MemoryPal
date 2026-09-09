@@ -452,7 +452,9 @@ MemoryPal combines:
 - Routine recall.
 - Media cues.
 - Draft preservation.
+- Tester feedback logging.
 - A desktop release path.
+- A Windows installer path.
 - A mobile prototype direction.
 
 The main design goal is clear, gentle, useful memory practice.

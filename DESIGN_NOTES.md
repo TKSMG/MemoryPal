@@ -21,6 +21,10 @@ The app should always answer three questions quickly:
 - What am I trying to remember?
 - What happens after I answer?
 
+For testing builds, the app should also answer one project question quickly:
+
+- What felt helpful, confusing, broken, or hard to use?
+
 ## Desktop Feel
 
 The desktop app should stay fast and lightweight, but it should not feel unfinished. The visual style uses soft dark and light themes, clear cards, hover hints, a collapsible rail, and quiet page reveals.
@@ -44,6 +48,10 @@ Checked-in icon exports should stay in `assets/` so the project has a reusable `
 Wide builder pages need horizontal scrolling when they use side-by-side panels. Keeping the page reachable is more important than forcing every panel to squeeze into a narrow viewport.
 
 Custom resize grips should apply the final size on release. This avoids constant redraw jitter and gives the fade a single settled state to reveal.
+
+Feedback capture should stay local, short, and easy to export. Testers should not need an account just to say that something was confusing, too small, broken, or useful.
+
+Legacy data migration should copy old files forward without overwriting newer app-data changes. Long testing periods make data trust part of the user experience.
 
 ## Mobile Feel
 

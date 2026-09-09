@@ -29,6 +29,7 @@ def app_data_dir():
 DATA_DIR = app_data_dir()
 PROFILES_DIR = DATA_DIR / "profiles"
 PROFILES_CONFIG = DATA_DIR / "profiles.json"
+MIGRATION_MARKER = DATA_DIR / ".legacy-migration-complete"
 
 
 def normalize_profile_name(name):
@@ -46,9 +47,19 @@ def profile_dir(name):
     return directory
 
 
+def copy_missing_tree(source, target):
+    for item in source.rglob("*"):
+        destination = target / item.relative_to(source)
+        if item.is_dir():
+            destination.mkdir(parents=True, exist_ok=True)
+        elif not destination.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, destination)
+
+
 def migrate_legacy_data():
     """Copy existing home-folder data into the platform data directory once."""
-    if LEGACY_DATA_DIR == DATA_DIR or not LEGACY_DATA_DIR.exists():
+    if LEGACY_DATA_DIR == DATA_DIR or not LEGACY_DATA_DIR.exists() or MIGRATION_MARKER.exists():
         return
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -59,7 +70,7 @@ def migrate_legacy_data():
         shutil.copy2(legacy_config, PROFILES_CONFIG)
 
     if legacy_profiles.exists():
-        shutil.copytree(legacy_profiles, PROFILES_DIR, dirs_exist_ok=True)
+        copy_missing_tree(legacy_profiles, PROFILES_DIR)
 
     legacy_file = LEGACY_DATA_DIR / "memorypal-data.json"
     legacy_attach = LEGACY_DATA_DIR / "attachments"
@@ -68,7 +79,12 @@ def migrate_legacy_data():
     if legacy_file.exists() and not (default_dir / "memorypal-data.json").exists():
         shutil.copy2(legacy_file, default_dir / "memorypal-data.json")
         if legacy_attach.exists():
-            shutil.copytree(legacy_attach, default_dir / "attachments", dirs_exist_ok=True)
+            copy_missing_tree(legacy_attach, default_dir / "attachments")
+
+    try:
+        MIGRATION_MARKER.write_text("Legacy MemoryPalData migration completed.\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def load_profiles_config():

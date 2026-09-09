@@ -41,14 +41,23 @@ jobs:
           --company-name="MemoryPal"
           --product-name="MemoryPal"
           --file-description="MemoryPal desktop memory trainer"
-          --product-version="0.35.0"
-          --file-version="0.35.0"
+          --product-version="0.37.0"
+          --file-version="0.37.0"
           --windows-icon-from-ico=release\memorypal.ico
           --windows-console-mode=disable
           latest_app\MemoryPalDesktop.py
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer\inno\MemoryPal.iss"'
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: MemoryPal-Windows
-          path: release/MemoryPal.exe
+          path: |
+            release/MemoryPal.exe
+            release/MemoryPalSetup.exe
