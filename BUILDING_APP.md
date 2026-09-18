@@ -117,7 +117,7 @@ release\MemoryPalSetup.exe
 
 The installer uses a per-user install location under local app data, so testers can install MemoryPal without needing administrator access.
 
-The installer shows normal setup choices for install location, Start Menu folder, optional desktop shortcut, optional Quick Launch shortcut on supported Windows versions, and launch-after-install.
+The installer shows normal setup choices for install location, Start Menu folder, optional desktop shortcut, and launch-after-install.
 
 If Inno Setup is missing, `.\build_installer_windows.cmd` can offer to install it with `winget`. The script checks `INNO_SETUP_PATH`, PATH, the per-user install folder, and Program Files before asking to install anything.
 
@@ -130,6 +130,18 @@ $env:INNO_SETUP_PATH = "C:\Path\To\Inno Setup 7\ISCC.exe"
 
 ## Package For Testers
 
+After building the app and, ideally, the installer, the helper below creates a tester zip:
+
+```powershell
+.\package_for_testers.cmd
+```
+
+It writes:
+
+```text
+release\MemoryPalTesterPackage.zip
+```
+
 For normal testers, send:
 
 ```text
@@ -138,7 +150,7 @@ README.md
 TESTING_CHECKLIST.md
 ```
 
-For a no-installer portable test, zip the whole folder below instead of only the EXE:
+For a no-installer portable test, zip the whole folder below with the tester notes:
 
 ```text
 release\MemoryPal\

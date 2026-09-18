@@ -25,6 +25,7 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 - Windows build command: `build_windows.cmd`
 - Windows installer command: `build_installer_windows.cmd`
 - Clean build artifacts command: `clean_build_artifacts.cmd`
+- Tester package command: `package_for_testers.cmd`
 - Installer script: `installer/inno/MemoryPal.iss`
 - Fallback PyInstaller build command: `build_pyinstaller_windows.cmd`
 - GitHub Actions Windows build: `.github/workflows/build-windows.yml`
@@ -84,6 +85,11 @@ To make a Windows installer after the app folder exists, install Inno Setup 7 or
 The installer output should appear at `release\MemoryPalSetup.exe`.
 
 For testers, package either `release\MemoryPalSetup.exe` plus the testing notes, or the whole `release\MemoryPal\` app folder plus the same notes.
+After a build exists, this command gathers the installer/app folder and tester notes into `release\MemoryPalTesterPackage.zip`:
+
+```powershell
+.\package_for_testers.cmd
+```
 
 If multiple Python installs exist, point MemoryPal's build scripts at the one with working Tkinter:
 
@@ -99,31 +105,32 @@ macOS app bundles must be built on macOS because `.app` packaging is platform-sp
 ## Current Features
 
 - Modern Tkinter desktop interface with a soft app header, local-save status, styled cue menus, hover feedback, and steadier page reveals.
-- Page switches use a real alpha fade over only the content area, so redraws do not flash through and the app shell does not dim.
-- Fullscreen, focus mode, and manual resize changes keep the active page alive and use a short content-only settling fade after the new size lands.
-- Sidebar collapse and reopen animate the rail width while preserving the active page and avoiding clipped long labels mid-motion.
+- Header controls are split into status and action zones, with the active profile shown as a compact numbered avatar on the top-right edge.
+- Page switches use a same-window reveal over the page panel, so the header and content fade in together without dimming the whole app shell or fighting the Windows compositor.
+- Fullscreen and focus mode use a same-window cover while the operating system resizes the app, avoiding root-window opacity changes that can freeze Tkinter on Windows.
+- The left navigation rail stays expanded for a steadier desktop layout.
 - App-styled modal dialogs for profile names, recording lengths, alerts, confirmations, and errors.
 - Refreshed generated MemoryPal app icon for the Windows title/taskbar icon, custom title strip, packaged executable, and exported project assets.
 - The mobile prototype also uses in-app validation and confirmation modals instead of silent or system-style feedback.
-- Collapsible left navigation rail for focus mode, with compact labels, a cleaner capsule toggle, hover hints, and its own scroll area for smaller screens.
+- Expanded left navigation rail with clear labels, hover hints, and its own scroll area for smaller screens.
 - Settings page can reorder the main navigation pages per profile.
 - Settings page for theme, navigation, profiles, daily goal, storage, backups, reset, focus mode, and true fullscreen.
 - Settings stays pinned at the bottom of the navigation rail so the header has more room for status and profile controls.
-- Window controls separate true fullscreen from borderless focus mode: F11 uses true fullscreen, while the app buttons use focus mode.
+- Window controls separate true fullscreen from borderless focus mode: F11 and the header Fullscreen button use true fullscreen, while the titlebar square and Settings focus control use borderless focus mode.
 - Windowed page changes, theme changes, and interface rebuilds use matching same-theme covers to hide redraw flashes without the older strip-opening effect.
-- Collapsing or reopening the navigation rail now redraws only the rail, so the active study page and unsaved work stay in place.
 - Fullscreen and focus changes preserve the active page instead of rebuilding the interface.
-- Custom window resizing applies after the user releases the resize grip, then gives the content area a short same-color reveal.
+- Custom window resizing applies after the user releases the resize grip, then reveals the settled layout without fading the whole app window.
 - Custom titlebar, navigation, and button shapes use optional Pillow-backed antialiasing when Pillow is installed, with a normal Tk fallback.
 - The titlebar and left navigation use the same generated MemoryPal logo artwork.
 - The generated logo renders directly through Tk, so the rail mark and titlebar mark stay consistent even without Pillow.
 - The desktop launcher now relies on the split `latest_app/memorypal/` package instead of carrying a second stale copy of models, storage, parsing, and planning code.
 - Profile config reads, generated logo pixels, and antialiased UI shapes are cached so normal shell rebuilds do less repeat work.
 - File dialogs, CSV export, browser opening, desktop recording, webcam recording, and text-to-speech load only when those features are used.
+- The header and navigation logo load from the checked-in PNG asset during startup, with generated pixels kept as a fallback.
 - The main desktop window is resizable from the right edge, bottom edge, and corner while keeping the custom app chrome and DPI-scaled title bar controls.
 - More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
 - Separate local profiles, so different learners or study areas can keep independent data.
-- Local saves merge newly added cards, captures, feedback, and review counters so two open windows are less likely to overwrite each other's work.
+- Local saves merge newly added cards, captures, feedback, review counters, and newer saved card progress so two open windows are less likely to overwrite each other's work.
 - App data uses a platform-correct local data folder with non-destructive migration from the older home-folder location.
 - Dark and light appearance modes.
 - In-progress page drafts for Capture, Repetition, Test Lab, Quiz, Associations, and Puzzles while switching sections.
@@ -146,7 +153,7 @@ macOS app bundles must be built on macOS because `.app` packaging is platform-sp
 - Compact cue menus for text, image, audio, and video imports or recordings.
 - Test Lab for focused answering, revealing, Smart Check, bucket highlighting, and review scheduling.
 - Review quality shortcuts, skip-for-today, undo last rating, and leech warnings for repeatedly missed cards.
-- Smart Check for close-enough typed responses.
+- Smart Check for close-enough typed responses, with cleaner key-cue feedback for proper nouns and common terms.
 - Repetition Path with separate prompt and answer fields, staged items, a focused round player, and the clarified pattern: `5`, `5-4`, `5-4-3`, then `3-2-1`.
 - Quick Quiz with self-check and multiple-choice modes.
 - Association tools for acronyms, mini-stories, peg lists, memory palace routes, chunk maps, link chains, and practical technique plans.
@@ -154,7 +161,7 @@ macOS app bundles must be built on macOS because `.app` packaging is platform-sp
 - Puzzles for Sequence Recall, Word Recall, Pair Recall, Missing Item, Visual Search, N-Back Lite, Category Sort, and Routine Recall practice.
 - Library search with All, Due, Weak, and Captures filters.
 - Pointer-aware page scrolling plus keyboard scrolling with Page Up, Page Down, Home, and End.
-- Saves are written atomically and merge with existing local data so two open MemoryPal windows are less likely to overwrite each other's newly added cards, captures, or feedback.
+- Saves are written atomically and merge with existing local data so two open MemoryPal windows keep newly added cards, captures, feedback, and newer review progress.
 - Build scripts check for a Tkinter-capable Python before packaging, with Nuitka as the recommended Windows app-folder path and PyInstaller kept as a fallback.
 - Build scripts generate the MemoryPal `.ico` during packaging, pass it to Nuitka or PyInstaller, and bundle the reusable icon assets into the app folder.
 - Inno Setup installer script and command file for making a user-friendly Windows setup file.
@@ -190,6 +197,10 @@ development_versions/MemoryPal_v56_beta_safe_saves_fast_build.py
 development_versions/MemoryPal_v57_beta_motion_startup_icon_polish.py
 development_versions/MemoryPal_v58_beta_clean_startup_release_prep.py
 development_versions/MemoryPal_v59_beta_transition_launch_polish.py
+development_versions/MemoryPal_v60_beta_stable_motion_followup.py
+development_versions/MemoryPal_v61_beta_fixed_rail_fullscreen_stability.py
+development_versions/MemoryPal_v62_beta_concurrent_save_stability.py
+development_versions/MemoryPal_v63_beta_header_release_polish.py
 assets/memorypal.ico
 assets/memorypal-logo-preview.png
 assets/memorypal-logo.svg

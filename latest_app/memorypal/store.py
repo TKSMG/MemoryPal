@@ -117,6 +117,9 @@ class MemoryStore:
         self._loaded_activity = {}
         self._loaded_daily_goal = 15
         self._loaded_nav_order = []
+        self._loaded_cards = {}
+        self._loaded_captures = {}
+        self._loaded_feedback = {}
         self.load()
 
     def set_profile_paths(self):
@@ -156,6 +159,19 @@ class MemoryStore:
         self._loaded_activity = dict(self.activity)
         self._loaded_daily_goal = self.daily_goal
         self._loaded_nav_order = list(self.nav_order)
+        self._loaded_cards = self.item_snapshot(self.cards)
+        self._loaded_captures = self.item_snapshot(self.captures)
+        self._loaded_feedback = self.item_snapshot(self.feedback)
+
+    @staticmethod
+    def item_snapshot(items):
+        snapshot = {}
+        for item in items:
+            raw = asdict(item)
+            item_id = raw.get("id")
+            if item_id:
+                snapshot[item_id] = raw
+        return snapshot
 
     def payload(self):
         return {
@@ -168,17 +184,32 @@ class MemoryStore:
             "feedback": [asdict(entry) for entry in self.feedback],
         }
 
-    def merge_items(self, local_items, existing_items):
-        local_by_id = {item.get("id"): item for item in local_items if isinstance(item, dict) and item.get("id")}
-        merged = [item for item in local_items if isinstance(item, dict)]
-        seen = {item.get("id") for item in merged if item.get("id")}
+    def merge_items(self, local_items, existing_items, loaded_items=None):
+        loaded_items = loaded_items or {}
+        existing_by_id = {
+            item.get("id"): item
+            for item in existing_items or []
+            if isinstance(item, dict) and item.get("id")
+        }
+        merged = []
+        seen = set()
+        for item in local_items:
+            if not isinstance(item, dict):
+                continue
+            item_id = item.get("id")
+            existing_item = existing_by_id.get(item_id)
+            loaded_item = loaded_items.get(item_id)
+            if item_id and existing_item is not None and loaded_item is not None and item == loaded_item and existing_item != loaded_item:
+                merged.append(existing_item)
+            else:
+                merged.append(item)
+            if item_id:
+                seen.add(item_id)
         for item in existing_items or []:
             item_id = item.get("id") if isinstance(item, dict) else None
             if item_id and item_id not in seen:
                 merged.append(item)
                 seen.add(item_id)
-            elif item_id in local_by_id:
-                continue
         return merged
 
     def merge_activity(self, existing_activity):
@@ -200,9 +231,9 @@ class MemoryStore:
         if not existing:
             return local
         merged = dict(local)
-        merged["cards"] = self.merge_items(local.get("cards", []), existing.get("cards", []))
-        merged["captures"] = self.merge_items(local.get("captures", []), existing.get("captures", []))
-        merged["feedback"] = self.merge_items(local.get("feedback", []), existing.get("feedback", []))
+        merged["cards"] = self.merge_items(local.get("cards", []), existing.get("cards", []), self._loaded_cards)
+        merged["captures"] = self.merge_items(local.get("captures", []), existing.get("captures", []), self._loaded_captures)
+        merged["feedback"] = self.merge_items(local.get("feedback", []), existing.get("feedback", []), self._loaded_feedback)
         practiced_delta = max(0, safe_int(local.get("practiced", 0), 0) - self._loaded_practiced)
         merged["practiced"] = max(safe_int(existing.get("practiced", 0), 0), self._loaded_practiced) + practiced_delta
         merged["activity"] = self.merge_activity(existing.get("activity", {}))

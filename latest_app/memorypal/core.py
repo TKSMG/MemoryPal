@@ -132,10 +132,13 @@ def text_tokens(value):
         token = token.lower()
         if token in STOP_WORDS:
             continue
-        for suffix in ("ingly", "edly", "ing", "ed", "es", "s"):
+        for suffix in ("ingly", "edly", "ing", "ed", "es"):
             if token.endswith(suffix) and len(token) > len(suffix) + 3:
                 token = token[: -len(suffix)]
                 break
+        else:
+            if token.endswith("s") and not token.endswith(("ss", "us", "is")) and len(token) > 4:
+                token = token[:-1]
         tokens.append(token)
     return tokens
 
