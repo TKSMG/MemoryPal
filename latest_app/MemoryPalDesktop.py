@@ -1,843 +1,16 @@
-import csv
-import json
+import importlib
 import os
 import random
 import re
-import shutil
 import sys
 import tkinter as tk
-import ctypes
-import webbrowser
-import zipfile
-from collections import Counter
-from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
-from difflib import SequenceMatcher
 from pathlib import Path
-from tkinter import filedialog, ttk
+from tkinter import ttk
 from uuid import uuid4
-import xml.etree.ElementTree as ET
 
 sys.dont_write_bytecode = True
 
-
-APP_NAME = "MemoryPal"
-DATA_DIR = Path.home() / "MemoryPalData"
-PROFILES_DIR = DATA_DIR / "profiles"
-PROFILES_CONFIG = DATA_DIR / "profiles.json"
-DEFAULT_PROFILE = "Default"
-BASE_DPI = 96
-BASE_WINDOW = (1420, 900)
-BASE_MIN_WINDOW = (1080, 720)
-
-
-# Profiles keep family members, subjects, or demo data apart without needing
-# separate installs of the app.
-def slugify_profile(name):
-    slug = re.sub(r"[^A-Za-z0-9_-]+", "-", (name or "").strip()).strip("-")
-    return slug or "profile"
-
-
-def profile_dir(name):
-    directory = PROFILES_DIR / slugify_profile(name)
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory
-
-
-def load_profiles_config():
-    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    if not PROFILES_CONFIG.exists():
-        legacy_file = DATA_DIR / "memorypal-data.json"
-        legacy_attach = DATA_DIR / "attachments"
-        default_dir = profile_dir(DEFAULT_PROFILE)
-        if legacy_file.exists() and not (default_dir / "memorypal-data.json").exists():
-            shutil.copy2(legacy_file, default_dir / "memorypal-data.json")
-            if legacy_attach.exists():
-                shutil.copytree(legacy_attach, default_dir / "attachments", dirs_exist_ok=True)
-        config = {"active": DEFAULT_PROFILE, "names": [DEFAULT_PROFILE]}
-        PROFILES_CONFIG.write_text(json.dumps(config, indent=2), encoding="utf-8")
-        return config
-    try:
-        config = json.loads(PROFILES_CONFIG.read_text(encoding="utf-8"))
-        if not config.get("names"):
-            config["names"] = [DEFAULT_PROFILE]
-        if config.get("active") not in config["names"]:
-            config["active"] = config["names"][0]
-        return config
-    except (OSError, json.JSONDecodeError):
-        return {"active": DEFAULT_PROFILE, "names": [DEFAULT_PROFILE]}
-
-
-def save_profiles_config(config):
-    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    PROFILES_CONFIG.write_text(json.dumps(config, indent=2), encoding="utf-8")
-
-
-def list_profiles():
-    return load_profiles_config()["names"]
-
-
-def active_profile_name():
-    return load_profiles_config()["active"]
-
-
-def create_profile(name):
-    name = normalize_space(name)
-    if not name:
-        return False, "Enter a profile name."
-    config = load_profiles_config()
-    if name in config["names"]:
-        return False, "A profile with that name already exists."
-    config["names"].append(name)
-    save_profiles_config(config)
-    profile_dir(name)
-    return True, ""
-
-
-def rename_profile(old_name, new_name):
-    new_name = normalize_space(new_name)
-    if not new_name:
-        return False, "Enter a profile name."
-    config = load_profiles_config()
-    if old_name not in config["names"]:
-        return False, "Profile not found."
-    if new_name != old_name and new_name in config["names"]:
-        return False, "A profile with that name already exists."
-    old_dir = profile_dir(old_name)
-    new_dir = PROFILES_DIR / slugify_profile(new_name)
-    if old_dir != new_dir:
-        if new_dir.exists():
-            return False, "A profile folder with that name already exists."
-        old_dir.rename(new_dir)
-    config["names"] = [new_name if item == old_name else item for item in config["names"]]
-    if config["active"] == old_name:
-        config["active"] = new_name
-    save_profiles_config(config)
-    return True, ""
-
-
-def delete_profile(name):
-    config = load_profiles_config()
-    if name not in config["names"] or len(config["names"]) <= 1:
-        return False, "You need at least one profile."
-    config["names"].remove(name)
-    if config["active"] == name:
-        config["active"] = config["names"][0]
-    save_profiles_config(config)
-    shutil.rmtree(profile_dir(name), ignore_errors=True)
-    return True, ""
-
-
-def set_active_profile(name):
-    config = load_profiles_config()
-    if name not in config["names"]:
-        config["names"].append(name)
-    config["active"] = name
-    save_profiles_config(config)
-
-
-def current_data_paths():
-    active = active_profile_name()
-    directory = profile_dir(active)
-    return directory / "memorypal-data.json", directory / "attachments"
-
-
-DATA_FILE = DATA_DIR / "profiles" / DEFAULT_PROFILE / "memorypal-data.json"
-ATTACHMENT_DIR = DATA_DIR / "profiles" / DEFAULT_PROFILE / "attachments"
-
-
-def switch_active_profile_paths(name):
-    global DATA_FILE, ATTACHMENT_DIR
-    set_active_profile(name)
-    DATA_FILE, ATTACHMENT_DIR = current_data_paths()
-
-LIGHT_COLORS = {
-    "bg": "#f6f8fc",
-    "surface": "#ffffff",
-    "surface_soft": "#eef3fb",
-    "alt": "#e9f1fb",
-    "ink": "#172033",
-    "muted": "#617089",
-    "line": "#d8e2ef",
-    "soft_line": "#c8d6e8",
-    "primary": "#3f8ee6",
-    "primary_dark": "#2f77c6",
-    "green": "#26a968",
-    "orange": "#e58a22",
-    "pink": "#d84f7d",
-    "violet": "#8b5cf6",
-    "cyan": "#0891b2",
-    "rail": "#172033",
-    "rail_hover": "#22304a",
-    "white": "#ffffff",
-    "danger": "#dc3b32",
-    "input": "#ffffff",
-    "warm": "#fff4e5",
-    "warm_text": "#a45b09",
-    "again_bg": "#ffe7e3",
-    "again_fg": "#b42318",
-    "review_bg": "#fff0cc",
-    "review_fg": "#8f5600",
-    "good_bg": "#e4f7ed",
-    "good_fg": "#157a45",
-    "easy_bg": "#e4efff",
-    "easy_fg": "#2467b7",
-    "heat_0": "#edf1f7",
-    "heat_1": "#c9e3ff",
-    "heat_2": "#7fbfff",
-    "heat_3": "#2e8fff",
-    "heat_4": "#2467b7",
-    "flame": "#e58a22",
-}
-
-DARK_COLORS = {
-    "bg": "#111827",
-    "surface": "#192338",
-    "surface_soft": "#22304a",
-    "alt": "#273852",
-    "ink": "#edf2fb",
-    "muted": "#aeb8cb",
-    "line": "#33445f",
-    "soft_line": "#405678",
-    "primary": "#65afff",
-    "primary_dark": "#3f8ee6",
-    "green": "#37d67a",
-    "orange": "#ffab3d",
-    "pink": "#ff5c8a",
-    "violet": "#c084fc",
-    "cyan": "#4fd1e6",
-    "rail": "#0b1020",
-    "rail_hover": "#202e47",
-    "white": "#ffffff",
-    "danger": "#ff5449",
-    "input": "#121c2f",
-    "warm": "#2a1f14",
-    "warm_text": "#ffb572",
-    "again_bg": "#3a1a1a",
-    "again_fg": "#ff8a80",
-    "review_bg": "#3a2c10",
-    "review_fg": "#ffcf5c",
-    "good_bg": "#123423",
-    "good_fg": "#5be08c",
-    "easy_bg": "#12233f",
-    "easy_fg": "#7fbfff",
-    "heat_0": "#182338",
-    "heat_1": "#123a63",
-    "heat_2": "#1e5fa8",
-    "heat_3": "#2e8fff",
-    "heat_4": "#7fc4ff",
-    "flame": "#ffab3d",
-}
-
-COLORS = dict(DARK_COLORS)
-
-SELF_CHECK_ANSWER = "No saved answer. Use this as a self-check prompt, then rate yourself."
-
-
-def clamp(value, low, high):
-    return max(low, min(high, value))
-
-
-def enable_dpi_awareness():
-    if not sys.platform.startswith("win"):
-        return
-    try:
-        ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    except (AttributeError, OSError):
-        try:
-            ctypes.windll.user32.SetProcessDPIAware()
-        except (AttributeError, OSError):
-            pass
-
-
-def uid():
-    return str(uuid4())
-
-
-def today_iso():
-    return date.today().isoformat()
-
-
-def add_days(days):
-    return (date.today() + timedelta(days=days)).isoformat()
-
-
-def now_label():
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
-
-
-def normalize_space(value):
-    return re.sub(r"\s+", " ", value or "").strip()
-
-
-def split_study_bits(raw):
-    # Pasted notes are usually messy, so this accepts common separators before
-    # falling back to sentences or comma-separated fragments.
-    raw = (raw or "").replace("\\n", "\n").replace("/n", "\n")
-    raw = re.sub(r"\s+(?=\d+[.)]\s+)", "\n", raw)
-    raw = re.sub(r"\s*[|;]\s*", "\n", raw)
-    lines = [re.sub(r"^[-*\d.)\s]+", "", line).strip() for line in raw.splitlines()]
-    lines = [line for line in lines if line]
-    if len(lines) >= 2:
-        return lines
-    sentences = [part.strip() for part in re.split(r"[.!?]+", raw) if part.strip()]
-    if len(sentences) > 1:
-        return sentences
-    comma_bits = [part.strip() for part in raw.split(",") if part.strip()]
-    return comma_bits if len(comma_bits) > 1 else ([raw.strip()] if raw.strip() else [])
-
-
-def parse_prompt_answer_lines(raw):
-    items = []
-    for index, line in enumerate((raw or "").replace("\\n", "\n").replace("/n", "\n").splitlines(), 1):
-        line = normalize_space(line)
-        if not line:
-            continue
-        line = re.sub(r"^[-*\d.)\s]+", "", line).strip()
-        prompt, answer = "", line
-        for delimiter in ("=>", "::", " - "):
-            if delimiter in line:
-                prompt, answer = line.split(delimiter, 1)
-                prompt, answer = normalize_space(prompt), normalize_space(answer)
-                break
-        if answer:
-            items.append({"prompt": prompt or f"Study bit {index}", "answer": answer})
-    return items
-
-
-def extract_document_text(path):
-    # Keep document import local and dependency-light. DOCX is parsed directly;
-    # PDFs use pypdf/PyPDF2 if the user's Python environment already has one.
-    source = Path(path)
-    suffix = source.suffix.lower()
-    if suffix in {".txt", ".md", ".csv"}:
-        try:
-            return source.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            return source.read_text(encoding="utf-8", errors="ignore")
-    if suffix == ".docx":
-        with zipfile.ZipFile(source) as archive:
-            xml = archive.read("word/document.xml")
-        root = ET.fromstring(xml)
-        namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
-        pieces = []
-        for paragraph in root.findall(".//w:p", namespace):
-            text = "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace))
-            if text.strip():
-                pieces.append(text.strip())
-        return "\n".join(pieces)
-    if suffix == ".pdf":
-        for module_name in ("pypdf", "PyPDF2"):
-            try:
-                module = __import__(module_name)
-                reader = module.PdfReader(str(source))
-                return "\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
-            except Exception:
-                continue
-        raise RuntimeError("PDF text extraction needs pypdf or PyPDF2 installed for this Python environment.")
-    if suffix == ".doc":
-        raise RuntimeError("Older .doc files can be attached, but automatic extraction needs the file converted to .docx first.")
-    return ""
-
-
-STOP_WORDS = {
-    "the", "and", "for", "with", "into", "that", "this", "what", "should",
-    "remember", "image", "audio", "video", "cue", "about", "from", "your",
-    "their", "there", "then", "than", "when", "where", "which", "while",
-    "because", "have", "has", "had", "are", "was", "were", "will", "would",
-    "could", "also", "just", "like", "make", "made",
-}
-
-
-def text_tokens(value):
-    tokens = []
-    for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]{2,}", value or ""):
-        token = token.lower()
-        if token in STOP_WORDS:
-            continue
-        for suffix in ("ingly", "edly", "ing", "ed", "es", "s"):
-            if token.endswith(suffix) and len(token) > len(suffix) + 3:
-                token = token[: -len(suffix)]
-                break
-        tokens.append(token)
-    return tokens
-
-
-def answer_assessment(response, expected, context=""):
-    response = normalize_space(response)
-    expected_text = normalize_space(" ".join(part for part in [expected, context] if part))
-    if not response:
-        return {
-            "score": 0,
-            "quality": 1,
-            "label": "Needs response",
-            "bucket": "Again",
-            "repetitions": 5,
-            "detail": "Type an answer, transcript, caption, or media description first.",
-        }
-
-    expected_tokens = text_tokens(expected_text)
-    response_tokens = text_tokens(response)
-    sequence = SequenceMatcher(None, response.lower(), expected_text.lower()).ratio() if expected_text else 0
-    expected_set = set(expected_tokens)
-    response_set = set(response_tokens)
-    coverage = len(expected_set & response_set) / max(1, len(expected_set))
-
-    expected_counts = Counter(expected_tokens)
-    response_counts = Counter(response_tokens)
-    weighted_hits = sum(min(response_counts[word], expected_counts[word]) for word in expected_counts)
-    weighted = weighted_hits / max(1, sum(expected_counts.values()))
-
-    score = min(100, round(100 * (0.28 * sequence + 0.52 * coverage + 0.20 * weighted)))
-    if score >= 82:
-        quality, label, reps, bucket = 5, "Strong match", 1, "Easy"
-    elif score >= 64:
-        quality, label, reps, bucket = 4, "Close enough", 2, "Good"
-    elif score >= 42:
-        quality, label, reps, bucket = 3, "Partial match", 3, "Review"
-    elif score >= 24:
-        quality, label, reps, bucket = 2, "Weak match", 4, "Again"
-    else:
-        quality, label, reps, bucket = 1, "Missed context", 5, "Again"
-
-    missing = [word for word, _count in expected_counts.most_common(6) if word not in response_set]
-    detail = "Missing key cues: " + ", ".join(missing[:4]) if missing else "Main cues are covered."
-    return {"score": score, "quality": quality, "label": label, "bucket": bucket, "repetitions": reps, "detail": detail}
-
-
-STUDY_HABIT_OPTIONS = [
-    ("mnemonics", "I remember better with mnemonics, stories, or images"),
-    ("repetition", "I like structured repetition drilling"),
-    ("quick_mc", "I prefer quick multiple choice over typing answers"),
-    ("games", "I like short recall-game breaks to reset focus"),
-]
-
-
-def build_study_plan(store, minutes, deck_choice, habits, goal):
-    deck = None if deck_choice in ("All decks", "New material") else deck_choice
-    due = store.due_cards(deck)
-    weak = [card for card in store.weak_cards() if not deck or (card.deck or "General") == deck]
-    steps = []
-
-    def add(title, share, view, blurb, **extra):
-        steps.append({"title": title, "share": share, "view": view, "blurb": blurb, "deck": deck, **extra})
-
-    if deck_choice == "New material":
-        add("Capture your material", 0.30, "capture", "Break the new material into small study bits and Q/A cards before anything else.")
-        if "mnemonics" in habits:
-            add("Build memory hooks", 0.20, "tools", "Turn the trickiest new terms into acronyms or a mini-story before you try to recall them cold.")
-        add("First-pass self check", 0.30, "quiz", "Run a quick self-check quiz to see what's already sticking.", quiz_mode="self")
-        add("Schedule spaced review", 0.20, "review", "Rate what you just captured so the scheduler brings it back at the right time.")
-    elif goal == "cram":
-        if due or weak:
-            add("Warm-up: quick multiple choice", 0.15, "quiz", "Fast recall check to see where you stand before the clock starts.", quiz_mode="choices")
-        add("Focused review", 0.45, "review" if due else "focus", "Work through due and weak cards with Smart Check, prioritizing the ones you keep missing.")
-        if "repetition" in habits:
-            add("Repetition drilling", 0.20, "shuffle", "Run the 5, 5-4, 5-4-3, 3-2-1 pattern on your weakest items for extra reps right before the test.")
-        add("Final confidence pass", 0.20, "quiz", "One more quick pass. Multiple choice if you're short on time, self-check if you have a few extra minutes.", quiz_mode=("choices" if "quick_mc" in habits else "self"))
-    elif goal == "exam_prep":
-        if due or weak:
-            add("Quick warm-up", 0.12, "quiz", "A short recall check to activate what you already know before digging in.", quiz_mode="choices")
-        add("Spaced review", 0.33, "review" if due else "focus", "Work through what's due today with Smart Check so nothing quietly slips.")
-        if "mnemonics" in habits:
-            add("Strengthen weak hooks", 0.15, "tools", "Build a fresh association for your shakiest cards while there's still time to let it sink in.")
-        add("Repetition drilling", 0.20, "shuffle", "Run the repetition path on your weakest items so they're solid well before exam day.")
-        add("Self-check quiz", 0.20, "quiz", "Confirm recall without leaning on the saved answer.", quiz_mode=("choices" if "quick_mc" in habits else "self"))
-    else:
-        add("Spaced review", 0.35, "review" if due else "focus", "Work through everything due today with Smart Check so your intervals stay honest.")
-        if "mnemonics" in habits:
-            add("Strengthen weak hooks", 0.20, "tools", "Build a fresh association for anything you recently rated Again or Review.")
-        if "repetition" in habits:
-            add("Repetition path", 0.20, "shuffle", "Walk the backward-then-forward pattern on your weakest deck items.")
-        add("Self-check quiz", 0.15 if (habits & {"mnemonics", "repetition"}) else 0.25, "quiz", "Confirm recall without leaning on the saved answer.", quiz_mode=("choices" if "quick_mc" in habits else "self"))
-
-    if "games" in habits and minutes >= 20 and deck_choice != "New material":
-        add("Short recall game break", 0.10, "games", "A quick puzzle round to reset attention between study blocks.")
-
-    total_share = sum(step["share"] for step in steps) or 1
-    running = 0
-    for index, step in enumerate(steps):
-        if index == len(steps) - 1:
-            step["minutes"] = max(3, minutes - running)
-        else:
-            allotted = max(3, round(minutes * step["share"] / total_share))
-            step["minutes"] = allotted
-            running += allotted
-    return steps
-
-
-def build_multi_day_plan(store, total_days, deck_choice, habits, goal):
-    total_days = max(1, int(total_days))
-    daily_minutes = 45 if goal == "cram" else 30
-    days = []
-    for day_number in range(1, total_days + 1):
-        progress = day_number / total_days
-        day_deck_choice = deck_choice
-        if deck_choice == "New material" and day_number > 1:
-            day_deck_choice = "All decks"
-        if goal == "exam_prep":
-            if progress <= 0.34:
-                phase_goal = "long_term"
-            elif progress <= 0.75:
-                phase_goal = "exam_prep"
-            else:
-                phase_goal = "cram"
-        else:
-            phase_goal = goal
-        minutes = daily_minutes + (15 if goal == "exam_prep" and progress > 0.75 else 0)
-        steps = build_study_plan(store, minutes, day_deck_choice, habits, phase_goal)
-        days.append({"day": day_number, "minutes": minutes, "steps": steps})
-    return days
-
-
-TIME_UNIT_OPTIONS = {
-    "minutes": ["15", "30", "45", "60", "90"],
-    "hours": ["1", "2", "3", "4"],
-    "days": ["1", "2", "3", "5", "7"],
-    "weeks": ["1", "2", "3", "4"],
-}
-TIME_UNIT_ORDER = ["minutes", "hours", "days", "weeks"]
-
-
-def hangman_hint(text):
-    def mask(word):
-        if len(word) <= 1 or not word[0].isalnum():
-            return word
-        return word[0] + re.sub(r"[A-Za-z0-9]", "_", word[1:])
-    return " ".join(mask(word) for word in (text or "").split())
-
-
-def salient_keywords(text, count=5):
-    tokens = text_tokens(text)
-    if not tokens:
-        return []
-    ranked = Counter(tokens).most_common(count)
-    return [word.capitalize() for word, _freq in ranked]
-
-
-MNEMONIC_TEMPLATES = [
-    "Picture {front} standing right next to {back_short} — the image alone should pull the rest back.",
-    "Say it like a headline: \"{front} means {back_short}.\" Repeat it out loud twice.",
-    "Link {front} to something absurd: imagine {back_short} bursting out of it.",
-    "Break it down: {front} \u2192 {back_short}. Say the arrow out loud as \"leads to.\"",
-    "Give {front} a nickname built from {back_short} and picture that nickname on a sign.",
-]
-
-
-def mnemonic_sentence(front, back):
-    front_text = normalize_space(front) or "this term"
-    back_words = salient_keywords(back, 4)
-    back_short = ", ".join(back_words) if back_words else normalize_space(back)[:60]
-    template = random.choice(MNEMONIC_TEMPLATES)
-    return template.format(front=front_text, back_short=back_short or "the answer")
-
-
-@dataclass
-class Card:
-    id: str = field(default_factory=uid)
-    deck: str = "General"
-    front: str = ""
-    back: str = ""
-    pathway: str = ""
-    association: str = ""
-    text_file: str = ""
-    image: str = ""
-    audio: str = ""
-    video: str = ""
-    next_review: str = field(default_factory=today_iso)
-    interval: int = 0
-    repetitions: int = 0
-    ease: float = 2.5
-    lapses: int = 0
-    last_score: int = 0
-    last_result: str = "New"
-    created_at: str = field(default_factory=now_label)
-    buried_until: str = ""
-
-    @classmethod
-    def from_dict(cls, raw):
-        values = {field_name: raw.get(field_name) for field_name in cls.__dataclass_fields__}
-        values["id"] = raw.get("id", uid())
-        values["next_review"] = raw.get("next_review", raw.get("nextReview", today_iso()))
-        values["interval"] = int(raw.get("interval", 0))
-        values["repetitions"] = int(raw.get("repetitions", 0))
-        values["ease"] = float(raw.get("ease", 2.5))
-        values["lapses"] = int(raw.get("lapses", 0))
-        values["last_score"] = int(raw.get("last_score", raw.get("lastScore", 0)))
-        values["last_result"] = raw.get("last_result", raw.get("lastResult", "New"))
-        values["created_at"] = raw.get("created_at", raw.get("createdAt", now_label()))
-        values["buried_until"] = raw.get("buried_until", "")
-        return cls(**values)
-
-
-@dataclass
-class Capture:
-    id: str = field(default_factory=uid)
-    title: str = "Captured memory material"
-    notes: str = ""
-    chunks: list = field(default_factory=list)
-    text_file: str = ""
-    image: str = ""
-    audio: str = ""
-    video: str = ""
-    created_at: str = field(default_factory=now_label)
-
-    @classmethod
-    def from_dict(cls, raw):
-        notes = raw.get("notes", "")
-        chunks = raw.get("chunks") or split_study_bits(notes)
-        return cls(
-            id=raw.get("id", uid()),
-            title=raw.get("title", "Captured memory material"),
-            notes=notes,
-            chunks=chunks,
-            text_file=raw.get("text_file", raw.get("textFile", "")),
-            image=raw.get("image", ""),
-            audio=raw.get("audio", ""),
-            video=raw.get("video", ""),
-            created_at=raw.get("created_at", raw.get("createdAt", now_label())),
-        )
-
-
-def sample_cards():
-    return [
-        Card(
-            deck="Memory Techniques",
-            front="What is spaced repetition?",
-            back="Reviewing information at increasing intervals so recall strengthens over time.",
-            pathway="Dashboard > Review > due cards",
-            association="The space between reviews grows like stepping stones.",
-        ),
-        Card(
-            deck="Memory Techniques",
-            front="What is retrieval practice?",
-            back="Trying to recall the answer before rereading or revealing it.",
-            pathway="Quiz > Self Check",
-            association="Pull the memory out instead of looking it up first.",
-        ),
-        Card(
-            deck="Memory Techniques",
-            front="What is chunking?",
-            back="Breaking information into smaller meaningful pieces so each part is easier to practise.",
-            pathway="Capture > study bits",
-            association="One shelf per idea.",
-        ),
-        Card(
-            deck="Memory Techniques",
-            front="Why use media cues?",
-            back="Images, audio, video, and text notes can make a memory more familiar and easier to retrieve.",
-            pathway="Capture > attach cues",
-            association="A cue gives the memory a handle.",
-        ),
-    ]
-
-
-class MemoryStore:
-    """Small JSON-backed store for cards, captures, scheduling, and progress."""
-
-    def __init__(self):
-        self.cards = []
-        self.captures = []
-        self.practiced = 0
-        self.activity = {}
-        self.daily_goal = 15
-        self.nav_order = []
-        self.last_action = None
-        self.load()
-
-    def load(self):
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        if not DATA_FILE.exists():
-            self.cards = sample_cards()
-            self.save()
-            return
-        try:
-            raw = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-            self.cards = [Card.from_dict(item) for item in raw.get("cards", [])]
-            self.captures = [Capture.from_dict(item) for item in raw.get("captures", [])]
-            self.practiced = int(raw.get("practiced", 0))
-            self.activity = dict(raw.get("activity", {}))
-            self.daily_goal = int(raw.get("daily_goal", 15))
-            self.nav_order = list(raw.get("nav_order", []))
-        except (OSError, json.JSONDecodeError, ValueError):
-            self.cards = sample_cards()
-            self.captures = []
-            self.practiced = 0
-            self.activity = {}
-            self.daily_goal = 15
-            self.nav_order = []
-
-    def save(self):
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        DATA_FILE.write_text(
-            json.dumps(
-                {
-                    "cards": [asdict(card) for card in self.cards],
-                    "captures": [asdict(capture) for capture in self.captures],
-                    "practiced": self.practiced,
-                    "activity": self.activity,
-                    "daily_goal": self.daily_goal,
-                    "nav_order": self.nav_order,
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-
-    def log_activity(self, count=1):
-        key = today_iso()
-        self.activity[key] = self.activity.get(key, 0) + count
-
-    def today_count(self):
-        return self.activity.get(today_iso(), 0)
-
-    def current_streak(self):
-        streak = 0
-        cursor = date.today()
-        if self.activity.get(cursor.isoformat(), 0) <= 0:
-            cursor -= timedelta(days=1)
-        while self.activity.get(cursor.isoformat(), 0) > 0:
-            streak += 1
-            cursor -= timedelta(days=1)
-        return streak
-
-    def heatmap_weeks(self, weeks=18):
-        end = date.today()
-        start = end - timedelta(days=weeks * 7 - 1)
-        start -= timedelta(days=start.weekday() + 1 if start.weekday() != 6 else 0)
-        days = []
-        cursor = start
-        while cursor <= end:
-            days.append((cursor.isoformat(), self.activity.get(cursor.isoformat(), 0)))
-            cursor += timedelta(days=1)
-        columns = []
-        column = []
-        for iso_day, count in days:
-            column.append((iso_day, count))
-            if len(column) == 7:
-                columns.append(column)
-                column = []
-        if column:
-            while len(column) < 7:
-                column.append(("", -1))
-            columns.append(column)
-        return columns
-
-    def decks(self):
-        names = []
-        for card in self.cards:
-            name = card.deck or "General"
-            if name not in names:
-                names.append(name)
-        return sorted(names, key=str.lower)
-
-    def deck_summary(self):
-        summary = {}
-        for deck in self.decks():
-            cards = [card for card in self.cards if (card.deck or "General") == deck]
-            due = len([card for card in cards if card.next_review <= today_iso()])
-            weak = len([card for card in cards if card.lapses > 0 or card.last_score < 64 or card.repetitions == 0])
-            mastered = len([card for card in cards if card.last_score >= 82])
-            summary[deck] = {
-                "total": len(cards),
-                "due": due,
-                "weak": weak,
-                "mastery": round(mastered / len(cards) * 100) if cards else 0,
-            }
-        return summary
-
-    def due_cards(self, deck=None):
-        cards = [card for card in self.cards if card.next_review <= today_iso() and card.buried_until <= today_iso()]
-        if deck:
-            cards = [card for card in cards if (card.deck or "General") == deck]
-        return cards
-
-    def bury_card(self, card, days=1):
-        card.buried_until = add_days(days)
-        self.save()
-
-    def is_leech(self, card):
-        return card.lapses >= 8
-
-    def leech_count(self, deck=None):
-        cards = self.cards if not deck else [card for card in self.cards if (card.deck or "General") == deck]
-        return len([card for card in cards if self.is_leech(card)])
-
-    def upcoming_cards(self):
-        return sorted([card for card in self.cards if card.next_review > today_iso()], key=lambda card: card.next_review)
-
-    def weak_cards(self):
-        scored = [
-            card for card in self.cards
-            if card.lapses > 0 or card.last_score < 64 or card.repetitions == 0
-        ]
-        return sorted(scored, key=lambda card: (-card.lapses, card.last_score, card.next_review, card.front.lower()))
-
-    def add_card(self, card):
-        self.cards.insert(0, card)
-        self.save()
-
-    def add_capture(self, capture):
-        self.captures.insert(0, capture)
-        self.save()
-
-    def schedule(self, card, quality, assessment=None):
-        snapshot = asdict(card)
-        activity_key = today_iso()
-        if quality < 3:
-            card.repetitions = 0
-            card.interval = 1
-            card.lapses += 1
-        else:
-            if card.repetitions == 0:
-                card.interval = 1
-            elif card.repetitions == 1:
-                card.interval = 3
-            else:
-                card.interval = max(1, round(card.interval * card.ease))
-            card.repetitions += 1
-        card.ease = max(1.3, card.ease + (0.1 - (5 - quality) * 0.08))
-        card.next_review = add_days(card.interval)
-        if assessment:
-            card.last_score = int(assessment.get("score", 0))
-            card.last_result = assessment.get("label", "Checked")
-        else:
-            card.last_score = {1: 20, 2: 35, 3: 55, 4: 78, 5: 95}.get(quality, 0)
-            card.last_result = {1: "Again", 2: "Weak", 3: "Review", 4: "Good", 5: "Easy"}.get(quality, "Checked")
-        self.practiced += 1
-        self.log_activity()
-        self.last_action = {"card_id": card.id, "snapshot": snapshot, "activity_key": activity_key, "practiced_before": self.practiced - 1}
-        self.save()
-
-    def undo_last(self):
-        action = self.last_action
-        if not action:
-            return False
-        card = next((c for c in self.cards if c.id == action["card_id"]), None)
-        if not card:
-            return False
-        for key, value in action["snapshot"].items():
-            setattr(card, key, value)
-        self.practiced = action["practiced_before"]
-        key = action["activity_key"]
-        if self.activity.get(key, 0) > 0:
-            self.activity[key] -= 1
-            if self.activity[key] <= 0:
-                del self.activity[key]
-        self.last_action = None
-        self.save()
-        return True
-
-    def reset(self):
-        self.cards = sample_cards()
-        self.captures = []
-        self.practiced = 0
-        self.activity = {}
-        self.daily_goal = 15
-        self.nav_order = []
-        self.last_action = None
-        self.save()
 
 
 # Core behavior now lives in the memorypal package. The desktop file keeps the
@@ -884,6 +57,31 @@ from memorypal.planning import (
     build_study_plan,
 )
 from memorypal.store import MemoryStore, load_items, safe_int
+
+
+APP_ROOT = Path(__file__).resolve().parent
+
+
+def bundled_resource_path(*parts):
+    """Find a source or packaged resource without generating it at startup."""
+    relative = Path(*parts)
+    candidates = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / relative)
+    executable_dir = Path(sys.executable).resolve().parent
+    candidates.extend(
+        (
+            APP_ROOT / relative,
+            APP_ROOT.parent / relative,
+            executable_dir / relative,
+            executable_dir.parent / relative,
+        )
+    )
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 class ScrollFrame(ttk.Frame):
@@ -1047,6 +245,7 @@ class MemoryPalApp(tk.Tk):
         self.theme = "dark"
         self.deck_filter = None
         self.rail_collapsed = False
+        self.rail_animating = False
         self._hotkeys_bound = False
         self.is_fullscreen = False
         self.is_focus_window = False
@@ -1057,6 +256,8 @@ class MemoryPalApp(tk.Tk):
         self.resize_start = None
         self.pending_resize_geometry = None
         self.root_cover = None
+        self.logo_photo_cache = {}
+        self.shape_photo_cache = {}
 
         self.app_icon_path = None
         self.title(f"{APP_NAME} \u2014 {active_profile_name()}")
@@ -1070,12 +271,12 @@ class MemoryPalApp(tk.Tk):
         self.bind("<F11>", lambda _event: self.toggle_true_fullscreen())
         self.bind("<Escape>", lambda _event: self.exit_fullscreen_or_focus())
         self.bind("<Configure>", self.handle_window_configure, add="+")
-        self.show_view("dashboard")
         self.update_idletasks()
         self.ensure_taskbar_presence()
         self.deiconify()
         self.after(120, self.ensure_taskbar_presence)
         self.fade_window_in()
+        self.after_idle(lambda: self.show_view("dashboard", transition=False))
 
     def capture_normal_geometry(self):
         if not self.is_fullscreen and not self.is_focus_window:
@@ -1085,24 +286,20 @@ class MemoryPalApp(tk.Tk):
         if self.window_transition_active:
             return
         target = not self.is_fullscreen
-        cover = self.start_root_cover(prefer_fade=False)
         self.window_transition_active = True
-        self.after(10, lambda: self.apply_true_fullscreen(target, cover))
+        cover = self.make_window_cover("content") if self.winfo_viewable() else None
+        self.after_idle(lambda: self.apply_true_fullscreen(target, cover))
 
-    def apply_true_fullscreen(self, target, cover):
+    def apply_true_fullscreen(self, target, cover=None):
         try:
             self.restoring_borderless = True
             self.overrideredirect(False)
-            self.update_idletasks()
-            if target and hasattr(self, "app_chrome") and self.app_chrome.winfo_exists():
-                self.app_chrome.pack_forget()
             self.attributes("-fullscreen", target)
-            self.update_idletasks()
         except tk.TclError as exc:
+            self.destroy_transition_cover(cover)
             self.restoring_borderless = False
             self.window_transition_active = False
             self.is_fullscreen = False
-            self.destroy_transition_cover(cover)
             self.dialog_alert("Fullscreen unavailable", str(exc), "error")
             return
         self.is_fullscreen = target
@@ -1115,11 +312,11 @@ class MemoryPalApp(tk.Tk):
     def toggle_focus_window(self):
         if self.window_transition_active:
             return
-        cover = self.start_root_cover(prefer_fade=False)
         self.window_transition_active = True
-        self.after(10, lambda: self.apply_focus_window(cover))
+        cover = self.make_window_cover("content") if self.winfo_viewable() else None
+        self.after_idle(lambda: self.apply_focus_window(cover))
 
-    def apply_focus_window(self, cover):
+    def apply_focus_window(self, cover=None):
         if self.is_fullscreen:
             try:
                 self.attributes("-fullscreen", False)
@@ -1136,17 +333,16 @@ class MemoryPalApp(tk.Tk):
             if self.normal_geometry:
                 self.geometry(self.normal_geometry)
             self.is_focus_window = False
-        self.update_idletasks()
         self.enable_borderless_chrome()
         self.update_window_controls()
-        self.after(110, lambda: self.finish_window_transition_cover(cover))
+        self.finish_window_transition_cover(cover)
 
     def finish_window_transition_cover(self, cover):
         if cover:
             self.fade_simple_cover(cover)
-            self.after(120, lambda: setattr(self, "window_transition_active", False))
+            self.after(240, lambda: setattr(self, "window_transition_active", False))
         else:
-            self.after(120, lambda: setattr(self, "window_transition_active", False))
+            self.after(160, lambda: setattr(self, "window_transition_active", False))
 
     def update_window_controls(self):
         if hasattr(self, "fullscreen_button") and self.fullscreen_button.winfo_exists():
@@ -1158,9 +354,7 @@ class MemoryPalApp(tk.Tk):
             else:
                 self.chrome_fullscreen_button.configure(text=symbol)
         if hasattr(self, "app_chrome") and self.app_chrome.winfo_exists():
-            if self.is_fullscreen:
-                self.app_chrome.pack_forget()
-            elif not self.app_chrome.winfo_ismapped():
+            if not self.app_chrome.winfo_ismapped():
                 self.app_chrome.pack(fill="x", before=self.app_body)
         if self.is_fullscreen:
             self.set_resize_grips_visible(False)
@@ -1183,27 +377,31 @@ class MemoryPalApp(tk.Tk):
             width = int(width)
             height = int(height)
             inset = int(inset)
-            scale = 3
-            image = Image.new("RGBA", (width * scale, height * scale), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(image)
-            bounds = (
-                inset * scale,
-                inset * scale,
-                (width - inset) * scale - 1,
-                (height - inset) * scale - 1,
-            )
-            if shape == "oval":
-                draw.ellipse(bounds, fill=fill)
-            else:
-                corner = int((radius if radius is not None else height / 2) * scale)
-                draw.rounded_rectangle(bounds, radius=corner, fill=fill)
-            resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
-            image = image.resize((width, height), resampling)
-            photo = ImageTk.PhotoImage(image)
+            radius = int(radius if radius is not None else height / 2)
+            key = (width, height, fill, shape, radius, inset)
+            photo = self.shape_photo_cache.get(key)
+            if photo is None:
+                scale = 4 if max(width, height) <= 180 else 3
+                image = Image.new("RGBA", (width * scale, height * scale), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(image)
+                bounds = (
+                    inset * scale,
+                    inset * scale,
+                    (width - inset) * scale - 1,
+                    (height - inset) * scale - 1,
+                )
+                if shape == "oval":
+                    draw.ellipse(bounds, fill=fill)
+                else:
+                    draw.rounded_rectangle(bounds, radius=radius * scale, fill=fill)
+                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+                image = image.resize((width, height), resampling)
+                photo = ImageTk.PhotoImage(image)
+                if len(self.shape_photo_cache) > 48:
+                    self.shape_photo_cache.clear()
+                self.shape_photo_cache[key] = photo
             canvas.create_image(0, 0, image=photo, anchor="nw")
-            refs = getattr(canvas, "_memorypal_images", [])
-            refs.append(photo)
-            canvas._memorypal_images = refs[-8:]
+            canvas._memorypal_shape = photo
             return True
         except Exception:
             return False
@@ -1212,22 +410,28 @@ class MemoryPalApp(tk.Tk):
         """Render the generated MemoryPal icon into the navigation rail."""
         try:
             size = int(size)
-            pixels = render_icon_pixels(size, scale=3 if size <= 96 else 2)
             bg = canvas.cget("bg") or COLORS["rail"]
-            bg_rgb = [value // 256 for value in self.winfo_rgb(bg)]
-            rows = []
-            for row in pixels:
-                colors = []
-                for red, green, blue, alpha in row:
-                    if alpha < 255:
-                        ratio = alpha / 255
-                        red = round(red * ratio + bg_rgb[0] * (1 - ratio))
-                        green = round(green * ratio + bg_rgb[1] * (1 - ratio))
-                        blue = round(blue * ratio + bg_rgb[2] * (1 - ratio))
-                    colors.append(f"#{red:02x}{green:02x}{blue:02x}")
-                rows.append("{" + " ".join(colors) + "}")
-            photo = tk.PhotoImage(width=size, height=size)
-            photo.put(" ".join(rows))
+            key = (size, bg)
+            photo = self.logo_photo_cache.get(key)
+            if photo is None:
+                pixels = render_icon_pixels(size, scale=3 if size <= 96 else 2)
+                bg_rgb = [value // 256 for value in self.winfo_rgb(bg)]
+                rows = []
+                for row in pixels:
+                    colors = []
+                    for red, green, blue, alpha in row:
+                        if alpha < 255:
+                            ratio = alpha / 255
+                            red = round(red * ratio + bg_rgb[0] * (1 - ratio))
+                            green = round(green * ratio + bg_rgb[1] * (1 - ratio))
+                            blue = round(blue * ratio + bg_rgb[2] * (1 - ratio))
+                        colors.append(f"#{red:02x}{green:02x}{blue:02x}")
+                    rows.append("{" + " ".join(colors) + "}")
+                photo = tk.PhotoImage(width=size, height=size)
+                photo.put(" ".join(rows))
+                if len(self.logo_photo_cache) > 12:
+                    self.logo_photo_cache.clear()
+                self.logo_photo_cache[key] = photo
             canvas.create_image(size // 2, size // 2, image=photo, anchor="center")
             canvas._memorypal_logo = photo
             return True
@@ -1237,8 +441,8 @@ class MemoryPalApp(tk.Tk):
     def apply_app_icon(self, window=None):
         target = window or self
         if self.app_icon_path is None:
-            source_icon = Path(__file__).resolve().parent.parent / "assets" / "memorypal.ico"
-            if source_icon.exists():
+            source_icon = bundled_resource_path("assets", "memorypal.ico")
+            if source_icon and source_icon.exists():
                 self.app_icon_path = source_icon
             for folder in (app_paths.DATA_DIR, Path(os.environ.get("TEMP", "."))):
                 if self.app_icon_path:
@@ -1311,6 +515,8 @@ class MemoryPalApp(tk.Tk):
         if not sys.platform.startswith("win"):
             return
         try:
+            import ctypes
+
             hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
             if not hwnd:
                 hwnd = self.winfo_id()
@@ -1374,10 +580,14 @@ class MemoryPalApp(tk.Tk):
         self.resize_start = None
         self.pending_resize_geometry = None
         if geometry:
-            cover = self.start_root_cover()
+            cover = self.make_window_cover("content") if self.winfo_viewable() else None
             self.geometry(geometry)
-            self.update_idletasks()
-            self.after(40, lambda: self.fade_simple_cover(cover))
+            if cover:
+                self.after(70, lambda: self.fade_simple_cover(cover))
+
+    def ease_out_cubic(self, step, total_steps):
+        progress = clamp(step / max(1, total_steps), 0, 1)
+        return 1 - (1 - progress) ** 3
 
     def set_resize_grips_visible(self, visible=True):
         grips = getattr(self, "resize_grips", [])
@@ -1723,10 +933,10 @@ class MemoryPalApp(tk.Tk):
         close = chrome_button("\u00d7", close_command, COLORS["danger"], COLORS["white"], "Close")
         return bar
 
-    def render_navigation_rail(self):
+    def render_navigation_rail(self, rail_width=None):
         for child in self.rail.winfo_children():
             child.destroy()
-        rail_width = 78 if self.rail_collapsed else 276
+        rail_width = rail_width if rail_width is not None else (78 if self.rail_collapsed else 276)
         self.rail.configure(width=self.px(rail_width))
         self.rail.pack_propagate(False)
         brand = ttk.Frame(self.rail, style="Rail.TFrame")
@@ -1903,16 +1113,44 @@ class MemoryPalApp(tk.Tk):
 
     def toggle_nav_rail(self):
         self.save_current_draft()
-        current = self.current_view
-        cover = self.start_root_cover(prefer_fade=False)
-        self.rail_collapsed = not self.rail_collapsed
-        if hasattr(self, "rail") and self.rail.winfo_exists():
-            self.render_navigation_rail()
-            self.refresh_nav_selection()
-            self.update_idletasks()
-            self.after(35, lambda: self.fade_simple_cover(cover))
+        if self.rail_animating:
+            return
+        if not hasattr(self, "rail") or not self.rail.winfo_exists():
+            self.rebuild_shell(self.current_view)
+            return
+        start = 78 if self.rail_collapsed else 276
+        end = 276 if self.rail_collapsed else 78
+        self.rail_animating = True
+        if self.rail_collapsed:
+            # Keep compact rail contents visible while the rail grows, then
+            # redraw the full labels after there is enough room for them.
+            self.render_navigation_rail(rail_width=start)
+            self.animate_rail_width(start, end, on_done=lambda: self.finish_rail_animation(False))
         else:
-            self.rebuild_shell(current)
+            # Switch to compact contents before shrinking so labels never clip
+            # through the closing motion.
+            self.rail_collapsed = True
+            self.render_navigation_rail(rail_width=start)
+            self.animate_rail_width(start, end, on_done=lambda: self.finish_rail_animation(True))
+
+    def animate_rail_width(self, start, end, step=0, steps=12, on_done=None):
+        if not hasattr(self, "rail") or not self.rail.winfo_exists():
+            self.rail_animating = False
+            return
+        width = start + (end - start) * self.ease_out_cubic(step, steps)
+        self.rail.configure(width=self.px(width))
+        if step < steps:
+            self.after(13, lambda: self.animate_rail_width(start, end, step + 1, steps, on_done))
+            return
+        self.rail.configure(width=self.px(end))
+        if on_done:
+            on_done()
+
+    def finish_rail_animation(self, collapsed):
+        self.rail_collapsed = collapsed
+        self.render_navigation_rail()
+        self.refresh_nav_selection()
+        self.rail_animating = False
 
     def nav_hint(self, key):
         return {
@@ -1978,7 +1216,7 @@ class MemoryPalApp(tk.Tk):
         self.update_idletasks()
         if not self.content.winfo_viewable():
             return None
-        return self.make_frame_cover("content")
+        return self.make_window_cover("content") or self.make_frame_cover("content")
 
     def finish_show_view(self, view, token, cover=None):
         if token != self.route_token:
@@ -2017,14 +1255,16 @@ class MemoryPalApp(tk.Tk):
             geometry = self.cover_geometry(getattr(cover, "memorypal_scope", "root"))
             if geometry:
                 cover.geometry(geometry)
-            alpha_steps = (1.0, 0.88, 0.74, 0.58, 0.42, 0.27, 0.14, 0.0)
+            alpha_steps = (1.0, 0.96, 0.90, 0.82, 0.72, 0.60, 0.48, 0.36, 0.25, 0.16, 0.08, 0.0)
             cover.attributes("-alpha", alpha_steps[min(step, len(alpha_steps) - 1)])
+            if self.is_fullscreen or self.is_focus_window:
+                cover.attributes("-topmost", True)
             cover.lift(self)
         except tk.TclError:
             self.destroy_transition_cover(cover)
             return
         if step < len(alpha_steps) - 1:
-            self.after(18, lambda: self.fade_window_cover(cover, step + 1, token))
+            self.after(16, lambda: self.fade_window_cover(cover, step + 1, token))
         else:
             self.destroy_transition_cover(cover)
 
@@ -2034,24 +1274,16 @@ class MemoryPalApp(tk.Tk):
             return
         if not cover or not cover.winfo_exists():
             return
-        if step == 0:
-            scope = getattr(cover, "memorypal_scope", "root")
-            try:
-                self.update_idletasks()
-                overlay = self.make_window_cover(scope)
-            except tk.TclError:
-                overlay = None
-            self.destroy_transition_cover(cover)
-            if overlay:
-                self.fade_window_cover(overlay, token=token)
-            return
         try:
             self.paint_cover(cover)
             self.raise_widget(cover)
         except tk.TclError:
             self.destroy_transition_cover(cover)
             return
-        self.destroy_transition_cover(cover)
+        if step < 2:
+            self.after(36, lambda: self.fade_frame_cover(cover, step + 1, token))
+        else:
+            self.destroy_transition_cover(cover)
 
     def fade_transition_cover(self, token, cover, step=0):
         if token != self.route_token or not cover.winfo_exists():
@@ -3182,6 +2414,9 @@ class MemoryPalApp(tk.Tk):
                 row.columnconfigure(0, weight=1)
 
     def attach_media(self, kind, labels, text_target=None):
+        import shutil
+        from tkinter import filedialog
+
         filetypes = {
             "text_file": [("Notes and documents", "*.txt *.md *.csv *.pdf *.docx *.doc"), ("Text notes", "*.txt *.md *.csv"), ("PDF", "*.pdf"), ("Word documents", "*.docx *.doc")],
             "image": [("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp")],
@@ -3192,16 +2427,16 @@ class MemoryPalApp(tk.Tk):
         selected = filedialog.askopenfilename(title=f"Choose {label_name}", filetypes=filetypes + [("All files", "*.*")])
         if not selected:
             return
-        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
         source = Path(selected)
-        target = app_paths.ATTACHMENT_DIR / f"{uuid4().hex}{source.suffix.lower()}"
+        target = self.store.attachment_dir / f"{uuid4().hex}{source.suffix.lower()}"
         shutil.copy2(source, target)
         self.pending_media[kind] = str(target)
         labels[kind].configure(text=target.name)
         if kind == "text_file" and text_target is not None:
             try:
                 text = extract_document_text(source)
-            except (OSError, RuntimeError, KeyError, zipfile.BadZipFile, ET.ParseError) as exc:
+            except Exception as exc:
                 self.toast_message(f"Note attached, but automatic text extraction was not available: {exc}")
                 return
             if not normalize_space(text):
@@ -3216,8 +2451,8 @@ class MemoryPalApp(tk.Tk):
         if not text:
             self.toast_message("Type or dictate text first, then save it as a note.")
             return
-        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = app_paths.ATTACHMENT_DIR / f"text-note-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
+        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
+        target = self.store.attachment_dir / f"text-note-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
         target.write_text(text + "\n", encoding="utf-8")
         self.pending_media["text_file"] = str(target)
         labels["text_file"].configure(text=target.name)
@@ -3229,15 +2464,15 @@ class MemoryPalApp(tk.Tk):
             return
         try:
             import wave
-            import sounddevice as sd
+            sd = importlib.import_module("sounddevice")
         except ImportError:
             self.dialog_alert(
                 "Audio recorder unavailable",
                 "Import an audio file for now, or install sounddevice for desktop recording. The planned mobile version should use the phone's native recorder.",
             )
             return
-        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = app_paths.ATTACHMENT_DIR / f"audio-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
+        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
+        target = self.store.attachment_dir / f"audio-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
         samplerate = 44100
         try:
             data = sd.rec(int(seconds * samplerate), samplerate=samplerate, channels=1, dtype="int16")
@@ -3259,15 +2494,15 @@ class MemoryPalApp(tk.Tk):
         if not seconds:
             return
         try:
-            import cv2
+            cv2 = importlib.import_module("cv2")
         except ImportError:
             self.dialog_alert(
                 "Video recorder unavailable",
                 "Import a video file for now, or install opencv-python for desktop webcam recording. The planned mobile version should use the phone's camera recorder.",
             )
             return
-        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = app_paths.ATTACHMENT_DIR / f"video-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.avi"
+        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
+        target = self.store.attachment_dir / f"video-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.avi"
         camera = cv2.VideoCapture(0)
         if not camera.isOpened():
             self.dialog_alert("Video recording failed", "No webcam was found.", "error")
@@ -3290,6 +2525,9 @@ class MemoryPalApp(tk.Tk):
         self.toast_message("Video recording attached.")
 
     def attach_file_to_card(self, card, kind, refresh=None):
+        import shutil
+        from tkinter import filedialog
+
         filetypes = {
             "text_file": [("Notes and documents", "*.txt *.md *.csv *.pdf *.docx *.doc"), ("Text notes", "*.txt *.md *.csv"), ("PDF", "*.pdf"), ("Word documents", "*.docx *.doc")],
             "image": [("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp")],
@@ -3300,9 +2538,9 @@ class MemoryPalApp(tk.Tk):
         selected = filedialog.askopenfilename(title=f"Choose {label_name}", filetypes=filetypes + [("All files", "*.*")])
         if not selected:
             return
-        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
         source = Path(selected)
-        target = app_paths.ATTACHMENT_DIR / f"{uuid4().hex}{source.suffix.lower()}"
+        target = self.store.attachment_dir / f"{uuid4().hex}{source.suffix.lower()}"
         shutil.copy2(source, target)
         setattr(card, kind, str(target))
         self.store.save()
@@ -3315,8 +2553,8 @@ class MemoryPalApp(tk.Tk):
         if not text:
             self.toast_message("Generate a hint first.")
             return
-        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = app_paths.ATTACHMENT_DIR / f"cue-{uuid4().hex}.txt"
+        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
+        target = self.store.attachment_dir / f"cue-{uuid4().hex}.txt"
         target.write_text(text + "\n", encoding="utf-8")
         card.text_file = str(target)
         self.store.save()
@@ -3329,7 +2567,9 @@ class MemoryPalApp(tk.Tk):
             self.toast_message("Add a card first.")
             return
         try:
+            import webbrowser
             from urllib.parse import quote_plus
+
             webbrowser.open(f"https://www.google.com/search?tbm=isch&q={quote_plus(query)}")
             self.toast_message("Opened an image search in your browser. Save an image, then use Attach Image below.")
         except Exception as exc:
@@ -3341,15 +2581,15 @@ class MemoryPalApp(tk.Tk):
             self.toast_message("Nothing to speak yet.")
             return
         try:
-            import pyttsx3
+            pyttsx3 = importlib.import_module("pyttsx3")
         except ImportError:
             self.dialog_alert(
                 "Offline voice unavailable",
                 "Install pyttsx3 (pip install pyttsx3) for offline text-to-speech cues, or import an audio file instead.",
             )
             return
-        app_paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        target = app_paths.ATTACHMENT_DIR / f"voice-cue-{uuid4().hex}.wav"
+        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
+        target = self.store.attachment_dir / f"voice-cue-{uuid4().hex}.wav"
         try:
             engine = pyttsx3.init()
             engine.save_to_file(text, str(target))
@@ -4976,16 +4216,20 @@ class MemoryPalApp(tk.Tk):
         try:
             os.startfile(target)
         except (AttributeError, OSError):
+            import webbrowser
+
             webbrowser.open(target.resolve().as_uri())
 
     def open_data_folder(self):
-        app_paths.refresh_current_data_paths()
         self.open_path(app_paths.DATA_DIR)
 
     def export_feedback(self):
         if not self.store.feedback:
             self.toast_message("No feedback to export yet.")
             return
+        import csv
+        from tkinter import filedialog
+
         path = filedialog.asksaveasfilename(
             title="Export MemoryPal feedback",
             defaultextension=".csv",
@@ -5093,15 +4337,14 @@ class MemoryPalApp(tk.Tk):
         })
 
     def view_settings(self):
-        app_paths.refresh_current_data_paths()
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
 
         profile_count = len(list_profiles())
         due = len(self.store.due_cards())
         storage_path = str(app_paths.DATA_DIR)
-        profile_path = str(app_paths.DATA_FILE)
-        attachment_path = str(app_paths.ATTACHMENT_DIR)
+        profile_path = str(self.store.data_file)
+        attachment_path = str(self.store.attachment_dir)
 
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]), hover=COLORS["violet"])
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
@@ -5332,13 +4575,19 @@ class MemoryPalApp(tk.Tk):
         render()
 
     def export_data(self):
+        import shutil
+        from tkinter import filedialog
+
         path = filedialog.asksaveasfilename(title="Export MemoryPal data", defaultextension=".json", initialfile="memorypal-data.json", filetypes=[("JSON files", "*.json")])
         if path:
             self.store.save()
-            shutil.copy2(app_paths.DATA_FILE, path)
+            shutil.copy2(self.store.data_file, path)
             self.toast_message("Data exported.")
 
     def import_data(self):
+        import json
+        from tkinter import filedialog
+
         path = filedialog.askopenfilename(title="Import MemoryPal data", filetypes=[("JSON files", "*.json")])
         if not path:
             return
@@ -5351,7 +4600,7 @@ class MemoryPalApp(tk.Tk):
             self.store.daily_goal = safe_int(raw.get("daily_goal", 15), 15)
             self.store.nav_order = list(raw.get("nav_order", []))
             self.store.feedback = load_items(raw.get("feedback", []), FeedbackEntry.from_dict)
-            self.store.save()
+            self.store.save(merge_existing=False)
             self.show_view("library")
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             self.dialog_alert("Import failed", str(exc), "error")

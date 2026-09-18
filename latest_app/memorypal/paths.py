@@ -30,6 +30,9 @@ DATA_DIR = app_data_dir()
 PROFILES_DIR = DATA_DIR / "profiles"
 PROFILES_CONFIG = DATA_DIR / "profiles.json"
 MIGRATION_MARKER = DATA_DIR / ".legacy-migration-complete"
+_PROFILE_CONFIG_CACHE = None
+_PROFILE_CONFIG_MTIME = None
+_LEGACY_MIGRATION_CHECKED = False
 
 
 def normalize_profile_name(name):
@@ -39,6 +42,13 @@ def normalize_profile_name(name):
 def slugify_profile(name):
     slug = re.sub(r"[^A-Za-z0-9_-]+", "-", normalize_profile_name(name)).strip("-")
     return slug or "profile"
+
+
+def copy_profile_config(config):
+    return {
+        "active": config.get("active", DEFAULT_PROFILE),
+        "names": list(config.get("names") or [DEFAULT_PROFILE]),
+    }
 
 
 def profile_dir(name):
@@ -59,6 +69,10 @@ def copy_missing_tree(source, target):
 
 def migrate_legacy_data():
     """Copy existing home-folder data into the platform data directory once."""
+    global _LEGACY_MIGRATION_CHECKED
+    if _LEGACY_MIGRATION_CHECKED:
+        return
+    _LEGACY_MIGRATION_CHECKED = True
     if LEGACY_DATA_DIR == DATA_DIR or not LEGACY_DATA_DIR.exists() or MIGRATION_MARKER.exists():
         return
 
@@ -88,26 +102,46 @@ def migrate_legacy_data():
 
 
 def load_profiles_config():
+    global _PROFILE_CONFIG_CACHE, _PROFILE_CONFIG_MTIME
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     migrate_legacy_data()
+    try:
+        current_mtime = PROFILES_CONFIG.stat().st_mtime_ns
+    except OSError:
+        current_mtime = None
+    if _PROFILE_CONFIG_CACHE is not None and current_mtime == _PROFILE_CONFIG_MTIME:
+        return copy_profile_config(_PROFILE_CONFIG_CACHE)
     if not PROFILES_CONFIG.exists():
         config = {"active": DEFAULT_PROFILE, "names": [DEFAULT_PROFILE]}
         PROFILES_CONFIG.write_text(json.dumps(config, indent=2), encoding="utf-8")
-        return config
+        try:
+            _PROFILE_CONFIG_MTIME = PROFILES_CONFIG.stat().st_mtime_ns
+        except OSError:
+            _PROFILE_CONFIG_MTIME = None
+        _PROFILE_CONFIG_CACHE = copy_profile_config(config)
+        return copy_profile_config(config)
     try:
         config = json.loads(PROFILES_CONFIG.read_text(encoding="utf-8"))
         if not config.get("names"):
             config["names"] = [DEFAULT_PROFILE]
         if config.get("active") not in config["names"]:
             config["active"] = config["names"][0]
-        return config
+        _PROFILE_CONFIG_CACHE = copy_profile_config(config)
+        _PROFILE_CONFIG_MTIME = current_mtime
+        return copy_profile_config(config)
     except (OSError, json.JSONDecodeError):
         return {"active": DEFAULT_PROFILE, "names": [DEFAULT_PROFILE]}
 
 
 def save_profiles_config(config):
+    global _PROFILE_CONFIG_CACHE, _PROFILE_CONFIG_MTIME
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     PROFILES_CONFIG.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    try:
+        _PROFILE_CONFIG_MTIME = PROFILES_CONFIG.stat().st_mtime_ns
+    except OSError:
+        _PROFILE_CONFIG_MTIME = None
+    _PROFILE_CONFIG_CACHE = copy_profile_config(config)
 
 
 def list_profiles():

@@ -1,30 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
   <title id="title">MemoryPal Logo</title>
-  <desc id="desc">A rounded blue and violet MemoryPal mark with a crisp connected M path and recall dots.</desc>
+  <desc id="desc">A rounded blue, violet, and mint MemoryPal mark with a crisp connected M path and recall dots.</desc>
   <defs>
-    <linearGradient id="memorypal-bg" x1="180" y1="96" x2="844" y2="928" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6ec5ff"/>
-      <stop offset="0.48" stop-color="#4f8fff"/>
-      <stop offset="1" stop-color="#7868ff"/>
+    <linearGradient id="memorypal-bg" x1="164" y1="84" x2="858" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#50d5ff"/>
+      <stop offset="0.50" stop-color="#456cf6"/>
+      <stop offset="1" stop-color="#6a3dce"/>
     </linearGradient>
-    <radialGradient id="memorypal-glow" cx="760" cy="160" r="420" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ccfbff" stop-opacity="0.42"/>
-      <stop offset="0.56" stop-color="#ccfbff" stop-opacity="0.12"/>
-      <stop offset="1" stop-color="#ccfbff" stop-opacity="0"/>
+    <radialGradient id="memorypal-glow" cx="768" cy="156" r="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e5ffff" stop-opacity="0.46"/>
+      <stop offset="0.56" stop-color="#e5ffff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#e5ffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="memorypal-depth" cx="168" cy="940" r="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#152b4a" stop-opacity="0.28"/>
+      <stop offset="0.70" stop-color="#152b4a" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#152b4a" stop-opacity="0"/>
     </radialGradient>
     <filter id="mark-shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="10" dy="16" stdDeviation="10" flood-color="#10213f" flood-opacity="0.26"/>
+      <feDropShadow dx="9" dy="15" stdDeviation="9" flood-color="#07111f" flood-opacity="0.30"/>
     </filter>
   </defs>
-  <rect x="80" y="80" width="864" height="864" rx="230" fill="url(#memorypal-bg)"/>
-  <rect x="80" y="80" width="864" height="864" rx="230" fill="url(#memorypal-glow)"/>
-  <path d="M254 718 L254 312 L512 640 L770 312 L770 718" fill="none" stroke="#ffffff" stroke-width="112" stroke-linecap="round" stroke-linejoin="round" filter="url(#mark-shadow)"/>
-  <path d="M254 718 L254 312 L512 640 L770 312 L770 718" fill="none" stroke="#ffffff" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M254 704 L432 336 L590 584 L770 300" fill="none" stroke="#83ffd8" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" opacity="0.32"/>
-  <circle cx="254" cy="312" r="58" fill="#ffffff"/>
-  <circle cx="512" cy="640" r="55" fill="#ffffff"/>
-  <circle cx="770" cy="312" r="58" fill="#ffffff"/>
-  <circle cx="254" cy="312" r="21" fill="#67b7ff" opacity="0.26"/>
-  <circle cx="512" cy="640" r="20" fill="#7868ff" opacity="0.28"/>
-  <circle cx="770" cy="312" r="21" fill="#67b7ff" opacity="0.26"/>
+  <rect x="80" y="80" width="864" height="864" rx="212" fill="url(#memorypal-bg)"/>
+  <rect x="80" y="80" width="864" height="864" rx="212" fill="url(#memorypal-glow)"/>
+  <rect x="80" y="80" width="864" height="864" rx="212" fill="url(#memorypal-depth)"/>
+  <path d="M251 718 L251 312 L512 635 L773 312 L773 718" fill="none" stroke="#10284b" stroke-width="150" stroke-linecap="round" stroke-linejoin="round" opacity="0.24" filter="url(#mark-shadow)"/>
+  <path d="M251 718 L251 312 L512 635 L773 312 L773 718" fill="none" stroke="#ffffff" stroke-width="118" stroke-linecap="round" stroke-linejoin="round" filter="url(#mark-shadow)"/>
+  <path d="M251 718 L251 312 L512 635 L773 312 L773 718" fill="none" stroke="#ffffff" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M246 708 L430 336 L594 604 L778 304" fill="none" stroke="#7cffd4" stroke-width="42" stroke-linecap="round" stroke-linejoin="round" opacity="0.34"/>
+  <circle cx="251" cy="312" r="55" fill="#ffffff"/>
+  <circle cx="512" cy="635" r="53" fill="#ffffff"/>
+  <circle cx="773" cy="312" r="55" fill="#ffffff"/>
+  <circle cx="251" cy="312" r="19" fill="#50d5ff" opacity="0.24"/>
+  <circle cx="512" cy="635" r="18" fill="#6a3dce" opacity="0.28"/>
+  <circle cx="773" cy="312" r="19" fill="#50d5ff" opacity="0.24"/>
 </svg>

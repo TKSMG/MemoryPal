@@ -6,6 +6,9 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 
 - Open `latest_app/MemoryPalDesktop.py`.
 - Confirm the dashboard loads without errors.
+- Confirm the app opens quickly enough for a short practice session instead of sitting on a long blank startup.
+- Confirm repeated page changes, rail collapse/reopen, focus mode, and fullscreen do not leave stuck transition covers.
+- Confirm page transitions affect only the content area while the app shell/background stays steady.
 - Confirm the title/taskbar icon uses the MemoryPal mark instead of the default Python/Tk icon.
 - Confirm the main app uses the MemoryPal title strip instead of an old native-looking title bar.
 - Confirm the app appears as its own taskbar item when launched normally.
@@ -31,32 +34,39 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Repeatedly press F11 a few times and confirm the app ignores overlapping fullscreen requests instead of freezing.
 - Use the header Focus button and titlebar square button, then confirm both use borderless focus mode instead of true fullscreen.
 - While editing a field, toggle true fullscreen and focus mode and confirm the current page is not rebuilt.
-- Confirm fullscreen, focus mode, navigation collapse, and resize release use a soft reveal without losing the current field contents.
+- Confirm fullscreen, focus mode, navigation collapse, and resize release do not rebuild the active page or lose current field contents.
 - Drag a custom resize grip and confirm the window size only changes after releasing the mouse.
-- Toggle true fullscreen and focus mode from Settings and confirm the app uses the same-color cover while the window changes size.
+- Toggle true fullscreen and focus mode from Settings and confirm any settling fade stays over the content area instead of dimming the whole app.
 - While already in true fullscreen, switch pages and confirm the page content changes without white flashes.
 - Confirm fullscreen/focus changes do not freeze the app or leave a cover stuck on screen.
+- Collapse and reopen the left rail and confirm compact labels are shown during the width animation, with full labels returning only after the rail has space.
 - Open Settings and confirm theme, navigation, profile manager, daily goal, storage folder, backup, import, and reset controls are reachable.
 - Confirm the title bar controls, resize handles, and nav toggle remain correctly sized at higher Windows display scaling.
 - If Pillow is installed, confirm the custom titlebar buttons, app mark, and navigation toggle look smoother around the curved edges.
+- Confirm the default packaged app includes Pillow for smoother custom UI edges but does not bundle heavy optional audio/video/TTS libraries.
 - Confirm the left navigation mark uses the generated MemoryPal logo artwork instead of a plain letter.
 - Confirm the titlebar mark and navigation mark look like the same MemoryPal logo.
+- Confirm the refreshed icon still has the connected-dot M and does not look jagged in the titlebar, taskbar, or navigation rail.
 - Confirm `assets/memorypal.ico`, `assets/memorypal-logo-preview.png`, and `assets/memorypal-logo.svg` open as reusable project icon exports.
+- After a Windows package is built, confirm `release\MemoryPal\assets\memorypal.ico` exists so installed copies do not regenerate icons during startup.
 - Confirm collapsing the navigation rail does not show a toast notification.
 - Confirm the header title stays on its own row and does not crowd the streak, daily goal, profile, or backup controls.
 - In the mobile prototype, try saving an empty card and a complete card; confirm both use in-app feedback instead of silent behavior.
 
 ## Windows Build
 
-- Run `build_windows.cmd` from a normal Command Prompt or PowerShell window.
+- Run `.\clean_build_artifacts.cmd` before the first fresh package attempt.
+- Run `.\build_windows.cmd` from a normal Command Prompt or PowerShell window.
 - Confirm the build output mentions Nuitka and the `tk-inter` plugin.
 - Confirm the build output does not reject the generated `memorypal.ico` icon.
+- Confirm the build output excludes unused optional media stacks unless a media-enabled build is being made.
 - Confirm the script says it is using a Python install that can import Tkinter.
-- Open `release\MemoryPal.exe` and confirm the app loads without a `No module named 'tkinter'` error.
-- If the Nuitka build fails for a local setup reason, try `build_pyinstaller_windows.cmd` as a fallback.
-- After the EXE exists and Inno Setup 6 is installed, run `build_installer_windows.cmd`.
-- Confirm `release\MemoryPalSetup.exe` is created and opens the normal MemoryPal installer flow.
-- In GitHub, run the `Build Windows App` workflow and confirm the `MemoryPal-Windows` artifact includes the EXE and installer when the workflow succeeds.
+- Open `release\MemoryPal\MemoryPal.exe` and confirm the app loads without a `No module named 'tkinter'` error.
+- If the Nuitka build fails for a local setup reason, try `.\build_pyinstaller_windows.cmd` as a fallback.
+- After the app folder exists, run `.\build_installer_windows.cmd`; if prompted, allow the script to install Inno Setup with `winget`.
+- Confirm `release\MemoryPalSetup.exe` is created and opens the normal MemoryPal installer flow with install-location, Start Menu, desktop shortcut, launch-after-install, and supported shortcut options.
+- Zip either `release\MemoryPalSetup.exe` with the tester notes or the full `release\MemoryPal\` folder with the tester notes.
+- In GitHub, run the `Build Windows App` workflow and confirm the `MemoryPal-Windows` artifact includes the app folder and installer when the workflow succeeds.
 
 ## Capture And Cards
 
@@ -131,5 +141,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 ## Code Structure
 
 - Confirm the desktop entry point imports core logic from `latest_app/memorypal/`.
+- Confirm profile config, logo rendering, and antialiased shape rendering use caching instead of repeated disk/pixel work.
+- Confirm optional modules for file dialogs, CSV export, browser opening, audio recording, video recording, and text-to-speech are loaded only when needed.
 - Confirm `pyproject.toml` lists core dependencies and optional extras.
 - Confirm `requirements-*.txt` files still work for simple setup.
