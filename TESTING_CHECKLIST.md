@@ -7,18 +7,21 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Open `latest_app/MemoryPalDesktop.py`.
 - Confirm the dashboard loads without errors.
 - Confirm the app opens quickly enough for a short practice session instead of sitting on a long blank startup.
-- Confirm repeated page changes, rail collapse/reopen, focus mode, and fullscreen do not leave stuck transition covers.
-- Confirm page transitions affect only the content area while the app shell/background stays steady.
+- Confirm repeated page changes, focus mode, fullscreen, and resize release do not leave stuck transition covers.
+- Confirm page transitions affect only the page panel while the app shell/background stays steady.
 - Confirm the title/taskbar icon uses the MemoryPal mark instead of the default Python/Tk icon.
 - Confirm the main app uses the MemoryPal title strip instead of an old native-looking title bar.
 - Confirm the app appears as its own taskbar item when launched normally.
 - Confirm the right edge, bottom edge, and corner resize grips let the app resize when it is not in true fullscreen.
 - Confirm data is created in the normal app-data folder, not directly in the home folder.
 - If old `%USERPROFILE%\MemoryPalData` data exists, confirm it is copied into the new app-data profile folder without overwriting newer profile edits.
+- Open two MemoryPal windows, add different cards in both, save both, reopen the app, and confirm both cards remain.
+- In two MemoryPal windows, review a shared card in one window, add a new card in the other window, save both, and confirm the reviewed card keeps its newer score/repetition state.
 - Switch between dark and light mode and confirm the app does not freeze, flash white, or keep old-theme colors stuck on screen.
-- Collapse and reopen the left navigation rail using the capsule toggle.
-- Type something into a page field, collapse/reopen the navigation rail, and confirm the typed work is still there.
-- In expanded navigation, confirm the collapse capsule sits centered in the rail instead of drifting right.
+- Confirm the left navigation rail stays expanded and no collapse control is shown.
+- Type something into a page field, switch pages, return, and confirm the typed work is still there.
+- Confirm the header status chips stay on the left and Theme, Fullscreen, and Backup stay aligned on the right.
+- Confirm the top-right profile avatar opens profile management and shows the active profile number.
 - On a shorter window, scroll inside the left navigation area and confirm every section stays reachable.
 - Open Settings, move a page up/down in Page Order, apply the change, and confirm the left navigation updates.
 - Reset Page Order and confirm the default navigation order returns.
@@ -28,29 +31,29 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Open profile, recording, reset, import-error, and media-error dialogs and confirm they match the MemoryPal visual style.
 - Open the profile manager, create a profile, rename a profile, and confirm popups fade in without a white flash.
 - Switch between several pages and confirm the same-theme cover hides redraw flashes without a strip-opening effect.
-- Confirm page switches gently reveal instead of snapping or flashing after the new page is drawn.
+- Confirm page switches fade in cleanly instead of flashing after the new page is drawn.
 - Confirm page/layout fades do not dim the entire app window; the background shell should stay solid while content appears.
 - Press F11 and confirm it enters true fullscreen, then press Escape to exit.
+- Click the header Fullscreen button and confirm it uses true fullscreen.
 - Repeatedly press F11 a few times and confirm the app ignores overlapping fullscreen requests instead of freezing.
-- Use the header Focus button and titlebar square button, then confirm both use borderless focus mode instead of true fullscreen.
+- Use the titlebar square button and confirm it uses borderless focus mode instead of true fullscreen.
 - While editing a field, toggle true fullscreen and focus mode and confirm the current page is not rebuilt.
-- Confirm fullscreen, focus mode, navigation collapse, and resize release do not rebuild the active page or lose current field contents.
+- Confirm fullscreen, focus mode, and resize release do not rebuild the active page or lose current field contents.
 - Drag a custom resize grip and confirm the window size only changes after releasing the mouse.
-- Toggle true fullscreen and focus mode from Settings and confirm any settling fade stays over the content area instead of dimming the whole app.
+- Toggle true fullscreen and focus mode from Settings and confirm the active page returns cleanly without a white flash, whole-window dim, freeze, or stuck cover.
 - While already in true fullscreen, switch pages and confirm the page content changes without white flashes.
 - Confirm fullscreen/focus changes do not freeze the app or leave a cover stuck on screen.
-- Collapse and reopen the left rail and confirm compact labels are shown during the width animation, with full labels returning only after the rail has space.
 - Open Settings and confirm theme, navigation, profile manager, daily goal, storage folder, backup, import, and reset controls are reachable.
-- Confirm the title bar controls, resize handles, and nav toggle remain correctly sized at higher Windows display scaling.
-- If Pillow is installed, confirm the custom titlebar buttons, app mark, and navigation toggle look smoother around the curved edges.
+- Confirm the title bar controls and resize handles remain correctly sized at higher Windows display scaling.
+- If Pillow is installed, confirm the custom titlebar buttons and app mark look smoother around the curved edges.
 - Confirm the default packaged app includes Pillow for smoother custom UI edges but does not bundle heavy optional audio/video/TTS libraries.
 - Confirm the left navigation mark uses the generated MemoryPal logo artwork instead of a plain letter.
 - Confirm the titlebar mark and navigation mark look like the same MemoryPal logo.
 - Confirm the refreshed icon still has the connected-dot M and does not look jagged in the titlebar, taskbar, or navigation rail.
 - Confirm `assets/memorypal.ico`, `assets/memorypal-logo-preview.png`, and `assets/memorypal-logo.svg` open as reusable project icon exports.
 - After a Windows package is built, confirm `release\MemoryPal\assets\memorypal.ico` exists so installed copies do not regenerate icons during startup.
-- Confirm collapsing the navigation rail does not show a toast notification.
-- Confirm the header title stays on its own row and does not crowd the streak, daily goal, profile, or backup controls.
+- Confirm the header and navigation logo appear immediately from packaged assets instead of causing a long startup delay.
+- Confirm the header title stays on its own row and does not crowd the streak, daily goal, profile avatar, fullscreen, or backup controls.
 - In the mobile prototype, try saving an empty card and a complete card; confirm both use in-app feedback instead of silent behavior.
 
 ## Windows Build
@@ -64,7 +67,8 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Open `release\MemoryPal\MemoryPal.exe` and confirm the app loads without a `No module named 'tkinter'` error.
 - If the Nuitka build fails for a local setup reason, try `.\build_pyinstaller_windows.cmd` as a fallback.
 - After the app folder exists, run `.\build_installer_windows.cmd`; if prompted, allow the script to install Inno Setup with `winget`.
-- Confirm `release\MemoryPalSetup.exe` is created and opens the normal MemoryPal installer flow with install-location, Start Menu, desktop shortcut, launch-after-install, and supported shortcut options.
+- Confirm `release\MemoryPalSetup.exe` is created and opens the normal MemoryPal installer flow with install-location, Start Menu, optional desktop shortcut, and launch-after-install.
+- Run `.\package_for_testers.cmd` after the build and confirm `release\MemoryPalTesterPackage.zip` contains the installer or portable app folder plus the tester notes.
 - Zip either `release\MemoryPalSetup.exe` with the tester notes or the full `release\MemoryPal\` folder with the tester notes.
 - In GitHub, run the `Build Windows App` workflow and confirm the `MemoryPal-Windows` artifact includes the app folder and installer when the workflow succeeds.
 
@@ -87,6 +91,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Use Memory Gym buttons to open Test Lab, Review, Quiz, Associations, Capture, Cue Lab, Repetition, and Puzzles.
 - Start a due card from Review and confirm it opens in Test Lab.
 - Type a close answer and use Smart Check.
+- Type an incorrect answer for a proper noun such as Paris and confirm the missing-cue text stays readable.
 - Reveal and hide the saved answer.
 - Use each rating button: Again, Review, Good, Easy.
 - Test keyboard ratings `1`, `2`, `3`, `4`.
@@ -135,7 +140,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 
 - Increase Windows display scaling and test the app again.
 - Check that long button text wraps into new rows instead of clipping.
-- Use the app with the nav rail collapsed for a full review flow.
+- Use the app through a full review flow with the expanded navigation rail.
 - Confirm hover hints appear on compact navigation and important controls.
 
 ## Code Structure

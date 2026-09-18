@@ -12,11 +12,13 @@ The current full recovered app is:
 
 It includes DPI-aware scaling, chunk-based capture, prompt-answer modes, smart checking, repetition paths, text/image/audio/video file imports, and on-demand text/audio/video capture controls.
 It also includes profiles, study planning, stats, dark/light themes, review repair controls, and a focused Repetition round player.
-The newest build adds a collapsible navigation rail, document-note importing, resource strips on study pages, and improved scaling on Study Plan and shared button rows.
+The newest build keeps the navigation rail expanded, adds document-note importing, resource strips on study pages, and improved scaling on Study Plan and shared button rows.
 The release-prep build adds testing notes, Windows build instructions, and a mobile prototype path.
-The latest desktop UI uses a steady same-theme page cover for page switches, while fullscreen/focus and sidebar collapse preserve the active page instead of rebuilding it.
+The latest desktop UI uses steady same-theme covers for page switches, fullscreen, focus, and resize release, while the fixed navigation rail avoids collapse-related redraw glitches.
 The newest polish pass changes transition fades from whole-window opacity to content/root overlay reveals, keeping the app shell solid while elements appear.
 The current project structure moves paths, models, storage, planning, and study helpers into `../latest_app/memorypal/` so the desktop entry point is no longer responsible for every layer of the app.
+The newest stability pass keeps newer saved review progress when two open windows save at different times.
+The latest header pass separates status chips from actions and turns the active profile into a numbered avatar control.
 
 ## How to Run a Version
 
@@ -390,6 +392,40 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Changed fullscreen, focus, and custom resize to keep the active page alive and use a short content-only settling fade after the new size lands.
 - Changed rail collapse so compact labels appear before the rail shrinks, preventing long labels from clipping through the animation.
 - Increased antialiasing resolution for small custom titlebar, nav, and button shapes when Pillow is installed.
+
+### v60 Beta - Stable motion follow-up
+
+- Added the standalone `MemoryPal_v60_beta_stable_motion_followup.py` milestone.
+- Changed page switches so a same-window reveal covers the full page panel, including the title/header, before the new page is built.
+- Delayed the page-cover fade until after the new page has painted, avoiding the pop-in, pop-out, fade-back-in effect.
+- Replaced fullscreen and focus post-resize fades with same-window reveal covers that hide native redraw flashes.
+- Changed sidebar collapse and reopen to snap between final widths, then reveal the rail without repeated active-page reflow.
+
+### v61 Beta - Fixed rail and fullscreen stability
+
+- Added the standalone `MemoryPal_v61_beta_fixed_rail_fullscreen_stability.py` milestone.
+- Removed the collapsible navigation control from the live desktop app.
+- Kept the navigation rail expanded so page width does not shift during study.
+- Removed root-window opacity fades from fullscreen and focus changes to avoid Windows/Tkinter freezing.
+- Kept same-window covers around fullscreen, focus, resize release, and page switches so redraw flashes stay hidden.
+
+### v62 Beta - Concurrent save stability
+
+- Added the standalone `MemoryPal_v62_beta_concurrent_save_stability.py` milestone.
+- Tracked the saved state of loaded cards, captures, and feedback before merging new saves.
+- Kept newer on-disk card progress when another open window saves an unchanged stale copy later.
+- Preserved the existing merge behavior for newly added cards, captures, feedback, daily activity, and navigation settings.
+- Cleaned up Smart Check keyword stemming so missing-cue feedback does not make proper nouns look broken.
+- Added a tester-package command for gathering the installer/app folder and notes into one zip after a build exists.
+
+### v63 Beta - Header release polish
+
+- Added the standalone `MemoryPal_v63_beta_header_release_polish.py` milestone.
+- Split the header toolbar into left-side status chips and right-side app actions.
+- Replaced the long active-profile button with a numbered profile avatar on the top-right edge.
+- Changed the header Fullscreen button to true fullscreen and moved focus-mode guidance into tooltips, the titlebar square, and Settings.
+- Added Control-Command-F as a guarded macOS-style true fullscreen shortcut where Tk supports it.
+- Changed startup logo rendering to load the packaged PNG first, with generated pixels kept only as a fallback.
 
 ## Mobile Version Note
 

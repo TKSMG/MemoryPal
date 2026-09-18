@@ -237,3 +237,19 @@ This version added a clean-build script and removed old project/temp build lefto
 ## v59 Beta - Transition And Launch Polish
 
 This version made the installed app launch path lighter by bundling the checked-in icon assets instead of regenerating them on startup. It also smoothed page changes with a real content-only fade, made fullscreen/resize settling less blank, and cleaned up sidebar collapse so labels do not crush during the motion.
+
+## v60 Beta - Stable Motion Follow-Up
+
+This version tightened the remaining transition bugs by covering the full page panel before a new page is built, then fading the same-window cover away after the page has painted. It also moved fullscreen and focus protection to same-window reveal covers, and changed sidebar collapse to a clean width snap with a small rail reveal so the current page no longer reflows repeatedly.
+
+## v61 Beta - Fixed Rail And Fullscreen Stability
+
+This version removed the collapsible navigation rail from the live desktop app so the study page no longer shifts sideways during use. It also removed root-window opacity fades from fullscreen and focus changes, keeping same-window covers for redraw protection without the freeze-prone whole-app alpha transition.
+
+## v62 Beta - Concurrent Save Stability
+
+This version made two-window saving safer by keeping newer saved review progress when a stale window saves later. It also cleaned up Smart Check cue wording and added a tester-package helper so the built installer/app folder and notes can be zipped together cleanly.
+
+## v63 Beta - Header Release Polish
+
+This version spread out the top header by separating status chips from action buttons and replacing the long profile control with a numbered avatar. It also made the header Fullscreen button use true fullscreen, kept borderless focus on the titlebar square and Settings, and sped up startup by loading the packaged logo asset first.

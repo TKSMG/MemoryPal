@@ -11,6 +11,12 @@ from uuid import uuid4
 
 sys.dont_write_bytecode = True
 
+# Shared motion language for startup and popup fades. In-window page reveals use
+# canvas covers so the desktop window itself stays opaque during resizing and
+# fullscreen changes.
+FADE_STEP_MS = 14
+FADE_IN_CURVE = (0.0, 0.207, 0.388, 0.544, 0.675, 0.782, 0.867, 0.929, 0.971, 0.994, 1.0)
+
 
 
 # Core behavior now lives in the memorypal package. The desktop file keeps the
@@ -39,6 +45,25 @@ from memorypal.core import (
     split_study_bits,
     today_iso,
 )
+try:
+    from memorypal.core import salient_keywords
+except ImportError:
+    def salient_keywords(text, count=5):
+        """Local fallback: top recurring words in text, used as a partial hint.
+
+        Kept here (rather than assumed importable) because this file may be
+        distributed on its own without a matching memorypal/core.py.
+        """
+        words = re.findall(r"[A-Za-z]{4,}", text or "")
+        stopwords = {"this", "that", "with", "from", "have", "were", "which", "their", "about", "would", "there", "these", "those"}
+        counts = {}
+        for word in words:
+            lower = word.lower()
+            if lower in stopwords:
+                continue
+            counts[lower] = counts.get(lower, 0) + 1
+        ranked = sorted(counts, key=lambda w: (-counts[w], words.index(next(x for x in words if x.lower() == w))))
+        return [w.capitalize() for w in ranked[:count]]
 from memorypal.icon import ensure_icon_file, render_icon_pixels
 from memorypal.models import Card, Capture, FeedbackEntry, sample_cards
 from memorypal.paths import (
@@ -244,8 +269,7 @@ class MemoryPalApp(tk.Tk):
         self.draft_savers = {}
         self.theme = "dark"
         self.deck_filter = None
-        self.rail_collapsed = False
-        self.rail_animating = False
+        self.rail_width_units = 276
         self._hotkeys_bound = False
         self.is_fullscreen = False
         self.is_focus_window = False
@@ -269,6 +293,11 @@ class MemoryPalApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self.bind("<Map>", self.restore_window_chrome, add="+")
         self.bind("<F11>", lambda _event: self.toggle_true_fullscreen())
+        for sequence in ("<Control-Command-f>", "<Command-Control-f>"):
+            try:
+                self.bind(sequence, lambda _event: self.toggle_true_fullscreen(), add="+")
+            except tk.TclError:
+                pass
         self.bind("<Escape>", lambda _event: self.exit_fullscreen_or_focus())
         self.bind("<Configure>", self.handle_window_configure, add="+")
         self.update_idletasks()
@@ -287,7 +316,7 @@ class MemoryPalApp(tk.Tk):
             return
         target = not self.is_fullscreen
         self.window_transition_active = True
-        cover = self.make_window_cover("content") if self.winfo_viewable() else None
+        cover = self.start_root_cover() if self.winfo_viewable() else None
         self.after_idle(lambda: self.apply_true_fullscreen(target, cover))
 
     def apply_true_fullscreen(self, target, cover=None):
@@ -307,13 +336,13 @@ class MemoryPalApp(tk.Tk):
         if not self.is_fullscreen:
             self.after(80, self.enable_borderless_chrome)
         self.update_window_controls()
-        self.after(110, lambda: self.finish_window_transition_cover(cover))
+        self.after(130, lambda: self.finish_window_transition_cover(cover))
 
     def toggle_focus_window(self):
         if self.window_transition_active:
             return
         self.window_transition_active = True
-        cover = self.make_window_cover("content") if self.winfo_viewable() else None
+        cover = self.start_root_cover() if self.winfo_viewable() else None
         self.after_idle(lambda: self.apply_focus_window(cover))
 
     def apply_focus_window(self, cover=None):
@@ -335,18 +364,18 @@ class MemoryPalApp(tk.Tk):
             self.is_focus_window = False
         self.enable_borderless_chrome()
         self.update_window_controls()
-        self.finish_window_transition_cover(cover)
+        self.after(130, lambda: self.finish_window_transition_cover(cover))
 
     def finish_window_transition_cover(self, cover):
         if cover:
             self.fade_simple_cover(cover)
-            self.after(240, lambda: setattr(self, "window_transition_active", False))
+            self.after(190, lambda: setattr(self, "window_transition_active", False))
         else:
-            self.after(160, lambda: setattr(self, "window_transition_active", False))
+            self.after(60, lambda: setattr(self, "window_transition_active", False))
 
     def update_window_controls(self):
         if hasattr(self, "fullscreen_button") and self.fullscreen_button.winfo_exists():
-            self.fullscreen_button.configure(text=("Exit Focus" if self.is_focus_window else "Focus"))
+            self.fullscreen_button.configure(text=("Exit Fullscreen" if self.is_fullscreen else "Fullscreen"))
         if hasattr(self, "chrome_fullscreen_button") and self.chrome_fullscreen_button.winfo_exists():
             symbol = "\u2750" if self.is_focus_window else "\u25a1"
             if hasattr(self.chrome_fullscreen_button, "set_symbol"):
@@ -411,24 +440,32 @@ class MemoryPalApp(tk.Tk):
         try:
             size = int(size)
             bg = canvas.cget("bg") or COLORS["rail"]
-            key = (size, bg)
+            source_png = bundled_resource_path("assets", "memorypal-logo-preview.png")
+            source_mtime = source_png.stat().st_mtime_ns if source_png and source_png.exists() else None
+            key = (size, bg, str(source_png) if source_png else "", source_mtime)
             photo = self.logo_photo_cache.get(key)
             if photo is None:
-                pixels = render_icon_pixels(size, scale=3 if size <= 96 else 2)
-                bg_rgb = [value // 256 for value in self.winfo_rgb(bg)]
-                rows = []
-                for row in pixels:
-                    colors = []
-                    for red, green, blue, alpha in row:
-                        if alpha < 255:
-                            ratio = alpha / 255
-                            red = round(red * ratio + bg_rgb[0] * (1 - ratio))
-                            green = round(green * ratio + bg_rgb[1] * (1 - ratio))
-                            blue = round(blue * ratio + bg_rgb[2] * (1 - ratio))
-                        colors.append(f"#{red:02x}{green:02x}{blue:02x}")
-                    rows.append("{" + " ".join(colors) + "}")
-                photo = tk.PhotoImage(width=size, height=size)
-                photo.put(" ".join(rows))
+                if source_png and source_png.exists():
+                    photo = tk.PhotoImage(file=str(source_png))
+                    factor = max(1, max((photo.width() + size - 1) // size, (photo.height() + size - 1) // size))
+                    if factor > 1:
+                        photo = photo.subsample(factor, factor)
+                else:
+                    pixels = render_icon_pixels(size, scale=3 if size <= 96 else 2)
+                    bg_rgb = [value // 256 for value in self.winfo_rgb(bg)]
+                    rows = []
+                    for row in pixels:
+                        colors = []
+                        for red, green, blue, alpha in row:
+                            if alpha < 255:
+                                ratio = alpha / 255
+                                red = round(red * ratio + bg_rgb[0] * (1 - ratio))
+                                green = round(green * ratio + bg_rgb[1] * (1 - ratio))
+                                blue = round(blue * ratio + bg_rgb[2] * (1 - ratio))
+                            colors.append(f"#{red:02x}{green:02x}{blue:02x}")
+                        rows.append("{" + " ".join(colors) + "}")
+                    photo = tk.PhotoImage(width=size, height=size)
+                    photo.put(" ".join(rows))
                 if len(self.logo_photo_cache) > 12:
                     self.logo_photo_cache.clear()
                 self.logo_photo_cache[key] = photo
@@ -472,15 +509,17 @@ class MemoryPalApp(tk.Tk):
         self.exit_fullscreen_or_focus()
 
     def fade_window_in(self, step=0):
-        alpha_steps = (0.0, 0.18, 0.34, 0.52, 0.70, 0.86, 1.0)
+        alpha_steps = FADE_IN_CURVE
         try:
             self.attributes("-alpha", alpha_steps[min(step, len(alpha_steps) - 1)])
         except tk.TclError:
             return
         if step < len(alpha_steps) - 1:
-            self.after(18, lambda: self.fade_window_in(step + 1))
+            self.after(FADE_STEP_MS, lambda: self.fade_window_in(step + 1))
 
     def restore_window_chrome(self, _event=None):
+        if _event is not None and _event.widget is not self:
+            return
         if self.state() == "normal" and not self.is_fullscreen and not self.restoring_borderless:
             self.enable_borderless_chrome()
 
@@ -580,10 +619,10 @@ class MemoryPalApp(tk.Tk):
         self.resize_start = None
         self.pending_resize_geometry = None
         if geometry:
-            cover = self.make_window_cover("content") if self.winfo_viewable() else None
+            cover = self.start_root_cover() if self.winfo_viewable() else None
             self.geometry(geometry)
             if cover:
-                self.after(70, lambda: self.fade_simple_cover(cover))
+                self.after(90, lambda: self.fade_simple_cover(cover))
 
     def ease_out_cubic(self, step, total_steps):
         progress = clamp(step / max(1, total_steps), 0, 1)
@@ -669,7 +708,14 @@ class MemoryPalApp(tk.Tk):
 
     def cover_geometry(self, scope="root"):
         self.update_idletasks()
-        target = self if scope == "root" else getattr(self, "content", self)
+        if scope == "root":
+            target = self
+        elif scope == "main":
+            target = getattr(self, "main", self)
+        elif scope == "rail":
+            target = getattr(self, "rail", self)
+        else:
+            target = getattr(self, "content", self)
         if not target.winfo_viewable():
             return None
         width = max(1, target.winfo_width())
@@ -678,34 +724,21 @@ class MemoryPalApp(tk.Tk):
             return None
         return f"{width}x{height}+{target.winfo_rootx()}+{target.winfo_rooty()}"
 
-    def make_window_cover(self, scope="root"):
-        geometry = self.cover_geometry(scope)
-        if not geometry:
-            return None
-        try:
-            cover = tk.Toplevel(self)
-            cover.withdraw()
-            cover.overrideredirect(True)
-            cover.configure(bg=COLORS["bg"])
-            cover.transient(self)
-            cover.geometry(geometry)
-            cover.attributes("-alpha", 1.0)
-            if self.is_fullscreen or self.is_focus_window:
-                cover.attributes("-topmost", True)
-            cover.memorypal_scope = scope
-            cover.deiconify()
-            cover.lift(self)
-            cover.update()
-            return cover
-        except tk.TclError:
-            return None
-
     def make_frame_cover(self, scope="root"):
-        parent = self if scope == "root" else self.content
+        if scope == "root":
+            parent = self
+        elif scope == "main":
+            parent = self.main
+        elif scope == "rail":
+            parent = self.rail
+        else:
+            parent = self.content
         if not parent.winfo_viewable():
             return None
-        cover = tk.Canvas(parent, bg=COLORS["bg"], highlightthickness=0, bd=0)
+        color = COLORS["rail"] if scope == "rail" else COLORS["bg"]
+        cover = tk.Canvas(parent, bg=color, highlightthickness=0, bd=0)
         cover.memorypal_scope = scope
+        cover.memorypal_cover_color = color
         cover.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.paint_cover(cover)
         cover.bind("<Configure>", lambda _event, target=cover: self.paint_cover(target), add="+")
@@ -713,20 +746,22 @@ class MemoryPalApp(tk.Tk):
         cover.update()
         return cover
 
-    def paint_cover(self, cover, stipple=""):
+    def paint_cover(self, cover, stipple=None):
         if not cover or not cover.winfo_exists():
             return
         try:
+            if stipple is None:
+                stipple = getattr(cover, "memorypal_cover_stipple", "")
+            else:
+                cover.memorypal_cover_stipple = stipple
             cover.delete("veil")
-            cover.configure(bg=COLORS["bg"])
+            color = getattr(cover, "memorypal_cover_color", COLORS["bg"])
+            cover.configure(bg=color)
             width = max(1, cover.winfo_width())
             height = max(1, cover.winfo_height())
-            cover.create_rectangle(0, 0, width, height, fill=COLORS["bg"], outline="", stipple=stipple, tags="veil")
+            cover.create_rectangle(0, 0, width, height, fill=color, outline="", stipple=stipple, tags="veil")
         except tk.TclError:
             pass
-
-    def is_window_cover(self, cover):
-        return bool(cover and isinstance(cover, tk.Toplevel))
 
     def start_root_cover(self, prefer_fade=True):
         self.update_idletasks()
@@ -741,9 +776,6 @@ class MemoryPalApp(tk.Tk):
         if not cover or not cover.winfo_exists():
             return
         self.raise_widget(cover)
-        if self.is_window_cover(cover):
-            self.fade_window_cover(cover, step=step)
-            return
         self.fade_frame_cover(cover, step=step)
 
     def show_popup_window(self, top, owner, width=None, height=None, modal=True):
@@ -766,13 +798,13 @@ class MemoryPalApp(tk.Tk):
     def fade_popup_in(self, top, step=0):
         if not top.winfo_exists():
             return
-        alpha_steps = (0.0, 0.22, 0.42, 0.62, 0.80, 0.94, 1.0)
+        alpha_steps = FADE_IN_CURVE
         try:
             top.attributes("-alpha", alpha_steps[min(step, len(alpha_steps) - 1)])
         except tk.TclError:
             return
         if step < len(alpha_steps) - 1:
-            self.after(16, lambda: self.fade_popup_in(top, step + 1))
+            self.after(FADE_STEP_MS, lambda: self.fade_popup_in(top, step + 1))
 
     def _display_scales(self):
         try:
@@ -854,9 +886,6 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("Nav.TButton", padding=self.pad(20, 15), background=COLORS["rail"], foreground="#d7def0", anchor="w", borderwidth=0, relief="flat", focuscolor=COLORS["rail"], font=self.font("Segoe UI", 12))
         self.style.map("Nav.TButton", background=[("active", COLORS["rail_hover"])], foreground=[("active", COLORS["white"])])
         self.style.configure("ActiveNav.TButton", padding=self.pad(20, 15), background=COLORS["primary"], foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", focuscolor=COLORS["primary"], font=self.font("Segoe UI Semibold", 12))
-        self.style.configure("CollapsedNav.TButton", padding=self.pad(8, 13), background=COLORS["rail"], foreground="#d7def0", anchor="center", borderwidth=0, relief="flat", focuscolor=COLORS["rail"], font=self.font("Segoe UI Semibold", 10))
-        self.style.map("CollapsedNav.TButton", background=[("active", COLORS["rail_hover"])], foreground=[("active", COLORS["white"])])
-        self.style.configure("ActiveCollapsedNav.TButton", padding=self.pad(8, 13), background=COLORS["primary"], foreground=COLORS["white"], anchor="center", borderwidth=0, relief="flat", focuscolor=COLORS["primary"], font=self.font("Segoe UI Semibold", 10))
 
     def draw_chrome_icon(self, canvas, size):
         canvas.delete("all")
@@ -929,52 +958,31 @@ class MemoryPalApp(tk.Tk):
         if show_minimize:
             chrome_button("\u2212", self.minimize_app, hint="Minimize")
         if show_fullscreen:
-            self.chrome_fullscreen_button = chrome_button("\u2750" if self.is_focus_window else "\u25a1", self.toggle_focus_window, hint="Toggle borderless focus")
+            self.chrome_fullscreen_button = chrome_button("\u2750" if self.is_focus_window else "\u25a1", self.toggle_focus_window, hint="Toggle borderless focus. Press F11 on Windows/Linux or Control-Command-F on macOS for true fullscreen.")
         close = chrome_button("\u00d7", close_command, COLORS["danger"], COLORS["white"], "Close")
         return bar
 
-    def render_navigation_rail(self, rail_width=None):
+    def render_navigation_rail(self, rail_width=None, preserve_cover=None):
         for child in self.rail.winfo_children():
+            if child is preserve_cover:
+                continue
             child.destroy()
-        rail_width = rail_width if rail_width is not None else (78 if self.rail_collapsed else 276)
+        rail_width = rail_width if rail_width is not None else 276
+        self.rail_width_units = rail_width
         self.rail.configure(width=self.px(rail_width))
+        self.layout_app_body()
         self.rail.pack_propagate(False)
         brand = ttk.Frame(self.rail, style="Rail.TFrame")
-        brand.pack(fill="x", padx=self.px(12 if self.rail_collapsed else 22), pady=self.pad(20 if self.rail_collapsed else 30, 18))
+        brand.pack(fill="x", padx=self.px(22), pady=self.pad(30, 18))
         mark_size = self.px(54)
         mark = tk.Canvas(brand, width=mark_size, height=mark_size, bg=COLORS["rail"], highlightthickness=0)
-        mark.pack(side="left", padx=(0, 0 if self.rail_collapsed else self.px(14)))
+        mark.pack(side="left", padx=(0, self.px(14)))
         if not self.draw_memorypal_logo(mark, mark_size):
             self.draw_chrome_icon(mark, mark_size)
-        if not self.rail_collapsed:
-            label_box = ttk.Frame(brand, style="Rail.TFrame")
-            label_box.pack(side="left")
-            ttk.Label(label_box, text="MemoryPal", style="RailTitle.TLabel").pack(anchor="w")
-            ttk.Label(label_box, text="Memory training", style="RailText.TLabel").pack(anchor="w")
-
-        toggle_host = tk.Frame(self.rail, bg=COLORS["rail"])
-        toggle_host.pack(fill="x", padx=self.px(12 if self.rail_collapsed else 20), pady=(0, self.px(12)))
-        toggle_width = self.px(46 if self.rail_collapsed else 156)
-        toggle_height = self.px(38)
-        toggle_canvas = tk.Canvas(toggle_host, width=toggle_width, height=toggle_height, bg=COLORS["rail"], highlightthickness=0, cursor="hand2")
-        toggle_canvas.pack(anchor="center")
-
-        def draw_nav_toggle(hover=False):
-            toggle_canvas.delete("all")
-            fill = COLORS["primary"] if hover or self.rail_collapsed else COLORS["rail_hover"]
-            radius = toggle_height // 2
-            if not self.draw_antialiased_shape(toggle_canvas, toggle_width, toggle_height, fill, radius=radius):
-                toggle_canvas.create_rectangle(radius, 0, toggle_width - radius, toggle_height, fill=fill, outline="")
-                toggle_canvas.create_oval(0, 0, toggle_height, toggle_height, fill=fill, outline="")
-                toggle_canvas.create_oval(toggle_width - toggle_height, 0, toggle_width, toggle_height, fill=fill, outline="")
-            text = "\u2630" if self.rail_collapsed else "\u2039  Collapse"
-            toggle_canvas.create_text(toggle_width // 2, toggle_height // 2, text=text, fill=COLORS["white"], font=self.font("Segoe UI Semibold", 11 if self.rail_collapsed else 10))
-
-        draw_nav_toggle()
-        toggle_canvas.bind("<Button-1>", lambda _event: self.toggle_nav_rail())
-        toggle_canvas.bind("<Enter>", lambda _event: draw_nav_toggle(True), add="+")
-        toggle_canvas.bind("<Leave>", lambda _event: draw_nav_toggle(False), add="+")
-        self.add_tooltip(toggle_canvas, "Collapse navigation" if not self.rail_collapsed else "Expand navigation")
+        label_box = ttk.Frame(brand, style="Rail.TFrame")
+        label_box.pack(side="left")
+        ttk.Label(label_box, text="MemoryPal", style="RailTitle.TLabel").pack(anchor="w")
+        ttk.Label(label_box, text="Memory training", style="RailText.TLabel").pack(anchor="w")
 
         nav_canvas = tk.Canvas(self.rail, bg=COLORS["rail"], highlightthickness=0)
         nav_canvas.pack(fill="both", expand=True)
@@ -996,23 +1004,22 @@ class MemoryPalApp(tk.Tk):
         for key, label, short in self.ordered_nav_items():
             button = ttk.Button(
                 nav_inner,
-                text=short if self.rail_collapsed else label,
-                style="CollapsedNav.TButton" if self.rail_collapsed else "Nav.TButton",
+                text=label,
+                style="Nav.TButton",
                 command=lambda view=key: self.show_view(view),
             )
-            button.pack(fill="x", padx=self.px(12 if self.rail_collapsed else 20), pady=self.px(4 if self.rail_collapsed else 5))
+            button.pack(fill="x", padx=self.px(20), pady=self.px(5))
             button.bind("<MouseWheel>", nav_wheel, add="+")
             self.add_tooltip(button, self.nav_hint(key))
             self.nav_buttons[key] = button
 
         footer = ttk.Frame(self.rail, style="Rail.TFrame")
-        footer.pack(side="bottom", fill="x", padx=self.px(12 if self.rail_collapsed else 20), pady=self.px(18))
-        if not self.rail_collapsed:
-            ttk.Label(footer, text="Data is saved locally on this PC.", style="RailText.TLabel", wraplength=self.px(230)).pack(fill="x", pady=(0, self.px(10)))
+        footer.pack(side="bottom", fill="x", padx=self.px(20), pady=self.px(18))
+        ttk.Label(footer, text="Data is saved locally on this PC.", style="RailText.TLabel", wraplength=self.px(230)).pack(fill="x", pady=(0, self.px(10)))
         settings_nav = ttk.Button(
             footer,
-            text="\u2699" if self.rail_collapsed else "\u2699  Settings",
-            style="CollapsedNav.TButton" if self.rail_collapsed else "Nav.TButton",
+            text="\u2699  Settings",
+            style="Nav.TButton",
             command=lambda: self.show_view("settings"),
         )
         settings_nav.pack(fill="x")
@@ -1026,58 +1033,126 @@ class MemoryPalApp(tk.Tk):
         for key, button in self.nav_buttons.items():
             if not button.winfo_exists():
                 continue
-            if self.rail_collapsed:
-                button.configure(style="ActiveCollapsedNav.TButton" if key == self.current_view else "CollapsedNav.TButton")
-            else:
-                button.configure(style="ActiveNav.TButton" if key == self.current_view else "Nav.TButton")
+            button.configure(style="ActiveNav.TButton" if key == self.current_view else "Nav.TButton")
+
+    def active_profile_number(self):
+        profiles = list_profiles()
+        active = active_profile_name()
+        try:
+            return profiles.index(active) + 1
+        except ValueError:
+            return 1
+
+    def profile_avatar_button(self, parent):
+        size = self.px(52)
+        badge_size = self.px(22)
+        profile_number = str(min(self.active_profile_number(), 99))
+        button = tk.Canvas(
+            parent,
+            width=size,
+            height=size,
+            bg=COLORS["surface"],
+            highlightthickness=0,
+            bd=0,
+            cursor="hand2",
+        )
+
+        def draw(hover=False):
+            button.delete("all")
+            fill = COLORS["alt"] if hover else COLORS["surface_soft"]
+            ring = COLORS["primary"] if hover else COLORS["line"]
+            ink = COLORS["primary"] if hover else COLORS["muted"]
+            button.create_oval(self.px(2), self.px(2), size - self.px(2), size - self.px(2), fill=fill, outline=ring, width=self.px(2))
+            button.create_oval(size * 0.36, size * 0.24, size * 0.64, size * 0.52, fill="", outline=ink, width=self.px(2))
+            button.create_arc(size * 0.22, size * 0.46, size * 0.78, size * 0.92, start=20, extent=140, style="arc", outline=ink, width=self.px(2))
+            badge_x = size - badge_size - self.px(1)
+            badge_y = size - badge_size - self.px(1)
+            button.create_oval(badge_x, badge_y, badge_x + badge_size, badge_y + badge_size, fill=COLORS["primary"], outline=COLORS["surface"], width=self.px(2))
+            button.create_text(
+                badge_x + badge_size / 2,
+                badge_y + badge_size / 2,
+                text=profile_number,
+                fill=COLORS["white"],
+                font=self.font("Segoe UI Semibold", 9),
+            )
+
+        draw()
+        button.bind("<Button-1>", lambda _event: self.open_profile_manager())
+        button.bind("<Enter>", lambda _event: draw(True), add="+")
+        button.bind("<Leave>", lambda _event: draw(False), add="+")
+        self.add_tooltip(button, f"Profile {profile_number}: {active_profile_name()}. Click to switch or manage profiles.")
+        return button
 
     def _shell(self):
-        # Collapsed navigation keeps focus on the active page while preserving
-        # tooltips and one-click access to every section.
+        # The navigation rail stays expanded for a steadier desktop layout.
         root = ttk.Frame(self, style="Root.TFrame")
         root.pack(fill="both", expand=True)
 
-        self.app_chrome = self.render_window_chrome(root, f"{APP_NAME}  |  {active_profile_name()}", close_command=self.destroy)
+        self.app_chrome = self.render_window_chrome(root, APP_NAME, close_command=self.destroy)
 
         self.app_body = ttk.Frame(root, style="Root.TFrame")
         self.app_body.pack(fill="both", expand=True)
+        self.app_body.bind("<Configure>", self.layout_app_body, add="+")
 
-        rail_width = 78 if self.rail_collapsed else 276
-        self.rail = ttk.Frame(self.app_body, width=self.px(rail_width), style="Rail.TFrame")
-        self.rail.pack(side="left", fill="y")
+        self.rail_width_units = 276
+        self.rail = ttk.Frame(self.app_body, style="Rail.TFrame")
+        self.rail.place(x=0, y=0, width=self.px(self.rail_width_units), relheight=1)
         self.rail.pack_propagate(False)
         self.render_navigation_rail()
 
         self.main = ttk.Frame(self.app_body, style="Page.TFrame")
-        self.main.pack(side="left", fill="both", expand=True)
+        self.main.place(x=self.px(self.rail_width_units), y=0, width=1, relheight=1)
         top = ttk.Frame(self.main, style="Header.TFrame", padding=self.pad(22, 18))
         top.pack(fill="x", padx=self.px(36), pady=self.pad(28, 16))
+        top.columnconfigure(0, weight=1)
+        top.columnconfigure(1, weight=0)
         title_box = ttk.Frame(top, style="Header.TFrame")
-        title_box.pack(fill="x")
+        title_box.grid(row=0, column=0, sticky="ew")
         self.eyebrow = ttk.Label(title_box, text="Today", style="HeaderMuted.TLabel")
         self.eyebrow.pack(anchor="w")
         self.title_label = ttk.Label(title_box, text="Dashboard", style="Title.TLabel")
         self.title_label.pack(anchor="w", fill="x")
+        profile_avatar = self.profile_avatar_button(top)
+        profile_avatar.grid(row=0, column=1, sticky="ne", padx=(self.px(18), 0))
         actions = ttk.Frame(top, style="Header.TFrame")
-        actions.pack(fill="x", pady=(self.px(14), 0))
+        actions.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(self.px(16), 0))
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=0)
+        status_row = tk.Frame(actions, bg=COLORS["surface"])
+        status_row.grid(row=0, column=0, sticky="w")
+        control_row = ttk.Frame(actions, style="Header.TFrame")
+        control_row.grid(row=0, column=1, sticky="e")
+        header_action_layout = {"compact": None}
+
+        def reflow_header_actions(event=None):
+            width = event.width if event is not None else actions.winfo_width()
+            compact = width < self.px(780)
+            if header_action_layout["compact"] == compact:
+                return
+            header_action_layout["compact"] = compact
+            if compact:
+                status_row.grid_configure(row=0, column=0, columnspan=2, sticky="w")
+                control_row.grid_configure(row=1, column=0, columnspan=2, sticky="e", pady=(self.px(10), 0))
+            else:
+                status_row.grid_configure(row=0, column=0, columnspan=1, sticky="w")
+                control_row.grid_configure(row=0, column=1, columnspan=1, sticky="e", pady=0)
+
+        actions.bind("<Configure>", reflow_header_actions, add="+")
         streak = self.store.current_streak()
-        streak_chip = tk.Label(actions, text=f"\U0001F525 {streak} day{'s' if streak != 1 else ''}", bg=COLORS["warm"], fg=COLORS["warm_text"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
+        streak_chip = tk.Label(status_row, text=f"\U0001F525 {streak} day{'s' if streak != 1 else ''}", bg=COLORS["warm"], fg=COLORS["warm_text"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         streak_chip.pack(side="left", padx=(0, self.px(10)))
         today = self.store.today_count()
-        goal_chip = tk.Label(actions, text=f"{today}/{self.store.daily_goal} today", bg=COLORS["good_bg"] if today >= self.store.daily_goal else COLORS["alt"], fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
+        goal_chip = tk.Label(status_row, text=f"{today}/{self.store.daily_goal} today", bg=COLORS["good_bg"] if today >= self.store.daily_goal else COLORS["alt"], fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         goal_chip.pack(side="left", padx=(0, self.px(10)))
-        local_chip = tk.Label(actions, text="Local save", bg=COLORS["alt"], fg=COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
+        local_chip = tk.Label(status_row, text="Local save", bg=COLORS["alt"], fg=COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         local_chip.pack(side="left", padx=(0, self.px(10)))
-        theme_button = ttk.Button(actions, text=("Dark mode" if self.theme == "light" else "Light mode"), command=self.toggle_theme, style="TButton")
+        theme_button = ttk.Button(control_row, text=("Dark" if self.theme == "light" else "Light"), command=self.toggle_theme, style="TButton")
         theme_button.pack(side="left", padx=(0, self.px(10)))
         self.add_tooltip(theme_button, "Switch between light and dark appearance.")
-        profile_button = ttk.Button(actions, text=f"\U0001F464 {active_profile_name()}", command=self.open_profile_manager, style="TButton")
-        profile_button.pack(side="left", padx=(0, self.px(10)))
-        self.add_tooltip(profile_button, "Switch profiles or add a new one. Each profile has its own separate data.")
-        self.fullscreen_button = ttk.Button(actions, text=("Exit Focus" if self.is_focus_window else "Focus"), command=self.toggle_focus_window, style="TButton")
+        self.fullscreen_button = ttk.Button(control_row, text=("Exit Fullscreen" if self.is_fullscreen else "Fullscreen"), command=self.toggle_true_fullscreen, style="TButton")
         self.fullscreen_button.pack(side="left", padx=(0, self.px(10)))
-        self.add_tooltip(self.fullscreen_button, "Use a borderless focus window. Press F11 for true fullscreen.")
-        backup = ttk.Button(actions, text="Backup", command=self.export_data, style="TButton")
+        self.add_tooltip(self.fullscreen_button, "Enter true fullscreen. Shortcut: F11 on Windows/Linux, Control-Command-F on macOS. For borderless focus, use the square in the title bar or Settings.")
+        backup = ttk.Button(control_row, text="Backup", command=self.export_data, style="TButton")
         backup.pack(side="left")
         self.add_tooltip(backup, "Export a local JSON backup of your MemoryPal data.")
 
@@ -1096,61 +1171,28 @@ class MemoryPalApp(tk.Tk):
             grip.bind("<B1-Motion>", self.resize_window, add="+")
             grip.bind("<ButtonRelease-1>", self.stop_resize, add="+")
         self.set_resize_grips_visible(not self.is_fullscreen)
+        self.after_idle(self.layout_app_body)
+
+    def layout_app_body(self, event=None):
+        if not hasattr(self, "app_body") or not self.app_body.winfo_exists():
+            return
+        if not hasattr(self, "rail") or not hasattr(self, "main"):
+            return
+        width = event.width if event is not None else self.app_body.winfo_width()
+        height = event.height if event is not None else self.app_body.winfo_height()
+        if width <= 1 or height <= 1:
+            return
+        rail_width = self.px(self.rail_width_units)
+        self.rail.place_configure(x=0, y=0, width=rail_width, height=height)
+        self.main.place_configure(x=rail_width, y=0, width=max(1, width - rail_width), height=height)
 
     def handle_window_configure(self, event):
         if event.widget is not self:
             return
         cover = getattr(self, "root_cover", None)
         if cover and cover.winfo_exists():
-            if self.is_window_cover(cover):
-                geometry = self.cover_geometry(getattr(cover, "memorypal_scope", "root"))
-                if geometry:
-                    cover.geometry(geometry)
-                    cover.lift(self)
-                return
             cover.place_configure(relx=0, rely=0, relwidth=1, relheight=1)
             self.raise_widget(cover)
-
-    def toggle_nav_rail(self):
-        self.save_current_draft()
-        if self.rail_animating:
-            return
-        if not hasattr(self, "rail") or not self.rail.winfo_exists():
-            self.rebuild_shell(self.current_view)
-            return
-        start = 78 if self.rail_collapsed else 276
-        end = 276 if self.rail_collapsed else 78
-        self.rail_animating = True
-        if self.rail_collapsed:
-            # Keep compact rail contents visible while the rail grows, then
-            # redraw the full labels after there is enough room for them.
-            self.render_navigation_rail(rail_width=start)
-            self.animate_rail_width(start, end, on_done=lambda: self.finish_rail_animation(False))
-        else:
-            # Switch to compact contents before shrinking so labels never clip
-            # through the closing motion.
-            self.rail_collapsed = True
-            self.render_navigation_rail(rail_width=start)
-            self.animate_rail_width(start, end, on_done=lambda: self.finish_rail_animation(True))
-
-    def animate_rail_width(self, start, end, step=0, steps=12, on_done=None):
-        if not hasattr(self, "rail") or not self.rail.winfo_exists():
-            self.rail_animating = False
-            return
-        width = start + (end - start) * self.ease_out_cubic(step, steps)
-        self.rail.configure(width=self.px(width))
-        if step < steps:
-            self.after(13, lambda: self.animate_rail_width(start, end, step + 1, steps, on_done))
-            return
-        self.rail.configure(width=self.px(end))
-        if on_done:
-            on_done()
-
-    def finish_rail_animation(self, collapsed):
-        self.rail_collapsed = collapsed
-        self.render_navigation_rail()
-        self.refresh_nav_selection()
-        self.rail_animating = False
 
     def nav_hint(self, key):
         return {
@@ -1203,20 +1245,20 @@ class MemoryPalApp(tk.Tk):
         self.eyebrow.configure(text=titles[view][0])
         self.title_label.configure(text=titles[view][1])
         for key, button in self.nav_buttons.items():
-            if self.rail_collapsed:
-                button.configure(style="ActiveCollapsedNav.TButton" if key == view else "CollapsedNav.TButton")
-            else:
-                button.configure(style="ActiveNav.TButton" if key == view else "Nav.TButton")
+            button.configure(style="ActiveNav.TButton" if key == view else "Nav.TButton")
         for child in self.content.winfo_children():
             if child is not cover:
                 child.destroy()
-        self.after_idle(lambda: self.finish_show_view(view, token, cover))
+        if cover:
+            self.after(24, lambda: self.finish_show_view(view, token, cover))
+        else:
+            self.after_idle(lambda: self.finish_show_view(view, token, cover))
 
     def start_transition_cover(self):
         self.update_idletasks()
-        if not self.content.winfo_viewable():
+        if not self.main.winfo_viewable():
             return None
-        return self.make_window_cover("content") or self.make_frame_cover("content")
+        return self.make_frame_cover("main")
 
     def finish_show_view(self, view, token, cover=None):
         if token != self.route_token:
@@ -1234,7 +1276,7 @@ class MemoryPalApp(tk.Tk):
             self.raise_widget(cover)
         self.update_idletasks()
         if cover:
-            self.fade_transition_cover(token, cover)
+            self.after(32, lambda: self.fade_transition_cover(token, cover))
 
     def destroy_transition_cover(self, cover):
         try:
@@ -1245,29 +1287,6 @@ class MemoryPalApp(tk.Tk):
         if cover is getattr(self, "root_cover", None):
             self.root_cover = None
 
-    def fade_window_cover(self, cover, step=0, token=None):
-        if token is not None and token != self.route_token:
-            self.destroy_transition_cover(cover)
-            return
-        try:
-            if not cover.winfo_exists():
-                return
-            geometry = self.cover_geometry(getattr(cover, "memorypal_scope", "root"))
-            if geometry:
-                cover.geometry(geometry)
-            alpha_steps = (1.0, 0.96, 0.90, 0.82, 0.72, 0.60, 0.48, 0.36, 0.25, 0.16, 0.08, 0.0)
-            cover.attributes("-alpha", alpha_steps[min(step, len(alpha_steps) - 1)])
-            if self.is_fullscreen or self.is_focus_window:
-                cover.attributes("-topmost", True)
-            cover.lift(self)
-        except tk.TclError:
-            self.destroy_transition_cover(cover)
-            return
-        if step < len(alpha_steps) - 1:
-            self.after(16, lambda: self.fade_window_cover(cover, step + 1, token))
-        else:
-            self.destroy_transition_cover(cover)
-
     def fade_frame_cover(self, cover, step=0, token=None):
         if token is not None and token != self.route_token:
             self.destroy_transition_cover(cover)
@@ -1275,24 +1294,23 @@ class MemoryPalApp(tk.Tk):
         if not cover or not cover.winfo_exists():
             return
         try:
-            self.paint_cover(cover)
+            stipple_steps = ("", "gray75", "gray50", "gray25", "gray12")
+            self.paint_cover(cover, stipple_steps[min(step, len(stipple_steps) - 1)])
             self.raise_widget(cover)
         except tk.TclError:
             self.destroy_transition_cover(cover)
             return
-        if step < 2:
-            self.after(36, lambda: self.fade_frame_cover(cover, step + 1, token))
+        delay = 28
+        if step < len(stipple_steps) - 1:
+            self.after(delay, lambda: self.fade_frame_cover(cover, step + 1, token))
         else:
-            self.destroy_transition_cover(cover)
+            self.after(delay, lambda: self.destroy_transition_cover(cover))
 
     def fade_transition_cover(self, token, cover, step=0):
         if token != self.route_token or not cover.winfo_exists():
             self.destroy_transition_cover(cover)
             return
         self.raise_widget(cover)
-        if self.is_window_cover(cover):
-            self.fade_window_cover(cover, step=step, token=token)
-            return
         self.fade_frame_cover(cover, step=step, token=token)
 
     def register_draft_saver(self, view, saver):
@@ -1830,8 +1848,6 @@ class MemoryPalApp(tk.Tk):
             "Import Backup": "Load a JSON backup into the active profile.",
             "True Fullscreen": "Use the operating system fullscreen mode. F11 does the same thing.",
             "Focus Window": "Use a borderless focus window without changing the operating system fullscreen state.",
-            "Collapse Navigation": "Hide the navigation labels so the page has more room.",
-            "Reopen Navigation": "Bring the full navigation rail back.",
         }.get(label, "")
 
     def mastery_summary(self):
@@ -4360,19 +4376,18 @@ class MemoryPalApp(tk.Tk):
         appearance = self.card(grid, "Card.TFrame", 22)
         appearance.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
         ttk.Label(appearance, text="Appearance", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(appearance, text=f"Current theme: {self.theme.title()}. Navigation is {'collapsed' if self.rail_collapsed else 'expanded'}.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
+        ttk.Label(appearance, text=f"Current theme: {self.theme.title()}. Navigation stays expanded for a steadier layout.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
         self.button_row(
             appearance,
             [
                 ("Light mode" if self.theme == "dark" else "Dark mode", self.toggle_theme, "Primary.TButton"),
-                ("Collapse Navigation" if not self.rail_collapsed else "Reopen Navigation", self.toggle_nav_rail, "TButton"),
             ],
         )
 
         window_card = self.card(grid, "AltCard.TFrame", 22)
         window_card.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
         ttk.Label(window_card, text="Window", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(window_card, text="F11 uses true fullscreen. The header and titlebar square use borderless focus mode.", style="AltMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
+        ttk.Label(window_card, text="F11 and the header button use true fullscreen. The titlebar square uses borderless focus mode.", style="AltMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
         state_row = tk.Frame(window_card, bg=COLORS["alt"])
         state_row.pack(fill="x", pady=(0, 12))
         self.render_status_chip(state_row, "True fullscreen on" if self.is_fullscreen else "True fullscreen off", COLORS["green"] if self.is_fullscreen else COLORS["surface"], COLORS["white"] if self.is_fullscreen else COLORS["muted"])
