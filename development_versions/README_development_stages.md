@@ -354,6 +354,43 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Made legacy data migration non-destructive so old home-folder data does not overwrite newer app-data edits.
 - Added an Inno Setup installer script and `build_installer_windows.cmd`.
 
+### v56 Beta - Safe saves and fast build
+
+- Added the standalone `MemoryPal_v56_beta_safe_saves_fast_build.py` milestone.
+- Added merge-before-save behavior so separate open windows can add cards, captures, and feedback without wiping each other out.
+- Wrote profile data atomically through a temporary file to reduce the chance of corrupted JSON after interrupted saves.
+- Changed the Windows build target from a slow one-file executable to a normal `release\MemoryPal\MemoryPal.exe` app folder.
+- Updated the installer script to package the whole app folder instead of a single self-extracting executable.
+- Removed blank/fade covers from fullscreen, focus mode, sidebar collapse, and custom resize so layout changes scale directly.
+- Kept fade behavior for page switches and pop-up windows where it still feels intentional.
+
+### v57 Beta - Motion, startup, and icon polish
+
+- Added the standalone `MemoryPal_v57_beta_motion_startup_icon_polish.py` milestone.
+- Removed the old duplicate models, helpers, and storage layer from the desktop launcher now that those pieces live in `latest_app/memorypal/`.
+- Changed page transitions so the shell stays solid while only a same-color content cover fades away.
+- Animated the navigation rail width instead of rebuilding the active page when the rail opens or closes.
+- Kept optional audio, video, and text-to-speech packages out of the default tester build unless those features are installed separately.
+- Refreshed the generated MemoryPal `.ico`, PNG preview, and SVG logo with a sharper connected-dot M and smoother exported edges.
+
+### v58 Beta - Clean startup and release prep
+
+- Added the standalone `MemoryPal_v58_beta_clean_startup_release_prep.py` milestone.
+- Added `clean_build_artifacts.cmd` for clearing local release folders, build folders, Python caches, and MemoryPal-named temp build leftovers.
+- Added profile-config caching so profile reads do less repeated disk work.
+- Cached generated logo pixels and antialiased UI shapes so repeated titlebar, rail, and hover redraws are lighter.
+- Moved file dialog, CSV export, browser opening, recording, webcam, and text-to-speech imports out of the startup path.
+- Kept build scripts guarded by a real Tkinter window preflight so a broken Tcl/Tk Python does not create another broken EXE.
+
+### v59 Beta - Transition and launch polish
+
+- Added the standalone `MemoryPal_v59_beta_transition_launch_polish.py` milestone.
+- Bundled the checked-in icon assets with the Windows app folder so installed builds do not regenerate icons during startup.
+- Changed page switches back to a true alpha overlay over the content area instead of the coarse stipple cover.
+- Changed fullscreen, focus, and custom resize to keep the active page alive and use a short content-only settling fade after the new size lands.
+- Changed rail collapse so compact labels appear before the rail shrinks, preventing long labels from clipping through the animation.
+- Increased antialiasing resolution for small custom titlebar, nav, and button shapes when Pillow is installed.
+
 ## Mobile Version Note
 
 A separate production mobile version is still needed later. The Kivy prototype in `mobile_app/` is a starting point, but the finished app should use native phone APIs for the microphone, camera, file picker, storage permissions, and large touch controls instead of copying the desktop Tkinter interface directly.

@@ -1,6 +1,7 @@
 import math
 import struct
 import zlib
+from functools import lru_cache
 from pathlib import Path
 
 
@@ -46,18 +47,20 @@ def dot_alpha(px, py, cx, cy, radius, softness=0.16):
     return max(0, min(1, (radius + edge - distance) / edge))
 
 
+@lru_cache(maxsize=24)
 def render_icon_pixels(size, scale=None):
-    scale = scale or (4 if size <= 128 else 2)
+    scale = scale or (4 if size <= 64 else 3 if size <= 128 else 2)
     canvas_size = size * scale
-    radius = canvas_size * 0.24
-    top = rgba("#67b7ff")
-    middle = rgba("#4f8fff")
-    bottom = rgba("#7868ff")
-    glow = rgba("#c7fbff")
-    mint = rgba("#83ffd8")
+    radius = canvas_size * 0.22
+    top = rgba("#50d5ff")
+    middle = rgba("#456cf6")
+    bottom = rgba("#6a3dce")
+    glow = rgba("#e5ffff")
+    mint = rgba("#7cffd4")
     white = rgba("#ffffff")
-    shadow = rgba("#101827")
-    line_shadow = rgba("#14305a")
+    shadow = rgba("#07111f")
+    line_shadow = rgba("#10284b")
+    edge_blue = rgba("#152b4a")
     pixels = []
 
     for y in range(canvas_size):
@@ -71,42 +74,43 @@ def render_icon_pixels(size, scale=None):
             color = blend(top, middle, min(1, vertical * 1.55))
             if vertical > 0.48:
                 color = blend(color, bottom, (vertical - 0.48) / 0.52)
-            color = blend(color, glow, dot_alpha(x, y, canvas_size * 0.76, canvas_size * 0.18, canvas_size * 0.34, 0.28) * 0.22)
-            color = blend(color, white, dot_alpha(x, y, canvas_size * 0.22, canvas_size * 0.16, canvas_size * 0.34, 0.4) * 0.08)
-            shade = 0.95 + 0.06 * (1 - vertical)
+            color = blend(color, glow, dot_alpha(x, y, canvas_size * 0.75, canvas_size * 0.17, canvas_size * 0.36, 0.28) * 0.26)
+            color = blend(color, white, dot_alpha(x, y, canvas_size * 0.20, canvas_size * 0.14, canvas_size * 0.34, 0.4) * 0.08)
+            color = blend(color, edge_blue, dot_alpha(x, y, canvas_size * 0.18, canvas_size * 0.94, canvas_size * 0.52, 0.55) * 0.16)
+            shade = 0.96 + 0.05 * (1 - vertical)
             color = [clamp_color(color[0] * shade), clamp_color(color[1] * shade), clamp_color(color[2] * shade), 255]
 
             path_mark = max(
-                line_alpha(x, y, canvas_size * 0.25, canvas_size * 0.70, canvas_size * 0.43, canvas_size * 0.34, canvas_size * 0.085, 0.18),
-                line_alpha(x, y, canvas_size * 0.43, canvas_size * 0.34, canvas_size * 0.58, canvas_size * 0.58, canvas_size * 0.085, 0.18),
-                line_alpha(x, y, canvas_size * 0.58, canvas_size * 0.58, canvas_size * 0.77, canvas_size * 0.30, canvas_size * 0.085, 0.18),
+                line_alpha(x, y, canvas_size * 0.24, canvas_size * 0.71, canvas_size * 0.42, canvas_size * 0.33, canvas_size * 0.075, 0.18),
+                line_alpha(x, y, canvas_size * 0.42, canvas_size * 0.33, canvas_size * 0.58, canvas_size * 0.59, canvas_size * 0.075, 0.18),
+                line_alpha(x, y, canvas_size * 0.58, canvas_size * 0.59, canvas_size * 0.76, canvas_size * 0.31, canvas_size * 0.075, 0.18),
             )
-            color = blend(color, mint, path_mark * 0.24)
+            color = blend(color, mint, path_mark * 0.26)
 
             shadow_mark = max(
-                line_alpha(x - canvas_size * 0.015, y - canvas_size * 0.025, canvas_size * 0.245, canvas_size * 0.72, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.16, 0.14),
-                line_alpha(x - canvas_size * 0.015, y - canvas_size * 0.025, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.16, 0.14),
-                line_alpha(x - canvas_size * 0.015, y - canvas_size * 0.025, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.16, 0.14),
-                line_alpha(x - canvas_size * 0.015, y - canvas_size * 0.025, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.755, canvas_size * 0.72, canvas_size * 0.16, 0.14),
+                line_alpha(x - canvas_size * 0.012, y - canvas_size * 0.020, canvas_size * 0.245, canvas_size * 0.72, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.150, 0.12),
+                line_alpha(x - canvas_size * 0.012, y - canvas_size * 0.020, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.150, 0.12),
+                line_alpha(x - canvas_size * 0.012, y - canvas_size * 0.020, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.150, 0.12),
+                line_alpha(x - canvas_size * 0.012, y - canvas_size * 0.020, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.755, canvas_size * 0.72, canvas_size * 0.150, 0.12),
             )
-            color = blend(color, line_shadow, shadow_mark * 0.18)
+            color = blend(color, line_shadow, shadow_mark * 0.22)
 
             main_mark = max(
-                line_alpha(x, y, canvas_size * 0.245, canvas_size * 0.72, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.135, 0.10),
-                line_alpha(x, y, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.135, 0.10),
-                line_alpha(x, y, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.135, 0.10),
-                line_alpha(x, y, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.755, canvas_size * 0.72, canvas_size * 0.135, 0.10),
+                line_alpha(x, y, canvas_size * 0.245, canvas_size * 0.72, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.122, 0.08),
+                line_alpha(x, y, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.122, 0.08),
+                line_alpha(x, y, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.122, 0.08),
+                line_alpha(x, y, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.755, canvas_size * 0.72, canvas_size * 0.122, 0.08),
             )
             color = blend(color, white, main_mark * 0.96)
 
             for cx, cy, dot_radius in (
-                (canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.062),
-                (canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.060),
-                (canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.062),
+                (canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.054),
+                (canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.052),
+                (canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.054),
             ):
-                dot_shadow = dot_alpha(x - canvas_size * 0.012, y - canvas_size * 0.018, cx, cy, dot_radius * 1.12, 0.12)
-                amount = dot_alpha(x, y, cx, cy, dot_radius, 0.08)
-                color = blend(color, shadow, dot_shadow * 0.20)
+                dot_shadow = dot_alpha(x - canvas_size * 0.010, y - canvas_size * 0.016, cx, cy, dot_radius * 1.16, 0.12)
+                amount = dot_alpha(x, y, cx, cy, dot_radius, 0.07)
+                color = blend(color, shadow, dot_shadow * 0.24)
                 color = blend(color, white, amount * 0.98)
 
             row.append(color)

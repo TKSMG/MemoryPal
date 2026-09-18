@@ -13,6 +13,11 @@ env/
 build/
 dist/
 release/
+MemoryPal_User_Package/
+MemoryPal_User_Package_*/
+MemoryPal_Mac_Package/
+MemoryPal_Mac_Package_*/
+Tester_Packages_*/
 *.build/
 *.dist/
 *.onefile-build/

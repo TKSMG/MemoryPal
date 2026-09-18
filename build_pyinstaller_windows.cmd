@@ -9,12 +9,18 @@ echo.
 set "PYTHON_EXE="
 set "PYTHON_ARGS="
 
-call :try_python py -3
+if defined MEMORYPAL_PYTHON call :try_python "%MEMORYPAL_PYTHON%"
 
 if not defined PYTHON_EXE call :try_python python
 if not defined PYTHON_EXE call :try_python "%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
 if not defined PYTHON_EXE call :try_python "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 if not defined PYTHON_EXE call :try_python "%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+if not defined PYTHON_EXE call :try_python py -3.13
+if not defined PYTHON_EXE call :try_python py -3.12
+if not defined PYTHON_EXE call :try_python py -3.11
+if not defined PYTHON_EXE call :try_python py -3
+if not defined PYTHON_EXE call :try_python py -3.14
+if not defined PYTHON_EXE call :try_python "%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe"
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python313\python.exe"
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python312\python.exe"
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python311\python.exe"
@@ -32,6 +38,7 @@ echo Using Python: %PYTHON_EXE% %PYTHON_ARGS%
 set "BUILD_TOOLS=%TEMP%\memorypal-pyinstaller-tools"
 set "TEMP_BUILD=%TEMP%\memorypal-pyinstaller-build-%RANDOM%-%RANDOM%"
 
+if exist "%BUILD_TOOLS%" rmdir /s /q "%BUILD_TOOLS%"
 if not exist "%BUILD_TOOLS%" mkdir "%BUILD_TOOLS%"
 
 "%PYTHON_EXE%" %PYTHON_ARGS% -m pip install --upgrade --target "%BUILD_TOOLS%" -r requirements-build.txt
@@ -53,10 +60,20 @@ if errorlevel 1 exit /b 1
 "%PYTHON_EXE%" %PYTHON_ARGS% -m PyInstaller ^
   --noconfirm ^
   --clean ^
-  --onefile ^
+  --onedir ^
   --windowed ^
   --name MemoryPal ^
   --icon "%MEMORYPAL_ICON%" ^
+  --add-data "assets\memorypal.ico;assets" ^
+  --add-data "assets\memorypal-logo-preview.png;assets" ^
+  --add-data "assets\memorypal-logo.svg;assets" ^
+  --exclude-module sounddevice ^
+  --exclude-module cv2 ^
+  --exclude-module pyttsx3 ^
+  --exclude-module SpeechRecognition ^
+  --exclude-module pyaudio ^
+  --exclude-module pyaudioop ^
+  --exclude-module numpy ^
   --distpath "%TEMP_BUILD%\release" ^
   --workpath "%TEMP_BUILD%\build" ^
   --specpath "%TEMP_BUILD%\build" ^
@@ -65,15 +82,16 @@ if errorlevel 1 exit /b 1
 if errorlevel 1 exit /b 1
 
 if not exist release mkdir release
-copy /Y "%TEMP_BUILD%\release\MemoryPal.exe" "release\MemoryPal.exe" >nul
+if exist "release\MemoryPal" rmdir /s /q "release\MemoryPal"
+xcopy /E /I /Y "%TEMP_BUILD%\release\MemoryPal" "release\MemoryPal" >nul
 if errorlevel 1 (
-  echo Built EXE, but could not copy it into the project folder.
-  echo Temp EXE: "%TEMP_BUILD%\release\MemoryPal.exe"
+  echo Built app folder, but could not copy it into the project folder.
+  echo Temp app folder: "%TEMP_BUILD%\release\MemoryPal"
   exit /b 1
 )
 
 echo.
-echo Built release\MemoryPal.exe
+echo Built release\MemoryPal\MemoryPal.exe
 exit /b 0
 
 :try_python
@@ -81,7 +99,7 @@ if defined PYTHON_EXE exit /b 0
 set "CANDIDATE=%~1"
 set "CANDIDATE_ARGS=%~2"
 if "%CANDIDATE%"=="" exit /b 0
-"%CANDIDATE%" %CANDIDATE_ARGS% -c "import sys, tkinter as tk; root=tk.Tk(); root.withdraw(); root.destroy(); print(sys.executable)" >nul 2>nul
+"%CANDIDATE%" %CANDIDATE_ARGS% -c "from pathlib import Path; import sys, tkinter; probe=tkinter.Tk(); probe.withdraw(); probe.destroy(); root=Path(sys.base_prefix)/'tcl'; tcl=next((p for p in root.glob('tcl*') if (p/'init.tcl').exists()), None); tk=next((p for p in root.glob('tk*') if (p/'tk.tcl').exists()), None); assert tcl and tk; print(sys.executable)" >nul 2>nul
 if not errorlevel 1 (
   set "PYTHON_EXE=%CANDIDATE%"
   set "PYTHON_ARGS=%CANDIDATE_ARGS%"

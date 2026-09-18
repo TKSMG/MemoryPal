@@ -391,9 +391,19 @@ Page changes should hide redraw flashes with a same-theme cover. The transition 
 
 Custom rounded controls can look jagged in Tkinter. Optional antialiased drawing helps the app feel softer while keeping the normal Tk fallback for computers without image extras installed.
 
+Fast startup matters because a memory tool should not make the user wait before a short practice session. The desktop launcher should stay focused on the interface while models, storage, planning, and study helpers live in smaller support files.
+
+Optional media tools should load only when the user actually records audio, records video, or generates speech. Importing large media packages during normal launch makes the app feel heavier than it is.
+
+Packaged startup should use the icon files already shipped with the app. Generating a fresh `.ico` is useful for build scripts, but it is too much work to do while a tester is waiting for the first screen.
+
+Small cached UI assets matter in a Tkinter app. Reusing generated logo images and rounded-control images keeps redraws lighter while preserving the smoother visual style.
+
 The generated MemoryPal logo should be used anywhere the app needs a main mark. The connected-dot M now has exported `.ico`, PNG, and SVG versions, so the project can use the same identity in the window, titlebar, build output, and documentation.
 
-The startup fade feels calm, but page and layout changes should not dim the whole app. A same-color overlay can fade away over the changed area while the shell stays solid.
+The startup fade feels calm, but page and layout changes should not dim the whole app. A same-color overlay can fade away over the changed area while the shell stays solid. Page changes use the smoother overlay; sidebar changes keep compact rail content visible so labels do not get squeezed during the animation.
+
+Navigation collapse should feel like a layout adjustment, not a page change. The active work should stay in place while the rail opens or closes.
 
 Capture can become wide because it has both a builder and a saved-material panel. Horizontal scrolling keeps those tools reachable without making every box cramped.
 
@@ -455,6 +465,10 @@ MemoryPal combines:
 - Tester feedback logging.
 - A desktop release path.
 - A Windows installer path.
+- A faster app-folder build for tester releases.
+- Safer local saves when more than one window is open.
+- Smoother content-only transitions and a refreshed app icon.
+- A clean-build script for release prep.
 - A mobile prototype direction.
 
 The main design goal is clear, gentle, useful memory practice.

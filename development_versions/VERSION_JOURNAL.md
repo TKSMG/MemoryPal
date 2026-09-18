@@ -221,3 +221,19 @@ This version settled the current MemoryPal logo into reusable project assets. It
 ## v55 Beta - Testing Feedback And Installer
 
 This version prepared MemoryPal for longer testing by adding a local Feedback Log with ratings, categories, affected pages, notes, and CSV export. It also made legacy data migration non-destructive and added an Inno Setup installer path so the Windows build can become a tester-friendly setup file once the EXE is built.
+
+## v56 Beta - Safe Saves And Fast Build
+
+This version made local data safer when two MemoryPal windows are open at the same time. It also changed the Windows build toward a normal app folder so installed copies launch faster, and it removed blank/fade covers from fullscreen, focus mode, sidebar collapse, and manual resize.
+
+## v57 Beta - Motion, Startup, And Icon Polish
+
+This version made the split project cleaner by removing old duplicated support code from the desktop launcher. It also kept fades inside the changed content area, animated the navigation rail width, excluded optional media stacks from the fast tester build, and refreshed the connected-dot MemoryPal icon.
+
+## v58 Beta - Clean Startup And Release Prep
+
+This version added a clean-build script and removed old project/temp build leftovers so new packages can start fresh. It also made startup lighter by caching profile config and generated UI images, and by delaying file dialog, CSV, browser, audio, video, and speech imports until those features are used.
+
+## v59 Beta - Transition And Launch Polish
+
+This version made the installed app launch path lighter by bundling the checked-in icon assets instead of regenerating them on startup. It also smoothed page changes with a real content-only fade, made fullscreen/resize settling less blank, and cleaned up sidebar collapse so labels do not crush during the motion.

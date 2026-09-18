@@ -1,4 +1,6 @@
 import json
+import os
+import time
 from dataclasses import asdict
 from datetime import date, timedelta
 
@@ -26,10 +28,83 @@ def load_items(raw_items, factory):
     return items
 
 
+def default_payload():
+    return {
+        "cards": [],
+        "captures": [],
+        "practiced": 0,
+        "activity": {},
+        "daily_goal": 15,
+        "nav_order": [],
+        "feedback": [],
+    }
+
+
+def read_payload(path):
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return raw if isinstance(raw, dict) else default_payload()
+    except (OSError, json.JSONDecodeError):
+        return default_payload()
+
+
+def atomic_write_json(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(temp_path, path)
+
+
+class DataFileLock:
+    """Tiny local lock so two open MemoryPal windows do not save at the same instant."""
+
+    def __init__(self, target, timeout=2.0, stale_after=12.0):
+        self.path = target.with_suffix(target.suffix + ".lock")
+        self.timeout = timeout
+        self.stale_after = stale_after
+        self.handle = None
+        self.acquired = False
+
+    def __enter__(self):
+        start = time.monotonic()
+        while True:
+            try:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                self.handle = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(self.handle, str(os.getpid()).encode("ascii", "ignore"))
+                self.acquired = True
+                return self
+            except FileExistsError:
+                try:
+                    if time.time() - self.path.stat().st_mtime > self.stale_after:
+                        self.path.unlink()
+                        continue
+                except OSError:
+                    pass
+                if time.monotonic() - start >= self.timeout:
+                    return self
+                time.sleep(0.05)
+
+    def __exit__(self, _exc_type, _exc, _tb):
+        if self.handle is not None:
+            try:
+                os.close(self.handle)
+            except OSError:
+                pass
+        if self.acquired:
+            try:
+                self.path.unlink()
+            except OSError:
+                pass
+
+
 class MemoryStore:
     """Small JSON-backed store for cards, captures, scheduling, and progress."""
 
     def __init__(self):
+        self.profile_name = paths.active_profile_name()
+        self.data_file = None
+        self.attachment_dir = None
         self.cards = []
         self.captures = []
         self.practiced = 0
@@ -38,18 +113,27 @@ class MemoryStore:
         self.nav_order = []
         self.feedback = []
         self.last_action = None
+        self._loaded_practiced = 0
+        self._loaded_activity = {}
+        self._loaded_daily_goal = 15
+        self._loaded_nav_order = []
         self.load()
 
+    def set_profile_paths(self):
+        directory = paths.profile_dir(self.profile_name)
+        self.data_file = directory / "memorypal-data.json"
+        self.attachment_dir = directory / "attachments"
+
     def load(self):
-        paths.refresh_current_data_paths()
+        self.set_profile_paths()
         paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
-        paths.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-        if not paths.DATA_FILE.exists():
+        self.attachment_dir.mkdir(parents=True, exist_ok=True)
+        if not self.data_file.exists():
             self.cards = sample_cards()
-            self.save()
+            self.save(merge_existing=False)
             return
         try:
-            raw = json.loads(paths.DATA_FILE.read_text(encoding="utf-8"))
+            raw = read_payload(self.data_file)
             self.cards = load_items(raw.get("cards", []), Card.from_dict)
             self.captures = load_items(raw.get("captures", []), Capture.from_dict)
             self.practiced = safe_int(raw.get("practiced", 0), 0)
@@ -65,24 +149,88 @@ class MemoryStore:
             self.daily_goal = 15
             self.nav_order = []
             self.feedback = []
+        self.remember_loaded_state()
 
-    def save(self):
+    def remember_loaded_state(self):
+        self._loaded_practiced = self.practiced
+        self._loaded_activity = dict(self.activity)
+        self._loaded_daily_goal = self.daily_goal
+        self._loaded_nav_order = list(self.nav_order)
+
+    def payload(self):
+        return {
+            "cards": [asdict(card) for card in self.cards],
+            "captures": [asdict(capture) for capture in self.captures],
+            "practiced": self.practiced,
+            "activity": self.activity,
+            "daily_goal": self.daily_goal,
+            "nav_order": self.nav_order,
+            "feedback": [asdict(entry) for entry in self.feedback],
+        }
+
+    def merge_items(self, local_items, existing_items):
+        local_by_id = {item.get("id"): item for item in local_items if isinstance(item, dict) and item.get("id")}
+        merged = [item for item in local_items if isinstance(item, dict)]
+        seen = {item.get("id") for item in merged if item.get("id")}
+        for item in existing_items or []:
+            item_id = item.get("id") if isinstance(item, dict) else None
+            if item_id and item_id not in seen:
+                merged.append(item)
+                seen.add(item_id)
+            elif item_id in local_by_id:
+                continue
+        return merged
+
+    def merge_activity(self, existing_activity):
+        merged = dict(existing_activity or {})
+        keys = set(merged) | set(self.activity) | set(self._loaded_activity)
+        for key in keys:
+            existing_count = safe_int(merged.get(key, 0), 0)
+            loaded_count = safe_int(self._loaded_activity.get(key, 0), 0)
+            local_count = safe_int(self.activity.get(key, 0), 0)
+            delta = max(0, local_count - loaded_count)
+            count = max(existing_count, loaded_count) + delta
+            if count > 0:
+                merged[key] = count
+            elif key in merged:
+                del merged[key]
+        return merged
+
+    def merge_payload(self, existing, local):
+        if not existing:
+            return local
+        merged = dict(local)
+        merged["cards"] = self.merge_items(local.get("cards", []), existing.get("cards", []))
+        merged["captures"] = self.merge_items(local.get("captures", []), existing.get("captures", []))
+        merged["feedback"] = self.merge_items(local.get("feedback", []), existing.get("feedback", []))
+        practiced_delta = max(0, safe_int(local.get("practiced", 0), 0) - self._loaded_practiced)
+        merged["practiced"] = max(safe_int(existing.get("practiced", 0), 0), self._loaded_practiced) + practiced_delta
+        merged["activity"] = self.merge_activity(existing.get("activity", {}))
+        if self.daily_goal == self._loaded_daily_goal:
+            merged["daily_goal"] = safe_int(existing.get("daily_goal", self.daily_goal), self.daily_goal)
+        if self.nav_order == self._loaded_nav_order:
+            merged["nav_order"] = list(existing.get("nav_order", self.nav_order))
+        return merged
+
+    def apply_saved_payload(self, payload):
+        self.cards = load_items(payload.get("cards", []), Card.from_dict)
+        self.captures = load_items(payload.get("captures", []), Capture.from_dict)
+        self.practiced = safe_int(payload.get("practiced", 0), 0)
+        self.activity = dict(payload.get("activity", {}))
+        self.daily_goal = safe_int(payload.get("daily_goal", 15), 15)
+        self.nav_order = list(payload.get("nav_order", []))
+        self.feedback = load_items(payload.get("feedback", []), FeedbackEntry.from_dict)
+        self.remember_loaded_state()
+
+    def save(self, merge_existing=True):
         paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
-        paths.DATA_FILE.write_text(
-            json.dumps(
-                {
-                    "cards": [asdict(card) for card in self.cards],
-                    "captures": [asdict(capture) for capture in self.captures],
-                    "practiced": self.practiced,
-                    "activity": self.activity,
-                    "daily_goal": self.daily_goal,
-                    "nav_order": self.nav_order,
-                    "feedback": [asdict(entry) for entry in self.feedback],
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+        self.set_profile_paths()
+        self.attachment_dir.mkdir(parents=True, exist_ok=True)
+        local = self.payload()
+        with DataFileLock(self.data_file):
+            payload = self.merge_payload(read_payload(self.data_file), local) if merge_existing else local
+            atomic_write_json(self.data_file, payload)
+        self.apply_saved_payload(payload)
 
     def add_feedback(self, rating, category, page, note):
         entry = FeedbackEntry(rating=rating, category=category, page=page, note=note)
@@ -256,4 +404,4 @@ class MemoryStore:
         self.nav_order = []
         self.feedback = []
         self.last_action = None
-        self.save()
+        self.save(merge_existing=False)

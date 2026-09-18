@@ -1,26 +1,23 @@
 version: "3"
 
 tasks:
-  windows:
-    desc: Build the Windows MemoryPal executable with Nuitka
-    generates:
-      - release/MemoryPal.exe
+  clean:
+    desc: Remove local MemoryPal build output, caches, and temp build leftovers
     cmds:
-      - >
-        python -c
-        "from pathlib import Path; import sys; sys.path.insert(0, 'latest_app'); from memorypal.icon import ensure_icon_file; ensure_icon_file(Path('release/memorypal.ico'))"
-      - >
-        python -m nuitka
-        --assume-yes-for-downloads
-        --onefile
-        --enable-plugin=tk-inter
-        --output-dir=release
-        --output-filename=MemoryPal.exe
-        --company-name="MemoryPal"
-        --product-name="MemoryPal"
-        --file-description="MemoryPal desktop memory trainer"
-        --product-version="0.37.0"
-        --file-version="0.37.0"
-        --windows-icon-from-ico=release/memorypal.ico
-        --windows-console-mode=disable
-        latest_app/MemoryPalDesktop.py
+      - ./clean_build_artifacts.cmd
+
+  windows:
+    desc: Build the Windows MemoryPal app folder with Nuitka
+    generates:
+      - release/MemoryPal/MemoryPal.exe
+    cmds:
+      - ./build_windows.cmd
+
+  windows-installer:
+    desc: Build the Windows app folder and Inno Setup installer
+    deps:
+      - windows
+    generates:
+      - release/MemoryPalSetup.exe
+    cmds:
+      - ./build_installer_windows.cmd

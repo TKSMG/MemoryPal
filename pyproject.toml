@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memorypal-trainer"
-version = "0.37.0"
+version = "0.40.0"
 description = "A desktop memory trainer for recall practice, study planning, multimedia cues, and spaced review."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,6 +29,7 @@ speech = [
     "PyAudio>=0.2",
 ]
 build = [
+    "Pillow>=10.0",
     "nuitka>=2.5",
     "ordered-set>=4.1",
     "zstandard>=0.22",

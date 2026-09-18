@@ -20,6 +20,8 @@ python -m pip install -e ".[documents,image-previews,media,speech]"
 
 Speech-to-text is optional. `SpeechRecognition` supports the prototype transcription flow, and microphone dictation may also need `PyAudio`, which can require a normal Windows Python setup. The default recognizer used in the prototype may need an internet connection.
 
+The default tester build intentionally stays lighter than the full optional desktop setup. File imports, document notes, image previews, and the main memory tools are kept in the normal package path; desktop audio recording, webcam recording, speech recognition, and offline text-to-speech should be treated as optional extras unless a media-enabled build is made on purpose.
+
 The Windows build tools are listed separately:
 
 ```powershell
@@ -32,37 +34,64 @@ Or from the project config:
 python -m pip install -e ".[build]"
 ```
 
+## Clean Before Rebuilding
+
+To clear old local build output and MemoryPal-named temp build folders:
+
+```powershell
+.\clean_build_artifacts.cmd
+```
+
+This cleanup keeps source files, documentation, Git history, and saved profile data. It does not uninstall Python, Inno Setup, or other system tools.
+
+If an old installed copy of MemoryPal needs to be removed before testing a new installer, uninstall MemoryPal from Windows Settings first. Keep `%LOCALAPPDATA%\MemoryPal` if tester data should survive; remove that folder only when a full data reset is intended.
+
 ## Build The Windows App
+
+If the computer has multiple Python installs, point the build at the one that can open Tkinter:
+
+```powershell
+$env:MEMORYPAL_PYTHON = "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe"
+```
 
 From the project folder:
 
 ```powershell
-build_windows.cmd
+.\build_windows.cmd
 ```
 
 The main build command calls `build_nuitka_windows.cmd`. If the build succeeds, the app appears here:
 
 ```text
-release\MemoryPal.exe
+release\MemoryPal\MemoryPal.exe
 ```
+
+The build excludes large optional media stacks such as OpenCV, `sounddevice`, and `pyttsx3` from the default tester package. Those libraries are loaded on demand in source runs, but leaving them out of the packaged tester build keeps normal startup faster and avoids bundling features that many testers may not use.
 
 The script checks that Python can import `tkinter` and open a hidden Tk window before packaging. This matters because an EXE made with a Python installation that does not include Tkinter can open with an error such as `No module named 'tkinter'`.
 
-The build scripts generate the MemoryPal icon from source code before packaging. Nuitka and PyInstaller both receive that `.ico`, so the finished Windows app should use the MemoryPal mark instead of the default Python/Tk icon. The repository also keeps reusable icon exports in `assets/` for previews, README use, and later packaging polish.
+The build scripts generate the MemoryPal icon from source code before packaging. Nuitka and PyInstaller both receive that `.ico`, and the checked-in `assets/` folder is bundled into the app folder. That keeps the finished Windows app on the MemoryPal mark and prevents installed copies from generating a fresh icon during startup.
 
-If an older `release\MemoryPal.exe` already shows that Tkinter error, delete it and run `build_windows.cmd` again after installing a normal Python build with Tcl/Tk. The current script is designed to stop before creating that broken kind of EXE.
+If an older build already shows that Tkinter error, delete the old `release` folder and run `.\build_windows.cmd` again after installing a normal Python build with Tcl/Tk. The current script is designed to stop before creating that broken kind of package.
+
+If the build log mentions `pythoncore-3.14-64` and says Tcl/Tk folders were not found, that Python install is the lightweight PythonCore runtime rather than a full desktop install. The build scripts now skip that runtime automatically when possible. If needed, force the full Python install before building:
+
+```powershell
+$env:MEMORYPAL_PYTHON = "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe"
+.\build_windows.cmd
+```
 
 The `release` folder is ignored by Git on purpose. Source code, documentation, and build instructions belong in the repository; the `.exe` is better attached later as a GitHub Release file or downloaded from a GitHub Actions artifact.
 
 ## GitHub Actions Build
 
-The repository includes this workflow:
+The repository includes these workflows:
 
 ```text
 .github\workflows\build-windows.yml
 ```
 
-GitHub can build the Windows executable and installer on push to `main` or from the manual **Run workflow** button in the Actions tab. The finished files are uploaded as an artifact named `MemoryPal-Windows`.
+GitHub can build the Windows app folder and installer on push to `main` or from the manual **Run workflow** button in the Actions tab. Finished files are uploaded as the `MemoryPal-Windows` artifact.
 
 This is the cleanest option when a local computer has Python path issues, PowerShell policy restrictions, or a Python installation without working Tkinter support.
 
@@ -74,13 +103,13 @@ The repository includes an Inno Setup script:
 installer\inno\MemoryPal.iss
 ```
 
-After `release\MemoryPal.exe` exists, run:
+After `release\MemoryPal\MemoryPal.exe` exists, run:
 
 ```powershell
-build_installer_windows.cmd
+.\build_installer_windows.cmd
 ```
 
-The script looks for Inno Setup 6, compiles the installer, and writes:
+The script looks for the Inno Setup command-line compiler, compiles the installer, and writes:
 
 ```text
 release\MemoryPalSetup.exe
@@ -88,15 +117,48 @@ release\MemoryPalSetup.exe
 
 The installer uses a per-user install location under local app data, so testers can install MemoryPal without needing administrator access.
 
+The installer shows normal setup choices for install location, Start Menu folder, optional desktop shortcut, optional Quick Launch shortcut on supported Windows versions, and launch-after-install.
+
+If Inno Setup is missing, `.\build_installer_windows.cmd` can offer to install it with `winget`. The script checks `INNO_SETUP_PATH`, PATH, the per-user install folder, and Program Files before asking to install anything.
+
+If Inno Setup is installed in a custom folder, set the compiler path before running the installer build:
+
+```powershell
+$env:INNO_SETUP_PATH = "C:\Path\To\Inno Setup 7\ISCC.exe"
+.\build_installer_windows.cmd
+```
+
+## Package For Testers
+
+For normal testers, send:
+
+```text
+release\MemoryPalSetup.exe
+README.md
+TESTING_CHECKLIST.md
+```
+
+For a no-installer portable test, zip the whole folder below instead of only the EXE:
+
+```text
+release\MemoryPal\
+README.md
+TESTING_CHECKLIST.md
+```
+
+## Build The macOS App
+
+macOS packages must be created on macOS because the `.app` bundle is platform-specific. The Windows repository keeps the desktop source ready for a future macOS packaging pass, but the current supported installer flow is Windows.
+
 ## Fallback PyInstaller Build
 
 The previous PyInstaller build is still available:
 
 ```powershell
-build_pyinstaller_windows.cmd
+.\build_pyinstaller_windows.cmd
 ```
 
-Use it only as a fallback. It keeps the same Tkinter preflight check and writes the finished app to `release\MemoryPal.exe` when successful.
+Use it only as a fallback. It keeps the same Tkinter preflight check and writes the finished app folder to `release\MemoryPal\MemoryPal.exe` when successful.
 
 ## Why The EXE Might Not Build Locally
 

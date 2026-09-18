@@ -1,5 +1,5 @@
 #define MyAppName "MemoryPal"
-#define MyAppVersion "0.37.0"
+#define MyAppVersion "0.40.0"
 #define MyAppPublisher "MemoryPal"
 #define MyAppExeName "MemoryPal.exe"
 
@@ -10,7 +10,8 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
-DisableProgramGroupPage=yes
+DisableDirPage=no
+DisableProgramGroupPage=no
 OutputDir=..\..\release
 OutputBaseFilename=MemoryPalSetup
 SetupIconFile=..\..\assets\memorypal.ico
@@ -25,13 +26,15 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
+Name: "quicklaunchicon"; Description: "Create a Quick Launch shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked; OnlyBelowVersion: 6.1
 
 [Files]
-Source: "..\..\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\release\MemoryPal\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
