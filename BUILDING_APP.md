@@ -91,11 +91,14 @@ The repository includes these workflows:
 
 ```text
 .github\workflows\build-windows.yml
+.github\workflows\build-macos.yml
 ```
 
 GitHub can build the Windows app folder and installer on push to `main` or from the manual **Run workflow** button in the Actions tab. Finished files are uploaded as the `MemoryPal-Windows` artifact.
 
-This is the cleanest option when a local computer has Python path issues, PowerShell policy restrictions, or a Python installation without working Tkinter support.
+GitHub can also build Mac tester artifacts from the `Build macOS App` workflow. Finished files are uploaded as `MemoryPal-macOS-Intel` and `MemoryPal-macOS-AppleSilicon` artifacts.
+
+This is the cleanest option when a local computer has Python path issues, PowerShell policy restrictions, or a Python installation without working Tkinter support. It is also the cleanest way to get Mac packages from a Windows development machine.
 
 ## Build The Installer
 
@@ -162,7 +165,32 @@ TESTING_CHECKLIST.md
 
 ## Build The macOS App
 
-macOS packages must be created on macOS because the `.app` bundle is platform-specific. The Windows repository keeps the desktop source ready for a future macOS packaging pass, but the current supported installer flow is Windows.
+macOS packages must be created on macOS because the `.app` bundle and `.dmg` image are platform-specific.
+
+On a Mac with Python 3.11 or newer and working Tkinter, run:
+
+```bash
+./build_macos.sh
+```
+
+The script installs build tools into a temporary folder, converts the checked-in PNG logo into an `.icns` file, builds `MemoryPal.app` with PyInstaller, ad-hoc signs the app if `codesign` is available, and creates both a `.dmg` and zipped app bundle.
+
+Local outputs:
+
+```text
+release/macos/MemoryPal.app
+release/MemoryPal-macOS.dmg
+release/MemoryPal-macOS-app.zip
+```
+
+From GitHub Actions, use the `Build macOS App` workflow. It builds two tester artifacts:
+
+```text
+MemoryPal-macOS-Intel
+MemoryPal-macOS-AppleSilicon
+```
+
+The current Mac packages are beta tester builds. They are not fully Apple Developer ID signed or notarized yet, so macOS may show a Gatekeeper warning. For a small testing group, testers may need to right-click the app and choose Open the first time. Before broad public release, add a paid Apple Developer certificate, hardened runtime settings, notarization, and a signed DMG.
 
 ## Alternate Nuitka Build
 

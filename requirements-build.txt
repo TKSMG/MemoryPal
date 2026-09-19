@@ -1,5 +1,6 @@
-# Build-only dependencies for creating the Windows executable.
+# Build-only dependencies for creating packaged desktop apps.
 platformdirs>=4.0
+pypdf>=4.0
 Pillow>=10.0
 nuitka>=2.5
 ordered-set>=4.1

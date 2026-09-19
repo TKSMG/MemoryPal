@@ -237,10 +237,12 @@ class Tooltip:
 class MemoryPalApp(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.use_native_window_chrome = sys.platform == "darwin"
         self._chrome_update_active = False
         self._taskbar_ready = False
         self.withdraw()
-        self.overrideredirect(True)
+        if not self.use_native_window_chrome:
+            self.overrideredirect(True)
         self.resizable(True, True)
         try:
             self.attributes("-alpha", 0.0)
@@ -387,10 +389,10 @@ class MemoryPalApp(tk.Tk):
                 self.chrome_fullscreen_button.set_symbol(symbol)
             else:
                 self.chrome_fullscreen_button.configure(text=symbol)
-        if hasattr(self, "app_chrome") and self.app_chrome.winfo_exists():
+        if getattr(self, "app_chrome", None) is not None and self.app_chrome.winfo_exists():
             if not self.app_chrome.winfo_ismapped():
                 self.app_chrome.pack(fill="x", before=self.app_body)
-        if self.is_fullscreen:
+        if self.is_fullscreen or self.use_native_window_chrome:
             self.set_resize_grips_visible(False)
         else:
             self.set_resize_grips_visible(True)
@@ -536,6 +538,8 @@ class MemoryPalApp(tk.Tk):
             self.after(FADE_STEP_MS, lambda: self.fade_window_in(step + 1))
 
     def restore_window_chrome(self, _event=None):
+        if self.use_native_window_chrome:
+            return
         if _event is not None and _event.widget is not self:
             return
         if self.state() != "normal" or self.is_fullscreen or self.restoring_borderless or self._chrome_update_active:
@@ -550,6 +554,9 @@ class MemoryPalApp(tk.Tk):
             self.enable_borderless_chrome()
 
     def enable_borderless_chrome(self):
+        if self.use_native_window_chrome:
+            self.restoring_borderless = False
+            return
         if self.is_fullscreen:
             self.restoring_borderless = False
             return
@@ -574,10 +581,18 @@ class MemoryPalApp(tk.Tk):
             self.restoring_borderless = False
 
     def restore_from_minimize(self, _event=None):
+        if self.use_native_window_chrome:
+            return
         if not self.is_fullscreen:
             self.enable_borderless_chrome()
 
     def minimize_app(self):
+        if self.use_native_window_chrome:
+            try:
+                self.iconify()
+            except tk.TclError:
+                pass
+            return
         try:
             self.restoring_borderless = True
             self.overrideredirect(False)
@@ -1126,7 +1141,10 @@ class MemoryPalApp(tk.Tk):
         root = ttk.Frame(self, style="Root.TFrame")
         root.pack(fill="both", expand=True)
 
-        self.app_chrome = self.render_window_chrome(root, APP_NAME, close_command=self.destroy)
+        if self.use_native_window_chrome:
+            self.app_chrome = None
+        else:
+            self.app_chrome = self.render_window_chrome(root, APP_NAME, close_command=self.destroy)
 
         self.app_body = ttk.Frame(root, style="Root.TFrame")
         self.app_body.pack(fill="both", expand=True)
@@ -1189,7 +1207,8 @@ class MemoryPalApp(tk.Tk):
         self.add_tooltip(theme_button, "Switch between light and dark appearance.")
         self.fullscreen_button = ttk.Button(control_row, text=("Exit Fullscreen" if self.is_fullscreen else "Fullscreen"), command=self.toggle_true_fullscreen, style="TButton")
         self.fullscreen_button.pack(side="left", padx=(0, self.px(10)))
-        self.add_tooltip(self.fullscreen_button, "Enter true fullscreen. Shortcut: F11 on Windows/Linux, Control-Command-F on macOS. For borderless focus, use the square in the title bar or Settings.")
+        fullscreen_hint = "Enter true fullscreen. Shortcut: Control-Command-F on macOS." if self.use_native_window_chrome else "Enter true fullscreen. Shortcut: F11 on Windows/Linux, Control-Command-F on macOS. For borderless focus, use the square in the title bar or Settings."
+        self.add_tooltip(self.fullscreen_button, fullscreen_hint)
         backup = ttk.Button(control_row, text="Backup", command=self.export_data, style="TButton")
         backup.pack(side="left")
         self.add_tooltip(backup, "Export a local JSON backup of your MemoryPal data.")
@@ -1208,7 +1227,7 @@ class MemoryPalApp(tk.Tk):
         for grip in self.resize_grips:
             grip.bind("<B1-Motion>", self.resize_window, add="+")
             grip.bind("<ButtonRelease-1>", self.stop_resize, add="+")
-        self.set_resize_grips_visible(not self.is_fullscreen)
+        self.set_resize_grips_visible(not self.is_fullscreen and not self.use_native_window_chrome)
         self.after_idle(self.layout_app_body)
 
     def layout_app_body(self, event=None):

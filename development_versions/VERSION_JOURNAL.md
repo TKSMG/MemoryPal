@@ -257,3 +257,7 @@ This version spread out the top header by separating status chips from action bu
 ## v64 Beta - Low-End Readiness
 
 This version focused on keeping MemoryPal comfortable on slower Windows PCs and future Mac builds. It reduced repeated custom-titlebar redraw work, cached optional graphics checks, kept the packaged-logo startup path light, and moved the default Windows tester build to the stable PyInstaller path after a fresh Nuitka package failed launch testing.
+
+## v65 Beta - macOS Packaging
+
+This version made Mac testing more realistic without disturbing the current Windows release path. It added a macOS build script, Intel and Apple Silicon GitHub Actions artifacts, native Mac window chrome handling, and clearer notes about signing before wider release.

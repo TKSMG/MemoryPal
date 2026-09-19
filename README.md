@@ -24,11 +24,13 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 - Windows build dependencies: `requirements-build.txt`
 - Windows build command: `build_windows.cmd`
 - Windows installer command: `build_installer_windows.cmd`
+- macOS build command: `build_macos.sh`
 - Clean build artifacts command: `clean_build_artifacts.cmd`
 - Tester package command: `package_for_testers.cmd`
 - Installer script: `installer/inno/MemoryPal.iss`
 - Alternate Nuitka build command: `build_nuitka_windows.cmd`
 - GitHub Actions Windows build: `.github/workflows/build-windows.yml`
+- GitHub Actions macOS build: `.github/workflows/build-macos.yml`
 - Mobile prototype dependencies: `requirements-mobile.txt`
 
 ## Running The App
@@ -100,13 +102,22 @@ $env:MEMORYPAL_PYTHON = "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe"
 
 ## Building macOS Packages
 
-macOS app bundles must be built on macOS because `.app` packaging is platform-specific. The current repository keeps the desktop source portable, but the supported installer flow in this folder is Windows.
+macOS app bundles must be built on macOS because `.app` and `.dmg` packaging are platform-specific. The repo now includes `build_macos.sh` for macOS machines and `.github/workflows/build-macos.yml` for GitHub Actions builds.
+
+On a Mac, run:
+
+```bash
+./build_macos.sh
+```
+
+The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped app bundle under `release/`. The GitHub workflow builds separate Intel and Apple Silicon artifacts so testers can download the right package from the Actions run. These beta Mac builds are ad-hoc signed at most, so formal Apple Developer ID signing and notarization should be added before public distribution outside a small testing group.
 
 ## Current Features
 
 - Modern Tkinter desktop interface with a soft app header, local-save status, styled cue menus, hover feedback, and steadier page reveals.
 - Header controls are split into status and action zones, with the active profile shown as a compact numbered avatar on the top-right edge.
 - Low-end readiness pass reduces repeated custom-chrome redraw work and caches optional graphics lookups so slower Windows PCs and future Mac builds do less work at launch.
+- macOS packaging support adds a native-chrome guard for Mac, a Mac build script, and a GitHub Actions workflow for Intel and Apple Silicon tester artifacts.
 - Page switches use a same-window reveal over the page panel, so the header and content fade in together without dimming the whole app shell or fighting the Windows compositor.
 - Fullscreen and focus mode use a same-window cover while the operating system resizes the app, avoiding root-window opacity changes that can freeze Tkinter on Windows.
 - The left navigation rail stays expanded for a steadier desktop layout.
@@ -204,6 +215,7 @@ development_versions/MemoryPal_v61_beta_fixed_rail_fullscreen_stability.py
 development_versions/MemoryPal_v62_beta_concurrent_save_stability.py
 development_versions/MemoryPal_v63_beta_header_release_polish.py
 development_versions/MemoryPal_v64_beta_low_end_readiness.py
+development_versions/MemoryPal_v65_beta_macos_packaging.py
 assets/memorypal.ico
 assets/memorypal-logo-preview.png
 assets/memorypal-logo.svg
