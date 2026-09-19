@@ -237,6 +237,8 @@ class Tooltip:
 class MemoryPalApp(tk.Tk):
     def __init__(self):
         super().__init__()
+        self._chrome_update_active = False
+        self._taskbar_ready = False
         self.withdraw()
         self.overrideredirect(True)
         self.resizable(True, True)
@@ -282,6 +284,9 @@ class MemoryPalApp(tk.Tk):
         self.root_cover = None
         self.logo_photo_cache = {}
         self.shape_photo_cache = {}
+        self.logo_source_path = bundled_resource_path("assets", "memorypal-logo-preview.png")
+        self._pillow_modules = None
+        self._pillow_unavailable = False
 
         self.app_icon_path = None
         self.title(f"{APP_NAME} \u2014 {active_profile_name()}")
@@ -301,9 +306,9 @@ class MemoryPalApp(tk.Tk):
         self.bind("<Escape>", lambda _event: self.exit_fullscreen_or_focus())
         self.bind("<Configure>", self.handle_window_configure, add="+")
         self.update_idletasks()
-        self.ensure_taskbar_presence()
+        self._taskbar_ready = self.ensure_taskbar_presence()
         self.deiconify()
-        self.after(120, self.ensure_taskbar_presence)
+        self.after(120, lambda: setattr(self, "_taskbar_ready", self.ensure_taskbar_presence()))
         self.fade_window_in()
         self.after_idle(lambda: self.show_view("dashboard", transition=False))
 
@@ -398,10 +403,10 @@ class MemoryPalApp(tk.Tk):
 
     def draw_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0):
         """Draw smoother custom UI shapes when Pillow is available."""
-        try:
-            from PIL import Image, ImageDraw, ImageTk
-        except ImportError:
+        modules = self.pillow_modules()
+        if not modules:
             return False
+        Image, ImageDraw, ImageTk = modules
         try:
             width = int(width)
             height = int(height)
@@ -435,12 +440,25 @@ class MemoryPalApp(tk.Tk):
         except Exception:
             return False
 
+    def pillow_modules(self):
+        if self._pillow_modules is not None:
+            return self._pillow_modules
+        if self._pillow_unavailable:
+            return None
+        try:
+            from PIL import Image, ImageDraw, ImageTk
+        except ImportError:
+            self._pillow_unavailable = True
+            return None
+        self._pillow_modules = (Image, ImageDraw, ImageTk)
+        return self._pillow_modules
+
     def draw_memorypal_logo(self, canvas, size):
         """Render the generated MemoryPal icon into the navigation rail."""
         try:
             size = int(size)
             bg = canvas.cget("bg") or COLORS["rail"]
-            source_png = bundled_resource_path("assets", "memorypal-logo-preview.png")
+            source_png = self.logo_source_path
             source_mtime = source_png.stat().st_mtime_ns if source_png and source_png.exists() else None
             key = (size, bg, str(source_png) if source_png else "", source_mtime)
             photo = self.logo_photo_cache.get(key)
@@ -520,20 +538,39 @@ class MemoryPalApp(tk.Tk):
     def restore_window_chrome(self, _event=None):
         if _event is not None and _event.widget is not self:
             return
-        if self.state() == "normal" and not self.is_fullscreen and not self.restoring_borderless:
+        if self.state() != "normal" or self.is_fullscreen or self.restoring_borderless or self._chrome_update_active:
+            return
+        try:
+            already_borderless = bool(self.overrideredirect())
+        except tk.TclError:
+            already_borderless = False
+        if already_borderless and self._taskbar_ready:
+            return
+        if self.state() == "normal":
             self.enable_borderless_chrome()
 
     def enable_borderless_chrome(self):
         if self.is_fullscreen:
             self.restoring_borderless = False
             return
+        if self._chrome_update_active:
+            return
+        self._chrome_update_active = True
         try:
-            self.overrideredirect(True)
-            self.update_idletasks()
-            self.ensure_taskbar_presence()
+            try:
+                already_borderless = bool(self.overrideredirect())
+            except tk.TclError:
+                already_borderless = False
+            if not already_borderless:
+                self.overrideredirect(True)
+                self.update_idletasks()
+                self._taskbar_ready = False
+            if not self._taskbar_ready:
+                self._taskbar_ready = self.ensure_taskbar_presence()
         except tk.TclError:
             pass
         finally:
+            self._chrome_update_active = False
             self.restoring_borderless = False
 
     def restore_from_minimize(self, _event=None):
@@ -552,7 +589,7 @@ class MemoryPalApp(tk.Tk):
 
     def ensure_taskbar_presence(self):
         if not sys.platform.startswith("win"):
-            return
+            return True
         try:
             import ctypes
 
@@ -574,8 +611,9 @@ class MemoryPalApp(tk.Tk):
             # Tell Windows to re-read the window style without moving/resizing.
             swp_flags = 0x0001 | 0x0002 | 0x0010 | 0x0020
             ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, swp_flags)
+            return True
         except (AttributeError, OSError, tk.TclError):
-            pass
+            return False
 
     def close_window(self, window=None):
         target = window or self

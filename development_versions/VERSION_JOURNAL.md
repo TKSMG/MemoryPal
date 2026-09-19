@@ -253,3 +253,7 @@ This version made two-window saving safer by keeping newer saved review progress
 ## v63 Beta - Header Release Polish
 
 This version spread out the top header by separating status chips from action buttons and replacing the long profile control with a numbered avatar. It also made the header Fullscreen button use true fullscreen, kept borderless focus on the titlebar square and Settings, and sped up startup by loading the packaged logo asset first.
+
+## v64 Beta - Low-End Readiness
+
+This version focused on keeping MemoryPal comfortable on slower Windows PCs and future Mac builds. It reduced repeated custom-titlebar redraw work, cached optional graphics checks, kept the packaged-logo startup path light, and moved the default Windows tester build to the stable PyInstaller path after a fresh Nuitka package failed launch testing.

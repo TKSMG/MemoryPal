@@ -27,7 +27,7 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 - Clean build artifacts command: `clean_build_artifacts.cmd`
 - Tester package command: `package_for_testers.cmd`
 - Installer script: `installer/inno/MemoryPal.iss`
-- Fallback PyInstaller build command: `build_pyinstaller_windows.cmd`
+- Alternate Nuitka build command: `build_nuitka_windows.cmd`
 - GitHub Actions Windows build: `.github/workflows/build-windows.yml`
 - Mobile prototype dependencies: `requirements-mobile.txt`
 
@@ -63,7 +63,7 @@ From this folder, run:
 .\build_windows.cmd
 ```
 
-The default build uses Nuitka with Tkinter support enabled. It now creates a normal app folder at `release\MemoryPal\MemoryPal.exe`, which opens faster than a self-extracting one-file EXE. The build also bundles the checked-in icon assets so installed copies do not regenerate the app icon during startup. The release folder is ignored by Git so the repository stays focused on source code and documentation.
+The default build uses PyInstaller in normal app-folder mode. It creates `release\MemoryPal\MemoryPal.exe`, which opens faster than a self-extracting one-file EXE and proved steadier for the current tester package than the latest local Nuitka build. The build also bundles the checked-in icon assets so installed copies do not regenerate the app icon during startup. The release folder is ignored by Git so the repository stays focused on source code and documentation.
 The fast tester build keeps desktop recording and text-to-speech packages optional, so normal launches do not carry large media libraries unless a special media-enabled build is made later.
 
 Before making a fresh package, generated build leftovers can be cleared with:
@@ -106,6 +106,7 @@ macOS app bundles must be built on macOS because `.app` packaging is platform-sp
 
 - Modern Tkinter desktop interface with a soft app header, local-save status, styled cue menus, hover feedback, and steadier page reveals.
 - Header controls are split into status and action zones, with the active profile shown as a compact numbered avatar on the top-right edge.
+- Low-end readiness pass reduces repeated custom-chrome redraw work and caches optional graphics lookups so slower Windows PCs and future Mac builds do less work at launch.
 - Page switches use a same-window reveal over the page panel, so the header and content fade in together without dimming the whole app shell or fighting the Windows compositor.
 - Fullscreen and focus mode use a same-window cover while the operating system resizes the app, avoiding root-window opacity changes that can freeze Tkinter on Windows.
 - The left navigation rail stays expanded for a steadier desktop layout.
@@ -125,6 +126,7 @@ macOS app bundles must be built on macOS because `.app` packaging is platform-sp
 - The generated logo renders directly through Tk, so the rail mark and titlebar mark stay consistent even without Pillow.
 - The desktop launcher now relies on the split `latest_app/memorypal/` package instead of carrying a second stale copy of models, storage, parsing, and planning code.
 - Profile config reads, generated logo pixels, and antialiased UI shapes are cached so normal shell rebuilds do less repeat work.
+- The custom borderless titlebar restore path is debounced so fullscreen/focus changes and startup do not repeatedly force expensive idle redraws.
 - File dialogs, CSV export, browser opening, desktop recording, webcam recording, and text-to-speech load only when those features are used.
 - The header and navigation logo load from the checked-in PNG asset during startup, with generated pixels kept as a fallback.
 - The main desktop window is resizable from the right edge, bottom edge, and corner while keeping the custom app chrome and DPI-scaled title bar controls.
@@ -162,7 +164,7 @@ macOS app bundles must be built on macOS because `.app` packaging is platform-sp
 - Library search with All, Due, Weak, and Captures filters.
 - Pointer-aware page scrolling plus keyboard scrolling with Page Up, Page Down, Home, and End.
 - Saves are written atomically and merge with existing local data so two open MemoryPal windows keep newly added cards, captures, feedback, and newer review progress.
-- Build scripts check for a Tkinter-capable Python before packaging, with Nuitka as the recommended Windows app-folder path and PyInstaller kept as a fallback.
+- Build scripts check for a Tkinter-capable Python before packaging, with PyInstaller as the current stable Windows app-folder path and Nuitka kept as an alternate script to revisit.
 - Build scripts generate the MemoryPal `.ico` during packaging, pass it to Nuitka or PyInstaller, and bundle the reusable icon assets into the app folder.
 - Inno Setup installer script and command file for making a user-friendly Windows setup file.
 - The latest desktop build separates core paths, models, storage, planning, and study helpers into `latest_app/memorypal/`.
@@ -201,6 +203,7 @@ development_versions/MemoryPal_v60_beta_stable_motion_followup.py
 development_versions/MemoryPal_v61_beta_fixed_rail_fullscreen_stability.py
 development_versions/MemoryPal_v62_beta_concurrent_save_stability.py
 development_versions/MemoryPal_v63_beta_header_release_polish.py
+development_versions/MemoryPal_v64_beta_low_end_readiness.py
 assets/memorypal.ico
 assets/memorypal-logo-preview.png
 assets/memorypal-logo.svg

@@ -64,9 +64,9 @@ if errorlevel 1 exit /b 1
   --windowed ^
   --name MemoryPal ^
   --icon "%MEMORYPAL_ICON%" ^
-  --add-data "assets\memorypal.ico;assets" ^
-  --add-data "assets\memorypal-logo-preview.png;assets" ^
-  --add-data "assets\memorypal-logo.svg;assets" ^
+  --add-data "%CD%\assets\memorypal.ico;assets" ^
+  --add-data "%CD%\assets\memorypal-logo-preview.png;assets" ^
+  --add-data "%CD%\assets\memorypal-logo.svg;assets" ^
   --exclude-module sounddevice ^
   --exclude-module cv2 ^
   --exclude-module pyttsx3 ^
