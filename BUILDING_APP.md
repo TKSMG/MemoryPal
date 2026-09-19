@@ -1,6 +1,6 @@
 # Building MemoryPal
 
-MemoryPal is currently a Python/Tkinter desktop app. The recommended Windows build path uses Nuitka because it can package Tkinter with its `tk-inter` plugin and gives the project a clearer release workflow.
+MemoryPal is currently a Python/Tkinter desktop app. The current recommended Windows tester build path uses PyInstaller in app-folder mode because it opens reliably on this machine. Nuitka remains available as an alternate path until the current local runtime issue is resolved.
 
 ## Desktop Requirements
 
@@ -21,6 +21,8 @@ python -m pip install -e ".[documents,image-previews,media,speech]"
 Speech-to-text is optional. `SpeechRecognition` supports the prototype transcription flow, and microphone dictation may also need `PyAudio`, which can require a normal Windows Python setup. The default recognizer used in the prototype may need an internet connection.
 
 The default tester build intentionally stays lighter than the full optional desktop setup. File imports, document notes, image previews, and the main memory tools are kept in the normal package path; desktop audio recording, webcam recording, speech recognition, and offline text-to-speech should be treated as optional extras unless a media-enabled build is made on purpose.
+
+For low-end tester machines, keep using the normal app-folder build instead of a self-extracting one-file EXE. The app-folder build avoids unpacking work on every launch, keeps optional media libraries out of startup, and lets MemoryPal load its checked-in icon/logo assets directly.
 
 The Windows build tools are listed separately:
 
@@ -60,7 +62,7 @@ From the project folder:
 .\build_windows.cmd
 ```
 
-The main build command calls `build_nuitka_windows.cmd`. If the build succeeds, the app appears here:
+The main build command calls `build_pyinstaller_windows.cmd`. If the build succeeds, the app appears here:
 
 ```text
 release\MemoryPal\MemoryPal.exe
@@ -70,7 +72,7 @@ The build excludes large optional media stacks such as OpenCV, `sounddevice`, an
 
 The script checks that Python can import `tkinter` and open a hidden Tk window before packaging. This matters because an EXE made with a Python installation that does not include Tkinter can open with an error such as `No module named 'tkinter'`.
 
-The build scripts generate the MemoryPal icon from source code before packaging. Nuitka and PyInstaller both receive that `.ico`, and the checked-in `assets/` folder is bundled into the app folder. That keeps the finished Windows app on the MemoryPal mark and prevents installed copies from generating a fresh icon during startup.
+The build scripts generate the MemoryPal icon from source code before packaging. PyInstaller receives that `.ico`, and the checked-in `assets/` folder is bundled into the app folder. That keeps the finished Windows app on the MemoryPal mark and prevents installed copies from generating a fresh icon during startup.
 
 If an older build already shows that Tkinter error, delete the old `release` folder and run `.\build_windows.cmd` again after installing a normal Python build with Tcl/Tk. The current script is designed to stop before creating that broken kind of package.
 
@@ -162,15 +164,15 @@ TESTING_CHECKLIST.md
 
 macOS packages must be created on macOS because the `.app` bundle is platform-specific. The Windows repository keeps the desktop source ready for a future macOS packaging pass, but the current supported installer flow is Windows.
 
-## Fallback PyInstaller Build
+## Alternate Nuitka Build
 
-The previous PyInstaller build is still available:
+The Nuitka build is still available for future testing:
 
 ```powershell
-.\build_pyinstaller_windows.cmd
+.\build_nuitka_windows.cmd
 ```
 
-Use it only as a fallback. It keeps the same Tkinter preflight check and writes the finished app folder to `release\MemoryPal\MemoryPal.exe` when successful.
+Use it only as an alternate path until its local runtime issue is understood. It keeps the same Tkinter preflight check and writes the finished app folder to `release\MemoryPal\MemoryPal.exe` when successful.
 
 ## Why The EXE Might Not Build Locally
 

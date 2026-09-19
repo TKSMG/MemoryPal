@@ -427,6 +427,15 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Added Control-Command-F as a guarded macOS-style true fullscreen shortcut where Tk supports it.
 - Changed startup logo rendering to load the packaged PNG first, with generated pixels kept only as a fallback.
 
+### v64 Beta - Low-end readiness
+
+- Added the standalone `MemoryPal_v64_beta_low_end_readiness.py` milestone.
+- Debounced custom borderless-chrome restoration so startup, focus exit, and fullscreen exit do less repeated Tk idle work.
+- Cached the optional Pillow drawing backend decision so source runs without image-preview extras do not keep retrying unavailable imports.
+- Cached the startup logo asset lookup and kept generated icon pixels as a fallback for source-only runs.
+- Fixed the PyInstaller fallback asset paths and made the default Windows tester build use the stable PyInstaller app-folder path after the fresh local Nuitka package failed its launch check.
+- Rechecked page rendering, two-window save merging, source import timing, and temporary installer launch behavior for tester readiness.
+
 ## Mobile Version Note
 
 A separate production mobile version is still needed later. The Kivy prototype in `mobile_app/` is a starting point, but the finished app should use native phone APIs for the microphone, camera, file picker, storage permissions, and large touch controls instead of copying the desktop Tkinter interface directly.

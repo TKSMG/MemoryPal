@@ -7,7 +7,7 @@ tasks:
       - ./clean_build_artifacts.cmd
 
   windows:
-    desc: Build the Windows MemoryPal app folder with Nuitka
+    desc: Build the Windows MemoryPal app folder with the stable PyInstaller path
     generates:
       - release/MemoryPal/MemoryPal.exe
     cmds:
