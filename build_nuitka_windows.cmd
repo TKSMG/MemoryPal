@@ -71,14 +71,15 @@ if not exist release mkdir release
   --standalone ^
   --enable-plugin=tk-inter ^
   --include-data-dir=assets=assets ^
+  --include-module=pypdf ^
   --nofollow-import-to=sounddevice,cv2,pyttsx3,SpeechRecognition,pyaudio,pyaudioop,numpy ^
   --output-dir="%TEMP_BUILD%" ^
   --output-filename=MemoryPal.exe ^
   --company-name="MemoryPal" ^
   --product-name="MemoryPal" ^
   --file-description="MemoryPal desktop memory trainer" ^
-  --product-version="0.40.5" ^
-  --file-version="0.40.5" ^
+  --product-version="0.41.0" ^
+  --file-version="0.41.0" ^
   --windows-icon-from-ico="%MEMORYPAL_ICON%" ^
   --tcl-library-dir="%TCL_LIBRARY%" ^
   --tk-library-dir="%TK_LIBRARY%" ^

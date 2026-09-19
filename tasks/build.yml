@@ -21,3 +21,11 @@ tasks:
       - release/MemoryPalSetup.exe
     cmds:
       - ./build_installer_windows.cmd
+
+  macos:
+    desc: Build the macOS app bundle, DMG, and zipped app on macOS
+    generates:
+      - release/MemoryPal-macOS.dmg
+      - release/MemoryPal-macOS-app.zip
+    cmds:
+      - ./build_macos.sh

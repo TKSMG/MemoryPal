@@ -73,6 +73,18 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Zip either `release\MemoryPalSetup.exe` with the tester notes or the full `release\MemoryPal\` folder with the tester notes.
 - In GitHub, run the `Build Windows App` workflow and confirm the `MemoryPal-Windows` artifact includes the app folder and installer when the workflow succeeds.
 
+## macOS Build
+
+- Run the `Build macOS App` workflow in GitHub Actions.
+- Confirm the workflow creates separate `MemoryPal-macOS-Intel` and `MemoryPal-macOS-AppleSilicon` artifacts.
+- On a Mac, download the matching artifact, open the `.dmg`, drag or copy `MemoryPal.app`, and launch it.
+- If macOS blocks the unsigned beta build, right-click `MemoryPal.app`, choose Open, and confirm the app launches.
+- Confirm the Mac app uses the normal macOS title bar instead of the custom Windows title strip.
+- Press Control-Command-F and confirm true fullscreen behaves normally.
+- Confirm page switching, resizing, dialogs, profile saves, and app-data storage behave like the Windows source run.
+- Confirm the app icon appears in Finder, the Dock, and the app title area.
+- Treat Developer ID signing, hardened runtime, notarization, and a polished signed DMG as required before wide public Mac distribution.
+
 ## Capture And Cards
 
 - Add a study bit manually.

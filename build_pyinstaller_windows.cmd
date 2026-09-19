@@ -67,6 +67,7 @@ if errorlevel 1 exit /b 1
   --add-data "%CD%\assets\memorypal.ico;assets" ^
   --add-data "%CD%\assets\memorypal-logo-preview.png;assets" ^
   --add-data "%CD%\assets\memorypal-logo.svg;assets" ^
+  --hidden-import pypdf ^
   --exclude-module sounddevice ^
   --exclude-module cv2 ^
   --exclude-module pyttsx3 ^

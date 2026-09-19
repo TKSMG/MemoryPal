@@ -1,0 +1,49 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-macos:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS Intel
+            runner: macos-15-intel
+            artifact_suffix: macOS-Intel
+          - label: macOS Apple Silicon
+            runner: macos-15
+            artifact_suffix: macOS-AppleSilicon
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+
+      - name: Check Tkinter
+        run: python -c "import tkinter as tk; print(f'Tkinter is available: Tk {tk.TkVersion}')"
+
+      - name: Build MemoryPal macOS package
+        run: |
+          chmod +x build_macos.sh
+          MEMORYPAL_MAC_ARTIFACT_SUFFIX="${{ matrix.artifact_suffix }}" ./build_macos.sh
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MemoryPal-${{ matrix.artifact_suffix }}
+          path: |
+            release/MemoryPal-${{ matrix.artifact_suffix }}.dmg
+            release/MemoryPal-${{ matrix.artifact_suffix }}-app.zip

@@ -19,6 +19,7 @@ The newest polish pass changes transition fades from whole-window opacity to con
 The current project structure moves paths, models, storage, planning, and study helpers into `../latest_app/memorypal/` so the desktop entry point is no longer responsible for every layer of the app.
 The newest stability pass keeps newer saved review progress when two open windows save at different times.
 The latest header pass separates status chips from actions and turns the active profile into a numbered avatar control.
+The newest packaging pass keeps Mac window behavior native, adds a macOS build script, and adds a GitHub workflow for Mac tester artifacts.
 
 ## How to Run a Version
 
@@ -435,6 +436,14 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Cached the startup logo asset lookup and kept generated icon pixels as a fallback for source-only runs.
 - Fixed the PyInstaller fallback asset paths and made the default Windows tester build use the stable PyInstaller app-folder path after the fresh local Nuitka package failed its launch check.
 - Rechecked page rendering, two-window save merging, source import timing, and temporary installer launch behavior for tester readiness.
+
+### v65 Beta - macOS packaging
+
+- Added the standalone `MemoryPal_v65_beta_macos_packaging.py` milestone.
+- Added `build_macos.sh` for building a Mac `.app`, `.dmg`, and zipped app bundle on macOS.
+- Added a GitHub Actions workflow that creates separate Intel and Apple Silicon Mac tester artifacts.
+- Updated the live desktop app so macOS uses native window chrome instead of the custom borderless Windows chrome.
+- Documented the beta Mac packaging limits, including the need for Developer ID signing and notarization before broad public distribution.
 
 ## Mobile Version Note
 
