@@ -1,9 +1,14 @@
+import base64
 import importlib
+import math
 import os
 import random
 import re
+import struct
 import sys
 import tkinter as tk
+import tkinter.font as tkfont
+import zlib
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from tkinter import ttk
@@ -71,9 +76,12 @@ from memorypal.paths import (
     create_profile,
     delete_profile,
     list_profiles,
+    normalize_profile_name,
     rename_profile,
     switch_active_profile_paths,
 )
+from memorypal import onboarding, techniques
+from memorypal.speech import Speaker
 from memorypal.planning import (
     STUDY_HABIT_OPTIONS,
     TIME_UNIT_OPTIONS,
@@ -81,7 +89,7 @@ from memorypal.planning import (
     build_multi_day_plan,
     build_study_plan,
 )
-from memorypal.store import MemoryStore, load_items, safe_int
+from memorypal.store import MemoryStore, default_accessibility, load_items, normalize_accessibility, safe_int
 
 
 APP_ROOT = Path(__file__).resolve().parent
@@ -109,81 +117,525 @@ def bundled_resource_path(*parts):
     return None
 
 
-class ScrollFrame(ttk.Frame):
-    """A page frame whose mouse wheel follows the section under the pointer."""
+def set_window_redraw(widget, enabled):
+    """Suspend/resume painting of a Tk widget's native window (Windows only).
 
-    def __init__(self, parent, horizontal=False, min_width=0):
+    On resume the window and all its children are invalidated and repainted
+    together. Returns True if painting was actually changed.
+    """
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        hwnd = widget.winfo_id()
+        user32.SendMessageW(hwnd, 0x000B, 1 if enabled else 0, 0)  # WM_SETREDRAW
+        if enabled:
+            # RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW (no RDW_ERASE,
+            # which would flash the default brush first).
+            user32.RedrawWindow(hwnd, None, None, 0x0001 | 0x0080 | 0x0100)
+        return True
+    except (AttributeError, OSError, tk.TclError):
+        return False
+
+
+def flush_pending_paint(widget):
+    """Draw queued Expose events now instead of on a later event-loop pass."""
+    try:
+        import _tkinter
+
+        flags = _tkinter.WINDOW_EVENTS | _tkinter.DONT_WAIT
+        handled = 0
+        while handled < 500 and widget.tk.dooneevent(flags):
+            handled += 1
+        widget.update_idletasks()
+        return handled
+    except (AttributeError, tk.TclError):
+        return 0
+
+
+def show_screen_cover(width, height):
+    """Put a pixel-identical, topmost snapshot of the screen over everything.
+
+    The captured bitmap is handed straight to a layered popup window
+    (UpdateLayeredWindow), so it appears atomically with no Tk image
+    conversion. The window never takes focus or shows in the taskbar.
+    Returns a handle for remove_screen_cover, or None if unavailable.
+    """
+    if not sys.platform.startswith("win"):
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class BlendFunction(ctypes.Structure):
+            _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte),
+                        ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
+
+        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+        user32.CreateWindowExW.restype = wintypes.HWND
+        user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+                                           ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                           wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+        screen_dc = user32.GetDC(0)
+        memory_dc = gdi32.CreateCompatibleDC(screen_dc)
+        bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
+        previous = gdi32.SelectObject(memory_dc, bitmap)
+        hwnd = None
+        try:
+            gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, 0, 0, 0x00CC0020)  # SRCCOPY
+            # WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WS_POPUP
+            hwnd = user32.CreateWindowExW(0x00080000 | 0x00000008 | 0x00000080 | 0x08000000, "STATIC", None,
+                                          0x80000000, 0, 0, width, height, None, None, None, None)
+            if not hwnd:
+                return None
+            origin, size = wintypes.POINT(0, 0), wintypes.SIZE(width, height)
+            blend = BlendFunction(0, 0, 255, 0)
+            if not user32.UpdateLayeredWindow(hwnd, screen_dc, ctypes.byref(origin), ctypes.byref(size), memory_dc,
+                                              ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4):  # ULW_OPAQUE
+                user32.DestroyWindow(hwnd)
+                return None
+            user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE
+            ctypes.windll.dwmapi.DwmFlush()  # make sure it is on screen before anything changes
+            return hwnd
+        finally:
+            gdi32.SelectObject(memory_dc, previous)
+            gdi32.DeleteObject(bitmap)
+            gdi32.DeleteDC(memory_dc)
+            user32.ReleaseDC(0, screen_dc)
+    except (AttributeError, OSError):
+        return None
+
+
+def remove_screen_cover(cover):
+    try:
+        import ctypes
+
+        ctypes.windll.dwmapi.DwmFlush()  # let the finished window be composed underneath first
+        ctypes.windll.user32.DestroyWindow(cover)
+    except (AttributeError, OSError):
+        pass
+
+
+class ScrollFrame(ttk.Frame):
+    """Stable, clipped scrolling surface.
+
+    The viewport never moves or resizes while its contents scroll.  The canvas
+    owns the scroll coordinate and the content frame is only a canvas window.
+    This avoids the old feedback loop where changing the content position
+    changed the measured scroll region, which in turn moved the content again.
+    """
+
+    def __init__(self, parent, horizontal=False, min_width=0, bottom_padding=None):
         super().__init__(parent)
         self.horizontal = horizontal
-        self.min_width = min_width
-        self.canvas = tk.Canvas(self, highlightthickness=0, bg=COLORS["bg"])
-        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.x_scrollbar = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview) if horizontal else None
-        self.inner = ttk.Frame(self.canvas, style="Page.TFrame")
-        self.window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        if self.x_scrollbar is not None:
-            self.canvas.configure(xscrollcommand=self.x_scrollbar.set)
-            self.columnconfigure(0, weight=1)
-            self.rowconfigure(0, weight=1)
-            self.canvas.grid(row=0, column=0, sticky="nsew")
-            self.scrollbar.grid(row=0, column=1, sticky="ns")
-            self.x_scrollbar.grid(row=1, column=0, sticky="ew")
-        else:
-            self.canvas.pack(side="left", fill="both", expand=True)
-            self.scrollbar.pack(side="right", fill="y")
-        self.inner.bind("<Configure>", lambda _event: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.bind("<Configure>", self._configure_canvas)
-        self.canvas.bind("<Enter>", lambda _event: self.canvas.focus_set())
-        self.canvas.bind("<Prior>", lambda _event: self._scroll_pages(-1))
-        self.canvas.bind("<Next>", lambda _event: self._scroll_pages(1))
-        self.canvas.bind("<Home>", lambda _event: self._scroll_to(0.0))
-        self.canvas.bind("<End>", lambda _event: self._scroll_to(1.0))
-        self.canvas.bind_all("<MouseWheel>", self._wheel)
-        self.canvas.bind_all("<Button-4>", self._wheel)
-        self.canvas.bind_all("<Button-5>", self._wheel)
+        self.min_width = int(min_width or 0)
+        root = parent.winfo_toplevel()
+        scale = getattr(root, "ui_scale", 1.0)
+        self.bottom_padding = max(12, int(round((bottom_padding if bottom_padding is not None else 18) * scale)))
+        self._region_after = None
+        self._destroyed = False
+        self._wheel_remainder_y = 0.0
+        self._wheel_remainder_x = 0.0
+        self._wheel_step_px = max(36, int(round(72 * scale)))
+        self._window_id = None
+        self._updating_width = False
+        self._wheel_bind_ids = []
+        self._settle_after = None
+        self._settle_attempts = 0
+        self._last_content_h = None
+        self._last_inner_size = None
+        self._pending_drag = {}
+        self._drag_after = None
+        self._wheel_pending = {}
+        self._wheel_after = None
+        self._presenting = False
 
-    def _configure_canvas(self, event):
-        width = event.width
-        if self.horizontal:
-            width = max(width, self.min_width)
-        self.canvas.itemconfigure(self.window_id, width=width)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+
+        self.viewport = tk.Canvas(
+            self, bg=COLORS["bg"], highlightthickness=0, bd=0,
+            relief="flat", takefocus=0,
+        )
+        # Keep the scrollbar compact and inside this frame's exact grid cell.
+        self.scrollbar = ttk.Scrollbar(
+            self, orient="vertical", command=self._scrollbar_yview, style="Vertical.TScrollbar"
+        )
+        self.x_scrollbar = (
+            ttk.Scrollbar(
+                self, orient="horizontal", command=self._scrollbar_xview, style="Horizontal.TScrollbar"
+            )
+            if horizontal else None
+        )
+
+        self.inner = ttk.Frame(self.viewport, style="Page.TFrame")
+        self._window_id = self.viewport.create_window(0, 0, window=self.inner, anchor="nw")
+
+        self.viewport.grid(row=0, column=0, sticky="nsew")
+        self.scrollbar.grid(row=0, column=1, sticky="ns")
+        if self.x_scrollbar is not None:
+            self.x_scrollbar.grid(row=1, column=0, sticky="ew")
+
+        self.inner.bind("<Configure>", self._content_configured, add="+")
+        self.viewport.bind("<Configure>", self._viewport_configured, add="+")
+        for widget in (self.viewport, self.inner):
+            widget.bind("<Enter>", self._activate_wheel, add="+")
+        self.viewport.bind("<Prior>", lambda _e: self._scroll_pages(-1))
+        self.viewport.bind("<Next>", lambda _e: self._scroll_pages(1))
+        self.viewport.bind("<Home>", lambda _e: self._scroll_to(0.0))
+        self.viewport.bind("<End>", lambda _e: self._scroll_to(1.0))
+        self.after_idle(self.refresh_scrollregion)
+
+    def _content_configured(self, event=None):
+        # Scrolling moves the content window, which also fires <Configure>.
+        # Only a size change needs the scroll region re-measured; doing it on
+        # every scroll step forced a full relayout mid-drag and caused tearing.
+        size = (event.width, event.height) if event is not None else None
+        if size is not None and size == self._last_inner_size:
+            return
+        self._last_inner_size = size
+        self.queue_scrollregion_update()
+
+    def _viewport_configured(self, event):
+        if self._window_id is None or self._updating_width:
+            return
+        if not self.horizontal:
+            self._updating_width = True
+            try:
+                self.viewport.itemconfigure(self._window_id, width=max(1, event.width))
+            finally:
+                self._updating_width = False
+        self.queue_scrollregion_update()
+
+    def queue_scrollregion_update(self):
+        if self._region_after is not None or self._destroyed:
+            return
+        try:
+            self._region_after = self.after_idle(self.refresh_scrollregion)
+        except tk.TclError:
+            self._region_after = None
+
+    def refresh_scrollregion(self):
+        self._region_after = None
+        if self._destroyed:
+            return
+        try:
+            # Measure the actual requested height of the inner frame.  Canvas
+            # window bboxes can lag one geometry pass behind on pages containing
+            # wrapped labels, which was the reason some pages stopped short.
+            self.update_idletasks()
+            bbox = self.viewport.bbox(self._window_id)
+            vw = max(1, self.viewport.winfo_width())
+            vh = max(1, self.viewport.winfo_height())
+            req_w = max(1, self.inner.winfo_reqwidth())
+            req_h = max(1, self.inner.winfo_reqheight())
+            actual_h = max(1, self.inner.winfo_height())
+            if bbox:
+                bbox_w = max(1, int(bbox[2] - bbox[0]))
+                bbox_h = max(1, int(bbox[3] - bbox[1]))
+            else:
+                bbox_w = bbox_h = 1
+            content_w = max(vw, req_w, bbox_w)
+            content_h = max(vh, req_h, actual_h, bbox_h) + self.bottom_padding
+            if not self.horizontal:
+                content_w = vw
+            else:
+                content_w = max(content_w, self.min_width)
+
+            self.viewport.configure(scrollregion=(0, 0, int(content_w), int(content_h)))
+            self._sync_scrollbars()
+
+            # Wrapped text and some ttk widgets can settle across more than
+            # one geometry pass on content-heavy pages (dashboard, stats,
+            # library). A single fixed-delay check can land before a page
+            # like that has finished growing, which is what silently
+            # trimmed the bottom of the scroll range. Keep re-checking on a
+            # short schedule as long as the measured height is still
+            # growing, and stop once it holds steady (or after a capped
+            # number of attempts, so a genuinely still-changing page can't
+            # loop forever).
+            previous = self._last_content_h
+            self._last_content_h = content_h
+            if previous is None or content_h > previous + 1:
+                if self._settle_after is None and self._settle_attempts < 8:
+                    self._settle_attempts += 1
+                    self._settle_after = self.after(45, self._settle_scrollregion)
+            else:
+                self._settle_attempts = 0
+        except tk.TclError:
+            pass
+
+    def _settle_scrollregion(self):
+        self._settle_after = None
+        if self._destroyed:
+            return
+        self.refresh_scrollregion()
+
+    def _activate_wheel(self, _event=None):
+        if self._destroyed or self._wheel_bind_ids:
+            return
+        try:
+            root = self.winfo_toplevel()
+            self._wheel_bind_ids = [
+                root.bind_all("<MouseWheel>", self._wheel, add="+"),
+                root.bind_all("<Button-4>", self._wheel, add="+"),
+                root.bind_all("<Button-5>", self._wheel, add="+"),
+            ]
+        except tk.TclError:
+            self._wheel_bind_ids = []
 
     def _nearest_scrollframe_under_pointer(self, event):
-        widget = self.winfo_containing(event.x_root, event.y_root)
+        try:
+            widget = self.winfo_containing(event.x_root, event.y_root)
+        except tk.TclError:
+            return None
         while widget is not None:
-            if isinstance(widget, ScrollFrame):
+            if widget is self or isinstance(widget, ScrollFrame):
                 return widget
             widget = getattr(widget, "master", None)
         return None
 
     def _wheel(self, event):
-        if not self.winfo_ismapped():
-            return None
-        if self._nearest_scrollframe_under_pointer(event) is not self:
+        if self._destroyed or self._nearest_scrollframe_under_pointer(event) is not self:
             return None
         if self.horizontal and getattr(event, "state", 0) & 0x0001:
-            delta = getattr(event, "delta", 0)
-            units = int(-delta / 120) if abs(delta) >= 120 else (-1 if delta > 0 else 1)
-            self.canvas.xview_scroll(units, "units")
+            units = self._wheel_units(event, "x")
+            if units:
+                self._queue_wheel(units * self._wheel_step_px, axis="x")
             return "break"
-        if getattr(event, "num", None) == 4:
-            units = -3
-        elif getattr(event, "num", None) == 5:
-            units = 3
-        else:
-            delta = getattr(event, "delta", 0)
-            units = int(-delta / 120) if abs(delta) >= 120 else (-1 if delta > 0 else 1)
-        self.canvas.yview_scroll(units, "units")
+        units = self._wheel_units(event, "y")
+        if units:
+            self._queue_wheel(units * self._wheel_step_px, axis="y")
         return "break"
 
+    def _queue_wheel(self, pixels, axis="y"):
+        # A fast wheel spin delivers many events per frame; moving and
+        # repainting for each one outruns the embedded widgets and tears.
+        # Sum the distance and apply it on a timer. Timers still fire while
+        # input events stream in; idle callbacks (and Tk's repaints) don't.
+        self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
+        if self._wheel_after is None and not self._destroyed:
+            self._wheel_after = self.after(1, self._flush_wheel)
+
+    def _flush_wheel(self):
+        self._wheel_after = None
+        pending, self._wheel_pending = self._wheel_pending, {}
+        if self._destroyed:
+            return
+        for axis, pixels in pending.items():
+            if pixels:
+                self._scroll_pixels(pixels, axis=axis)
+
+    def _wheel_units(self, event, axis="y"):
+        number = getattr(event, "num", None)
+        if number == 4:
+            return -1
+        if number == 5:
+            return 1
+        delta = float(getattr(event, "delta", 0) or 0)
+        if not delta:
+            return 0
+        remainder_name = "_wheel_remainder_x" if axis == "x" else "_wheel_remainder_y"
+        remainder = getattr(self, remainder_name) + delta
+        units = int(-remainder / 120.0)
+        setattr(self, remainder_name, remainder + units * 120.0)
+        return units
+
+    def _scroll_pixels(self, pixels, axis="y"):
+        try:
+            region = self.viewport.cget("scrollregion").split()
+            if len(region) < 4:
+                return
+            total = float(region[3] if axis == "y" else region[2])
+            visible = float(self.viewport.winfo_height() if axis == "y" else self.viewport.winfo_width())
+            maximum = max(0.0, total - visible)
+            first, _last = self.viewport.yview() if axis == "y" else self.viewport.xview()
+            # yview/xview fractions are relative to the full scroll region.
+            current = first * total
+            target = max(0.0, min(maximum, current + float(pixels)))
+            fraction = 0.0 if total <= 0 else target / total
+            mover = self.viewport.yview_moveto if axis == "y" else self.viewport.xview_moveto
+            self._present(lambda: mover(fraction))
+        except (tk.TclError, ValueError, TypeError):
+            pass
+
+    def _present(self, move):
+        """Apply a scroll move and paint the result before the next one.
+
+        Tk only repaints from idle callbacks, which never run while a
+        scrollbar drag streams motion events, so Windows kept shifting stale
+        pixels and the page smeared into overlapping ghosts. Each move now
+        runs from a timer and immediately draws the newly exposed area.
+        Moves are never nested: one requested while painting runs as its own
+        frame afterwards.
+        """
+        if self._presenting:
+            self.after(1, lambda: self._present(move))
+            return
+        self._presenting = True
+        try:
+            move()
+            self._sync_scrollbars()
+            self.viewport.update_idletasks()
+            flush_pending_paint(self.viewport)
+        finally:
+            self._presenting = False
+
+    def _scrollbar_yview(self, *args):
+        self._scrollbar_view("y", args)
+
+    def _scrollbar_xview(self, *args):
+        if self.x_scrollbar is None:
+            return
+        self._scrollbar_view("x", args)
+
+    def _scrollbar_view(self, axis, args):
+        # Thumb drags send a "moveto" per mouse event, far faster than the
+        # embedded widgets can repaint, so half-drawn frames tear and overlap.
+        # Keep only the latest drag position and apply it on a timer, which
+        # still fires during a continuous drag (idle callbacks, including
+        # Tk's own repaints, are starved until the mouse stops). Arrow/trough clicks are
+        # relative steps and apply immediately.
+        if args and args[0] == "moveto":
+            self._pending_drag[axis] = args
+            if self._drag_after is None and not self._destroyed:
+                self._drag_after = self.after(1, self._flush_scrollbar_drag)
+            return
+        try:
+            self._present(lambda: (self.viewport.yview if axis == "y" else self.viewport.xview)(*args))
+        except tk.TclError:
+            pass
+
+    def _flush_scrollbar_drag(self):
+        self._drag_after = None
+        pending, self._pending_drag = self._pending_drag, {}
+        if self._destroyed or not pending:
+            return
+
+        def move():
+            for axis, args in pending.items():
+                (self.viewport.yview if axis == "y" else self.viewport.xview)(*args)
+
+        try:
+            self._present(move)
+        except tk.TclError:
+            pass
+
+    def _sync_scrollbars(self):
+        try:
+            self.scrollbar.set(*self.viewport.yview())
+            if self.x_scrollbar is not None:
+                self.x_scrollbar.set(*self.viewport.xview())
+        except tk.TclError:
+            pass
+
+    def begin_scrollbar_drag(self, axis):
+        pass
+
+    def commit_scrollbar_drag(self, axis):
+        self._sync_scrollbars()
+
+    def preview_scrollbar_drag(self, fraction, axis):
+        try:
+            fraction = max(0.0, min(1.0, float(fraction)))
+            if axis == "x" and self.x_scrollbar is not None:
+                self.viewport.xview_moveto(fraction)
+            elif axis == "y":
+                self.viewport.yview_moveto(fraction)
+            self._sync_scrollbars()
+        except (tk.TclError, ValueError, TypeError):
+            pass
+
+    def handle_scrollbar(self, args, axis="y"):
+        if not args:
+            return
+        try:
+            if axis == "y":
+                self.viewport.yview(*args)
+            elif self.x_scrollbar is not None:
+                self.viewport.xview(*args)
+            self._sync_scrollbars()
+        except tk.TclError:
+            pass
+
+    def scroll_by(self, dx=0, dy=0):
+        if dy:
+            self._scroll_pixels(dy, "y")
+        if dx:
+            self._scroll_pixels(dx, "x")
+
     def _scroll_pages(self, direction):
-        self.canvas.yview_scroll(direction, "pages")
+        try:
+            self.viewport.yview_scroll(direction, "pages")
+            self._sync_scrollbars()
+        except tk.TclError:
+            pass
         return "break"
 
     def _scroll_to(self, position):
-        self.canvas.yview_moveto(position)
+        try:
+            self.viewport.yview_moveto(max(0.0, min(1.0, float(position))))
+            self._sync_scrollbars()
+        except tk.TclError:
+            pass
         return "break"
+
+    def max_y_offset(self):
+        try:
+            region = self.viewport.cget("scrollregion").split()
+            return max(0.0, float(region[3]) - self.viewport.winfo_height()) if len(region) >= 4 else 0.0
+        except (tk.TclError, ValueError, TypeError):
+            return 0.0
+
+    def max_x_offset(self):
+        try:
+            region = self.viewport.cget("scrollregion").split()
+            return max(0.0, float(region[2]) - self.viewport.winfo_width()) if len(region) >= 4 else 0.0
+        except (tk.TclError, ValueError, TypeError):
+            return 0.0
+
+    def scroll_to_offsets(self, x=None, y=None, sync=True):
+        try:
+            if x is not None:
+                m = self.max_x_offset()
+                self.viewport.xview_moveto(0 if m <= 0 else max(0, min(1, float(x) / m)))
+            if y is not None:
+                m = self.max_y_offset()
+                self.viewport.yview_moveto(0 if m <= 0 else max(0, min(1, float(y) / m)))
+            if sync:
+                self._sync_scrollbars()
+        except (tk.TclError, ValueError, TypeError):
+            pass
+
+    def destroy(self):
+        self._destroyed = True
+        try:
+            if self._region_after is not None:
+                self.after_cancel(self._region_after)
+            if self._settle_after is not None:
+                self.after_cancel(self._settle_after)
+            if self._drag_after is not None:
+                self.after_cancel(self._drag_after)
+            if self._wheel_after is not None:
+                self.after_cancel(self._wheel_after)
+            root = self.winfo_toplevel()
+            for bind_id, sequence in zip(self._wheel_bind_ids, ("<MouseWheel>", "<Button-4>", "<Button-5>")):
+                # unbind_all() can't target one callback and would drop every
+                # other ScrollFrame's wheel handler, so strip just this one
+                # from the shared "all" binding script.
+                try:
+                    script = str(root.tk.call("bind", "all", sequence))
+                    kept = "\n".join(line for line in script.split("\n") if bind_id not in line)
+                    root.tk.call("bind", "all", sequence, kept)
+                    root.deletecommand(bind_id)
+                except tk.TclError:
+                    pass
+        except tk.TclError:
+            pass
+        self._wheel_bind_ids = []
+        super().destroy()
 
 
 class Tooltip:
@@ -249,13 +701,19 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             pass
         self.dpi_scale, self.size_scale = self._display_scales()
-        self.ui_scale = clamp(max(self.dpi_scale, self.size_scale), 0.95, 1.35)
-        self.font_scale = clamp(self.size_scale, 0.96, 1.12)
+        self.base_ui_scale = clamp(max(self.dpi_scale, self.size_scale), 0.95, 1.35)
+        self.base_font_scale = clamp(self.size_scale, 0.96, 1.12)
+        self.ui_scale = self.base_ui_scale
+        self.font_scale = self.base_font_scale
         try:
             self.tk.call("tk", "scaling", clamp(self.dpi_scale * BASE_DPI / 72, 1.0, 2.4))
         except tk.TclError:
             pass
+        self.theme = "dark"
+        self.rail_width_units = getattr(self, "rail_width_units", 276)
         self.store = MemoryStore()
+        self.accessibility = normalize_accessibility(self.store.accessibility)
+        self.apply_accessibility_preferences()
         self.current_view = "dashboard"
         self.current_review = None
         self.quiz_cards = []
@@ -271,14 +729,15 @@ class MemoryPalApp(tk.Tk):
         self.media_images = []
         self.view_drafts = {}
         self.draft_savers = {}
-        self.theme = "dark"
         self.deck_filter = None
-        self.rail_width_units = 276
         self._hotkeys_bound = False
         self.is_fullscreen = False
         self.is_focus_window = False
         self.restoring_borderless = False
         self.window_transition_active = False
+        self.page_transition_image = None
+        self.page_transition_canvas = None
+        self.page_transition_photo = None
         self.normal_geometry = ""
         self.drag_start = None
         self.resize_start = None
@@ -289,6 +748,8 @@ class MemoryPalApp(tk.Tk):
         self.logo_source_path = bundled_resource_path("assets", "memorypal-logo-preview.png")
         self._pillow_modules = None
         self._pillow_unavailable = False
+        self._font_families = None
+        self.speaker = Speaker()
 
         self.app_icon_path = None
         self.title(f"{APP_NAME} \u2014 {active_profile_name()}")
@@ -312,7 +773,9 @@ class MemoryPalApp(tk.Tk):
         self.deiconify()
         self.after(120, lambda: setattr(self, "_taskbar_ready", self.ensure_taskbar_presence()))
         self.fade_window_in()
-        self.after_idle(lambda: self.show_view("dashboard", transition=False))
+        self.tour = None
+        self.after_idle(lambda: self.show_view(self.start_view(), transition=False))
+        self._ui_ready = True
 
     def capture_normal_geometry(self):
         if not self.is_fullscreen and not self.is_focus_window:
@@ -322,67 +785,159 @@ class MemoryPalApp(tk.Tk):
         if self.window_transition_active:
             return
         target = not self.is_fullscreen
+        if target and not self.is_focus_window:
+            self.capture_normal_geometry()
+        # Going fullscreen is only a resize; the shell reflows in place, so
+        # there is nothing to hide behind a blank cover.
         self.window_transition_active = True
-        cover = self.start_root_cover() if self.winfo_viewable() else None
-        self.after_idle(lambda: self.apply_true_fullscreen(target, cover))
+        self.after_idle(lambda: self.apply_true_fullscreen(target))
 
-    def apply_true_fullscreen(self, target, cover=None):
+    def apply_true_fullscreen(self, target):
+        # Tk refuses the -fullscreen attribute on an override-redirect
+        # (borderless) window, so there a screen-sized borderless window
+        # is the fullscreen; it already covers the taskbar.
+        borderless = bool(self.overrideredirect())
+        screen = (self.winfo_screenwidth(), self.winfo_screenheight())
+
+        def change():
+            if target:
+                self.is_focus_window = False
+                self.is_fullscreen = True
+                if borderless:
+                    self.geometry(f"{screen[0]}x{screen[1]}+0+0")
+                else:
+                    self.attributes("-fullscreen", True)
+            else:
+                if not borderless:
+                    self.attributes("-fullscreen", False)
+                self.is_fullscreen = False
+                if self.normal_geometry:
+                    self.geometry(self.normal_geometry)
+
+        size = screen if target else self.geometry_size(self.normal_geometry)
+        self.restoring_borderless = True
         try:
-            self.restoring_borderless = True
-            self.overrideredirect(False)
-            self.attributes("-fullscreen", target)
+            self.run_window_change(change, size)
         except tk.TclError as exc:
-            self.destroy_transition_cover(cover)
-            self.restoring_borderless = False
-            self.window_transition_active = False
             self.is_fullscreen = False
             self.dialog_alert("Fullscreen unavailable", str(exc), "error")
-            return
-        self.is_fullscreen = target
-        self.is_focus_window = False
-        if not self.is_fullscreen:
-            self.after(80, self.enable_borderless_chrome)
-        self.update_window_controls()
-        self.after(130, lambda: self.finish_window_transition_cover(cover))
+        finally:
+            self.restoring_borderless = False
+            self.window_transition_active = False
 
     def toggle_focus_window(self):
         if self.window_transition_active:
             return
         self.window_transition_active = True
-        cover = self.start_root_cover() if self.winfo_viewable() else None
-        self.after_idle(lambda: self.apply_focus_window(cover))
+        self.after_idle(self.apply_focus_window)
 
-    def apply_focus_window(self, cover=None):
-        if self.is_fullscreen:
-            try:
-                self.attributes("-fullscreen", False)
-            except tk.TclError:
-                pass
-            self.is_fullscreen = False
-        if not self.is_focus_window:
+    def apply_focus_window(self):
+        entering = not self.is_focus_window
+        if entering and not self.is_fullscreen:
             self.capture_normal_geometry()
-            screen_w = self.winfo_screenwidth()
-            screen_h = self.winfo_screenheight()
-            self.geometry(f"{screen_w}x{screen_h}+0+0")
-            self.is_focus_window = True
-        else:
-            if self.normal_geometry:
-                self.geometry(self.normal_geometry)
-            self.is_focus_window = False
-        self.enable_borderless_chrome()
-        self.update_window_controls()
-        self.after(130, lambda: self.finish_window_transition_cover(cover))
+        screen = (self.winfo_screenwidth(), self.winfo_screenheight())
+
+        def change():
+            if self.is_fullscreen:
+                if not self.overrideredirect():
+                    self.attributes("-fullscreen", False)
+                self.is_fullscreen = False
+            if entering:
+                self.geometry(f"{screen[0]}x{screen[1]}+0+0")
+                self.is_focus_window = True
+            else:
+                if self.normal_geometry:
+                    self.geometry(self.normal_geometry)
+                self.is_focus_window = False
+                self.enable_borderless_chrome()
+
+        size = screen if entering else self.geometry_size(self.normal_geometry)
+        try:
+            self.run_window_change(change, size)
+        except tk.TclError:
+            pass
+        finally:
+            self.window_transition_active = False
+
+    @staticmethod
+    def geometry_size(geometry):
+        match = re.match(r"(\d+)x(\d+)", geometry or "")
+        return (int(match.group(1)), int(match.group(2))) if match else None
+
+    def run_window_change(self, change, target_size=None):
+        """Resize the window with every layout and paint pass hidden.
+
+        A pixel-identical snapshot of the screen is shown on top, then the
+        window is resized and all follow-up work (Configure events that
+        rewrap text, page reflow, scroll regions, painting) is settled
+        underneath; removing the snapshot swaps to the finished result in a
+        single frame. Pausing paint alone can't do that, since Windows shows
+        the resized window, new area still blank, before Tk paints it. If no
+        snapshot is available, fall back to pausing paint with the shell laid
+        out at the target size in advance.
+        """
+        cover = None
+        if not self.use_native_window_chrome:
+            cover = show_screen_cover(self.winfo_screenwidth(), self.winfo_screenheight())
+        frozen = False if cover is not None else self.set_redraw_frozen(True)
+        try:
+            if target_size and cover is None:
+                self.prelayout_shell(*target_size)
+            change()
+            self.update_window_controls()
+            self.settle_layout()
+        finally:
+            if frozen:
+                self.set_redraw_frozen(False)
+            flush_pending_paint(self)
+            if cover is not None:
+                remove_screen_cover(cover)
+
+    def prelayout_shell(self, width, height):
+        """Lay the rail and main area out for a window size not applied yet."""
+        chrome = getattr(self, "app_chrome", None)
+        try:
+            chrome_h = chrome.winfo_height() if chrome is not None and chrome.winfo_ismapped() else 0
+            body_h = max(1, height - chrome_h)
+            rail_w = self.px(self.rail_width_units)
+            self.rail.place_configure(height=body_h, relheight=0)
+            self.main.place_configure(width=max(1, width - rail_w), height=body_h, relwidth=0, relheight=0)
+        except (AttributeError, tk.TclError):
+            return
+        self.settle_layout(relayout_shell=False)
+
+    def settle_layout(self, rounds=6, relayout_shell=True):
+        # Configure-driven work (label rewrapping, scroll regions) runs from
+        # window events, not idle tasks, so alternate both until nothing new
+        # is queued.
+        for _ in range(rounds):
+            self.update_idletasks()
+            if relayout_shell:
+                self.layout_app_body()
+            if not flush_pending_paint(self):
+                break
+
+    def set_redraw_frozen(self, frozen):
+        """Suspend or resume painting of the whole window (Windows only).
+
+        Growing the window exposes new area that Tk fills in over several
+        geometry passes (window, shell, pages, scroll regions), and each pass
+        was painted as it happened, which read as a flash. Freezing redraw
+        while all of that settles lets the window repaint once, fully laid
+        out. Tk's client window is frozen, not the outer wrapper: while the
+        wrapper's redraw is off Windows reports it as hidden and Tk skips the
+        pending resize entirely. Returns True if painting was changed.
+        """
+        if self.use_native_window_chrome:
+            return False
+        return set_window_redraw(self, not frozen)
 
     def finish_window_transition_cover(self, cover):
-        if cover:
-            self.fade_simple_cover(cover)
-            self.after(190, lambda: setattr(self, "window_transition_active", False))
-        else:
-            self.after(60, lambda: setattr(self, "window_transition_active", False))
+        # Compatibility helper for callers that want to end a window veil.
+        self.destroy_transition_cover(cover)
+        self.window_transition_active = False
 
     def update_window_controls(self):
-        if hasattr(self, "fullscreen_button") and self.fullscreen_button.winfo_exists():
-            self.fullscreen_button.configure(text=("Exit Fullscreen" if self.is_fullscreen else "Fullscreen"))
         if hasattr(self, "chrome_fullscreen_button") and self.chrome_fullscreen_button.winfo_exists():
             symbol = "\u2750" if self.is_focus_window else "\u25a1"
             if hasattr(self.chrome_fullscreen_button, "set_symbol"):
@@ -403,11 +958,27 @@ class MemoryPalApp(tk.Tk):
         except (AttributeError, tk.TclError):
             pass
 
+    def center_canvas_item(self, canvas, item, x, y):
+        try:
+            bbox = canvas.bbox(item)
+        except tk.TclError:
+            bbox = None
+        if not bbox:
+            return
+        current_x = (bbox[0] + bbox[2]) / 2
+        current_y = (bbox[1] + bbox[3]) / 2
+        canvas.move(item, x - current_x, y - current_y)
+
+    def create_centered_canvas_text(self, canvas, x, y, text, **kwargs):
+        item = canvas.create_text(x, y, text=text, **kwargs)
+        self.center_canvas_item(canvas, item, x, y)
+        return item
+
     def draw_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0):
-        """Draw smoother custom UI shapes when Pillow is available."""
+        """Draw smoother custom UI shapes with Pillow or the built-in fallback."""
         modules = self.pillow_modules()
         if not modules:
-            return False
+            return self.draw_builtin_antialiased_shape(canvas, width, height, fill, shape, radius, inset)
         Image, ImageDraw, ImageTk = modules
         try:
             width = int(width)
@@ -442,6 +1013,156 @@ class MemoryPalApp(tk.Tk):
         except Exception:
             return False
 
+    def draw_builtin_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0):
+        """Draw small antialiased shapes without optional Pillow installed."""
+        try:
+            width = int(width)
+            height = int(height)
+            inset = int(inset)
+            radius = int(radius if radius is not None else height / 2)
+            key = ("builtin", width, height, fill, shape, radius, inset)
+            photo = self.shape_photo_cache.get(key)
+            if photo is None:
+                photo = self.make_shape_photo(width, height, fill, shape, radius, inset)
+                if photo is None:
+                    return False
+                if len(self.shape_photo_cache) > 64:
+                    self.shape_photo_cache.clear()
+                self.shape_photo_cache[key] = photo
+            canvas.create_image(0, 0, image=photo, anchor="nw")
+            canvas._memorypal_shape = photo
+            return True
+        except Exception:
+            return False
+
+    def make_shape_photo(self, width, height, fill, shape="round_rect", radius=None, inset=0):
+        rgb = self.hex_to_rgb(fill)
+        if rgb is None or width < 1 or height < 1:
+            return None
+        radius = max(0, min(float(radius or 0), width / 2, height / 2))
+        inset = max(0, float(inset))
+        scale = 4 if max(width, height) <= 90 else 3
+        samples = scale * scale
+        x0 = inset
+        y0 = inset
+        x1 = max(x0, width - inset)
+        y1 = max(y0, height - inset)
+
+        def inside(px, py):
+            if shape == "oval":
+                cx = (x0 + x1) / 2
+                cy = (y0 + y1) / 2
+                rx = max(0.5, (x1 - x0) / 2)
+                ry = max(0.5, (y1 - y0) / 2)
+                return ((px - cx) / rx) ** 2 + ((py - cy) / ry) ** 2 <= 1
+            if not (x0 <= px <= x1 and y0 <= py <= y1):
+                return False
+            corner_x = min(max(px, x0 + radius), x1 - radius)
+            corner_y = min(max(py, y0 + radius), y1 - radius)
+            return (px - corner_x) ** 2 + (py - corner_y) ** 2 <= radius ** 2
+
+        pixels = bytearray()
+        for y in range(height):
+            for x in range(width):
+                covered = 0
+                for sy in range(scale):
+                    py = y + (sy + 0.5) / scale
+                    for sx in range(scale):
+                        px = x + (sx + 0.5) / scale
+                        if inside(px, py):
+                            covered += 1
+                alpha = int(round(255 * covered / samples))
+                pixels.extend((*rgb, alpha))
+        data = self.png_rgba(width, height, bytes(pixels))
+        encoded = base64.b64encode(data).decode("ascii")
+        return tk.PhotoImage(data=encoded, format="png")
+
+    def draw_antialiased_ring(self, canvas, size, track_color, progress_color, pct, stroke):
+        try:
+            size = int(size)
+            stroke = int(stroke)
+            pct = clamp(float(pct), 0, 1)
+            key = ("ring", size, track_color, progress_color, round(pct, 4), stroke)
+            photo = self.shape_photo_cache.get(key)
+            if photo is None:
+                photo = self.make_ring_photo(size, track_color, progress_color, pct, stroke)
+                if photo is None:
+                    return False
+                if len(self.shape_photo_cache) > 72:
+                    self.shape_photo_cache.clear()
+                self.shape_photo_cache[key] = photo
+            canvas.create_image(0, 0, image=photo, anchor="nw")
+            canvas._memorypal_ring = photo
+            return True
+        except Exception:
+            return False
+
+    def make_ring_photo(self, size, track_color, progress_color, pct, stroke):
+        track_rgb = self.hex_to_rgb(track_color)
+        progress_rgb = self.hex_to_rgb(progress_color)
+        if track_rgb is None or progress_rgb is None or size < 4 or stroke < 1:
+            return None
+        scale = 4 if size <= 180 else 3
+        samples = scale * scale
+        center = size / 2
+        radius = max(1, (size - stroke - 2) / 2)
+        edge = 0.85
+        progress_sweep = pct * 360
+        pixels = bytearray()
+
+        for y in range(size):
+            for x in range(size):
+                track_hits = 0.0
+                progress_hits = 0.0
+                for sy in range(scale):
+                    py = y + (sy + 0.5) / scale
+                    for sx in range(scale):
+                        px = x + (sx + 0.5) / scale
+                        dx = px - center
+                        dy = py - center
+                        distance = math.hypot(dx, dy)
+                        radial = max(0.0, min(1.0, (stroke / 2 + edge - abs(distance - radius)) / edge))
+                        if radial <= 0:
+                            continue
+                        track_hits += radial
+                        if progress_sweep > 0:
+                            angle = (math.degrees(math.atan2(dx, -dy)) + 360) % 360
+                            if angle <= progress_sweep:
+                                progress_hits += radial
+                track_alpha = int(round(255 * track_hits / samples))
+                progress_alpha = int(round(255 * progress_hits / samples))
+                if progress_alpha:
+                    pixels.extend((*progress_rgb, progress_alpha))
+                else:
+                    pixels.extend((*track_rgb, track_alpha))
+        data = self.png_rgba(size, size, bytes(pixels))
+        encoded = base64.b64encode(data).decode("ascii")
+        return tk.PhotoImage(data=encoded, format="png")
+
+    def hex_to_rgb(self, hex_color):
+        raw = str(hex_color).lstrip("#")
+        if len(raw) != 6:
+            return None
+        try:
+            return tuple(int(raw[index:index + 2], 16) for index in (0, 2, 4))
+        except ValueError:
+            return None
+
+    def png_rgba(self, width, height, rgba):
+        def chunk(kind, data):
+            payload = kind + data
+            checksum = zlib.crc32(payload) & 0xFFFFFFFF
+            return struct.pack(">I", len(data)) + payload + struct.pack(">I", checksum)
+
+        rows = bytearray()
+        stride = width * 4
+        for y in range(height):
+            rows.append(0)
+            start = y * stride
+            rows.extend(rgba[start:start + stride])
+        header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+        return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(bytes(rows), 9)) + chunk(b"IEND", b"")
+
     def pillow_modules(self):
         if self._pillow_modules is not None:
             return self._pillow_modules
@@ -466,10 +1187,32 @@ class MemoryPalApp(tk.Tk):
             photo = self.logo_photo_cache.get(key)
             if photo is None:
                 if source_png and source_png.exists():
-                    photo = tk.PhotoImage(file=str(source_png))
-                    factor = max(1, max((photo.width() + size - 1) // size, (photo.height() + size - 1) // size))
-                    if factor > 1:
-                        photo = photo.subsample(factor, factor)
+                    modules = self.pillow_modules()
+                    if modules:
+                        Image, _ImageDraw, ImageTk = modules
+                        with Image.open(source_png) as source_image:
+                            image = source_image.convert("RGBA")
+                        if image.size != (size, size):
+                            resampling = getattr(Image, "Resampling", Image)
+                            lanczos = getattr(resampling, "LANCZOS", getattr(Image, "LANCZOS", 1))
+                            image = image.resize((size, size), lanczos)
+                        photo = ImageTk.PhotoImage(image)
+                    else:
+                        pixels = render_icon_pixels(size, scale=3 if size <= 96 else 2)
+                        bg_rgb = [value // 256 for value in self.winfo_rgb(bg)]
+                        rows = []
+                        for row in pixels:
+                            colors = []
+                            for red, green, blue, alpha in row:
+                                if alpha < 255:
+                                    ratio = alpha / 255
+                                    red = round(red * ratio + bg_rgb[0] * (1 - ratio))
+                                    green = round(green * ratio + bg_rgb[1] * (1 - ratio))
+                                    blue = round(blue * ratio + bg_rgb[2] * (1 - ratio))
+                                colors.append(f"#{red:02x}{green:02x}{blue:02x}")
+                            rows.append("{" + " ".join(colors) + "}")
+                        photo = tk.PhotoImage(width=size, height=size)
+                        photo.put(" ".join(rows))
                 else:
                     pixels = render_icon_pixels(size, scale=3 if size <= 96 else 2)
                     bg_rgb = [value // 256 for value in self.winfo_rgb(bg)]
@@ -528,14 +1271,47 @@ class MemoryPalApp(tk.Tk):
     def exit_fullscreen(self):
         self.exit_fullscreen_or_focus()
 
-    def fade_window_in(self, step=0):
+    def fade_window_in(self, step=0, callback=None):
+        if getattr(self, "accessibility", {}).get("reduce_motion"):
+            try:
+                self.attributes("-alpha", 1.0)
+            except tk.TclError:
+                pass
+            if callback:
+                callback()
+            return
         alpha_steps = FADE_IN_CURVE
         try:
             self.attributes("-alpha", alpha_steps[min(step, len(alpha_steps) - 1)])
         except tk.TclError:
+            if callback:
+                callback()
             return
         if step < len(alpha_steps) - 1:
-            self.after(FADE_STEP_MS, lambda: self.fade_window_in(step + 1))
+            self.after(FADE_STEP_MS, lambda: self.fade_window_in(step + 1, callback))
+        elif callback:
+            callback()
+
+    def fade_window_out(self, callback, step=0):
+        """Fade the whole app out before a window-mode transition."""
+        if getattr(self, "accessibility", {}).get("reduce_motion"):
+            try:
+                self.attributes("-alpha", 0.0)
+            except tk.TclError:
+                pass
+            callback()
+            return
+        progress = FADE_IN_CURVE[min(step, len(FADE_IN_CURVE) - 1)]
+        alpha = 1.0 - progress
+        try:
+            self.attributes("-alpha", alpha)
+        except tk.TclError:
+            callback()
+            return
+        if step < len(FADE_IN_CURVE) - 1:
+            self.after(FADE_STEP_MS, lambda: self.fade_window_out(callback, step + 1))
+        else:
+            callback()
 
     def restore_window_chrome(self, _event=None):
         if self.use_native_window_chrome:
@@ -672,10 +1448,15 @@ class MemoryPalApp(tk.Tk):
         self.resize_start = None
         self.pending_resize_geometry = None
         if geometry:
-            cover = self.start_root_cover() if self.winfo_viewable() else None
-            self.geometry(geometry)
-            if cover:
-                self.after(90, lambda: self.fade_simple_cover(cover))
+            # Resize the existing widget tree directly.  The layout managers
+            # already respond to <Configure>; hiding the whole application here
+            # only masked the underlying geometry problem.
+            try:
+                self.geometry(geometry)
+                self.update_idletasks()
+                self.layout_app_body()
+            except tk.TclError:
+                pass
 
     def ease_out_cubic(self, step, total_steps):
         progress = clamp(step / max(1, total_steps), 0, 1)
@@ -691,9 +1472,9 @@ class MemoryPalApp(tk.Tk):
                     grip.place_forget()
             return
         placements = (
-            {"relx": 1, "rely": 0, "anchor": "ne", "width": self.px(8), "relheight": 1},
-            {"relx": 0, "rely": 1, "anchor": "sw", "relwidth": 1, "height": self.px(8)},
-            {"relx": 1, "rely": 1, "anchor": "se", "width": self.px(20), "height": self.px(20)},
+            {"relx": 1, "rely": 0, "anchor": "ne", "width": self.px(5), "relheight": 1},
+            {"relx": 0, "rely": 1, "anchor": "sw", "relwidth": 1, "height": self.px(5)},
+            {"relx": 1, "rely": 1, "anchor": "se", "width": self.px(18), "height": self.px(18)},
         )
         for grip, placement in zip(grips, placements):
             if grip.winfo_exists():
@@ -703,6 +1484,7 @@ class MemoryPalApp(tk.Tk):
         return [
             ("dashboard", "Dashboard", "D"),
             ("training", "Memory Gym", "G"),
+            ("elder", "Everyday Memory", "Em"),
             ("decks", "Decks", "De"),
             ("plan", "Study Plan", "P"),
             ("focus", "Focus", "F"),
@@ -740,6 +1522,50 @@ class MemoryPalApp(tk.Tk):
         self.store.nav_order = ordered
         self.store.save()
 
+    def destroy_transition_cover(self, cover):
+        if not cover:
+            return
+        try:
+            if cover.winfo_exists():
+                cover.destroy()
+        except tk.TclError:
+            pass
+        if getattr(self, "root_cover", None) is cover:
+            self.root_cover = None
+
+    def fade_frame_cover(self, cover, step=0):
+        # Tk child widgets can't be partially transparent, so any animated
+        # reveal (wipes, stipple "fades") shows as a sliding edge or popping
+        # texture. Instead the cover hides the new page while it is built
+        # and laid out, then is removed in a single step once geometry has
+        # settled, which reads as a clean cut with no half-drawn frames.
+        if not cover or not cover.winfo_exists():
+            return
+        try:
+            self.update_idletasks()
+        except tk.TclError:
+            pass
+        self.destroy_transition_cover(cover)
+
+    def start_transition_cover(self, scope="content"):
+        try:
+            self.update_idletasks()
+        except tk.TclError:
+            return None
+        parent = self if scope == "root" else getattr(self, scope, None)
+        if parent is None or not parent.winfo_exists():
+            return None
+        color = COLORS["rail"] if scope == "rail" else COLORS["bg"]
+        cover = tk.Canvas(parent, bg=color, highlightthickness=0, bd=0)
+        cover.memorypal_scope = scope
+        cover.memorypal_cover_color = color
+        cover.place(relx=0, rely=0, relwidth=1, relheight=1)
+        cover.bind("<Configure>", lambda _event, target=cover: self.paint_cover(target), add="+")
+        self.paint_cover(cover)
+        self.raise_widget(cover)
+        cover.update_idletasks()
+        return cover
+
     def rebuild_shell(self, view=None, refresh_styles=False, cover=None):
         current = view or self.current_view
         cover = cover or self.start_root_cover()
@@ -749,7 +1575,9 @@ class MemoryPalApp(tk.Tk):
             child.destroy()
         self.configure(bg=COLORS["bg"])
         if cover and cover.winfo_exists():
+            cover.memorypal_cover_color = COLORS["bg"]
             cover.configure(bg=COLORS["bg"])
+            self.paint_cover(cover)
             self.raise_widget(cover)
             cover.update()
         if refresh_styles:
@@ -759,23 +1587,14 @@ class MemoryPalApp(tk.Tk):
         self.raise_widget(cover)
         self.after(70, lambda: self.fade_simple_cover(cover))
 
-    def cover_geometry(self, scope="root"):
-        self.update_idletasks()
-        if scope == "root":
-            target = self
-        elif scope == "main":
-            target = getattr(self, "main", self)
-        elif scope == "rail":
-            target = getattr(self, "rail", self)
-        else:
-            target = getattr(self, "content", self)
-        if not target.winfo_viewable():
-            return None
-        width = max(1, target.winfo_width())
-        height = max(1, target.winfo_height())
-        if width <= 1 or height <= 1:
-            return None
-        return f"{width}x{height}+{target.winfo_rootx()}+{target.winfo_rooty()}"
+    def update_cover_geometry(self, cover):
+        if not cover or not cover.winfo_exists():
+            return
+        try:
+            cover.place_configure(relx=0, rely=0, relwidth=1, relheight=1)
+            self.raise_widget(cover)
+        except tk.TclError:
+            pass
 
     def make_frame_cover(self, scope="root"):
         if scope == "root":
@@ -805,9 +1624,8 @@ class MemoryPalApp(tk.Tk):
         try:
             if stipple is None:
                 stipple = getattr(cover, "memorypal_cover_stipple", "")
-            else:
-                cover.memorypal_cover_stipple = stipple
-            cover.delete("veil")
+            cover.memorypal_cover_stipple = stipple
+            cover.delete("all")
             color = getattr(cover, "memorypal_cover_color", COLORS["bg"])
             cover.configure(bg=color)
             width = max(1, cover.winfo_width())
@@ -821,7 +1639,7 @@ class MemoryPalApp(tk.Tk):
         if not self.winfo_viewable():
             return None
         self.destroy_transition_cover(self.root_cover)
-        cover = self.make_frame_cover("root")
+        cover = self.start_transition_cover("root")
         self.root_cover = cover
         return cover
 
@@ -829,6 +1647,9 @@ class MemoryPalApp(tk.Tk):
         if not cover or not cover.winfo_exists():
             return
         self.raise_widget(cover)
+        if getattr(self, "accessibility", {}).get("reduce_motion"):
+            self.after(110, lambda target=cover: self.destroy_transition_cover(target))
+            return
         self.fade_frame_cover(cover, step=step)
 
     def show_popup_window(self, top, owner, width=None, height=None, modal=True):
@@ -851,6 +1672,12 @@ class MemoryPalApp(tk.Tk):
     def fade_popup_in(self, top, step=0):
         if not top.winfo_exists():
             return
+        if getattr(self, "accessibility", {}).get("reduce_motion"):
+            try:
+                top.attributes("-alpha", 1.0)
+            except tk.TclError:
+                pass
+            return
         alpha_steps = FADE_IN_CURVE
         try:
             top.attributes("-alpha", alpha_steps[min(step, len(alpha_steps) - 1)])
@@ -870,11 +1697,139 @@ class MemoryPalApp(tk.Tk):
         size_scale = clamp(min(screen_w / 1536, screen_h / 960), 0.92, 1.14)
         return dpi_scale, size_scale
 
+    def accessibility_multiplier(self):
+        return {
+            "Comfort": 1.0,
+            "Large": 1.14,
+            "Extra Large": 1.28,
+        }.get(self.accessibility.get("text_size", "Comfort"), 1.0)
+
+    def apply_accessibility_palette(self):
+        if not self.accessibility.get("high_contrast"):
+            return
+        if self.theme == "light":
+            COLORS.update({
+                "bg": "#eef3fb",
+                "surface": "#ffffff",
+                "alt": "#dbe8f7",
+                "muted": "#25324a",
+                "line": "#8da4bf",
+                "soft_line": "#6f86a3",
+                "primary": "#005fcc",
+                "primary_dark": "#004b9f",
+                "rail": "#07111f",
+                "rail_hover": "#13233b",
+            })
+        else:
+            COLORS.update({
+                "bg": "#0b1220",
+                "surface": "#101b2d",
+                "alt": "#1d2c45",
+                "muted": "#d5dfef",
+                "line": "#74859f",
+                "soft_line": "#91a2bd",
+                "primary": "#8dccff",
+                "primary_dark": "#5eb6ff",
+                "rail": "#050914",
+                "rail_hover": "#172640",
+            })
+
+    def apply_theme_palette(self):
+        COLORS.clear()
+        COLORS.update(DARK_COLORS if self.theme == "dark" else LIGHT_COLORS)
+        self.apply_accessibility_palette()
+
+    def apply_accessibility_preferences(self):
+        self.accessibility = normalize_accessibility(self.accessibility)
+        multiplier = self.accessibility_multiplier()
+        self.font_scale = clamp(self.base_font_scale * multiplier, 0.96, 1.48)
+        self.ui_scale = clamp(self.base_ui_scale * (1 + (multiplier - 1) * 0.55), 0.95, 1.55)
+        self.rail_width_units = 294 if multiplier > 1.1 else 276
+        self.apply_theme_palette()
+
+    def update_accessibility_preference(self, key, value, rebuild=True):
+        self.accessibility[key] = value
+        self.accessibility = normalize_accessibility(self.accessibility)
+        self.store.accessibility = dict(self.accessibility)
+        self.store.save()
+        if rebuild:
+            self.save_current_draft()
+            cover = self.start_root_cover()
+            current = self.current_view
+            self.apply_accessibility_preferences()
+            self.configure(bg=COLORS["bg"])
+            self.rebuild_shell(current, refresh_styles=True, cover=cover)
+
+    def apply_senior_layout_defaults(self):
+        self.accessibility.update({
+            "text_size": "Large",
+            "high_contrast": True,
+            "reduce_motion": True,
+            "simple_language": True,
+            "caregiver_mode": True,
+            "more_time": True,
+        })
+        self.store.accessibility = normalize_accessibility(self.accessibility)
+        self.set_nav_order(["dashboard", "elder", "training", "capture", "review", "testing", "games", "library", "stats", "settings"])
+        self.apply_accessibility_preferences()
+        self.rebuild_shell("settings", refresh_styles=True)
+        self.toast_message("Senior-friendly layout applied.")
+
+    def speak(self, text):
+        """Read text aloud with the system voice (slower when More time is on)."""
+        if not self.speaker.speak(text, slow=self.accessibility.get("more_time", False)):
+            self.toast_message("Read aloud isn't available on this computer.")
+
+    def read_aloud_button(self, parent, text, label="Read aloud"):
+        button = ttk.Button(parent, text=label, command=lambda: self.speak(text))
+        self.add_tooltip(button, "Read this out loud with the computer's voice. Works offline.")
+        return button
+
+    def show_focus_outline(self):
+        return bool(self.accessibility.get("focus_outline") or self.accessibility.get("high_contrast"))
+
+    def focus_color(self):
+        return COLORS.get("focus", "#f5b301")
+
+    def pace(self, milliseconds):
+        """Stretch timed displays when the More time preference is on."""
+        return int(milliseconds * (2 if self.accessibility.get("more_time") else 1))
+
+    def plain(self, normal, simple):
+        return simple if self.accessibility.get("simple_language") else normal
+
+    def describe_assessment(self, checked):
+        if not self.accessibility.get("simple_language"):
+            return f"{checked['label']} | {checked['score']}% | Bucket: {checked['bucket']} | Reps: {checked['repetitions']} | {checked['detail']}"
+        message = {
+            "Easy": "Well done — you remembered it.",
+            "Good": "Nearly all there.",
+            "Review": "You remembered part of it.",
+            "Again": "Not quite yet — that's okay, it will come back soon.",
+        }.get(checked["bucket"], checked["label"])
+        if checked["detail"].startswith("Missing key cues:"):
+            message += " Words that would help: " + checked["detail"].split(":", 1)[1].strip() + "."
+        return message
+
+    def rating_label(self, bucket):
+        return self.plain(bucket, {"Again": "Not yet", "Review": "Hard", "Good": "Got it", "Easy": "Easy"}.get(bucket, bucket))
+
     def px(self, value):
         return max(1, int(round(value * self.ui_scale)))
 
     def font(self, family, size):
         return (family, max(8, int(round(size * self.font_scale))))
+
+    def available_font(self, *families, fallback="Segoe UI Symbol"):
+        if self._font_families is None:
+            try:
+                self._font_families = set(tkfont.families(self))
+            except tk.TclError:
+                self._font_families = set()
+        for family in families:
+            if family in self._font_families:
+                return family
+        return fallback
 
     def pad(self, *values):
         return tuple(self.px(value) for value in values)
@@ -921,7 +1876,26 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("TEntry", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], insertcolor=COLORS["ink"], bordercolor=COLORS["line"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
         self.style.map("TEntry", bordercolor=[("focus", COLORS["primary"])], lightcolor=[("focus", COLORS["input"])], darkcolor=[("focus", COLORS["input"])])
         self.style.configure("TCombobox", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], bordercolor=COLORS["line"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
-        self.style.configure("Vertical.TScrollbar", gripcount=0, background=COLORS["muted"], darkcolor=COLORS["bg"], lightcolor=COLORS["bg"], troughcolor=COLORS["bg"], bordercolor=COLORS["bg"], arrowcolor=COLORS["muted"], relief="flat")
+        for scrollbar_style in ("Vertical.TScrollbar", "Horizontal.TScrollbar"):
+            self.style.configure(
+                scrollbar_style,
+                gripcount=0,
+                width=self.px(10),
+                arrowsize=self.px(9),
+                background=COLORS["muted"],
+                darkcolor=COLORS["muted"],
+                lightcolor=COLORS["muted"],
+                troughcolor=COLORS["bg"],
+                bordercolor=COLORS["bg"],
+                arrowcolor=COLORS["muted"],
+                relief="flat",
+            )
+            self.style.map(
+                scrollbar_style,
+                background=[("pressed", COLORS["primary"]), ("active", COLORS["primary"])],
+                arrowcolor=[("active", COLORS["primary"])],
+            )
+        self.style.configure("Rail.Vertical.TScrollbar", gripcount=0, width=self.px(13), arrowsize=self.px(11), background=COLORS["muted"], darkcolor=COLORS["rail"], lightcolor=COLORS["rail"], troughcolor=COLORS["rail"], bordercolor=COLORS["rail"], arrowcolor=COLORS["muted"], relief="flat")
         self.style.configure("Horizontal.TProgressbar", troughcolor=COLORS["alt"], background=COLORS["primary"], bordercolor=COLORS["alt"], lightcolor=COLORS["primary"], darkcolor=COLORS["primary"])
         self.style.configure("TButton", padding=self.pad(18, 12), background=COLORS["surface_soft"], foreground=COLORS["ink"], borderwidth=0, relief="flat", focuscolor=COLORS["surface_soft"], font=self.font("Segoe UI Semibold", 11))
         self.style.map("TButton", background=[("active", COLORS["alt"]), ("pressed", self.tint(COLORS["alt"], -14))], foreground=[("active", COLORS["primary"])])
@@ -940,6 +1914,12 @@ class MemoryPalApp(tk.Tk):
         self.style.map("Nav.TButton", background=[("active", COLORS["rail_hover"])], foreground=[("active", COLORS["white"])])
         self.style.configure("ActiveNav.TButton", padding=self.pad(20, 15), background=COLORS["primary"], foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", focuscolor=COLORS["primary"], font=self.font("Segoe UI Semibold", 12))
 
+        if self.show_focus_outline():
+            # A bright ring on the focused button so keyboard (Tab) users can
+            # always see where they are; by default the ring matched the
+            # button colour and was invisible.
+            for name in ("TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton"):
+                self.style.configure(name, focuscolor=self.focus_color(), focusthickness=max(2, self.px(3)))
     def draw_chrome_icon(self, canvas, size):
         canvas.delete("all")
         if self.draw_memorypal_logo(canvas, size):
@@ -993,7 +1973,25 @@ class MemoryPalApp(tk.Tk):
                 text_color = fg or (COLORS["primary"] if hover else COLORS["muted"])
                 if not self.draw_antialiased_shape(button, width, height, fill, radius=self.px(10)):
                     button.create_rectangle(0, 0, width, height, fill=fill, outline="")
-                button.create_text(width // 2, height // 2, text=symbol["value"], fill=text_color, font=self.font("Segoe UI Symbol", 12))
+                cx = width / 2
+                cy = height / 2
+                value = symbol["value"]
+                # Draw the window controls geometrically instead of using font glyphs.
+                # Font metrics make X/minimize/maximize symbols look subtly off-center
+                # on different platforms and scaling levels.
+                stroke = max(2, self.px(2))
+                if value == "\u00d7":
+                    arm = self.px(6)
+                    button.create_line(cx - arm, cy - arm, cx + arm, cy + arm, fill=text_color, width=stroke, capstyle="round")
+                    button.create_line(cx + arm, cy - arm, cx - arm, cy + arm, fill=text_color, width=stroke, capstyle="round")
+                elif value == "\u2212":
+                    arm = self.px(7)
+                    button.create_line(cx - arm, cy, cx + arm, cy, fill=text_color, width=stroke, capstyle="round")
+                elif value in ("\u25a1", "\u2750"):
+                    half = self.px(6)
+                    button.create_rectangle(cx - half, cy - half, cx + half, cy + half, outline=text_color, width=stroke)
+                else:
+                    self.create_centered_canvas_text(button, cx, cy, value, fill=text_color, font=self.font("Segoe UI Symbol", 12))
 
             def set_symbol(value):
                 symbol["value"] = value
@@ -1015,18 +2013,173 @@ class MemoryPalApp(tk.Tk):
         close = chrome_button("\u00d7", close_command, COLORS["danger"], COLORS["white"], "Close")
         return bar
 
+    def nav_visible_count(self):
+        host = getattr(self, "nav_list_host", None)
+        if not host or not host.winfo_exists():
+            return 7
+        try:
+            height = max(1, host.winfo_height())
+        except tk.TclError:
+            return 7
+        # Measure the real Previous/Next controls, range label and nav button
+        # height rather than guessing, so the last item is never clipped
+        # behind the footer. Both controls are always reserved so the count
+        # doesn't change (and reshuffle the list) when one appears.
+        try:
+            footer_h = (
+                self.nav_down_button.winfo_reqheight() + self.px(2)
+                + self.nav_range_label.winfo_reqheight() + self.px(6)
+                + self.px(26)
+            )
+            up_h = self.nav_up_button.winfo_reqheight() + self.px(8)
+        except (AttributeError, tk.TclError):
+            footer_h, up_h = self.px(90), self.px(46)
+        top_h = max(self.nav_top_padding(False), self.nav_top_padding(True) + up_h)
+        reserved = footer_h + top_h + self.px(6)
+        item_step = max(getattr(self, "_nav_item_step", 0) or self.px(58), 1)
+        count = int((height - reserved) // item_step)
+        return max(3, min(8, count))
+
+    def nav_top_padding(self, has_previous=False):
+        # Minimum gap above/below the item list; the spacers in
+        # render_nav_page expand past this to centre the list vertically.
+        return self.px(8)
+
+    def bind_nav_wheel(self, widget):
+        widget.bind("<MouseWheel>", self.handle_nav_wheel, add="+")
+        widget.bind("<Button-4>", self.handle_nav_wheel, add="+")
+        widget.bind("<Button-5>", self.handle_nav_wheel, add="+")
+
+    def handle_nav_wheel(self, event):
+        if getattr(event, "num", None) == 4:
+            self.shift_nav_window(-2)
+            return "break"
+        if getattr(event, "num", None) == 5:
+            self.shift_nav_window(2)
+            return "break"
+        delta = getattr(event, "delta", 0)
+        if not delta:
+            return "break"
+        steps = max(1, min(4, abs(int(delta / 120)) or 1))
+        self.shift_nav_window(-steps if delta > 0 else steps)
+        return "break"
+
+    def shift_nav_window(self, delta):
+        items = getattr(self, "nav_items_cache", self.ordered_nav_items())
+        visible = self.nav_visible_count()
+        max_first = max(0, len(items) - visible)
+        current = int(getattr(self, "nav_first_index", 0))
+        next_index = int(clamp(current + delta, 0, max_first))
+        if next_index == current:
+            return
+        self.nav_first_index = next_index
+        self.render_nav_page()
+
+    def ensure_nav_item_visible(self, key):
+        items = getattr(self, "nav_items_cache", self.ordered_nav_items())
+        keys = [item_key for item_key, _label, _short in items]
+        if key not in keys:
+            return
+        index = keys.index(key)
+        visible = self.nav_visible_count()
+        first = int(getattr(self, "nav_first_index", 0))
+        if index < first:
+            self.nav_first_index = index
+        elif index >= first + visible:
+            self.nav_first_index = max(0, index - visible + 1)
+        self.render_nav_page()
+
+    def render_nav_page(self):
+        host = getattr(self, "nav_list_frame", None)
+        if not host or not host.winfo_exists():
+            return
+        for child in host.winfo_children():
+            child.destroy()
+
+        items = getattr(self, "nav_items_cache", self.ordered_nav_items())
+        visible = self.nav_visible_count()
+        max_first = max(0, len(items) - visible)
+        first = int(clamp(getattr(self, "nav_first_index", 0), 0, max_first))
+        self.nav_first_index = first
+        end = min(len(items), first + visible)
+        self.nav_buttons = {}
+        above = first > 0
+        below = end < len(items)
+
+        # Equal expanding spacers above and below keep the visible page of
+        # items vertically centred between the brand and the footer controls.
+        top_padding = self.nav_top_padding(has_previous=above)
+        spacer = tk.Frame(host, bg=COLORS["rail"], height=top_padding)
+        spacer.pack(fill="both", expand=True)
+        self.bind_nav_wheel(spacer)
+
+        for key, label, _short in items[first:end]:
+            button = ttk.Button(
+                host,
+                text=label,
+                style="Nav.TButton",
+                command=lambda view=key: self.show_view(view),
+            )
+            button.pack(fill="x", padx=self.px(20), pady=self.px(6))
+            self.bind_nav_wheel(button)
+            self.add_tooltip(button, self.nav_hint(key))
+            self.nav_buttons[key] = button
+
+        bottom_spacer = tk.Frame(host, bg=COLORS["rail"], height=top_padding)
+        bottom_spacer.pack(fill="both", expand=True)
+        self.bind_nav_wheel(bottom_spacer)
+
+        if hasattr(self, "nav_range_label") and self.nav_range_label.winfo_exists():
+            self.nav_range_label.configure(text=f"{first + 1}-{end} of {len(items)}")
+        if hasattr(self, "nav_up_button") and self.nav_up_button.winfo_exists():
+            if above:
+                if not self.nav_up_button.winfo_manager():
+                    self.nav_up_button.pack(fill="x", padx=self.px(20), pady=(0, self.px(8)), before=self.nav_list_frame)
+                self.nav_up_button.configure(fg=COLORS["muted"], cursor="hand2")
+            else:
+                self.nav_up_button.pack_forget()
+        if hasattr(self, "nav_down_button") and self.nav_down_button.winfo_exists():
+            if below:
+                if not self.nav_down_button.winfo_manager():
+                    self.nav_down_button.pack(fill="x", pady=(0, self.px(2)), before=self.nav_range_label)
+                self.nav_down_button.configure(
+                    text="\u2193 Next pages",
+                    fg=COLORS["muted"],
+                    cursor="hand2",
+                )
+            else:
+                self.nav_down_button.pack_forget()
+        self.nav_visible_items = visible
+        self.nav_top_padding_value = top_padding
+        self.refresh_nav_selection()
+        if self.nav_buttons:
+            # Record the actual button height (plus its pady) for capacity
+            # math; re-check once if the earlier estimate was off.
+            step = next(iter(self.nav_buttons.values())).winfo_reqheight() + 2 * self.px(6)
+            if step != getattr(self, "_nav_item_step", None):
+                self._nav_item_step = step
+                self.after_idle(self.refresh_nav_capacity)
+
+    def refresh_nav_capacity(self, _event=None):
+        if not hasattr(self, "nav_list_frame"):
+            return
+        visible = self.nav_visible_count()
+        top_padding = self.nav_top_padding(has_previous=getattr(self, "nav_first_index", 0) > 0)
+        if visible != getattr(self, "nav_visible_items", None) or top_padding != getattr(self, "nav_top_padding_value", None):
+            self.render_nav_page()
+
     def render_navigation_rail(self, rail_width=None, preserve_cover=None):
         for child in self.rail.winfo_children():
             if child is preserve_cover:
                 continue
             child.destroy()
-        rail_width = rail_width if rail_width is not None else 276
+        rail_width = rail_width if rail_width is not None else getattr(self, "rail_width_units", 276)
         self.rail_width_units = rail_width
         self.rail.configure(width=self.px(rail_width))
         self.layout_app_body()
         self.rail.pack_propagate(False)
         brand = ttk.Frame(self.rail, style="Rail.TFrame")
-        brand.pack(fill="x", padx=self.px(22), pady=self.pad(30, 18))
+        brand.pack(fill="x", padx=self.px(22), pady=self.pad(30, 24))
         mark_size = self.px(54)
         mark = tk.Canvas(brand, width=mark_size, height=mark_size, bg=COLORS["rail"], highlightthickness=0)
         mark.pack(side="left", padx=(0, self.px(14)))
@@ -1037,48 +2190,64 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(label_box, text="MemoryPal", style="RailTitle.TLabel").pack(anchor="w")
         ttk.Label(label_box, text="Memory training", style="RailText.TLabel").pack(anchor="w")
 
-        nav_canvas = tk.Canvas(self.rail, bg=COLORS["rail"], highlightthickness=0)
-        nav_canvas.pack(fill="both", expand=True)
-        nav_inner = ttk.Frame(nav_canvas, style="Rail.TFrame")
-        nav_window = nav_canvas.create_window((0, 0), window=nav_inner, anchor="nw")
-        nav_inner.bind("<Configure>", lambda _event: nav_canvas.configure(scrollregion=nav_canvas.bbox("all")))
-        nav_canvas.bind("<Configure>", lambda event: nav_canvas.itemconfigure(nav_window, width=event.width))
-
-        def nav_wheel(event):
-            delta = getattr(event, "delta", 0)
-            units = int(-delta / 120) if abs(delta) >= 120 else (-1 if delta > 0 else 1)
-            nav_canvas.yview_scroll(units, "units")
-            return "break"
-
-        nav_canvas.bind("<Enter>", lambda _event: nav_canvas.focus_set(), add="+")
-        nav_canvas.bind("<MouseWheel>", nav_wheel, add="+")
-
+        self.nav_items_cache = self.ordered_nav_items()
         self.nav_buttons = {}
-        for key, label, short in self.ordered_nav_items():
-            button = ttk.Button(
-                nav_inner,
-                text=label,
-                style="Nav.TButton",
-                command=lambda view=key: self.show_view(view),
-            )
-            button.pack(fill="x", padx=self.px(20), pady=self.px(5))
-            button.bind("<MouseWheel>", nav_wheel, add="+")
-            self.add_tooltip(button, self.nav_hint(key))
-            self.nav_buttons[key] = button
 
-        footer = ttk.Frame(self.rail, style="Rail.TFrame")
-        footer.pack(side="bottom", fill="x", padx=self.px(20), pady=self.px(18))
-        ttk.Label(footer, text="Data is saved locally on this PC.", style="RailText.TLabel", wraplength=self.px(230)).pack(fill="x", pady=(0, self.px(10)))
-        settings_nav = ttk.Button(
-            footer,
-            text="\u2699  Settings",
-            style="Nav.TButton",
-            command=lambda: self.show_view("settings"),
+        nav_host = tk.Frame(self.rail, bg=COLORS["rail"], highlightthickness=0)
+        nav_host.pack(fill="both", expand=True)
+        self.bind_nav_wheel(self.rail)
+        self.bind_nav_wheel(brand)
+        self.bind_nav_wheel(nav_host)
+
+        control_bg = self.tint(COLORS["rail"], 8 if self.theme == "dark" else -4)
+        self.nav_up_button = tk.Label(
+            nav_host,
+            text="\u2191 Previous pages",
+            bg=control_bg,
+            fg=COLORS["muted"],
+            padx=self.px(12),
+            pady=self.px(8),
+            cursor="hand2",
+            font=self.font("Segoe UI Semibold", 10),
         )
-        settings_nav.pack(fill="x")
-        self.add_tooltip(settings_nav, self.nav_hint("settings"))
-        self.nav_buttons["settings"] = settings_nav
-        self.refresh_nav_selection()
+        self.nav_up_button.bind("<Button-1>", lambda _event: self.shift_nav_window(-max(1, self.nav_visible_count())), add="+")
+        self.bind_nav_wheel(self.nav_up_button)
+
+        self.nav_list_host = nav_host
+        self.nav_list_frame = tk.Frame(nav_host, bg=COLORS["rail"], highlightthickness=0)
+        self.nav_list_frame.pack(fill="both", expand=True, pady=(self.px(6), 0))
+        self.bind_nav_wheel(self.nav_list_frame)
+
+        # Pack the footer from the bottom ahead of the list so the "Next pages"
+        # control keeps its space instead of being squeezed off the rail.
+        footer = tk.Frame(nav_host, bg=COLORS["rail"], highlightthickness=0)
+        footer.pack(side="bottom", fill="x", padx=self.px(20), pady=(self.px(8), self.px(18)), before=self.nav_list_frame)
+        self.nav_footer = footer
+        self.nav_down_button = tk.Label(
+            footer,
+            text="\u2193 Next pages",
+            bg=control_bg,
+            fg=COLORS["muted"],
+            padx=self.px(12),
+            pady=self.px(8),
+            cursor="hand2",
+            font=self.font("Segoe UI Semibold", 10),
+        )
+        self.nav_down_button.bind("<Button-1>", lambda _event: self.shift_nav_window(max(1, self.nav_visible_count())), add="+")
+        self.bind_nav_wheel(self.nav_down_button)
+        self.nav_range_label = tk.Label(
+            footer,
+            text="",
+            bg=COLORS["rail"],
+            fg=COLORS["muted"],
+            font=self.font("Segoe UI", 10),
+        )
+        self.nav_range_label.pack(anchor="center", pady=(self.px(6), 0))
+        self.bind_nav_wheel(self.nav_range_label)
+
+        nav_host.bind("<Configure>", self.refresh_nav_capacity, add="+")
+        self.ensure_nav_item_visible(getattr(self, "current_view", "dashboard"))
+        self.after_idle(lambda: self.ensure_nav_item_visible(getattr(self, "current_view", "dashboard")))
 
     def refresh_nav_selection(self):
         if not hasattr(self, "nav_buttons"):
@@ -1096,10 +2265,94 @@ class MemoryPalApp(tk.Tk):
         except ValueError:
             return 1
 
+    def header_icon_button(self, parent, icon, command, hint="", size=42, active=False):
+        pixel_size = self.px(size)
+        canvas = tk.Canvas(
+            parent,
+            width=pixel_size,
+            height=pixel_size,
+            bg=COLORS["surface"],
+            highlightthickness=0,
+            bd=0,
+            cursor="hand2",
+        )
+        canvas._memorypal_active = active
+
+        def icon_glyph(name):
+            family = self.available_font("Segoe MDL2 Assets", "Segoe Fluent Icons")
+            if family != "Segoe UI Symbol":
+                glyphs = {
+                    "moon": "\ue708",
+                    "sun": "\ue706",
+                    "backup": "\ue896",
+                    "settings": "\ue713",
+                    "help": "\ue897",
+                }
+                return family, glyphs.get(name, name)
+            fallback = {
+                "moon": "\u263e",
+                "sun": "\u2600",
+                "backup": "\u2193",
+                "settings": "\u2699",
+                "help": "?",
+            }
+            return family, fallback.get(name, name)
+
+        def draw_icon_text(name, icon_size, icon_color):
+            family, glyph = icon_glyph(name)
+            self.create_centered_canvas_text(
+                canvas,
+                pixel_size / 2,
+                pixel_size / 2,
+                text=glyph,
+                fill=icon_color,
+                font=self.font(family, icon_size),
+            )
+
+        def draw(hover=False):
+            canvas.delete("all")
+            is_active = bool(getattr(canvas, "_memorypal_active", active))
+            normal_fill = self.tint(COLORS["surface"], -5 if self.theme == "light" else 10)
+            active_fill = self.tint(COLORS["surface"], -10 if self.theme == "light" else 18)
+            fill = active_fill if hover or is_active else normal_fill
+            ink = COLORS["primary"] if hover or is_active else COLORS["muted"]
+            if not self.draw_antialiased_shape(canvas, pixel_size, pixel_size, fill, radius=self.px(14), inset=1):
+                canvas.create_rectangle(0, 0, pixel_size, pixel_size, fill=fill, outline="")
+            center = pixel_size / 2
+            if icon == "theme":
+                if self.theme == "dark":
+                    draw_icon_text("moon", 18, ink)
+                else:
+                    draw_icon_text("sun", 18, ink)
+            elif icon == "fullscreen":
+                pad = self.px(12)
+                short = self.px(7)
+                for sx, sy, dx, dy in ((pad, pad, short, short), (pixel_size - pad, pad, -short, short), (pad, pixel_size - pad, short, -short), (pixel_size - pad, pixel_size - pad, -short, -short)):
+                    canvas.create_line(sx, sy, sx + dx, sy, fill=ink, width=self.px(2), capstyle="round")
+                    canvas.create_line(sx, sy, sx, sy + dy, fill=ink, width=self.px(2), capstyle="round")
+            elif icon == "backup":
+                draw_icon_text("backup", 18, ink)
+            elif icon == "help":
+                draw_icon_text("help", 17, ink)
+            elif icon == "settings":
+                draw_icon_text("settings", 17, ink)
+            else:
+                self.create_centered_canvas_text(canvas, center, center, icon, fill=ink, font=self.font("Segoe UI Semibold", 13))
+
+        draw()
+        canvas.bind("<Button-1>", lambda _event: command())
+        canvas.bind("<Enter>", lambda _event: draw(True), add="+")
+        canvas.bind("<Leave>", lambda _event: draw(False), add="+")
+        if hint:
+            self.add_tooltip(canvas, hint)
+        canvas.redraw_icon = draw
+        canvas.set_active = lambda value: (setattr(canvas, "_memorypal_active", bool(value)), draw(False))
+        return canvas
+
     def profile_avatar_button(self, parent):
-        size = self.px(52)
-        badge_size = self.px(22)
+        size = self.px(42)
         profile_number = str(min(self.active_profile_number(), 99))
+        profile_label = f"P{profile_number}"
         button = tk.Canvas(
             parent,
             width=size,
@@ -1112,21 +2365,20 @@ class MemoryPalApp(tk.Tk):
 
         def draw(hover=False):
             button.delete("all")
-            fill = COLORS["alt"] if hover else COLORS["surface_soft"]
-            ring = COLORS["primary"] if hover else COLORS["line"]
-            ink = COLORS["primary"] if hover else COLORS["muted"]
-            button.create_oval(self.px(2), self.px(2), size - self.px(2), size - self.px(2), fill=fill, outline=ring, width=self.px(2))
-            button.create_oval(size * 0.36, size * 0.24, size * 0.64, size * 0.52, fill="", outline=ink, width=self.px(2))
-            button.create_arc(size * 0.22, size * 0.46, size * 0.78, size * 0.92, start=20, extent=140, style="arc", outline=ink, width=self.px(2))
-            badge_x = size - badge_size - self.px(1)
-            badge_y = size - badge_size - self.px(1)
-            button.create_oval(badge_x, badge_y, badge_x + badge_size, badge_y + badge_size, fill=COLORS["primary"], outline=COLORS["surface"], width=self.px(2))
-            button.create_text(
-                badge_x + badge_size / 2,
-                badge_y + badge_size / 2,
-                text=profile_number,
-                fill=COLORS["white"],
-                font=self.font("Segoe UI Semibold", 9),
+            if self.theme == "light":
+                fill = self.tint(COLORS["surface"], -9 if hover else -4)
+            else:
+                fill = self.tint(COLORS["surface"], 17 if hover else 9)
+            ink = COLORS["primary"] if hover else COLORS["ink"]
+            if not self.draw_antialiased_shape(button, size, size, fill, radius=self.px(14), inset=1):
+                button.create_rectangle(0, 0, size, size, fill=fill, outline="")
+            self.create_centered_canvas_text(
+                button,
+                size / 2,
+                size / 2,
+                profile_label,
+                fill=ink,
+                font=self.font("Segoe UI Semibold", 11 if len(profile_label) <= 3 else 10),
             )
 
         draw()
@@ -1150,7 +2402,7 @@ class MemoryPalApp(tk.Tk):
         self.app_body.pack(fill="both", expand=True)
         self.app_body.bind("<Configure>", self.layout_app_body, add="+")
 
-        self.rail_width_units = 276
+        self.rail_width_units = getattr(self, "rail_width_units", 276)
         self.rail = ttk.Frame(self.app_body, style="Rail.TFrame")
         self.rail.place(x=0, y=0, width=self.px(self.rail_width_units), relheight=1)
         self.rail.pack_propagate(False)
@@ -1168,53 +2420,32 @@ class MemoryPalApp(tk.Tk):
         self.eyebrow.pack(anchor="w")
         self.title_label = ttk.Label(title_box, text="Dashboard", style="Title.TLabel")
         self.title_label.pack(anchor="w", fill="x")
-        profile_avatar = self.profile_avatar_button(top)
-        profile_avatar.grid(row=0, column=1, sticky="ne", padx=(self.px(18), 0))
-        actions = ttk.Frame(top, style="Header.TFrame")
-        actions.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(self.px(16), 0))
-        actions.columnconfigure(0, weight=1)
-        actions.columnconfigure(1, weight=0)
-        status_row = tk.Frame(actions, bg=COLORS["surface"])
-        status_row.grid(row=0, column=0, sticky="w")
-        control_row = ttk.Frame(actions, style="Header.TFrame")
-        control_row.grid(row=0, column=1, sticky="e")
-        header_action_layout = {"compact": None}
-
-        def reflow_header_actions(event=None):
-            width = event.width if event is not None else actions.winfo_width()
-            compact = width < self.px(780)
-            if header_action_layout["compact"] == compact:
-                return
-            header_action_layout["compact"] = compact
-            if compact:
-                status_row.grid_configure(row=0, column=0, columnspan=2, sticky="w")
-                control_row.grid_configure(row=1, column=0, columnspan=2, sticky="e", pady=(self.px(10), 0))
-            else:
-                status_row.grid_configure(row=0, column=0, columnspan=1, sticky="w")
-                control_row.grid_configure(row=0, column=1, columnspan=1, sticky="e", pady=0)
-
-        actions.bind("<Configure>", reflow_header_actions, add="+")
+        action_strip = tk.Frame(top, bg=COLORS["surface"])
+        action_strip.grid(row=0, column=1, rowspan=2, sticky="ne", padx=(self.px(18), 0))
+        status_row = tk.Frame(top, bg=COLORS["surface"])
+        status_row.grid(row=1, column=0, sticky="w", pady=(self.px(14), 0))
         streak = self.store.current_streak()
         streak_chip = tk.Label(status_row, text=f"\U0001F525 {streak} day{'s' if streak != 1 else ''}", bg=COLORS["warm"], fg=COLORS["warm_text"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         streak_chip.pack(side="left", padx=(0, self.px(10)))
         today = self.store.today_count()
         goal_chip = tk.Label(status_row, text=f"{today}/{self.store.daily_goal} today", bg=COLORS["good_bg"] if today >= self.store.daily_goal else COLORS["alt"], fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         goal_chip.pack(side="left", padx=(0, self.px(10)))
+        self.goal_chip = goal_chip
         local_chip = tk.Label(status_row, text="Local save", bg=COLORS["alt"], fg=COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         local_chip.pack(side="left", padx=(0, self.px(10)))
-        theme_button = ttk.Button(control_row, text=("Dark" if self.theme == "light" else "Light"), command=self.toggle_theme, style="TButton")
-        theme_button.pack(side="left", padx=(0, self.px(10)))
-        self.add_tooltip(theme_button, "Switch between light and dark appearance.")
-        self.fullscreen_button = ttk.Button(control_row, text=("Exit Fullscreen" if self.is_fullscreen else "Fullscreen"), command=self.toggle_true_fullscreen, style="TButton")
-        self.fullscreen_button.pack(side="left", padx=(0, self.px(10)))
-        fullscreen_hint = "Enter true fullscreen. Shortcut: Control-Command-F on macOS." if self.use_native_window_chrome else "Enter true fullscreen. Shortcut: F11 on Windows/Linux, Control-Command-F on macOS. For borderless focus, use the square in the title bar or Settings."
-        self.add_tooltip(self.fullscreen_button, fullscreen_hint)
-        backup = ttk.Button(control_row, text="Backup", command=self.export_data, style="TButton")
-        backup.pack(side="left")
-        self.add_tooltip(backup, "Export a local JSON backup of your MemoryPal data.")
+        help_button = self.header_icon_button(action_strip, "help", self.start_tour, "Show me around: a short guided tour of the pages you use most.")
+        help_button.pack(side="left", padx=(0, self.px(8)))
+        theme_button = self.header_icon_button(action_strip, "theme", self.toggle_theme, "Switch between light and dark appearance.")
+        theme_button.pack(side="left", padx=(0, self.px(8)))
+        backup = self.header_icon_button(action_strip, "backup", self.export_data, "Export a local JSON backup of your MemoryPal data.")
+        backup.pack(side="left", padx=(0, self.px(8)))
+        settings_button = self.header_icon_button(action_strip, "settings", lambda: self.show_view("settings"), "Open Settings.")
+        settings_button.pack(side="left", padx=(0, self.px(8)))
+        profile_avatar = self.profile_avatar_button(action_strip)
+        profile_avatar.pack(side="left")
 
         self.content = ttk.Frame(self.main, style="Page.TFrame")
-        self.content.pack(fill="both", expand=True, padx=self.px(36), pady=(0, self.px(30)))
+        self.content.pack(fill="both", expand=True, padx=self.px(36), pady=(0, self.px(18)))
         self.toast_var = tk.StringVar()
         self.toast = tk.Label(self, textvariable=self.toast_var, bg=COLORS["rail"], fg=COLORS["white"], padx=self.px(20), pady=self.px(14), font=self.font("Segoe UI Semibold", 12))
         right_grip = tk.Frame(self, bg=COLORS["line"], cursor="size_we")
@@ -1230,6 +2461,18 @@ class MemoryPalApp(tk.Tk):
         self.set_resize_grips_visible(not self.is_fullscreen and not self.use_native_window_chrome)
         self.after_idle(self.layout_app_body)
 
+    def refresh_header_status(self):
+        chip = getattr(self, "goal_chip", None)
+        if chip is None or not chip.winfo_exists():
+            return
+        today = self.store.today_count()
+        met = today >= self.store.daily_goal
+        chip.configure(
+            text=f"{today}/{self.store.daily_goal} today",
+            bg=COLORS["good_bg"] if met else COLORS["alt"],
+            fg=COLORS["good_fg"] if met else COLORS["primary"],
+        )
+
     def layout_app_body(self, event=None):
         if not hasattr(self, "app_body") or not self.app_body.winfo_exists():
             return
@@ -1240,21 +2483,31 @@ class MemoryPalApp(tk.Tk):
         if width <= 1 or height <= 1:
             return
         rail_width = self.px(self.rail_width_units)
-        self.rail.place_configure(x=0, y=0, width=rail_width, height=height)
-        self.main.place_configure(x=rail_width, y=0, width=max(1, width - rail_width), height=height)
+        # place() adds relwidth/relheight to width/height, so clear the
+        # relative sizes from the initial placement or both panels end up
+        # taller than the window and their bottoms are clipped.
+        self.rail.place_configure(x=0, y=0, width=rail_width, height=height, relwidth=0, relheight=0)
+        self.main.place_configure(x=rail_width, y=0, width=max(1, width - rail_width), height=height, relwidth=0, relheight=0)
 
     def handle_window_configure(self, event):
         if event.widget is not self:
             return
-        cover = getattr(self, "root_cover", None)
-        if cover and cover.winfo_exists():
-            cover.place_configure(relx=0, rely=0, relwidth=1, relheight=1)
-            self.raise_widget(cover)
+        if event.width <= 1 or event.height <= 1:
+            return
+        # <Configure> also fires when the window is only moved; relayout only
+        # on a real size change, and let the existing widgets reflow in place
+        # rather than hiding the whole app behind a cover.
+        size = (event.width, event.height)
+        if size == getattr(self, "_last_window_size", None):
+            return
+        self._last_window_size = size
+        self.after_idle(self.layout_app_body)
 
     def nav_hint(self, key):
         return {
             "dashboard": "Your daily overview, progress, and next best action.",
             "training": "Pick evidence-based study drills or gentle memory-support games.",
+            "elder": "Large, calm memory support for routines, people, places, and caregiver-created prompts.",
             "decks": "Browse your decks, see per-deck mastery, and study one deck at a time.",
             "plan": "Answer a few questions and get a tailored study plan for today.",
             "stats": "Streaks, daily goal, and an activity heatmap of your practice history.",
@@ -1272,103 +2525,71 @@ class MemoryPalApp(tk.Tk):
             "settings": "Personalize appearance, profiles, storage, backups, and focus behavior.",
         }.get(key, "")
 
-    def show_view(self, view, transition=True):
+    def show_view(self, view, transition=False):
         titles = {
-            "dashboard": ("Today", "Dashboard"),
-            "training": ("Practice paths", "Memory Gym"),
-            "decks": ("Library", "Decks"),
-            "plan": ("Plan ahead", "Study Plan"),
-            "stats": ("Progress", "Stats & Streaks"),
-            "focus": ("Study plan", "Focus Session"),
-            "capture": ("MemoryPal", "Capture Material"),
-            "review": ("MemoryPal", "Spaced Review"),
-            "testing": ("Testing", "Test Lab"),
-            "quiz": ("MemoryPal", "Quick Quiz"),
-            "shuffle": ("MemoryPal", "Repetition Path"),
-            "tools": ("MemoryPal", "Associations"),
-            "cuelab": ("MemoryPal", "Cue Lab"),
-            "games": ("MemoryPal", "Puzzles"),
-            "library": ("MemoryPal", "Library"),
-            "feedback": ("Testing", "Feedback Log"),
-            "settings": ("Personalize", "Settings"),
+            "dashboard": ("Today", "Dashboard"), "training": ("Practice paths", "Memory Gym"),
+            "elder": ("Support mode", "Everyday Memory"), "decks": ("Library", "Decks"),
+            "plan": ("Plan ahead", "Study Plan"), "stats": ("Progress", "Stats & Streaks"),
+            "focus": ("Study plan", "Focus Session"), "capture": ("MemoryPal", "Capture Material"),
+            "review": ("MemoryPal", "Spaced Review"), "testing": ("Testing", "Test Lab"),
+            "quiz": ("MemoryPal", "Quick Quiz"), "shuffle": ("MemoryPal", "Repetition Path"),
+            "tools": ("MemoryPal", "Associations"), "cuelab": ("MemoryPal", "Cue Lab"),
+            "games": ("MemoryPal", "Puzzles"), "library": ("MemoryPal", "Library"),
+            "feedback": ("Testing", "Feedback Log"), "settings": ("Personalize", "Settings"),
+            "welcome": ("Welcome", "Let's set things up"),
         }
+        self.speaker.stop()
         if self.current_view != view:
             self.save_current_draft()
         self.clear_rating_hotkeys()
         self.route_token += 1
         token = self.route_token
-        cover = self.start_transition_cover() if transition else None
+        old_host = getattr(self, "view_host", None)
         self.current_view = view
-        self.eyebrow.configure(text=titles[view][0])
-        self.title_label.configure(text=titles[view][1])
+        if hasattr(self, "nav_list_frame"):
+            self.ensure_nav_item_visible(view)
         for key, button in self.nav_buttons.items():
             button.configure(style="ActiveNav.TButton" if key == view else "Nav.TButton")
-        for child in self.content.winfo_children():
-            if child is not cover:
-                child.destroy()
-        if cover:
-            self.after(24, lambda: self.finish_show_view(view, token, cover))
-        else:
-            self.after_idle(lambda: self.finish_show_view(view, token, cover))
 
-    def start_transition_cover(self):
-        self.update_idletasks()
-        if not self.main.winfo_viewable():
-            return None
-        return self.make_frame_cover("main")
-
-    def finish_show_view(self, view, token, cover=None):
+        # Build the new page underneath the current one instead of blanking
+        # the content area: the old page stays on screen (and the rail and
+        # header never change) until the new page is fully laid out, then the
+        # old one is removed to reveal it in a single step.
+        new_host = ttk.Frame(self.content, style="Page.TFrame")
+        new_host.place(relx=0, rely=0, relwidth=1, relheight=1)
+        if old_host is not None and old_host.winfo_exists():
+            try:
+                self.tk.call("lower", new_host._w, old_host._w)
+            except tk.TclError:
+                pass
+        self.view_host = new_host
+        try:
+            getattr(self, f"view_{view}")()
+            # Fixed wrap widths clip text on narrow windows and at larger text
+            # sizes; make every wrapped label on the page fit its real width.
+            self.fit_wrap_tree(new_host)
+            self.update_idletasks()
+        except Exception:
+            if new_host.winfo_exists():
+                new_host.destroy()
+            self.view_host = old_host
+            raise
         if token != self.route_token:
-            self.destroy_transition_cover(cover)
+            # The view redirected to another page while building; that newer
+            # call has already swapped itself in.
+            if new_host.winfo_exists():
+                new_host.destroy()
+            if old_host is not None and old_host.winfo_exists() and old_host is not self.view_host:
+                old_host.destroy()
             return
-        self.view_host = ttk.Frame(self.content, style="Page.TFrame")
-        self.view_host.pack(fill="both", expand=True)
-        if cover:
-            self.raise_widget(cover)
-        getattr(self, f"view_{view}")()
-        if token != self.route_token or not self.view_host.winfo_exists():
-            self.destroy_transition_cover(cover)
-            return
-        if cover:
-            self.raise_widget(cover)
+        self.eyebrow.configure(text=titles[view][0])
+        self.title_label.configure(text=titles[view][1])
+        if old_host is not None and old_host.winfo_exists() and old_host is not new_host:
+            old_host.destroy()
         self.update_idletasks()
-        if cover:
-            self.after(32, lambda: self.fade_transition_cover(token, cover))
-
-    def destroy_transition_cover(self, cover):
-        try:
-            if cover and cover.winfo_exists():
-                cover.destroy()
-        except tk.TclError:
-            pass
-        if cover is getattr(self, "root_cover", None):
-            self.root_cover = None
-
-    def fade_frame_cover(self, cover, step=0, token=None):
-        if token is not None and token != self.route_token:
-            self.destroy_transition_cover(cover)
-            return
-        if not cover or not cover.winfo_exists():
-            return
-        try:
-            stipple_steps = ("", "gray75", "gray50", "gray25", "gray12")
-            self.paint_cover(cover, stipple_steps[min(step, len(stipple_steps) - 1)])
-            self.raise_widget(cover)
-        except tk.TclError:
-            self.destroy_transition_cover(cover)
-            return
-        delay = 28
-        if step < len(stipple_steps) - 1:
-            self.after(delay, lambda: self.fade_frame_cover(cover, step + 1, token))
-        else:
-            self.after(delay, lambda: self.destroy_transition_cover(cover))
-
-    def fade_transition_cover(self, token, cover, step=0):
-        if token != self.route_token or not cover.winfo_exists():
-            self.destroy_transition_cover(cover)
-            return
-        self.raise_widget(cover)
-        self.fade_frame_cover(cover, step=step, token=token)
+        self.after_idle(self.layout_app_body)
+        if getattr(self, "tour", None):
+            self.render_tour_card()
 
     def register_draft_saver(self, view, saver):
         self.draft_savers[view] = saver
@@ -1387,7 +2608,8 @@ class MemoryPalApp(tk.Tk):
         if goal:
             self.store.daily_goal = goal
             self.store.save()
-            self.rebuild_shell(self.current_view)
+            self.refresh_header_status()
+            self.show_view(self.current_view)
 
     def switch_profile(self, name, force=False):
         if not force and name == active_profile_name():
@@ -1395,10 +2617,13 @@ class MemoryPalApp(tk.Tk):
         self.save_current_draft()
         switch_active_profile_paths(name)
         self.store = MemoryStore()
+        self.accessibility = normalize_accessibility(self.store.accessibility)
+        self.apply_accessibility_preferences()
         self.deck_filter = None
         self.view_drafts = {}
         self.title(f"{APP_NAME} \u2014 {active_profile_name()}")
-        self.rebuild_shell("dashboard")
+        self.tour = None
+        self.rebuild_shell(self.start_view())
         self.toast_message(f"Switched to {name}.")
 
     def open_profile_manager(self):
@@ -1482,7 +2707,9 @@ class MemoryPalApp(tk.Tk):
             if not ok:
                 self.dialog_alert("Couldn't create profile", error, "error", parent=top)
                 return
-            render_list()
+            # Open the new profile right away so its welcome page can set it up.
+            top.destroy()
+            self.switch_profile(normalize_profile_name(new_name))
 
         render_list()
         new_button = tk.Button(wrap, text="+ New profile", relief="flat", bd=0, cursor="hand2", bg=COLORS["green"], fg=COLORS["white"], font=self.font("Segoe UI Semibold", 11), padx=self.px(16), pady=self.px(10), command=do_create)
@@ -1496,8 +2723,7 @@ class MemoryPalApp(tk.Tk):
         self.save_current_draft()
         cover = self.start_root_cover()
         self.theme = "dark" if self.theme == "light" else "light"
-        COLORS.clear()
-        COLORS.update(DARK_COLORS if self.theme == "dark" else LIGHT_COLORS)
+        self.apply_theme_palette()
         current = self.current_view
         self.rebuild_shell(current, refresh_styles=True, cover=cover)
 
@@ -1524,7 +2750,13 @@ class MemoryPalApp(tk.Tk):
     def toast_message(self, text):
         self.toast_var.set(text)
         self.toast.place(relx=1, rely=1, anchor="se", x=-self.px(24), y=-self.px(24))
-        self.after(2600, self.toast.place_forget)
+        pending = getattr(self, "_toast_after", None)
+        if pending is not None:
+            try:
+                self.after_cancel(pending)
+            except tk.TclError:
+                pass
+        self._toast_after = self.after(self.pace(2600), self.toast.place_forget)
 
     def dialog_window(self, title, body="", parent=None, width=480):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
@@ -1707,29 +2939,109 @@ class MemoryPalApp(tk.Tk):
         shifted = [max(0, min(255, value + amount)) for value in values]
         return "#" + "".join(f"{value:02x}" for value in shifted)
 
-    def hover_card(self, frame, normal=None, hover=None):
-        normal = normal or COLORS["line"]
-        hover = hover or COLORS["primary"]
-        frame.configure(highlightthickness=1, highlightbackground=normal)
-        frame.bind("<Enter>", lambda _event: frame.configure(highlightbackground=hover), add="+")
-        frame.bind("<Leave>", lambda _event: frame.configure(highlightbackground=normal), add="+")
-        return frame
+    def button_palette(self, style_name):
+        palettes = {
+            "Primary.TButton": (COLORS["primary"], COLORS["white"], COLORS["primary_dark"], COLORS["white"]),
+            "Danger.TButton": (COLORS["danger"], COLORS["white"], self.tint(COLORS["danger"], -18), COLORS["white"]),
+            "Again.TButton": (COLORS["again_bg"], COLORS["again_fg"], self.tint(COLORS["again_bg"], -14), COLORS["again_fg"]),
+            "Review.TButton": (COLORS["review_bg"], COLORS["review_fg"], self.tint(COLORS["review_bg"], -14), COLORS["review_fg"]),
+            "Good.TButton": (COLORS["good_bg"], COLORS["good_fg"], self.tint(COLORS["good_bg"], -14), COLORS["good_fg"]),
+            "Easy.TButton": (COLORS["easy_bg"], COLORS["easy_fg"], self.tint(COLORS["easy_bg"], -14), COLORS["easy_fg"]),
+        }
+        return palettes.get(style_name, (COLORS["surface_soft"], COLORS["ink"], COLORS["alt"], COLORS["primary"]))
 
+    def row_button(self, parent, label, command, style_name):
+        bg, fg, hover_bg, hover_fg = self.button_palette(style_name)
+        button = tk.Button(
+            parent,
+            text=label,
+            command=command,
+            bg=bg,
+            fg=fg,
+            activebackground=hover_bg,
+            activeforeground=hover_fg,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
+            font=self.font("Segoe UI Semibold", 12 if style_name == "Primary.TButton" else 11),
+            padx=self.px(18),
+            pady=self.px(12),
+        )
+        button.bind("<Enter>", lambda _event: button.configure(bg=hover_bg, fg=hover_fg), add="+")
+        button.bind("<Leave>", lambda _event: button.configure(bg=bg, fg=fg), add="+")
+        button.bind("<Return>", lambda _event: button.invoke(), add="+")
+        if self.show_focus_outline():
+            # Same colour as the button until it has keyboard focus.
+            button.configure(highlightthickness=max(2, self.px(3)), highlightcolor=self.focus_color(), highlightbackground=bg)
+        self.add_tooltip(button, self.action_hint(label))
+        return button
+
+    def hover_card(self, frame, normal=None, hover=None, command=None):
+        """Border a card; if it has a command, make the whole card clickable.
+
+        Only clickable cards highlight on hover, so a glowing border always
+        means "you can click this". Static information cards keep a plain
+        border. Clicking anywhere on a clickable card (its text included)
+        runs the command, which also gives a much larger target than the
+        small button inside it.
+        """
+        normal = normal or COLORS["line"]
+        frame.configure(highlightthickness=1, highlightbackground=normal)
+        if command is None:
+            return frame
+        hover = hover or COLORS["primary"]
+
+        def pointer_inside():
+            try:
+                widget = frame.winfo_containing(*frame.winfo_pointerxy())
+            except (KeyError, tk.TclError):
+                return False
+            while widget is not None:
+                if widget is frame:
+                    return True
+                widget = widget.master
+            return False
+
+        def leave(_event):
+            # Tk sends <Leave> when the pointer moves onto a child (the card's
+            # text); only clear the highlight once it is really outside.
+            if not pointer_inside():
+                frame.configure(highlightbackground=normal)
+
+        def wire(widget):
+            # Buttons and inputs inside keep their own behaviour.
+            if isinstance(widget, (tk.Button, ttk.Button, tk.Entry, ttk.Entry, tk.Text, ttk.Menubutton)):
+                return
+            widget.bind("<Button-1>", lambda _event: command(), add="+")
+            try:
+                widget.configure(cursor="hand2")
+            except tk.TclError:
+                pass
+            for child in widget.winfo_children():
+                wire(child)
+
+        frame.bind("<Enter>", lambda _event: frame.configure(highlightbackground=hover), add="+")
+        frame.bind("<Leave>", leave, add="+")
+        # Children are added after this call, so wire them once built.
+        frame.after_idle(lambda: frame.winfo_exists() and wire(frame))
+        return frame
     def button_row(self, parent, buttons, style="Card.TFrame"):
         row = ttk.Frame(parent, style=style)
         row.pack(fill="x")
         columns = 3 if len(buttons) > 3 else max(1, len(buttons))
+        if len(buttons) > 2 and self.accessibility_multiplier() > 1.1:
+            columns = 2
         for index, (label, command, button_style) in enumerate(buttons):
             grid_row, grid_col = divmod(index, columns)
-            button = ttk.Button(row, text=label, command=command, style=button_style)
+            button = self.row_button(row, label, command, button_style)
             button.grid(
                 row=grid_row,
                 column=grid_col,
                 sticky="ew",
-                padx=(0 if grid_col == 0 else self.px(8), 0),
-                pady=(0 if grid_row == 0 else self.px(8), 0),
+                padx=(0 if grid_col == 0 else self.px(12), 0),
+                pady=(0 if grid_row == 0 else self.px(10), 0),
             )
-            self.add_tooltip(button, self.action_hint(label))
             row.columnconfigure(grid_col, weight=1, uniform="buttons")
         return row
 
@@ -1794,7 +3106,54 @@ class MemoryPalApp(tk.Tk):
         refresh()
         return row
 
-    def check_toggle(self, parent, variable, text, on_change=None, bg=None, wraplength=520):
+    def fit_wrap(self, label, **pack_options):
+        """Pack a label so its text wraps to the width it is actually given.
+
+        A fixed pixel wraplength wider than a narrow card/column clips the
+        right side of the text instead of wrapping it. The label must fill
+        its row horizontally so its allocated width is known.
+        """
+        pack_options.setdefault("anchor", "w")
+        label.pack(fill="x", **pack_options)
+        try:
+            label.configure(justify="left", anchor="w")
+        except tk.TclError:
+            pass
+        self.bind_rewrap(label)
+        return label
+
+    def fit_wrap_tree(self, container):
+        """Make every wrapped, pack-managed label under container fit its width."""
+        stack = [container]
+        while stack:
+            widget = stack.pop()
+            stack.extend(widget.winfo_children())
+            if not isinstance(widget, (tk.Label, ttk.Label)) or getattr(widget, "_memorypal_fit", False):
+                continue
+            try:
+                wrap = int(float(str(widget.cget("wraplength")) or 0))
+                if wrap <= 0 or widget.winfo_manager() != "pack":
+                    continue
+                widget.pack_configure(fill="x")
+                widget.configure(justify="left", anchor="w")
+            except (ValueError, tk.TclError):
+                continue
+            widget._memorypal_fit = True
+            self.bind_rewrap(widget)
+
+    def bind_rewrap(self, label):
+        def rewrap(event):
+            width = max(1, event.width - 2)
+            try:
+                current = int(float(str(label.cget("wraplength")) or 0))
+            except (ValueError, tk.TclError):
+                current = 0
+            if abs(current - width) > 1:
+                label.configure(wraplength=width)
+
+        label.bind("<Configure>", rewrap, add="+")
+
+    def check_toggle(self, parent, variable, text, on_change=None, bg=None, wraplength=520, fit=False):
         bg = bg or COLORS["surface"]
         row = tk.Frame(parent, bg=bg, cursor="hand2")
         size = self.px(19)
@@ -1802,6 +3161,8 @@ class MemoryPalApp(tk.Tk):
         box.pack(side="left", padx=(0, self.px(9)))
         label = tk.Label(row, text=text, bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI", 11), cursor="hand2", justify="left", wraplength=self.px(wraplength), anchor="w")
         label.pack(side="left", fill="x", expand=True)
+        if fit:
+            self.bind_rewrap(label)
 
         def draw():
             box.delete("all")
@@ -1898,6 +3259,16 @@ class MemoryPalApp(tk.Tk):
             "Open Feedback": "Open the feedback log for tester notes and bug reports.",
             "Back": "Return to the previous section.",
             "Settings": "Personalize MemoryPal's appearance, profiles, storage, and window behavior.",
+            "Everyday Memory": "Open the calm older-adult memory support area.",
+            "Start Gentle Review": "Review one familiar prompt at a time in Test Lab.",
+            "Add Person Card": "Create a simple name, relationship, and reminder card.",
+            "Add Routine Card": "Create a step-by-step everyday routine card.",
+            "Add Place Card": "Create a card for where an item belongs or where something happens.",
+            "Add Reminder Card": "Create a calm daily reminder card.",
+            "Create Starter Set": "Add a few sample Everyday Memory cards.",
+            "Use Senior Layout": "Turn on larger text, higher contrast, reduced motion, and a simpler page order.",
+            "Open Puzzles": "Open short attention and recall games.",
+            "Open Caregiver Notes": "Open capture so a helper can add notes, images, audio, or video.",
             "Edit Daily Goal": "Change how many cards count as a completed study day.",
             "Manage Profiles": "Create, rename, delete, or switch separate study profiles.",
             "Open Data Folder": "Open the folder where MemoryPal stores profiles, data, and attachments.",
@@ -1920,11 +3291,178 @@ class MemoryPalApp(tk.Tk):
         chip.pack(side="left", padx=(0, self.px(8)))
         return chip
 
+    def start_view(self):
+        return "dashboard" if self.store.onboarding.get("done") else "welcome"
+
+    def view_welcome(self):
+        page = ScrollFrame(self.view_host)
+        page.pack(fill="both", expand=True)
+        state = {"persona": self.store.onboarding.get("persona") or "", "size_touched": False}
+        text_size = tk.StringVar(value=self.accessibility.get("text_size", "Comfort"))
+        read_aloud = tk.BooleanVar(value=bool(self.accessibility.get("read_aloud")))
+
+        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(30), pady=self.px(28)))
+        hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        tk.Frame(hero, bg=COLORS["primary"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
+        tk.Label(hero, text=f"Welcome to MemoryPal, {active_profile_name()}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
+        tk.Label(hero, text="Three quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
+
+        who = self.card(page.inner, "Card.TFrame", 22)
+        who.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(who, text="1. Who will be using MemoryPal?", style="H2.TLabel").pack(anchor="w", pady=(0, 12))
+        choices = ttk.Frame(who, style="Card.TFrame")
+        choices.pack(fill="x")
+        for column in range(2):
+            choices.columnconfigure(column, weight=1, uniform="persona")
+        colors = {"student": COLORS["primary"], "everyday": COLORS["cyan"], "caregiver": COLORS["violet"], "general": COLORS["green"]}
+
+        def render_choices():
+            for child in choices.winfo_children():
+                child.destroy()
+            for index, key in enumerate(onboarding.PERSONA_ORDER):
+                data = onboarding.PERSONAS[key]
+                selected = state["persona"] == key
+                tile = self.hover_card(
+                    tk.Frame(choices, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18)),
+                    normal=colors[key] if selected else None,
+                    hover=colors[key],
+                    command=lambda value=key: choose(value),
+                )
+                tile.configure(highlightthickness=max(2, self.px(3)) if selected else 1)
+                row, column = divmod(index, 2)
+                tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
+                tk.Frame(tile, bg=colors[key], width=self.px(36), height=self.px(4)).pack(anchor="w", pady=(0, self.px(10)))
+                heading = ("\u2713  " if selected else "") + data["title"]
+                tk.Label(tile, text=heading, bg=COLORS["surface"], fg=colors[key] if selected else COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
+                body = tk.Label(tile, text=data["body"], bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), justify="left", anchor="w", wraplength=self.px(420))
+                body.pack(fill="x", pady=(self.px(5), 0))
+                self.bind_rewrap(body)
+
+        def choose(key):
+            state["persona"] = key
+            if not state["size_touched"]:
+                text_size.set(onboarding.persona(key)["accessibility"].get("text_size", "Comfort"))
+            render_choices()
+
+        render_choices()
+
+        comfort = self.card(page.inner, "Card.TFrame", 22)
+        comfort.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(comfort, text="2. How big should the text be?", style="H2.TLabel").pack(anchor="w", pady=(0, 10))
+        sizes = {"Comfort": 12, "Large": 14, "Extra Large": 16}
+        preview = tk.Label(comfort, text="This is how easy the text will be to read.", bg=COLORS["surface"], fg=COLORS["ink"], anchor="w")
+
+        def show_preview(*_args):
+            preview.configure(font=("Segoe UI", sizes.get(text_size.get(), 12)))
+
+        def size_chosen(_value):
+            state["size_touched"] = True
+
+        self.pill_group(comfort, text_size, list(sizes), on_change=size_chosen, max_columns=3).pack(fill="x")
+        show_preview()
+        preview.pack(fill="x", pady=(self.px(12), 0))
+        text_size.trace_add("write", show_preview)
+
+        voice = self.card(page.inner, "Card.TFrame", 22)
+        voice.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(voice, text="3. Would you like questions read aloud?", style="H2.TLabel").pack(anchor="w", pady=(0, 10))
+        self.check_toggle(voice, read_aloud, "Yes, read questions and answers aloud to me", fit=True).pack(fill="x", pady=(0, self.px(10)))
+        self.button_row(voice, [("Test the Voice", lambda: self.speak("Hello. This is how MemoryPal sounds when it reads to you."), "TButton")])
+
+        finish = self.card(page.inner, "AltCard.TFrame", 22)
+        finish.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(finish, text="All set?", style="AltH2.TLabel").pack(anchor="w")
+        ttk.Label(finish, text="The tour shows the few pages you'll use most, one at a time. It takes about a minute.", style="AltMuted.TLabel", wraplength=self.px(1000)).pack(anchor="w", pady=(4, 12))
+        self.button_row(
+            finish,
+            [
+                ("Start the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), True), "Primary.TButton"),
+                ("Skip the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), False), "TButton"),
+            ],
+            "AltCard.TFrame",
+        )
+
+    def finish_welcome(self, persona_key, text_size, read_aloud, take_tour):
+        persona_key = persona_key if persona_key in onboarding.PERSONAS else "general"
+        data = onboarding.persona(persona_key)
+        prefs = dict(self.accessibility)
+        # Redoing the welcome with a different answer shouldn't keep the old
+        # answer's comfort settings, so reset every persona-managed option.
+        defaults = default_accessibility()
+        prefs.update({key: defaults[key] for key in onboarding.MANAGED_SETTINGS})
+        prefs.update(data["accessibility"])
+        prefs.update({"text_size": text_size, "read_aloud": bool(read_aloud)})
+        self.accessibility = normalize_accessibility(prefs)
+        self.store.accessibility = dict(self.accessibility)
+        self.store.onboarding = {"done": True, "persona": persona_key}
+        self.set_nav_order(data["nav"])  # saves the profile
+        self.nav_first_index = 0
+        self.apply_accessibility_preferences()
+        self.tour = {"persona": persona_key, "index": 0} if take_tour else None
+        first_view = onboarding.tour_steps(persona_key)[0][0] if take_tour else "dashboard"
+        self.rebuild_shell(first_view, refresh_styles=True)
+        if not take_tour:
+            self.toast_message("All set. Press ? at the top any time for a quick tour.")
+
+    def start_tour(self):
+        persona_key = self.store.onboarding.get("persona") or "general"
+        self.tour = {"persona": persona_key, "index": 0}
+        self.show_view(onboarding.tour_steps(persona_key)[0][0])
+
+    def move_tour(self, step):
+        if not self.tour:
+            return
+        steps = onboarding.tour_steps(self.tour["persona"])
+        index = self.tour["index"] + step
+        if index >= len(steps):
+            self.end_tour("That's the tour. Press ? at the top any time to see it again.")
+            return
+        self.tour["index"] = max(0, index)
+        self.show_view(steps[self.tour["index"]][0])
+
+    def end_tour(self, message="Tour closed. Press ? at the top any time to see it again."):
+        self.tour = None
+        card = getattr(self, "tour_card", None)
+        if card is not None and card.winfo_exists():
+            card.destroy()
+        self.tour_card = None
+        self.toast_message(message)
+
+    def render_tour_card(self):
+        old = getattr(self, "tour_card", None)
+        if old is not None and old.winfo_exists():
+            old.destroy()
+        self.tour_card = None
+        if not self.tour or not hasattr(self, "main") or not self.main.winfo_exists():
+            return
+        steps = onboarding.tour_steps(self.tour["persona"])
+        index = min(self.tour["index"], len(steps) - 1)
+        _view, title, body = steps[index]
+        last = index == len(steps) - 1
+        card = tk.Frame(self.main, bg=COLORS["surface"], highlightthickness=max(2, self.px(2)), highlightbackground=COLORS["primary"], padx=self.px(22), pady=self.px(18))
+        card.place(relx=1.0, rely=1.0, anchor="se", x=-self.px(52), y=-self.px(34), width=self.px(460))
+        tk.Label(card, text=f"Guided tour  \u2022  step {index + 1} of {len(steps)}", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x")
+        tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+        text = tk.Label(card, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(410))
+        text.pack(fill="x", pady=(self.px(6), self.px(14)))
+        buttons = [("Back", lambda: self.move_tour(-1), "TButton")] if index else []
+        buttons += [("Finish" if last else "Next", lambda: self.move_tour(1), "Primary.TButton"), ("End Tour", self.end_tour, "TButton")]
+        row = tk.Frame(card, bg=COLORS["surface"])
+        row.pack(fill="x")
+        for column, (label, command, style_name) in enumerate(buttons):
+            button = self.row_button(row, label, command, style_name)
+            button.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else self.px(8), 0))
+            row.columnconfigure(column, weight=2 if style_name == "Primary.TButton" else 1)
+        self.raise_widget(card)
+        self.tour_card = card
+        if self.accessibility.get("read_aloud"):
+            self.speak(f"{title}. {body}")
+
     def view_training(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
 
-        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]), hover=COLORS["cyan"])
+        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Frame(hero, bg=COLORS["cyan"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
         tk.Label(hero, text="Memory Gym", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
@@ -1944,7 +3482,7 @@ class MemoryPalApp(tk.Tk):
             grid.columnconfigure(column, weight=1, uniform="training")
 
         def technique_tile(parent, row, column, title, body, target, color):
-            tile = self.hover_card(tk.Frame(parent, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color)
+            tile = self.hover_card(tk.Frame(parent, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color, command=lambda view=target: self.show_view(view))
             tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
             tk.Frame(tile, bg=color, width=self.px(32), height=self.px(3)).pack(anchor="w", pady=(0, self.px(10)))
             tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
@@ -1982,12 +3520,178 @@ class MemoryPalApp(tk.Tk):
             row, column = divmod(index, 2)
             technique_tile(tiles, row, column, *item)
 
+    def view_elder(self):
+        draft = self.view_drafts.get("elder", {})
+        page = ScrollFrame(self.view_host)
+        page.pack(fill="both", expand=True)
+        simple = self.accessibility.get("simple_language", False)
+
+        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(30), pady=self.px(28), highlightthickness=1, highlightbackground=COLORS["line"]))
+        hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        tk.Frame(hero, bg=COLORS["cyan"], width=self.px(46), height=self.px(5)).pack(anchor="w", pady=(0, 14))
+        tk.Label(hero, text="Everyday Memory", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
+        intro = "Simple memory support for people, routines, places, reminders, and calm practice." if simple else "A calm support area for older adults, people with memory changes, and caregivers who want simple prompts, familiar cues, routines, and short confidence-building practice."
+        tk.Label(hero, text=intro, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 13), wraplength=self.px(900), justify="left").pack(anchor="w", pady=(6, 0))
+
+        today_card = self.card(page.inner, "WarmCard.TFrame", 30)
+        today_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(today_card, text="Today board", style="WarmH2.TLabel").pack(anchor="w", pady=(0, self.px(10)))
+        today_lines = [
+            f"Today is {date.today().strftime('%A, %B %d, %Y')}.",
+            f"Active profile: {active_profile_name()}.",
+            f"Reviews due now: {len(self.store.due_cards())}.",
+            "One small step is enough: review one card, add one reminder, or play one gentle puzzle.",
+        ]
+        today_copy = ttk.Frame(today_card, style="WarmCard.TFrame")
+        today_copy.pack(fill="x", pady=(0, self.px(16)))
+        for line in today_lines:
+            ttk.Label(today_copy, text=line, style="WarmCard.TLabel", wraplength=self.px(1040), justify="left").pack(anchor="w", pady=(0, self.px(7)))
+        today_actions = ttk.Frame(today_card, style="WarmCard.TFrame")
+        today_actions.pack(fill="x")
+        self.button_row(
+            today_actions,
+            [
+                ("Start Gentle Review", lambda: self.start_everyday_review(), "Primary.TButton"),
+                ("Use Senior Layout", self.apply_senior_layout_defaults, "TButton"),
+                ("Open Puzzles", lambda: self.show_view("games"), "TButton"),
+            ],
+            "WarmCard.TFrame",
+        )
+
+        builder = self.card(page.inner, "Card.TFrame", 22)
+        builder.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(builder, text="Caregiver card builder", style="H2.TLabel").pack(anchor="w")
+        builder_help = "Make one clear memory card at a time. A helper can add photos, audio, or video from Capture after the card is saved." if simple else "Create respectful everyday cards for names, relationships, routines, places, and reminders. These become normal MemoryPal cards, so they can be reviewed in Test Lab and mixed with audio, image, video, or text cues."
+        ttk.Label(builder, text=builder_help, style="CardMuted.TLabel", wraplength=self.px(900), justify="left").pack(anchor="w", pady=(4, 12))
+        kind_var = tk.StringVar(value=draft.get("elder_kind", "Person"))
+        self.select_button(builder, kind_var, ["Person", "Routine", "Place", "Reminder"]).pack(fill="x", pady=(0, self.px(10)))
+        prompt_var = tk.StringVar(value=draft.get("elder_prompt", "Who is this person?"))
+        prompt_entry = ttk.Entry(builder, textvariable=prompt_var)
+        prompt_entry.pack(fill="x", pady=(0, self.px(10)))
+        answer_box = self.answer_area(builder, "Answer or helpful cue", "Example: This is Maya, your granddaughter. She visits on Sundays.", 4)
+        answer_box.insert("1.0", draft.get("elder_answer", ""))
+        notes_box = self.answer_area(builder, "Optional gentle note", "Example: Show a family photo, play a familiar voice note, or use a short routine.", 3)
+        notes_box.insert("1.0", draft.get("elder_notes", ""))
+
+        def apply_kind_prompt(*_args):
+            if normalize_space(prompt_var.get()) and prompt_var.get() not in {
+                "Who is this person?",
+                "What are the steps?",
+                "Where does this belong?",
+                "What should I remember?",
+            }:
+                return
+            prompt_var.set({
+                "Person": "Who is this person?",
+                "Routine": "What are the steps?",
+                "Place": "Where does this belong?",
+                "Reminder": "What should I remember?",
+            }.get(kind_var.get(), "What should I remember?"))
+
+        kind_var.trace_add("write", apply_kind_prompt)
+
+        def add_everyday_card():
+            prompt = normalize_space(prompt_var.get())
+            answer = normalize_space(answer_box.get("1.0", "end"))
+            note = normalize_space(notes_box.get("1.0", "end"))
+            if not prompt or not answer:
+                self.toast_message("Add a prompt and answer first.")
+                return
+            kind = kind_var.get()
+            card = Card(
+                deck="Everyday Memory",
+                front=prompt,
+                back=answer,
+                pathway=f"Everyday Memory > {kind}",
+                association=note or f"Use one familiar cue for this {kind.lower()} card.",
+            )
+            self.store.add_card(card)
+            answer_box.delete("1.0", "end")
+            notes_box.delete("1.0", "end")
+            self.toast_message(f"{kind} card added.")
+
+        def load_everyday_starters():
+            starters = [
+                ("Who is a family member I want to remember?", "Say the person's name, relationship, and one familiar detail."),
+                ("What are my morning steps?", "Check the date, drink water, take medicine if prescribed, and put keys in the usual place."),
+                ("Where do my keys belong?", "The keys belong in the same bowl or hook near the door."),
+                ("What appointment should I ask about?", "Look at today's calendar or ask a caregiver to confirm the next appointment."),
+                ("What helps me feel calm?", "Pause, breathe slowly, look at a familiar photo, and ask for help if needed."),
+            ]
+            existing = {(card.front, card.back) for card in self.store.cards}
+            added = 0
+            for front, back in starters:
+                if (front, back) in existing:
+                    continue
+                self.store.cards.insert(0, Card(deck="Everyday Memory", front=front, back=back, pathway="Everyday Memory > Starter", association="Keep the wording short and familiar."))
+                added += 1
+            if added:
+                self.store.save()
+                self.toast_message(f"Added {added} starter cards.")
+            else:
+                self.toast_message("Starter cards already exist.")
+
+        self.button_row(
+            builder,
+            [
+                ("Add Person Card", lambda: (kind_var.set("Person"), add_everyday_card()), "Primary.TButton"),
+                ("Add Routine Card", lambda: (kind_var.set("Routine"), add_everyday_card()), "TButton"),
+                ("Add Place Card", lambda: (kind_var.set("Place"), add_everyday_card()), "TButton"),
+                ("Add Reminder Card", lambda: (kind_var.set("Reminder"), add_everyday_card()), "TButton"),
+            ],
+        )
+        self.button_row(builder, [("Create Starter Set", load_everyday_starters, "Primary.TButton"), ("Open Caregiver Notes", lambda: self.show_view("capture"), "TButton")])
+
+        grid = ttk.Frame(page.inner, style="Page.TFrame")
+        grid.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        idea_columns = 1 if self.accessibility_multiplier() > 1.1 else 2
+        for column in range(idea_columns):
+            grid.columnconfigure(column, weight=1, uniform="elder")
+        ideas = [
+            ("People & names", "Use one photo, one name, one relationship, and one warm detail. Keep the answer short.", COLORS["primary"]),
+            ("Routine practice", "Use Routine Recall for two to four steps. Missing a step means the routine needs another calm pass.", COLORS["green"]),
+            ("Where things belong", "Practise common places: keys, glasses, medicine list, phone charger, appointment card.", COLORS["orange"]),
+            ("Caregiver support", "Add cues with a familiar voice, a real photo, or plain words. Avoid surprise sounds or clutter.", COLORS["violet"]),
+        ]
+        for index, (title, body, color) in enumerate(ideas):
+            tile = self.hover_card(tk.Frame(grid, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20), highlightthickness=1, highlightbackground=COLORS["line"]))
+            row, column = divmod(index, idea_columns)
+            tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
+            tk.Frame(tile, bg=color, width=self.px(36), height=self.px(4)).pack(anchor="w", pady=(0, self.px(12)))
+            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(anchor="w")
+            tk.Label(tile, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(820 if idea_columns == 1 else 430), justify="left").pack(anchor="w", pady=(self.px(6), 0))
+
+        safety = self.card(page.inner, "AltCard.TFrame", 20)
+        safety.pack(fill="x", padx=(0, 8))
+        ttk.Label(safety, text="Care note", style="AltH2.TLabel").pack(anchor="w")
+        ttk.Label(safety, text="MemoryPal can support practice and reminders, but it is not a medical device, emergency tool, or replacement for professional care. For urgent safety concerns, use the person's normal care plan or emergency contacts.", style="AltCard.TLabel", wraplength=self.px(900), justify="left").pack(anchor="w", pady=(4, 0))
+        self.register_draft_saver("elder", lambda: {
+            "elder_kind": kind_var.get(),
+            "elder_prompt": prompt_var.get(),
+            "elder_answer": answer_box.get("1.0", "end").strip(),
+            "elder_notes": notes_box.get("1.0", "end").strip(),
+        })
+
+    def start_everyday_review(self):
+        everyday = [card for card in self.store.due_cards() if (card.deck or "General") == "Everyday Memory"]
+        if not everyday:
+            everyday = [card for card in self.store.cards if (card.deck or "General") == "Everyday Memory"]
+        if not everyday:
+            everyday = self.store.due_cards() or self.store.cards
+        if not everyday:
+            self.toast_message("Add an Everyday Memory card first.")
+            return
+        self.current_review = everyday[0]
+        self.open_testing(everyday[0], "elder", "everyday")
+
     def view_dashboard(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         due = self.store.due_cards()
         weak = self.store.weak_cards()
         upcoming = self.store.upcoming_cards()
+        everyday_cards = [card for card in self.store.cards if (card.deck or "General") == "Everyday Memory"]
+        everyday_due = [card for card in due if (card.deck or "General") == "Everyday Memory"]
         mastery, mastered, learning = self.mastery_summary()
         if due:
             next_title, next_body, next_view, next_color = "Start today's review", f"{len(due)} card{'s' if len(due) != 1 else ''} due now.", "review", COLORS["primary"]
@@ -2044,12 +3748,33 @@ class MemoryPalApp(tk.Tk):
             (len(weak), "Focus", COLORS["pink"]),
             (self.store.practiced, "Practiced", COLORS["orange"]),
         ]):
-            tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color)
+            tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]))
             tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 12, 0))
             tk.Frame(tile, bg=color, width=34, height=4).pack(anchor="w", pady=(0, 12))
             tk.Label(tile, text=str(number), bg=COLORS["surface"], fg=color, font=("Segoe UI Semibold", 34)).pack(anchor="w")
             tk.Label(tile, text=label, bg=COLORS["surface"], fg=COLORS["muted"], font=("Segoe UI", 12)).pack(anchor="w")
             stats.columnconfigure(index, weight=1)
+
+        reminders = ttk.Frame(page.inner, style="Page.TFrame")
+        reminders.pack(fill="x", padx=(0, 8), pady=(16, 0))
+        reminder_columns = 1 if self.accessibility_multiplier() > 1.1 else 3
+        for column in range(reminder_columns):
+            reminders.columnconfigure(column, weight=1, uniform="reminders")
+        next_due_text = due[0].front if due else "No due cards right now."
+        next_scheduled = upcoming[0].next_review if upcoming else "Nothing scheduled yet"
+        reminder_items = [
+            ("Next review", next_due_text, "Open Review", lambda: self.show_view("review"), COLORS["primary"]),
+            ("Everyday Memory", f"{len(everyday_due)} due | {len(everyday_cards)} saved", "Open Everyday Memory", lambda: self.show_view("elder"), COLORS["cyan"]),
+            ("Upcoming", next_scheduled, "Study Plan", lambda: self.show_view("plan"), COLORS["violet"]),
+        ]
+        for index, (title, body, action_label, action, color) in enumerate(reminder_items):
+            tile = self.hover_card(tk.Frame(reminders, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color, command=action)
+            row, column = divmod(index, reminder_columns)
+            tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(10), 0), pady=(0 if row == 0 else self.px(10), 0))
+            tk.Frame(tile, bg=color, width=self.px(34), height=self.px(4)).pack(anchor="w", pady=(0, self.px(10)))
+            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15)).pack(anchor="w")
+            tk.Label(tile, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(820 if reminder_columns == 1 else 315), justify="left").pack(anchor="w", pady=(self.px(5), self.px(12)))
+            self.solid_button(tile, action_label, action, color).pack(fill="x")
 
         streak_row = ttk.Frame(page.inner, style="Page.TFrame")
         streak_row.pack(fill="x", padx=(0, 8), pady=(16, 0))
@@ -2070,8 +3795,22 @@ class MemoryPalApp(tk.Tk):
 
         actions = ttk.Frame(page.inner, style="Page.TFrame")
         actions.pack(fill="x", padx=(0, 8), pady=(16, 0))
+        available_width = max(1, self.content.winfo_width() or self.main.winfo_width())
+        gap = self.px(12)
+        if self.accessibility_multiplier() > 1.1:
+            action_columns = 1 if available_width < self.px(980) else 2
+        elif available_width >= self.px(1380):
+            action_columns = 3
+        elif available_width >= self.px(880):
+            action_columns = 2
+        else:
+            action_columns = 1
+        card_wrap = max(self.px(245), int((available_width - gap * (action_columns + 3)) / max(1, action_columns)) - self.px(58))
+        for column in range(action_columns):
+            actions.columnconfigure(column, weight=1, uniform="dashboard_actions")
         cards = [
             ("Memory Gym", "Choose evidence-based study drills or gentle memory-support activities.", "training", COLORS["green"]),
+            ("Everyday Memory", "Large, calm tools for routines, people, places, and caregiver-created reminders.", "elder", COLORS["cyan"]),
             ("Decks", "Browse decks with per-deck mastery and study one at a time.", "decks", COLORS["cyan"]),
             ("Study plan", "Get a tailored plan for today based on your time, material, and habits.", "plan", COLORS["violet"]),
             ("Focus session", "A study-app style queue for due, weak, and new cards.", "focus", COLORS["pink"]),
@@ -2084,17 +3823,16 @@ class MemoryPalApp(tk.Tk):
             ("Library", "Browse captures, cards, media cues, and exports.", "library", COLORS["cyan"]),
             ("Stats", "Streaks, daily goal, and a full activity heatmap.", "stats", COLORS["orange"]),
             ("Feedback", "Log tester notes, ratings, bugs, and accessibility comments.", "feedback", COLORS["green"]),
-            ("Settings", "Tune the app, profiles, storage, and focus controls.", "settings", COLORS["violet"]),
         ]
         for index, (title, body, target, color) in enumerate(cards):
-            frame = self.hover_card(tk.Frame(actions, bg=COLORS["surface"], padx=self.px(24), pady=self.px(24), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color)
-            frame.grid(row=index // 2, column=index % 2, sticky="nsew", padx=(0 if index % 2 == 0 else 12, 0), pady=(0, 12))
+            row, column = divmod(index, action_columns)
+            frame = self.hover_card(tk.Frame(actions, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color, command=lambda view=target: self.show_view(view))
+            frame.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else gap, 0), pady=(0, gap))
             frame.columnconfigure(0, weight=1)
-            tk.Frame(frame, bg=color, width=38, height=4).pack(anchor="w", pady=(0, 16))
-            tk.Label(frame, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=("Segoe UI Semibold", 17)).pack(anchor="w")
-            tk.Label(frame, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=("Segoe UI", 12), wraplength=460, justify="left").pack(anchor="w", pady=(8, 12))
+            tk.Frame(frame, bg=color, width=self.px(38), height=self.px(4)).pack(anchor="w", pady=(0, self.px(12)))
+            tk.Label(frame, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(anchor="w")
+            tk.Label(frame, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=card_wrap, justify="left").pack(anchor="w", pady=(self.px(6), self.px(10)))
             self.solid_button(frame, "Open", lambda view=target: self.show_view(view), color).pack(fill="x")
-            actions.columnconfigure(index % 2, weight=1)
 
         if weak or upcoming:
             insight = self.card(page.inner, "AltCard.TFrame")
@@ -2106,15 +3844,18 @@ class MemoryPalApp(tk.Tk):
 
     def render_goal_ring(self, parent, done, goal, size=132, color=None):
         color = color or COLORS["primary"]
-        canvas = tk.Canvas(parent, width=self.px(size), height=self.px(size), bg=COLORS["surface"], highlightthickness=0)
+        pixel_size = self.px(size)
+        canvas = tk.Canvas(parent, width=pixel_size, height=pixel_size, bg=COLORS["surface"], highlightthickness=0)
         pct = 0 if goal <= 0 else clamp(done / goal, 0, 1)
         pad = self.px(10)
-        box = self.px(size) - pad
-        canvas.create_oval(pad, pad, box, box, outline=COLORS["line"], width=self.px(10))
-        if pct > 0:
-            canvas.create_arc(pad, pad, box, box, start=90, extent=-360 * pct, style="arc", outline=color, width=self.px(10))
-        canvas.create_text(self.px(size) // 2, self.px(size) // 2 - self.px(6), text=str(done), fill=COLORS["ink"], font=self.font("Segoe UI Semibold", 22))
-        canvas.create_text(self.px(size) // 2, self.px(size) // 2 + self.px(16), text=f"of {goal} goal", fill=COLORS["muted"], font=self.font("Segoe UI", 10))
+        stroke = self.px(10)
+        if not self.draw_antialiased_ring(canvas, pixel_size, COLORS["line"], color, pct, stroke):
+            box = pixel_size - pad
+            canvas.create_oval(pad, pad, box, box, outline=COLORS["line"], width=stroke)
+            if pct > 0:
+                canvas.create_arc(pad, pad, box, box, start=90, extent=-360 * pct, style="arc", outline=color, width=stroke)
+        self.create_centered_canvas_text(canvas, pixel_size / 2, pixel_size / 2 - self.px(6), text=str(done), fill=COLORS["ink"], font=self.font("Segoe UI Semibold", 22))
+        self.create_centered_canvas_text(canvas, pixel_size / 2, pixel_size / 2 + self.px(16), text=f"of {goal} goal", fill=COLORS["muted"], font=self.font("Segoe UI", 10))
         return canvas
 
     def render_heatmap(self, parent, weeks=18):
@@ -2202,7 +3943,7 @@ class MemoryPalApp(tk.Tk):
             ("Needs care", str(len(self.store.weak_cards())), "weak or new cards to revisit", COLORS["pink"]),
         ]
         for index, (title, number, caption, color) in enumerate(rhythm_items):
-            card = self.hover_card(tk.Frame(rhythm, bg=COLORS["surface"], padx=self.px(18), pady=self.px(16), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color)
+            card = self.hover_card(tk.Frame(rhythm, bg=COLORS["surface"], padx=self.px(18), pady=self.px(16), highlightthickness=1, highlightbackground=COLORS["line"]))
             card.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else self.px(10), 0))
             tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w")
             tk.Label(card, text=number, bg=COLORS["surface"], fg=color, font=self.font("Segoe UI Semibold", 24)).pack(anchor="w", pady=(self.px(2), 0))
@@ -2248,7 +3989,7 @@ class MemoryPalApp(tk.Tk):
         palette = [COLORS["primary"], COLORS["green"], COLORS["orange"], COLORS["violet"], COLORS["pink"], COLORS["cyan"]]
         for index, (deck, info) in enumerate(summary.items()):
             color = palette[index % len(palette)]
-            tile = self.hover_card(tk.Frame(grid, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color)
+            tile = self.hover_card(tk.Frame(grid, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20), highlightthickness=1, highlightbackground=COLORS["line"]))
             tile.grid(row=index // 2, column=index % 2, sticky="nsew", padx=(0 if index % 2 == 0 else 12, 0), pady=(0, 12))
             grid.columnconfigure(index % 2, weight=1)
             tk.Frame(tile, bg=color, width=36, height=4).pack(anchor="w", pady=(0, 12))
@@ -2412,6 +4153,7 @@ class MemoryPalApp(tk.Tk):
                 ttk.Label(summary, text=f"Your {amount} {unit} plan", style="AltH2.TLabel").pack(anchor="w")
                 ttk.Label(summary, text=f"{len(steps)} step{'s' if len(steps) != 1 else ''} \u2022 {deck_choice} \u2022 {goal_var.get()}", style="AltMuted.TLabel").pack(anchor="w", pady=(2, 0))
                 render_steps_list(result_holder, steps)
+                self.fit_wrap_tree(result_holder)
             else:
                 total_days = amount * (7 if unit == "weeks" else 1)
                 days = build_multi_day_plan(self.store, total_days, deck_choice, habits, goal_key)
@@ -2430,7 +4172,15 @@ class MemoryPalApp(tk.Tk):
                     for child in day_steps_host.winfo_children():
                         child.destroy()
                     day = next((d for d in days if str(d["day"]) == value), days[0])
+                    kind_labels = {"learn": "Learn day", "review": "Spaced review day", "maintenance": "Short maintenance day", "light": "Light day before the test", "study": "Study day"}
+                    try:
+                        when = datetime.strptime(day["date"], "%Y-%m-%d").strftime("%a %d %b")
+                    except (KeyError, ValueError):
+                        when = ""
+                    parts = [f"Day {day['day']}", when, kind_labels.get(day.get("kind"), "Study day"), f"{day.get('due', 0)} due", f"{day['minutes']} min"]
+                    tk.Label(day_steps_host, text="  •  ".join(part for part in parts if part), bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 11)).pack(anchor="w", pady=(0, 8))
                     render_steps_list(day_steps_host, day["steps"])
+                    self.fit_wrap_tree(day_steps_host)
 
                 self.pill_group(tab_host, day_var, [str(d["day"]) for d in days], on_change=show_day, max_columns=14).pack(anchor="w")
                 show_day("1")
@@ -2472,7 +4222,7 @@ class MemoryPalApp(tk.Tk):
             section.pack(fill="x", padx=(0, 8), pady=(0, 10))
             header = ttk.Frame(section, style="Card.TFrame")
             header.pack(fill="x")
-            ttk.Label(header, text=title, style="H2.TLabel").pack(side="left", anchor="w")
+            ttk.Label(header, text=title, style="H2.TLabel").pack(side="left", anchor="w", padx=(0, self.px(12)))
             self.render_status_chip(header, f"{len(cards)} item{'s' if len(cards) != 1 else ''}", COLORS["alt"], COLORS["primary"])
             if not cards:
                 ttk.Label(section, text="Nothing in this queue.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 0))
@@ -2763,14 +4513,20 @@ class MemoryPalApp(tk.Tk):
 
     def view_capture(self):
         draft = self.view_drafts.get("capture", {})
-        page = ScrollFrame(self.view_host, horizontal=True, min_width=self.px(1220))
+        page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         wrapper = ttk.Frame(page.inner, style="Page.TFrame")
         wrapper.pack(fill="both", expand=True, padx=(0, 8))
+        # Fixed 3:2 split (uniform group) instead of side-by-side pack, which
+        # let the form's widest row claim the width and push the side panel
+        # off-screen behind a horizontal scrollbar.
+        wrapper.columnconfigure(0, weight=3, uniform="capture")
+        wrapper.columnconfigure(1, weight=2, uniform="capture")
+        wrapper.rowconfigure(0, weight=1)
         form = self.card(wrapper)
-        form.pack(side="left", fill="both", expand=True, padx=(0, 14))
+        form.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
         side = self.card(wrapper, "AltCard.TFrame")
-        side.pack(side="left", fill="both", expand=True)
+        side.grid(row=0, column=1, sticky="nsew")
 
         ttk.Label(form, text="Study set builder", style="H2.TLabel").pack(anchor="w")
         ttk.Label(form, text="Add each fact, reminder, or idea as its own bit.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 18))
@@ -2798,16 +4554,19 @@ class MemoryPalApp(tk.Tk):
         qa_prompt.pack(fill="x", pady=(4, 6))
         presets = ttk.Frame(qa_panel, style="AltCard.TFrame")
         presets.pack(fill="x", pady=(0, 10))
-        ttk.Label(presets, text="Quick starts:", style="AltMuted.TLabel").pack(side="left", padx=(0, 8))
+        ttk.Label(presets, text="Quick starts:", style="AltMuted.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        presets.columnconfigure(0, weight=1, uniform="presets")
+        presets.columnconfigure(1, weight=1, uniform="presets")
 
         def use_preset(text):
             qa_prompt.delete(0, "end")
             qa_prompt.insert(0, text)
             qa_prompt.focus_set()
 
-        for preset_text in ["Who is this person?", "What is this appointment?", "Where is this item kept?", "What should happen next?"]:
+        for preset_index, preset_text in enumerate(["Who is this person?", "What is this appointment?", "Where is this item kept?", "What should happen next?"]):
             chip = ttk.Button(presets, text=preset_text, style="TButton", command=lambda t=preset_text: use_preset(t))
-            chip.pack(side="left", padx=(0, 6))
+            row, column = divmod(preset_index, 2)
+            chip.grid(row=row + 1, column=column, sticky="ew", padx=(0 if column == 0 else 6, 0), pady=(0, 6))
             self.add_tooltip(chip, "Caregiver-friendly starter prompt \u2014 click to use it, then fill in the answer.")
         qa_has_answer = tk.BooleanVar(value=draft.get("qa_has_answer", True))
         answer_toggle = self.check_toggle(qa_panel, qa_has_answer, "This question has a saved answer", on_change=lambda _checked: update_answer_visibility(), bg=COLORS["alt"])
@@ -2838,6 +4597,7 @@ class MemoryPalApp(tk.Tk):
                 answer_text = item["answer"] if item["answer"] else "self-check only"
                 text = f"{index}. {item['prompt']} -> {answer_text}"
                 tk.Label(qa_list, text=text, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI", 11), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(0, self.px(5)))
+            self.fit_wrap_tree(qa_list)
 
         def add_qa():
             item = {
@@ -2888,6 +4648,7 @@ class MemoryPalApp(tk.Tk):
                 tk.Label(row, text=f"{index}.", bg=COLORS["alt"], fg=COLORS["primary"], font=("Segoe UI Semibold", 12)).pack(side="left", anchor="n", padx=(0, 8))
                 tk.Label(row, text=chunk, bg=COLORS["alt"], fg=COLORS["ink"], wraplength=520, justify="left", font=("Segoe UI", 12)).pack(side="left", fill="x", expand=True)
             count_label.configure(text=f"{len(chunks)} study bit{'s' if len(chunks) != 1 else ''} added")
+            self.fit_wrap_tree(chunk_panel)
 
         def add_bit():
             raw = entry.get("1.0", "end").strip()
@@ -2948,13 +4709,12 @@ class MemoryPalApp(tk.Tk):
                 return
             capture = Capture(title=title_text, notes="\n".join(capture_chunks), chunks=capture_chunks, **self.pending_media)
             self.store.add_capture(capture)
-            created = 0
+            new_cards = []
             if qa_cards and (staged_qa or parsed_qa):
                 for index, item in enumerate(staged_qa + parsed_qa, 1):
                     answer_text = item["answer"] or SELF_CHECK_ANSWER
                     association = "Prompt-answer card created from separate Q/A fields." if item in staged_qa else "Prompt-answer card created from pasted study lines."
-                    self.store.add_card(Card(deck=title_text, front=item["prompt"], back=answer_text, pathway=f"Capture > {title_text} > Q/A {index}", association=association, **self.pending_media))
-                    created += 1
+                    new_cards.append(Card(deck=title_text, front=item["prompt"], back=answer_text, pathway=f"Capture > {title_text} > Q/A {index}", association=association, **self.pending_media))
             elif make_cards:
                 prompt_text = normalize_space(prompt.get()) or "What should I recall from bit {n}?"
                 card_chunks = capture_chunks or [f"Use the attached media to recall {title_text}."]
@@ -2962,8 +4722,10 @@ class MemoryPalApp(tk.Tk):
                     front = prompt_text.replace("{n}", str(index)).replace("{total}", str(len(card_chunks)))
                     if front == prompt_text and len(card_chunks) > 1:
                         front = f"{front} ({index}/{len(card_chunks)})"
-                    self.store.add_card(Card(deck="Captured Material", front=front, back=chunk, pathway=f"Capture > {title_text} > Bit {index}", association="Use attached media as a memory cue.", **self.pending_media))
-                    created += 1
+                    new_cards.append(Card(deck="Captured Material", front=front, back=chunk, pathway=f"Capture > {title_text} > Bit {index}", association="Use attached media as a memory cue.", **self.pending_media))
+            # One save for the whole batch instead of one per card.
+            self.store.add_cards(new_cards)
+            created = len(new_cards)
             chunks.clear()
             qa_items.clear()
             entry.delete("1.0", "end")
@@ -3143,14 +4905,16 @@ class MemoryPalApp(tk.Tk):
             self.current_review = due[0]
         card = self.current_review
         ttk.Label(host, text=f"{card.deck} | Next review: {card.next_review}", style="CardMuted.TLabel").pack(anchor="w")
-        ttk.Label(host, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(10, 16))
+        ttk.Label(host, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(10, 8))
+        self.read_aloud_button(host, card.front if not show_answer else f"{card.front}. The answer is: {card.back}", "Read aloud").pack(anchor="w", pady=(0, 12))
+        if not show_answer and self.accessibility.get("read_aloud"):
+            self.after(250, lambda: self.speak(card.front))
         self.render_media_controls(host, card)
         if show_answer:
             if response_text:
                 ttk.Label(host, text=f"Your response: {response_text}", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 10))
             if assessment:
-                ttk.Label(host, text=f"Smart check: {assessment['label']} | {assessment['score']}% | Bucket: {assessment['bucket']} | Reps: {assessment['repetitions']}", style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 8))
-                ttk.Label(host, text=assessment["detail"], style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 12))
+                ttk.Label(host, text=self.describe_assessment(assessment), style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 12))
                 self.render_bucket_highlight(host, assessment["bucket"])
             ttk.Label(host, text=card.back, style="Card.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 14))
             ttk.Label(host, text=f"Path: {card.pathway or 'Not set'}", style="CardMuted.TLabel").pack(anchor="w")
@@ -3158,14 +4922,14 @@ class MemoryPalApp(tk.Tk):
             row = ttk.Frame(host, style="Card.TFrame")
             row.pack(fill="x")
             if assessment:
-                ttk.Button(row, text=f"Use Smart Rating ({assessment['bucket']})", style="Primary.TButton", command=lambda: self.rate_review(host, assessment["quality"], assessment)).grid(row=0, column=0, sticky="ew", padx=(0, 8))
+                ttk.Button(row, text=f"Use Smart Rating ({self.rating_label(assessment['bucket'])})", style="Primary.TButton", command=lambda: self.rate_review(host, assessment["quality"], assessment)).grid(row=0, column=0, sticky="ew", padx=(0, 8))
                 row.columnconfigure(0, weight=2)
                 offset = 1
             else:
                 offset = 0
             for index, (label, quality) in enumerate([("Again", 1), ("Good", 4), ("Easy", 5)]):
                 style = self.bucket_style(label) if assessment and assessment["bucket"] == label else "TButton"
-                ttk.Button(row, text=label, style=style, command=lambda value=quality: self.rate_review(host, value)).grid(row=0, column=index + offset, sticky="ew", padx=(0 if index == 0 and not offset else 8, 0))
+                ttk.Button(row, text=self.rating_label(label), style=style, command=lambda value=quality: self.rate_review(host, value)).grid(row=0, column=index + offset, sticky="ew", padx=(0 if index == 0 and not offset else 8, 0))
                 row.columnconfigure(index + offset, weight=1)
             ttk.Button(row, text="Open Test Page", command=lambda: self.open_testing(card, "review", "review")).grid(row=0, column=offset + 3, sticky="ew", padx=(8, 0))
             row.columnconfigure(offset + 3, weight=1)
@@ -3174,8 +4938,12 @@ class MemoryPalApp(tk.Tk):
         response = self.answer_area(host, "Your recall", "Type your answer, transcript, caption, or media description.", 5)
 
         def smart_check():
-            context = " ".join(part for part in [card.front, card.pathway, card.association, self.media_summary(card)] if part)
-            result = answer_assessment(response.get("1.0", "end").strip(), card.back, context)
+            if card.back == SELF_CHECK_ANSWER:
+                # Nothing saved to compare against: show the card and let the
+                # learner rate themselves instead of scoring against filler.
+                self.render_review(host, True, None, response.get("1.0", "end").strip())
+                return
+            result = answer_assessment(response.get("1.0", "end").strip(), card.back)
             self.render_review(host, True, result, response.get("1.0", "end").strip())
 
         self.button_row(host, [("Smart Check", smart_check, "Primary.TButton"), ("Reveal Only", lambda: self.render_review(host, True), "TButton"), ("Open Test Page", lambda: self.open_testing(card, "review", "review"), "TButton")])
@@ -3204,7 +4972,10 @@ class MemoryPalApp(tk.Tk):
         guide.pack(fill="x", pady=(0, self.px(12)))
         ttk.Label(guide, text="Answer first, then check", style="WarmH2.TLabel").pack(anchor="w")
         ttk.Label(guide, text="Smart Check compares your response in context and suggests a review bucket. Reveal is always available if this is a self-check card.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
-        ttk.Label(panel, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 14))
+        ttk.Label(panel, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 8))
+        self.read_aloud_button(panel, card.front, "Read question aloud").pack(anchor="w", pady=(0, 14))
+        if self.accessibility.get("read_aloud"):
+            self.after(250, lambda: self.speak(card.front))
         self.render_media_controls(panel, card)
         response = self.answer_area(panel, "Your test answer", "Answer here without leaving the testing page.", 5)
         if draft.get("card_id") == card.id and draft.get("context") == self.testing_context:
@@ -3220,10 +4991,19 @@ class MemoryPalApp(tk.Tk):
         def smart_check():
             for child in bucket_holder.winfo_children():
                 child.destroy()
-            checked = answer_assessment(response.get("1.0", "end").strip(), card.back, card.front)
+            if card.back == SELF_CHECK_ANSWER:
+                latest_assessment["value"] = None
+                result.configure(text=self.plain(
+                    "This is a self-check card with no saved answer. Reveal it if helpful, then rate yourself below.",
+                    "There is no saved answer for this one. Think about how well you remembered, then pick a button below.",
+                ))
+                return
+            checked = answer_assessment(response.get("1.0", "end").strip(), card.back)
             latest_assessment["value"] = checked
-            result.configure(text=f"{checked['label']} | {checked['score']}% | Bucket: {checked['bucket']} | Reps: {checked['repetitions']} | {checked['detail']}")
+            result.configure(text=self.describe_assessment(checked))
             self.render_bucket_highlight(bucket_holder, checked["bucket"])
+            if self.accessibility.get("read_aloud"):
+                self.speak(self.describe_assessment(checked) if self.accessibility.get("simple_language") else checked["label"])
 
         def reveal():
             if answer_visible["value"]:
@@ -3233,9 +5013,12 @@ class MemoryPalApp(tk.Tk):
             for child in answer_holder.winfo_children():
                 child.destroy()
             ttk.Label(answer_holder, text="Saved answer", style="CardMuted.TLabel").pack(anchor="w")
-            ttk.Label(answer_holder, text=card.back, style="Card.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
+            ttk.Label(answer_holder, text=card.back, style="Card.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 8))
+            self.read_aloud_button(answer_holder, card.back, "Read answer aloud").pack(anchor="w")
             answer_holder.pack(fill="x", pady=(8, 0))
             answer_visible["value"] = True
+            if self.accessibility.get("read_aloud"):
+                self.speak(card.back)
 
         def schedule_from_lab(quality, assessment=None):
             self.store.schedule(card, quality, assessment)
@@ -3302,7 +5085,7 @@ class MemoryPalApp(tk.Tk):
             rating = ttk.Frame(panel, style="Card.TFrame")
             rating.pack(fill="x")
             for index, (label, quality, key) in enumerate([("Again", 1, "1"), ("Review", 3, "2"), ("Good", 4, "3"), ("Easy", 5, "4")]):
-                button = ttk.Button(rating, text=f"{label}  ({key})", style=self.bucket_style(label), command=lambda value=quality: schedule_from_lab(value))
+                button = ttk.Button(rating, text=f"{self.rating_label(label)}  ({key})", style=self.bucket_style(label), command=lambda value=quality: schedule_from_lab(value))
                 button.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else self.px(8), 0))
                 self.add_tooltip(button, self.action_hint(label))
                 rating.columnconfigure(index, weight=1)
@@ -3581,7 +5364,9 @@ class MemoryPalApp(tk.Tk):
         range_var = tk.StringVar()
         range_var.set(draft.get("range", ""))
         ttk.Entry(controls, textvariable=range_var).grid(row=1, column=1, sticky="ew", padx=(0, 8))
-        ttk.Label(controls, text="Example: range 3 at item 5 gives 5, 5-4, 5-4-3, then 3-2-1.", style="CardMuted.TLabel", wraplength=620).grid(row=1, column=2, sticky="w")
+        example = ttk.Label(controls, text="Example: range 3 at item 5 gives 5, 5-4, 5-4-3, then 3-2-1.", style="CardMuted.TLabel", wraplength=620)
+        example.grid(row=1, column=2, sticky="ew")
+        self.bind_rewrap(example)
         controls.columnconfigure(0, weight=1)
         controls.columnconfigure(1, weight=1)
         controls.columnconfigure(2, weight=3)
@@ -3723,79 +5508,17 @@ class MemoryPalApp(tk.Tk):
         out = ttk.Label(output, text=draft.get("output", "Your memory hook will appear here."), style="AltCard.TLabel", wraplength=1080)
         out.pack(anchor="w")
 
-        def parse():
-            raw = ideas.get("1.0", "end").replace("/n", "\n")
-            return [item.strip() for item in re.split(r"[,\n;|/]+", raw) if item.strip()]
+        def technique(generate):
+            def run():
+                out.configure(text=generate(techniques.parse_ideas(ideas.get("1.0", "end"))))
+            return run
 
-        def acronym():
-            items = parse()
-            out.configure(text="".join(item[0].upper() for item in items) + "\n\nConnect each letter back to: " + ", ".join(items) if items else "Add ideas first.")
-
-        def story():
-            items = parse()
-            if not items:
-                out.configure(text="Add ideas first.")
-                return
-            scenes = [
-                "at the front door",
-                "on the kitchen table",
-                "beside a bright window",
-                "inside a small notebook",
-                "under a glowing lamp",
-                "next to the final doorway",
-            ]
-            lines = []
-            for index, item in enumerate(items):
-                scene = scenes[index % len(scenes)]
-                action = ["shines", "speaks", "spins", "points", "opens", "locks"][index % 6]
-                lines.append(f"{index + 1}. Picture {item} {scene}. It {action} so you notice it before moving on.")
-            out.configure(text="Mini-story:\n\n" + "\n".join(lines) + "\n\nWalk through the scenes in order and let each image cue the next idea.")
-
-        def peg_list():
-            items = parse()
-            pegs = ["sun", "shoe", "tree", "door", "hive", "sticks", "heaven", "gate", "line", "pen"]
-            if not items:
-                out.configure(text="Add ideas first.")
-                return
-            lines = []
-            for index, item in enumerate(items):
-                peg = pegs[index % len(pegs)]
-                lines.append(f"{index + 1}. {peg.title()} peg: imagine {item} attached to a {peg}.")
-            out.configure(text="Peg list:\n\n" + "\n".join(lines))
-
-        def palace():
-            items = parse()
-            route = ["front door", "hallway", "kitchen", "table", "window", "sofa", "bedroom", "desk", "mirror", "back door"]
-            if not items:
-                out.configure(text="Add ideas first.")
-                return
-            lines = []
-            for index, item in enumerate(items):
-                place = route[index % len(route)]
-                lines.append(f"{index + 1}. Put {item} at the {place}. Make it oversized or moving.")
-            out.configure(text="Memory palace route:\n\n" + "\n".join(lines) + "\n\nReview by walking through the route in the same order.")
-
-        def chunk_map():
-            items = parse()
-            if not items:
-                out.configure(text="Add ideas first.")
-                return
-            chunks = [items[index:index + 3] for index in range(0, len(items), 3)]
-            lines = [f"Group {index + 1}: " + ", ".join(group) for index, group in enumerate(chunks)]
-            out.configure(text="Chunk map:\n\n" + "\n".join(lines) + "\n\nStudy one group at a time, then connect the groups.")
-
-        def link_chain():
-            items = parse()
-            if not items:
-                out.configure(text="Add ideas first.")
-                return
-            if len(items) == 1:
-                out.configure(text=f"Link chain:\n\nStart with {items[0]} and add more ideas to build a chain.")
-                return
-            lines = []
-            for first, second in zip(items, items[1:]):
-                lines.append(f"{first} leads to {second}: imagine {first} handing a bright clue to {second}.")
-            out.configure(text="Link chain:\n\n" + "\n".join(lines))
+        acronym = technique(techniques.acronym)
+        story = technique(techniques.story)
+        peg_list = technique(techniques.peg_list)
+        palace = technique(techniques.palace)
+        chunk_map = technique(techniques.chunk_map)
+        link_chain = technique(techniques.link_chain)
 
         def saved():
             ideas.delete("1.0", "end")
@@ -3900,7 +5623,7 @@ class MemoryPalApp(tk.Tk):
             self.sequence = "".join(str(random.randint(1, 9)) for _ in range(random.randint(4, 8)))
             sequence_box.configure(text=" ".join(self.sequence))
             answer.delete(0, "end")
-            self.after(3000, lambda: sequence_box.configure(text="Now type it") if sequence_box.winfo_exists() else None)
+            self.after(self.pace(3000), lambda: sequence_box.configure(text="Now type it") if sequence_box.winfo_exists() else None)
 
         def check_sequence():
             typed = re.sub(r"\D", "", answer.get())
@@ -3932,7 +5655,7 @@ class MemoryPalApp(tk.Tk):
             current_words = random.sample(pool, min(6, len(pool)))
             word_box.configure(text=", ".join(current_words))
             word_answer.delete(0, "end")
-            self.after(3800, lambda: word_box.configure(text="Say them back") if word_box.winfo_exists() else None)
+            self.after(self.pace(3800), lambda: word_box.configure(text="Say them back") if word_box.winfo_exists() else None)
 
         def check_words():
             result = answer_assessment(word_answer.get(), " ".join(current_words))
@@ -3985,7 +5708,7 @@ class MemoryPalApp(tk.Tk):
             pair_status.configure(text=f"{result['label']} | {result['score']}% | {result['detail']}")
             pair_state["index"] = (pair_state["index"] + 1) % len(pair_state["pairs"])
             pair_answer.delete(0, "end")
-            self.after(1200, lambda: pair_prompt.configure(text=pair_state["pairs"][pair_state["index"]]["prompt"]) if pair_prompt.winfo_exists() and pair_state["pairs"] else None)
+            self.after(self.pace(1200), lambda: pair_prompt.configure(text=pair_state["pairs"][pair_state["index"]]["prompt"]) if pair_prompt.winfo_exists() and pair_state["pairs"] else None)
 
         self.button_row(pair_card, [("New Pair Set", new_pair_set, "Primary.TButton"), ("Reveal Cue", reveal_pair, "TButton"), ("Smart Check", check_pair, "TButton")])
 
@@ -4096,7 +5819,7 @@ class MemoryPalApp(tk.Tk):
         nback_card = self.card(grid)
         nback_card.grid(row=2, column=1, sticky="nsew", pady=(0, self.px(12)))
         ttk.Label(nback_card, text="N-Back Lite", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(nback_card, text="Decide whether the current item matches the one just before it.", style="CardMuted.TLabel").pack(anchor="w", pady=(4, 12))
+        ttk.Label(nback_card, text="Decide whether the current item matches the one just before it.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
         nback_word = ttk.Label(nback_card, text=draft.get("nback_word", "Start a round"), style="Stat.TLabel", wraplength=self.px(500))
         nback_word.pack(anchor="w", pady=(0, self.px(8)))
         nback_status = ttk.Label(nback_card, text=draft.get("nback_status", "Score appears here."), style="CardMuted.TLabel", wraplength=self.px(500))
@@ -4237,7 +5960,7 @@ class MemoryPalApp(tk.Tk):
             routine_answer.delete("1.0", "end")
             routine_status.configure(text="Read the routine, then recall it after it hides.")
             routine_prompt.configure(text="\n".join(f"{index + 1}. {step}" for index, step in enumerate(routine_state["steps"])))
-            self.after(4200, lambda: routine_prompt.configure(text="Now type the steps in order.") if routine_prompt.winfo_exists() else None)
+            self.after(self.pace(4200), lambda: routine_prompt.configure(text="Now type the steps in order.") if routine_prompt.winfo_exists() else None)
 
         def check_routine():
             expected = "\n".join(routine_state["steps"])
@@ -4330,7 +6053,7 @@ class MemoryPalApp(tk.Tk):
         draft = self.view_drafts.get("feedback", {})
         summary = self.store.feedback_summary()
 
-        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]), hover=COLORS["green"])
+        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Frame(hero, bg=COLORS["green"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
         tk.Label(hero, text="Testing feedback", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
@@ -4344,7 +6067,7 @@ class MemoryPalApp(tk.Tk):
             ("Latest", summary["latest"], "most recent feedback note", COLORS["orange"]),
         ]
         for index, (title, value, caption, color) in enumerate(stat_items):
-            tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color)
+            tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]))
             tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else self.px(10), 0))
             tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w")
             tk.Label(tile, text=value, bg=COLORS["surface"], fg=color, font=self.font("Segoe UI Semibold", 20), wraplength=self.px(290), justify="left").pack(anchor="w", pady=(self.px(2), 0))
@@ -4419,21 +6142,22 @@ class MemoryPalApp(tk.Tk):
         profile_path = str(self.store.data_file)
         attachment_path = str(self.store.attachment_dir)
 
-        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]), hover=COLORS["violet"])
+        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Frame(hero, bg=COLORS["violet"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
         tk.Label(hero, text="Make MemoryPal yours", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        tk.Label(hero, text="Adjust the way the app looks, how it opens, where data is kept, and which profile is active.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(6, 0))
+        self.fit_wrap(tk.Label(hero, text="Adjust the way the app looks, how it opens, where data is kept, and which profile is active.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left"), pady=(6, 0))
 
         grid = ttk.Frame(page.inner, style="Page.TFrame")
         grid.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        grid.columnconfigure(0, weight=1)
-        grid.columnconfigure(1, weight=1)
+        # Equal columns so neither card is squeezed; card text wraps to fit.
+        grid.columnconfigure(0, weight=1, uniform="settings")
+        grid.columnconfigure(1, weight=1, uniform="settings")
 
         appearance = self.card(grid, "Card.TFrame", 22)
         appearance.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
         ttk.Label(appearance, text="Appearance", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(appearance, text=f"Current theme: {self.theme.title()}. Navigation stays expanded for a steadier layout.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
+        self.fit_wrap(ttk.Label(appearance, text=f"Current theme: {self.theme.title()}. Navigation stays expanded for a steadier layout.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(
             appearance,
             [
@@ -4444,7 +6168,7 @@ class MemoryPalApp(tk.Tk):
         window_card = self.card(grid, "AltCard.TFrame", 22)
         window_card.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
         ttk.Label(window_card, text="Window", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(window_card, text="F11 and the header button use true fullscreen. The titlebar square uses borderless focus mode.", style="AltMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
+        self.fit_wrap(ttk.Label(window_card, text="F11 uses true fullscreen. The titlebar square uses borderless focus mode.", style="AltMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         state_row = tk.Frame(window_card, bg=COLORS["alt"])
         state_row.pack(fill="x", pady=(0, 12))
         self.render_status_chip(state_row, "True fullscreen on" if self.is_fullscreen else "True fullscreen off", COLORS["green"] if self.is_fullscreen else COLORS["surface"], COLORS["white"] if self.is_fullscreen else COLORS["muted"])
@@ -4461,19 +6185,71 @@ class MemoryPalApp(tk.Tk):
         profile_card = self.card(grid, "Card.TFrame", 22)
         profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 12))
         ttk.Label(profile_card, text="Profiles", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(profile_card, text=f"Active profile: {active_profile_name()} | {profile_count} profile{'s' if profile_count != 1 else ''} on this PC.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
+        self.fit_wrap(ttk.Label(profile_card, text=f"Active profile: {active_profile_name()} | {profile_count} profile{'s' if profile_count != 1 else ''} on this PC.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(profile_card, [("Manage Profiles", self.open_profile_manager, "Primary.TButton"), ("Edit Daily Goal", self.edit_daily_goal, "TButton")])
 
         study_card = self.card(grid, "WarmCard.TFrame", 22)
         study_card.grid(row=1, column=1, sticky="nsew")
         ttk.Label(study_card, text="Study Defaults", style="WarmH2.TLabel").pack(anchor="w")
-        ttk.Label(study_card, text=f"Daily goal: {self.store.daily_goal} cards. Due now: {due}. Cards and captures stay local unless exported.", style="WarmCard.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
+        self.fit_wrap(ttk.Label(study_card, text=f"Daily goal: {self.store.daily_goal} cards. Due now: {due}. Cards and captures stay local unless exported.", style="WarmCard.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(study_card, [("Start Due Review", lambda: self.show_view("review"), "Primary.TButton"), ("Open in Test Lab", lambda: self.open_testing(return_view="settings", context="study"), "TButton")], "WarmCard.TFrame")
+
+        accessibility_card = self.card(grid, "AltCard.TFrame", 22)
+        accessibility_card.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(0, 12))
+        ttk.Label(accessibility_card, text="Accessibility", style="AltH2.TLabel").pack(anchor="w")
+        self.fit_wrap(ttk.Label(
+            accessibility_card,
+            text="Tune MemoryPal for larger text, steadier screens, clearer contrast, and caregiver-supported use. These settings are saved to this profile.",
+            style="AltMuted.TLabel",
+            wraplength=self.px(1040),
+            justify="left",
+        ), pady=(4, 12))
+        text_size = tk.StringVar(value=self.accessibility.get("text_size", "Comfort"))
+        ttk.Label(accessibility_card, text="Text size", style="AltMuted.TLabel").pack(anchor="w")
+        self.select_button(
+            accessibility_card,
+            text_size,
+            ["Comfort", "Large", "Extra Large"],
+            on_change=lambda value: self.update_accessibility_preference("text_size", value),
+        ).pack(fill="x", pady=(self.px(4), self.px(12)))
+        toggle_grid = tk.Frame(accessibility_card, bg=COLORS["alt"])
+        toggle_grid.pack(fill="x", pady=(0, self.px(12)))
+        accessibility_toggles = [
+            ("high_contrast", "Higher contrast text and borders"),
+            ("reduce_motion", "Reduce fades and motion"),
+            ("simple_language", "Use simpler wording where available"),
+            ("caregiver_mode", "Caregiver mode: hide Reset so shared data can't be wiped"),
+            ("read_aloud", "Read questions and answers aloud automatically"),
+            ("more_time", "More time: slower timed games, messages, and speech"),
+            ("focus_outline", "Show a bright outline on the focused button (keyboard use)"),
+        ]
+        for index, (key, label) in enumerate(accessibility_toggles):
+            var = tk.BooleanVar(value=bool(self.accessibility.get(key)))
+            row = self.check_toggle(toggle_grid, var, label, on_change=lambda checked, pref=key: self.update_accessibility_preference(pref, checked), bg=COLORS["alt"], wraplength=470, fit=True)
+            row.grid(row=index // 2, column=index % 2, sticky="ew", padx=(0 if index % 2 == 0 else self.px(12), 0), pady=(0 if index < 2 else self.px(8), 0))
+            toggle_grid.columnconfigure(index % 2, weight=1, uniform="toggles")
+        self.button_row(
+            accessibility_card,
+            [
+                ("Use Senior Layout", self.apply_senior_layout_defaults, "Primary.TButton"),
+                ("Everyday Memory", lambda: self.show_view("elder"), "TButton"),
+                ("Open Feedback", lambda: self.show_view("feedback"), "TButton"),
+            ],
+            "AltCard.TFrame",
+        )
+
+        welcome_card = self.card(page.inner, "Card.TFrame", 22)
+        welcome_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(welcome_card, text="Welcome & tour", style="H2.TLabel").pack(anchor="w")
+        chosen = self.store.onboarding.get("persona")
+        persona_title = onboarding.persona(chosen)["title"] if chosen else "Not chosen yet"
+        ttk.Label(welcome_card, text=f"Set up for: {persona_title}. Answer the welcome questions again to change the menu order and comfort settings, or replay the guided tour (also the ? button at the top).", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(4, 12))
+        self.button_row(welcome_card, [("Replay Tour", self.start_tour, "Primary.TButton"), ("Redo Welcome Questions", lambda: self.show_view("welcome"), "TButton")])
 
         nav_card = self.card(page.inner, "AltCard.TFrame", 22)
         nav_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(nav_card, text="Page Order", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(nav_card, text="Move pages up or down to make the left navigation fit the way this profile studies. Settings stays pinned at the bottom.", style="AltMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(4, 12))
+        self.fit_wrap(ttk.Label(nav_card, text="Move pages up or down to make the left navigation fit the way this profile studies. Settings stays pinned at the bottom.", style="AltMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
         nav_order = [key for key, _label, _short in self.ordered_nav_items()]
         nav_labels = {key: label for key, label, _short in self.default_nav_items()}
         order_row = tk.Frame(nav_card, bg=COLORS["alt"])
@@ -4522,13 +6298,14 @@ class MemoryPalApp(tk.Tk):
 
         def apply_nav_order():
             self.set_nav_order(nav_order)
-            self.rebuild_shell("settings")
+            self.render_navigation_rail()
             self.toast_message("Navigation order saved.")
 
         def reset_nav_order():
             nav_order[:] = [key for key, _label, _short in self.default_nav_items()]
             self.set_nav_order(nav_order)
-            self.rebuild_shell("settings")
+            self.render_navigation_rail()
+            render_nav_order()
             self.toast_message("Navigation order reset.")
 
         render_nav_order()
@@ -4546,7 +6323,7 @@ class MemoryPalApp(tk.Tk):
         storage = self.card(page.inner, "Card.TFrame", 22)
         storage.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(storage, text="Storage & Backups", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(storage, text="MemoryPal stores profiles in the platform app-data folder and keeps attachments beside the active profile.", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(4, 12))
+        self.fit_wrap(ttk.Label(storage, text="MemoryPal stores profiles in the platform app-data folder and keeps attachments beside the active profile.", style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
         for label, value in [
             ("App data", storage_path),
             ("Active profile", profile_path),
@@ -4554,22 +6331,23 @@ class MemoryPalApp(tk.Tk):
         ]:
             row = tk.Frame(storage, bg=COLORS["alt"], padx=self.px(14), pady=self.px(10))
             row.pack(fill="x", pady=(0, 8))
-            tk.Label(row, text=label, bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), width=13, anchor="w").pack(side="left")
-            tk.Label(row, text=value, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI", 10), wraplength=self.px(850), justify="left", anchor="w").pack(side="left", fill="x", expand=True)
+            tk.Label(row, text=label, bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), width=14, anchor="w").pack(side="left", padx=(0, self.px(12)))
+            value_label = tk.Label(row, text=value, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI", 10), wraplength=self.px(850), justify="left", anchor="w")
+            value_label.pack(side="left", fill="x", expand=True)
+            self.bind_rewrap(value_label)
         self.button_row(
             storage,
             [
                 ("Open Data Folder", self.open_data_folder, "Primary.TButton"),
                 ("Export Backup", self.export_data, "TButton"),
                 ("Import Backup", self.import_data, "TButton"),
-                ("Reset", self.reset_data, "Danger.TButton"),
-            ],
+            ] + ([] if self.accessibility.get("caregiver_mode") else [("Reset", self.reset_data, "Danger.TButton")]),
         )
 
         comfort = self.card(page.inner, "AltCard.TFrame", 22)
         comfort.pack(fill="x", padx=(0, 8))
         ttk.Label(comfort, text="Comfort Notes", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(comfort, text="Use focus mode when the rail feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="AltCard.TLabel", wraplength=self.px(1040), justify="left").pack(anchor="w", pady=(4, 0))
+        self.fit_wrap(ttk.Label(comfort, text="Use focus mode when the rail feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="AltCard.TLabel", wraplength=self.px(1040), justify="left"), pady=(4, 0))
 
     def view_library(self):
         tools = ttk.Frame(self.view_host, style="Page.TFrame")
@@ -4588,7 +6366,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Button(top, text="Apply", command=lambda: render()).grid(row=0, column=2, sticky="ew")
         top.columnconfigure(0, weight=3)
         top.columnconfigure(1, weight=1)
-        self.button_row(tools, [("Add Samples", lambda: [self.store.add_card(card) for card in sample_cards()] or self.show_view("library"), "Primary.TButton"), ("Import", self.import_data, "TButton"), ("Export", self.export_data, "TButton"), ("Reset", self.reset_data, "Danger.TButton")], "Page.TFrame")
+        self.button_row(tools, [("Add Samples", lambda: self.store.add_cards(sample_cards()) or self.show_view("library"), "Primary.TButton"), ("Import", self.import_data, "TButton"), ("Export", self.export_data, "TButton")] + ([] if self.accessibility.get("caregiver_mode") else [("Reset", self.reset_data, "Danger.TButton")]), "Page.TFrame")
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
 
@@ -4671,8 +6449,11 @@ class MemoryPalApp(tk.Tk):
             self.store.activity = dict(raw.get("activity", {}))
             self.store.daily_goal = safe_int(raw.get("daily_goal", 15), 15)
             self.store.nav_order = list(raw.get("nav_order", []))
+            self.store.accessibility = normalize_accessibility(raw.get("accessibility", {}))
             self.store.feedback = load_items(raw.get("feedback", []), FeedbackEntry.from_dict)
             self.store.save(merge_existing=False)
+            self.accessibility = normalize_accessibility(self.store.accessibility)
+            self.apply_accessibility_preferences()
             self.show_view("library")
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             self.dialog_alert("Import failed", str(exc), "error")
@@ -4680,6 +6461,8 @@ class MemoryPalApp(tk.Tk):
     def reset_data(self):
         if self.dialog_confirm("Reset MemoryPal", "Clear local data and restore sample cards?", "Reset", destructive=True):
             self.store.reset()
+            self.accessibility = normalize_accessibility(self.store.accessibility)
+            self.apply_accessibility_preferences()
             self.show_view("library")
 
 

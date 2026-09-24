@@ -252,7 +252,7 @@ This version made two-window saving safer by keeping newer saved review progress
 
 ## v63 Beta - Header Release Polish
 
-This version spread out the top header by separating status chips from action buttons and replacing the long profile control with a numbered avatar. It also made the header Fullscreen button use true fullscreen, kept borderless focus on the titlebar square and Settings, and sped up startup by loading the packaged logo asset first.
+This version spread out the top header by separating status chips from action buttons and replacing the long profile control with a numbered profile chip. It kept true fullscreen available through F11 and Settings, kept borderless focus on the titlebar square and Settings, and sped up startup by loading the packaged logo asset first.
 
 ## v64 Beta - Low-End Readiness
 
@@ -261,3 +261,11 @@ This version focused on keeping MemoryPal comfortable on slower Windows PCs and 
 ## v65 Beta - macOS Packaging
 
 This version made Mac testing more realistic without disturbing the current Windows release path. It added a macOS build script, Intel and Apple Silicon GitHub Actions artifacts, native Mac window chrome handling, and clearer notes about signing before wider release.
+
+## v66 Beta - Accessibility And Elder Support
+
+This version made MemoryPal more directly useful for older adults, people with memory changes, and caregiver-supported setup. It added Everyday Memory, persistent accessibility preferences, a senior-friendly layout preset, and simple person/routine/place/reminder cards that flow into normal review.
+
+## v67 Beta - Onboarding, Read Aloud, And Smarter Planning
+
+This version made the first launch friendlier and the study engine more accurate. New profiles open on a Welcome screen that sets the page order and comfort settings for a student, an everyday-memory user, a caregiver, or someone just exploring, followed by a short guided tour. Read aloud now works offline through the computer's built-in voice, and a More time setting slows timed displays and speech. Behind the scenes, review scheduling gained separate hard/good/easy steps, overdue credit, and load spreading; the Study Plan can look ahead over several days; Smart Check stopped penalizing answers that do not repeat the question; and the memory-technique generators no longer reuse pegs or palace spots on long lists. The support package also gained its first unit test suite. This build is packaged as tester release 0.43.0.

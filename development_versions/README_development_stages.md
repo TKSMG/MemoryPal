@@ -20,6 +20,7 @@ The current project structure moves paths, models, storage, planning, and study 
 The newest stability pass keeps newer saved review progress when two open windows save at different times.
 The latest header pass separates status chips from actions and turns the active profile into a numbered avatar control.
 The newest packaging pass keeps Mac window behavior native, adds a macOS build script, and adds a GitHub workflow for Mac tester artifacts.
+The newest accessibility pass adds an Everyday Memory section and profile-level accessibility preferences for older adults and caregiver-supported use.
 
 ## How to Run a Version
 
@@ -423,8 +424,8 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 
 - Added the standalone `MemoryPal_v63_beta_header_release_polish.py` milestone.
 - Split the header toolbar into left-side status chips and right-side app actions.
-- Replaced the long active-profile button with a numbered profile avatar on the top-right edge.
-- Changed the header Fullscreen button to true fullscreen and moved focus-mode guidance into tooltips, the titlebar square, and Settings.
+- Replaced the long active-profile button with a numbered profile chip on the top-right edge.
+- Moved true fullscreen to F11 and Settings while keeping borderless focus on the titlebar square and Settings.
 - Added Control-Command-F as a guarded macOS-style true fullscreen shortcut where Tk supports it.
 - Changed startup logo rendering to load the packaged PNG first, with generated pixels kept only as a fallback.
 
@@ -444,6 +445,26 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Added a GitHub Actions workflow that creates separate Intel and Apple Silicon Mac tester artifacts.
 - Updated the live desktop app so macOS uses native window chrome instead of the custom borderless Windows chrome.
 - Documented the beta Mac packaging limits, including the need for Developer ID signing and notarization before broad public distribution.
+
+### v66 Beta - accessibility and elder support
+
+- Added the standalone `MemoryPal_v66_beta_accessibility_elder_support.py` milestone.
+- Added an Everyday Memory page for older adults, people with memory changes, and caregivers.
+- Added profile-level accessibility preferences for larger text, higher contrast, reduced motion, simple language, and caregiver mode.
+- Added a senior-friendly layout preset that moves Everyday Memory near the top and turns on calmer accessibility defaults.
+- Added caregiver-friendly person, routine, place, and reminder card creation that feeds into the normal Test Lab review flow.
+
+### v67 Beta - onboarding, read aloud, and smarter planning
+
+- Recorded in the live app only; no separate standalone milestone file.
+- Added a first-run Welcome screen with four personas (`memorypal/onboarding.py`) that set page order, text size, and accessibility defaults, plus a replayable guided tour.
+- Added offline read aloud through the operating system voice (`memorypal/speech.py`) and a More time accessibility setting.
+- Moved the Associations generators into `memorypal/techniques.py` and made pegs, palace spots, and story scenes unique on long lists; the acronym tool now suggests an acrostic sentence.
+- Improved review scheduling with hard/good/easy steps, credit for late-but-remembered cards, load spreading, and a one-year cap.
+- Added multi-day Study Plans that project due cards per day, expanding review days for new material, and a light final day before a test.
+- Changed Smart Check to score against the saved answer only.
+- Added the first `unittest` suite in `latest_app/tests/`.
+- Added `build_release_windows.cmd` and `TESTER_START_HERE.md`, and trimmed the tester zip to tester-facing files. Release version bumped to 0.43.0.
 
 ## Mobile Version Note
 

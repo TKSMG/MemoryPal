@@ -51,6 +51,17 @@ Hard material returns sooner. Easy material returns later.
 
 Memory becomes stronger when information is recalled near the point where it would have started fading.
 
+MemoryPal uses an SM-2 style schedule with four ratings:
+
+- Again resets the card to tomorrow.
+- Review (recalled with effort) grows the gap gently.
+- Good grows the gap by the card's ease.
+- Easy adds an extra bonus.
+
+If a card is reviewed late but still remembered, part of the extra time counts toward the next gap, because the memory held longer than planned.
+
+Cards learned on the same day are spread across nearby days once their gaps pass a week, so they do not all come due at once. No gap is longer than a year.
+
 ## Focus Queue
 
 The focus queue is the daily study plan.
@@ -69,6 +80,13 @@ The plan can mix review, repetition, association work, quiz practice, and short 
 
 This keeps the app practical when the learner does not know where to start.
 
+Plans can also cover several days or weeks. The multi-day planner looks ahead at which cards will actually be due on each day.
+
+- New material is learned on day 1, then revisited on expanding review days (2, 4, 7, 14, 21, 30), with short maintenance sessions in between.
+- Exam prep moves from long-term review, to exam practice, to a final cram phase.
+- The last day before a test is a light confidence pass followed by rest, because sleep helps recall more than a late-night cram.
+- Days with a lot of due cards get more time instead of a fixed block.
+
 ## Memory Gym
 
 Memory Gym is the page that brings the main practice paths together.
@@ -80,6 +98,77 @@ The student track points toward retrieval practice, spaced practice, interleavin
 The everyday memory track points toward spaced retrieval, names, routines, attention games, and cue-based practice.
 
 The goal is to make the app easier to approach for different people without making the home page too crowded.
+
+## Everyday Memory
+
+Everyday Memory is the section meant especially for older adults, people with memory changes, and caregivers.
+
+It is not meant to diagnose, treat, or replace medical care. It is meant to make simple memory practice easier to set up and easier to repeat.
+
+Good Everyday Memory cards should be short and familiar.
+
+Useful prompts:
+
+- Who is this person?
+- Where do my keys belong?
+- What are my morning steps?
+- What should I remember before an appointment?
+- What helps me feel calm?
+
+Useful answers:
+
+- A name and relationship.
+- One familiar detail.
+- A short routine.
+- A safe place for an item.
+- A calm reminder to ask for help.
+
+For dementia or degenerative disease support, the wording should stay respectful. The app should not sound like it is testing or scolding the person. If something is missed, the app should treat it as a sign that the cue needs to be clearer or repeated more gently.
+
+The Everyday Memory page includes a Today board, a caregiver card builder, starter cards, and links to gentle review, puzzles, and capture tools.
+
+The section works best with real cues:
+
+- A familiar photo.
+- A short voice note from someone trusted.
+- A clear text reminder.
+- A picture of where an item belongs.
+- A routine written in two to four steps.
+
+The goal is confidence and orientation, not pressure.
+
+## Accessibility Features
+
+MemoryPal now has profile-level accessibility settings.
+
+Text size can be set to Comfort, Large, or Extra Large.
+
+Higher contrast makes text and borders stronger for people who need clearer visual separation.
+
+Reduced motion removes most fades and animated covers for people who find movement distracting or uncomfortable.
+
+Simple language shortens some guidance where available.
+
+Caregiver mode marks the profile as one that may be set up with help from another person.
+
+Read aloud speaks questions and answers using the computer's built-in voice. It can be pressed on any card, or turned on so every question and revealed answer is read automatically. Hearing the prompt as well as reading it helps people with low vision, reading fatigue, or early memory changes.
+
+More time doubles how long timed puzzle items and messages stay on screen and slows the reading voice, so nobody is rushed.
+
+The Senior Layout button turns on larger text, higher contrast, reduced motion, simple language, caregiver mode, and a calmer page order with Everyday Memory near the top.
+
+These settings are saved per profile so one person can keep a student setup while another person uses a simpler everyday-memory setup.
+
+## Welcome And Guided Tour
+
+On first launch, MemoryPal asks who is using it:
+
+- I'm studying.
+- Help with everyday memory.
+- I'm helping someone else.
+- Just exploring.
+
+The answer sets the page order, text size, and calm defaults, then a short tour shows the five or six pages that person will use most. Starting small lowers the effort of the first session, which matters more than showing every feature at once.
 
 ## Profiles
 
@@ -157,6 +246,10 @@ Examples:
 - Unusual images or actions.
 
 The goal is not perfect memorization. The goal is to give the brain a useful hook.
+
+Every idea gets its own hook. If two ideas share the same peg, room, or scene, they compete and blur together (interference). When a list is longer than ten pegs, twenty palace spots, or twelve story scenes, MemoryPal continues with a clearly different version, such as a giant golden sun or the garden front door, instead of reusing the first one.
+
+The acronym tool also suggests an acrostic sentence, but a silly sentence the learner writes themselves usually sticks best.
 
 ## Technique Planning
 
@@ -450,6 +543,8 @@ MemoryPal combines:
 
 - Small study bits.
 - Memory Gym.
+- Everyday Memory.
+- Accessibility settings.
 - Focus queue.
 - Prompt and answer practice.
 - Spaced review.
@@ -463,6 +558,9 @@ MemoryPal combines:
 - Media cues.
 - Draft preservation.
 - Tester feedback logging.
+- A first-run Welcome screen and guided tour.
+- Offline read aloud and a More time setting.
+- Multi-day study plans that look ahead at due cards.
 - A desktop release path.
 - A Windows installer path.
 - A faster app-folder build for tester releases.

@@ -3,6 +3,23 @@ from dataclasses import dataclass, field
 from .core import now_label, split_study_bits, today_iso, uid
 
 
+def first_text(raw, names, default=""):
+    """First non-empty value among names (field name, then legacy aliases)."""
+    for name in names:
+        value = raw.get(name)
+        if value is not None and str(value) != "":
+            return str(value)
+    return default
+
+
+def number(value, kind, default):
+    try:
+        return kind(value)
+    except (TypeError, ValueError):
+        return default
+
+
+
 @dataclass
 class Card:
     id: str = field(default_factory=uid)
@@ -27,18 +44,32 @@ class Card:
 
     @classmethod
     def from_dict(cls, raw):
-        values = {field_name: raw.get(field_name) for field_name in cls.__dataclass_fields__}
-        values["id"] = raw.get("id", uid())
-        values["next_review"] = raw.get("next_review", raw.get("nextReview", today_iso()))
-        values["interval"] = int(raw.get("interval", 0))
-        values["repetitions"] = int(raw.get("repetitions", 0))
-        values["ease"] = float(raw.get("ease", 2.5))
-        values["lapses"] = int(raw.get("lapses", 0))
-        values["last_score"] = int(raw.get("last_score", raw.get("lastScore", 0)))
-        values["last_result"] = raw.get("last_result", raw.get("lastResult", "New"))
-        values["created_at"] = raw.get("created_at", raw.get("createdAt", now_label()))
-        values["buried_until"] = raw.get("buried_until", "")
-        return cls(**values)
+        # Older or hand-edited files can miss fields, use camelCase names, or
+        # hold nulls. Fall back to defaults field by field so a card is never
+        # half-None (which crashed sorting) or dropped for one bad number.
+        defaults = cls()
+        text = lambda *names: first_text(raw, names, getattr(defaults, names[0]))
+        return cls(
+            id=text("id"),
+            deck=text("deck") or "General",
+            front=text("front"),
+            back=text("back"),
+            pathway=text("pathway"),
+            association=text("association"),
+            text_file=text("text_file", "textFile"),
+            image=text("image"),
+            audio=text("audio"),
+            video=text("video"),
+            next_review=text("next_review", "nextReview"),
+            interval=max(0, number(raw.get("interval"), int, 0)),
+            repetitions=max(0, number(raw.get("repetitions"), int, 0)),
+            ease=min(3.5, max(1.3, number(raw.get("ease"), float, 2.5))),
+            lapses=max(0, number(raw.get("lapses"), int, 0)),
+            last_score=max(0, min(100, number(raw.get("last_score", raw.get("lastScore")), int, 0))),
+            last_result=text("last_result", "lastResult"),
+            created_at=text("created_at", "createdAt"),
+            buried_until=text("buried_until"),
+        )
 
 
 @dataclass
@@ -55,18 +86,24 @@ class Capture:
 
     @classmethod
     def from_dict(cls, raw):
-        notes = raw.get("notes", "")
-        chunks = raw.get("chunks") or split_study_bits(notes)
+        defaults = cls()
+        text = lambda *names: first_text(raw, names, getattr(defaults, names[0]))
+        notes = text("notes")
+        chunks = raw.get("chunks")
+        if isinstance(chunks, list):
+            chunks = [str(chunk) for chunk in chunks if chunk is not None and str(chunk).strip()]
+        else:
+            chunks = []
         return cls(
-            id=raw.get("id", uid()),
-            title=raw.get("title", "Captured memory material"),
+            id=text("id"),
+            title=text("title") or defaults.title,
             notes=notes,
-            chunks=chunks,
-            text_file=raw.get("text_file", raw.get("textFile", "")),
-            image=raw.get("image", ""),
-            audio=raw.get("audio", ""),
-            video=raw.get("video", ""),
-            created_at=raw.get("created_at", raw.get("createdAt", now_label())),
+            chunks=chunks or split_study_bits(notes),
+            text_file=text("text_file", "textFile"),
+            image=text("image"),
+            audio=text("audio"),
+            video=text("video"),
+            created_at=text("created_at", "createdAt"),
         )
 
 

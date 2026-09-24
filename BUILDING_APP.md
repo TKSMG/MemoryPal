@@ -36,6 +36,41 @@ Or from the project config:
 python -m pip install -e ".[build]"
 ```
 
+## Quick Path: Full Tester Release
+
+For a normal tester release, run one command from the project folder:
+
+```powershell
+.\build_release_windows.cmd
+```
+
+It runs these steps in order and stops at the first failure:
+
+1. Finds a Python 3.11+ install with working Tkinter (or uses `MEMORYPAL_PYTHON`).
+2. Runs the unit tests in `latest_app\tests` and checks that `MemoryPalDesktop.py` compiles.
+3. Runs `clean_build_artifacts.cmd` so no stale app folder or installer is reused.
+4. Builds `release\MemoryPal\MemoryPal.exe` with `build_windows.cmd` (PyInstaller).
+5. Builds `release\MemoryPalSetup.exe` with `build_installer_windows.cmd` (Inno Setup).
+6. Builds `release\MemoryPalTesterPackage.zip` with `package_for_testers.cmd`.
+
+Before a new tester round, bump the version in three places so testers and Windows can tell builds apart:
+
+```text
+pyproject.toml                  version = "0.43.0"
+installer\inno\MemoryPal.iss    #define MyAppVersion "0.43.0"
+build_nuitka_windows.cmd        --product-version / --file-version
+```
+
+The sections below explain each step separately.
+
+## Run The Tests
+
+```powershell
+python -m unittest discover -s latest_app\tests
+```
+
+The suite uses only the standard library and redirects MemoryPal to a temporary data folder, so it is safe to run on a machine with real profile data.
+
 ## Clean Before Rebuilding
 
 To clear old local build output and MemoryPal-named temp build folders:
@@ -114,6 +149,8 @@ After `release\MemoryPal\MemoryPal.exe` exists, run:
 .\build_installer_windows.cmd
 ```
 
+Important: this script only builds the app if `release\MemoryPal\MemoryPal.exe` is missing. If an older app folder is still there, the installer will package that older app. After code changes, run `.\build_release_windows.cmd`, or run `.\build_windows.cmd` first.
+
 The script looks for the Inno Setup command-line compiler, compiles the installer, and writes:
 
 ```text
@@ -147,21 +184,22 @@ It writes:
 release\MemoryPalTesterPackage.zip
 ```
 
-For normal testers, send:
+The zip contains:
 
 ```text
-release\MemoryPalSetup.exe
-README.md
-TESTING_CHECKLIST.md
+MemoryPalSetup.exe                       installer (recommended way to install)
+MemoryPal\                               portable app folder (fallback, run MemoryPal.exe inside)
+TESTER_START_HERE.md                     install steps, what to try, how to send feedback
+TESTING_CHECKLIST.md                     full checklist for thorough testers
+README.md                                feature overview
+notes\MemoryPal_Memory_Techniques.md     background on the memory techniques
 ```
 
-For a no-installer portable test, zip the whole folder below with the tester notes:
+`BUILDING_APP.md`, `DESIGN_NOTES.md`, source code, and `development_versions\` are for developers and stay out of the tester package.
 
-```text
-release\MemoryPal\
-README.md
-TESTING_CHECKLIST.md
-```
+If the zip is too large to email, send a smaller package with only `MemoryPalSetup.exe`, `TESTER_START_HERE.md`, and `TESTING_CHECKLIST.md`. The installer already contains the whole app.
+
+Before sending, install from the new `MemoryPalSetup.exe` on your own PC and check that the Welcome screen appears for a new profile, a review can be rated, and Read aloud speaks.
 
 ## Build The macOS App
 
