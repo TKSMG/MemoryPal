@@ -78,7 +78,7 @@ DARK_COLORS = {
     "good_fg": "#5be08c",
     "easy_bg": "#12233f",
     "easy_fg": "#7fbfff",
-    "heat_0": "#182338",
+    "heat_0": "#26334b",  # empty days must stay visible against surface #192338
     "heat_1": "#123a63",
     "heat_2": "#1e5fa8",
     "heat_3": "#2e8fff",

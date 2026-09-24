@@ -9,7 +9,8 @@ The current direction is based on a few patterns that good learning apps tend to
 - Show progress, streaks, and due work without making the app stressful.
 - Use a focused testing screen when the learner is answering.
 - Keep audio, notes, images, and other cues close to the task.
-- Let the user hide navigation when they need more focus.
+- Keep navigation steady; use focus mode or fullscreen when the user needs more room.
+- Ask who the app is for on first launch, then show only the pages that person needs first.
 - Make mistakes easy to recover from with undo, skip, and repeat options.
 - Keep dialogs visually consistent with the app so profile names, recording prompts, warnings, and confirmations do not feel like a separate older program.
 
@@ -27,7 +28,7 @@ For testing builds, the app should also answer one project question quickly:
 
 ## Desktop Feel
 
-The desktop app should stay fast and lightweight, but it should not feel unfinished. The visual style uses soft dark and light themes, clear cards, hover hints, a collapsible rail, and quiet page reveals.
+The desktop app should stay fast and lightweight, but it should not feel unfinished. The visual style uses soft dark and light themes, clear cards, hover hints, a fixed navigation rail, and quiet page reveals. The rail stopped collapsing in v61 because the moving page felt unstable during study.
 
 The goal is not to add decoration everywhere. The goal is to make the app feel intentional and easy to trust.
 
@@ -52,6 +53,24 @@ Custom resize grips should apply the final size on release. This avoids constant
 Feedback capture should stay local, short, and easy to export. Testers should not need an account just to say that something was confusing, too small, broken, or useful.
 
 Legacy data migration should copy old files forward without overwriting newer app-data changes. Long testing periods make data trust part of the user experience.
+
+## First Run And Onboarding
+
+A new profile should not open on a page full of tools. The Welcome screen asks one plain question (who is using MemoryPal?) and uses the answer to set page order, text size, and calmer defaults. Every choice stays editable in Settings, and choosing again resets only the settings the persona controls.
+
+Existing profiles skip the Welcome screen. People already using the app should never be interrupted by setup they did not ask for.
+
+The tour should be short (five or six steps), describe what the person will do on each page rather than listing every button, and always offer an End Tour exit.
+
+## Read Aloud And Pace
+
+Read aloud should work without extra downloads or internet access, so it uses the voice already built into the operating system. Card text goes through standard input, never the command line, so unusual text cannot break the command.
+
+More time is a pace setting, not a separate mode: it stretches timed displays and slows the voice while leaving every other page the same.
+
+## Memory Technique Output
+
+Each idea needs its own hook. When a peg list, memory palace, or story runs past its built-in list, it continues with a clearly different twist (golden, frozen, garden, garage) instead of reusing a peg or place, because two ideas sharing one hook interfere with each other.
 
 ## Mobile Feel
 

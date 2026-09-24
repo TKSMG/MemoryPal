@@ -10,8 +10,10 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 
 - Latest app: `latest_app/MemoryPalDesktop.py`
 - Desktop support package: `latest_app/memorypal/`
+- Unit tests: `latest_app/tests/`
 - App icon exports: `assets/memorypal.ico`, `assets/memorypal-logo-preview.png`, `assets/memorypal-logo.svg`
 - Testing checklist: `TESTING_CHECKLIST.md`
+- Tester quick-start guide: `TESTER_START_HERE.md`
 - Build notes: `BUILDING_APP.md`
 - Design notes: `DESIGN_NOTES.md`
 - Memory techniques notes: `notes/MemoryPal_Memory_Techniques.md`
@@ -22,6 +24,7 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 - Program outline: `development_versions/MemoryPal_Project_Outline.py`
 - Desktop dependencies: `requirements-desktop.txt`
 - Windows build dependencies: `requirements-build.txt`
+- One-shot Windows release command (tests, app, installer, tester zip): `build_release_windows.cmd`
 - Windows build command: `build_windows.cmd`
 - Windows installer command: `build_installer_windows.cmd`
 - macOS build command: `build_macos.sh`
@@ -55,11 +58,27 @@ Local app data uses the normal app-data folder for the operating system. On Wind
 
 Older `%USERPROFILE%\MemoryPalData` data is copied forward automatically the first time the new storage layer runs.
 
+## Running The Tests
+
+The support package has a standard-library `unittest` suite (no extra packages needed). From this folder:
+
+```powershell
+python -m unittest discover -s latest_app\tests
+```
+
+The tests point MemoryPal at a throwaway data folder, so they never touch real profile data. They cover text parsing and Smart Check, card models, scheduling and saving, study planning, memory-technique generators, and onboarding personas.
+
 ## Building An EXE
 
 The Windows build path is documented in `BUILDING_APP.md`.
 
-From this folder, run:
+To make a complete tester release in one go (unit tests, clean, app folder, installer, and tester zip), run:
+
+```powershell
+.\build_release_windows.cmd
+```
+
+To build only the app folder, run:
 
 ```powershell
 .\build_windows.cmd
@@ -86,8 +105,10 @@ To make a Windows installer after the app folder exists, install Inno Setup 7 or
 
 The installer output should appear at `release\MemoryPalSetup.exe`.
 
-For testers, package either `release\MemoryPalSetup.exe` plus the testing notes, or the whole `release\MemoryPal\` app folder plus the same notes.
-After a build exists, this command gathers the installer/app folder and tester notes into `release\MemoryPalTesterPackage.zip`:
+`build_installer_windows.cmd` only builds the app when `release\MemoryPal\MemoryPal.exe` is missing, so after code changes either run `build_release_windows.cmd` or rebuild the app first. Otherwise the installer can ship an older app.
+
+For testers, package `release\MemoryPalSetup.exe` plus `TESTER_START_HERE.md` and `TESTING_CHECKLIST.md`. The whole `release\MemoryPal\` app folder can go in too as a portable fallback. Build and design notes stay in the repository.
+After a build exists, this command gathers the installer, portable app folder, and tester notes into `release\MemoryPalTesterPackage.zip`:
 
 ```powershell
 .\package_for_testers.cmd
@@ -114,8 +135,19 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 
 ## Current Features
 
+- First-run Welcome screen asks who is using MemoryPal (studying, everyday memory, helping someone else, or just exploring), then sets the navigation order, text size, calmer accessibility defaults, and read-aloud choice to match.
+- Guided tour for each persona walks through the pages that person will use most, and can be replayed or redone from Settings > Welcome & tour. Existing profiles skip the Welcome screen automatically.
+- Offline Read aloud uses the voice built into the operating system (Windows System.Speech, macOS `say`, or Linux `espeak`), with no extra packages. Questions and answers can be read automatically, and card text is passed on standard input so it cannot break the command.
+- More time accessibility setting doubles timed displays in puzzles and messages and slows the read-aloud voice.
+- Multi-day Study Plan projects which cards will be due on each day, schedules new material on expanding review days (2, 4, 7, 14, 21, 30), grows heavy review days instead of using a fixed block, and makes the day before a test a light confidence pass.
+- Review scheduling now separates Review, Good, and Easy steps, gives partial credit when an overdue card is still remembered, spreads cards learned together across nearby days, and caps intervals at one year.
+- Smart Check scores typed answers against the saved answer only, so a correct answer is no longer marked down for not repeating the question.
+- Association generators give every idea its own peg, memory-palace spot, or story scene; long lists continue with distinct twists (golden, frozen, garden, garage) instead of reusing the same hook.
+- Acronym builder also suggests an acrostic sentence.
+- Unit test suite in `latest_app/tests/` for the support package.
 - Modern Tkinter desktop interface with a soft app header, local-save status, styled cue menus, hover feedback, and steadier page reveals.
-- Header controls are split into status and action zones, with the active profile shown as a compact numbered avatar on the top-right edge.
+- Header controls are split into status and action zones, with the active profile shown as a compact numbered profile chip on the top-right edge.
+- Dashboard action cards reflow across wide, normal, and scaled windows so the bottom rows stay reachable instead of feeling clipped.
 - Low-end readiness pass reduces repeated custom-chrome redraw work and caches optional graphics lookups so slower Windows PCs and future Mac builds do less work at launch.
 - macOS packaging support adds a native-chrome guard for Mac, a Mac build script, and a GitHub Actions workflow for Intel and Apple Silicon tester artifacts.
 - Page switches use a same-window reveal over the page panel, so the header and content fade in together without dimming the whole app shell or fighting the Windows compositor.
@@ -127,12 +159,14 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 - Expanded left navigation rail with clear labels, hover hints, and its own scroll area for smaller screens.
 - Settings page can reorder the main navigation pages per profile.
 - Settings page for theme, navigation, profiles, daily goal, storage, backups, reset, focus mode, and true fullscreen.
+- Accessibility settings for larger text, higher contrast, reduced motion, simpler wording, caregiver mode, and a senior-friendly layout preset.
+- Everyday Memory page for older adults and caregivers, with a Today board, gentle review, starter cards, and person/routine/place/reminder card creation.
 - Settings stays pinned at the bottom of the navigation rail so the header has more room for status and profile controls.
-- Window controls separate true fullscreen from borderless focus mode: F11 and the header Fullscreen button use true fullscreen, while the titlebar square and Settings focus control use borderless focus mode.
+- Window controls separate true fullscreen from borderless focus mode: F11 and the Settings fullscreen control use true fullscreen, while the titlebar square and Settings focus control use borderless focus mode.
 - Windowed page changes, theme changes, and interface rebuilds use matching same-theme covers to hide redraw flashes without the older strip-opening effect.
 - Fullscreen and focus changes preserve the active page instead of rebuilding the interface.
 - Custom window resizing applies after the user releases the resize grip, then reveals the settled layout without fading the whole app window.
-- Custom titlebar, navigation, and button shapes use optional Pillow-backed antialiasing when Pillow is installed, with a normal Tk fallback.
+- Custom titlebar, navigation, and button shapes use Pillow-backed antialiasing when available, with a built-in smoothed fallback for source runs without Pillow.
 - The titlebar and left navigation use the same generated MemoryPal logo artwork.
 - The generated logo renders directly through Tk, so the rail mark and titlebar mark stay consistent even without Pillow.
 - The desktop launcher now relies on the split `latest_app/memorypal/` package instead of carrying a second stale copy of models, storage, parsing, and planning code.
@@ -154,6 +188,7 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 - Focus queue for due, weak, and fresh cards.
 - Dashboard next-step recommendations, mastery progress, due/learning/mastered chips, and a small daily-action prompt.
 - Memory Gym page with separate student-study and everyday-memory practice paths.
+- Everyday Memory keeps routines, people, places, familiar cues, and caregiver-created cards in the normal review system.
 - Chunk-based capture, with each study bit stored separately.
 - Capture has horizontal scrolling for the two-column set builder, so the right-side captured/cue panel remains reachable on smaller or scaled windows.
 - Note/document imports for `.txt`, `.md`, `.csv`, `.docx`, and PDFs when a PDF reader library is available.
@@ -173,7 +208,7 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 - Technique planning for retrieval practice, spaced practice, interleaving, elaboration, concrete examples, dual coding, and spaced retrieval.
 - Puzzles for Sequence Recall, Word Recall, Pair Recall, Missing Item, Visual Search, N-Back Lite, Category Sort, and Routine Recall practice.
 - Library search with All, Due, Weak, and Captures filters.
-- Pointer-aware page scrolling plus keyboard scrolling with Page Up, Page Down, Home, and End.
+- Pointer-aware page scrolling plus keyboard scrolling with Page Up, Page Down, Home, and End, with extra bottom room so final controls stay reachable after scaling.
 - Saves are written atomically and merge with existing local data so two open MemoryPal windows keep newly added cards, captures, feedback, and newer review progress.
 - Build scripts check for a Tkinter-capable Python before packaging, with PyInstaller as the current stable Windows app-folder path and Nuitka kept as an alternate script to revisit.
 - Build scripts generate the MemoryPal `.ico` during packaging, pass it to Nuitka or PyInstaller, and bundle the reusable icon assets into the app folder.
@@ -216,6 +251,8 @@ development_versions/MemoryPal_v62_beta_concurrent_save_stability.py
 development_versions/MemoryPal_v63_beta_header_release_polish.py
 development_versions/MemoryPal_v64_beta_low_end_readiness.py
 development_versions/MemoryPal_v65_beta_macos_packaging.py
+development_versions/MemoryPal_v66_beta_accessibility_elder_support.py
+v67 beta - onboarding, read aloud, and planning (live app only; see VERSION_JOURNAL.md)
 assets/memorypal.ico
 assets/memorypal-logo-preview.png
 assets/memorypal-logo.svg

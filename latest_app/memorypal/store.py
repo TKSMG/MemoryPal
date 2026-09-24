@@ -36,8 +36,59 @@ def default_payload():
         "activity": {},
         "daily_goal": 15,
         "nav_order": [],
+        "accessibility": default_accessibility(),
         "feedback": [],
+        "onboarding": default_onboarding(),
     }
+
+
+PERSONAS = ("student", "everyday", "caregiver", "general")
+
+
+def default_onboarding(done=False):
+    return {"done": done, "persona": ""}
+
+
+def normalize_onboarding(raw):
+    # Data saved before onboarding existed belongs to people already using
+    # the app, so a missing record counts as done rather than interrupting.
+    if not isinstance(raw, dict):
+        return default_onboarding(done=True)
+    persona = raw.get("persona", "")
+    return {"done": bool(raw.get("done", True)), "persona": persona if persona in PERSONAS else ""}
+
+
+def default_accessibility():
+    return {
+        "text_size": "Comfort",
+        "high_contrast": False,
+        "reduce_motion": False,
+        "simple_language": False,
+        "caregiver_mode": False,
+        "read_aloud": False,
+        "more_time": False,
+        "focus_outline": False,
+    }
+
+
+ACCESSIBILITY_TOGGLES = (
+    "high_contrast", "reduce_motion", "simple_language", "caregiver_mode",
+    "read_aloud", "more_time", "focus_outline",
+)
+
+
+def normalize_accessibility(raw):
+    prefs = default_accessibility()
+    if isinstance(raw, dict):
+        prefs.update({
+            key: raw.get(key, value)
+            for key, value in prefs.items()
+        })
+    if prefs["text_size"] not in ("Comfort", "Large", "Extra Large"):
+        prefs["text_size"] = "Comfort"
+    for key in ACCESSIBILITY_TOGGLES:
+        prefs[key] = bool(prefs.get(key, False))
+    return prefs
 
 
 def read_payload(path):
@@ -111,12 +162,16 @@ class MemoryStore:
         self.activity = {}
         self.daily_goal = 15
         self.nav_order = []
+        self.accessibility = default_accessibility()
         self.feedback = []
+        self.onboarding = default_onboarding()
         self.last_action = None
+        self._loaded_onboarding = default_onboarding()
         self._loaded_practiced = 0
         self._loaded_activity = {}
         self._loaded_daily_goal = 15
         self._loaded_nav_order = []
+        self._loaded_accessibility = default_accessibility()
         self._loaded_cards = {}
         self._loaded_captures = {}
         self._loaded_feedback = {}
@@ -143,7 +198,9 @@ class MemoryStore:
             self.activity = dict(raw.get("activity", {}))
             self.daily_goal = safe_int(raw.get("daily_goal", 15), 15)
             self.nav_order = list(raw.get("nav_order", []))
+            self.accessibility = normalize_accessibility(raw.get("accessibility", {}))
             self.feedback = load_items(raw.get("feedback", []), FeedbackEntry.from_dict)
+            self.onboarding = normalize_onboarding(raw.get("onboarding"))
         except (OSError, json.JSONDecodeError, ValueError):
             self.cards = sample_cards()
             self.captures = []
@@ -151,6 +208,7 @@ class MemoryStore:
             self.activity = {}
             self.daily_goal = 15
             self.nav_order = []
+            self.accessibility = default_accessibility()
             self.feedback = []
         self.remember_loaded_state()
 
@@ -159,6 +217,8 @@ class MemoryStore:
         self._loaded_activity = dict(self.activity)
         self._loaded_daily_goal = self.daily_goal
         self._loaded_nav_order = list(self.nav_order)
+        self._loaded_accessibility = dict(self.accessibility)
+        self._loaded_onboarding = dict(self.onboarding)
         self._loaded_cards = self.item_snapshot(self.cards)
         self._loaded_captures = self.item_snapshot(self.captures)
         self._loaded_feedback = self.item_snapshot(self.feedback)
@@ -181,7 +241,9 @@ class MemoryStore:
             "activity": self.activity,
             "daily_goal": self.daily_goal,
             "nav_order": self.nav_order,
+            "accessibility": dict(self.accessibility),
             "feedback": [asdict(entry) for entry in self.feedback],
+            "onboarding": dict(self.onboarding),
         }
 
     def merge_items(self, local_items, existing_items, loaded_items=None):
@@ -241,16 +303,42 @@ class MemoryStore:
             merged["daily_goal"] = safe_int(existing.get("daily_goal", self.daily_goal), self.daily_goal)
         if self.nav_order == self._loaded_nav_order:
             merged["nav_order"] = list(existing.get("nav_order", self.nav_order))
+        if self.accessibility == self._loaded_accessibility:
+            merged["accessibility"] = normalize_accessibility(existing.get("accessibility", self.accessibility))
+        if self.onboarding == self._loaded_onboarding and "onboarding" in existing:
+            merged["onboarding"] = normalize_onboarding(existing.get("onboarding"))
         return merged
 
+    @staticmethod
+    def rebind_items(current, raw_items, factory):
+        """Load saved items, reusing the existing object for each known id.
+
+        The UI keeps references to cards (a quiz round, the card open in Test
+        Lab, the card selected in Cue Lab). Replacing every object on save
+        left those references detached, so later ratings or cues written to
+        them were silently dropped on the next save.
+        """
+        live = {item.id: item for item in current}
+        items = []
+        for fresh in load_items(raw_items, factory):
+            existing = live.get(fresh.id)
+            if existing is not None:
+                existing.__dict__.update(fresh.__dict__)
+                items.append(existing)
+            else:
+                items.append(fresh)
+        return items
+
     def apply_saved_payload(self, payload):
-        self.cards = load_items(payload.get("cards", []), Card.from_dict)
-        self.captures = load_items(payload.get("captures", []), Capture.from_dict)
+        self.cards = self.rebind_items(self.cards, payload.get("cards", []), Card.from_dict)
+        self.captures = self.rebind_items(self.captures, payload.get("captures", []), Capture.from_dict)
         self.practiced = safe_int(payload.get("practiced", 0), 0)
         self.activity = dict(payload.get("activity", {}))
         self.daily_goal = safe_int(payload.get("daily_goal", 15), 15)
         self.nav_order = list(payload.get("nav_order", []))
+        self.accessibility = normalize_accessibility(payload.get("accessibility", {}))
         self.feedback = load_items(payload.get("feedback", []), FeedbackEntry.from_dict)
+        self.onboarding = normalize_onboarding(payload.get("onboarding"))
         self.remember_loaded_state()
 
     def save(self, merge_existing=True):
@@ -344,8 +432,10 @@ class MemoryStore:
             }
         return summary
 
-    def due_cards(self, deck=None):
-        cards = [card for card in self.cards if card.next_review <= today_iso() and card.buried_until <= today_iso()]
+    def due_cards(self, deck=None, on=None):
+        """Cards due by `on` (an ISO date; today by default), optionally one deck."""
+        on = on or today_iso()
+        cards = [card for card in self.cards if card.next_review <= on and card.buried_until <= on]
         if deck:
             cards = [card for card in cards if (card.deck or "General") == deck]
         return cards
@@ -372,12 +462,51 @@ class MemoryStore:
         return sorted(scored, key=lambda card: (-card.lapses, card.last_score, card.next_review, card.front.lower()))
 
     def add_card(self, card):
-        self.cards.insert(0, card)
+        self.add_cards([card])
+
+    def add_cards(self, cards):
+        """Add several cards (newest first) with a single save."""
+        cards = list(cards)
+        if not cards:
+            return
+        self.cards[:0] = reversed(cards)
         self.save()
 
     def add_capture(self, capture):
         self.captures.insert(0, capture)
         self.save()
+
+    MAX_INTERVAL = 365
+
+    @staticmethod
+    def days_overdue(card):
+        try:
+            return max(0, (date.today() - date.fromisoformat(card.next_review)).days)
+        except (TypeError, ValueError):
+            return 0
+
+    def next_interval(self, card, quality):
+        """SM-2 style spacing with hard/easy steps and credit for late reviews.
+
+        quality 3 = recalled with effort (grows gently), 4 = good (grows by
+        ease), 5 = easy (extra bonus). Remembering a card after it was due
+        shows it held longer than scheduled, so part of that overdue time
+        counts toward the next interval.
+        """
+        if card.repetitions == 0:
+            interval = {3: 1, 4: 1}.get(quality, 3)
+        elif card.repetitions == 1:
+            interval = {3: 2, 4: 3}.get(quality, 5)
+        else:
+            overdue_credit = {3: 0.25, 4: 0.5}.get(quality, 1.0) * self.days_overdue(card)
+            factor = {3: 1.2, 4: card.ease}.get(quality, card.ease * 1.3)
+            interval = max(card.interval + 1, round((card.interval + overdue_credit) * factor))
+            if interval >= 7:
+                # Spread cards learned together across nearby days instead of
+                # letting them all come due at once (deterministic per card).
+                spread = max(1, round(interval * 0.05))
+                interval += (sum(map(ord, card.id)) + card.repetitions) % (2 * spread + 1) - spread
+        return max(1, min(self.MAX_INTERVAL, interval))
 
     def schedule(self, card, quality, assessment=None):
         snapshot = asdict(card)
@@ -387,12 +516,7 @@ class MemoryStore:
             card.interval = 1
             card.lapses += 1
         else:
-            if card.repetitions == 0:
-                card.interval = 1
-            elif card.repetitions == 1:
-                card.interval = 3
-            else:
-                card.interval = max(1, round(card.interval * card.ease))
+            card.interval = self.next_interval(card, quality)
             card.repetitions += 1
         card.ease = max(1.3, card.ease + (0.1 - (5 - quality) * 0.08))
         card.next_review = add_days(card.interval)
@@ -433,6 +557,8 @@ class MemoryStore:
         self.activity = {}
         self.daily_goal = 15
         self.nav_order = []
+        self.accessibility = default_accessibility()
         self.feedback = []
+        self.onboarding = default_onboarding()
         self.last_action = None
         self.save(merge_existing=False)

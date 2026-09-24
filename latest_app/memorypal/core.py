@@ -143,9 +143,28 @@ def text_tokens(value):
     return tokens
 
 
+def comparable_text(value):
+    """Lower-case text with punctuation and extra spaces removed."""
+    return normalize_space(re.sub(r"[^a-z0-9\s]", " ", (value or "").lower()))
+
+
+def tokens_match(expected_token, response_token):
+    """Equal, a clear abbreviation ("info"/"information"), or a small typo."""
+    if expected_token == response_token:
+        return True
+    shorter, longer = sorted((expected_token, response_token), key=len)
+    if len(shorter) >= 4 and longer.startswith(shorter):
+        return True
+    return len(shorter) >= 5 and SequenceMatcher(None, expected_token, response_token).ratio() >= 0.8
+
+
 def answer_assessment(response, expected, context=""):
+    # Score against the saved answer only. Context (the question, pathway,
+    # association) used to be folded into the expected text, so a perfect
+    # answer was marked down for not repeating the question. Context is only
+    # used when there is no saved answer to compare with.
     response = normalize_space(response)
-    expected_text = normalize_space(" ".join(part for part in [expected, context] if part))
+    expected_text = normalize_space(expected) or normalize_space(context)
     if not response:
         return {
             "score": 0,
@@ -156,19 +175,37 @@ def answer_assessment(response, expected, context=""):
             "detail": "Type an answer, transcript, caption, or media description first.",
         }
 
+    response_plain, expected_plain = comparable_text(response), comparable_text(expected_text)
     expected_tokens = text_tokens(expected_text)
     response_tokens = text_tokens(response)
-    sequence = SequenceMatcher(None, response.lower(), expected_text.lower()).ratio() if expected_text else 0
-    expected_set = set(expected_tokens)
-    response_set = set(response_tokens)
-    coverage = len(expected_set & response_set) / max(1, len(expected_set))
-
     expected_counts = Counter(expected_tokens)
-    response_counts = Counter(response_tokens)
-    weighted_hits = sum(min(response_counts[word], expected_counts[word]) for word in expected_counts)
-    weighted = weighted_hits / max(1, sum(expected_counts.values()))
+    sequence = SequenceMatcher(None, response_plain, expected_plain).ratio() if expected_plain else 0
 
-    score = min(100, round(100 * (0.28 * sequence + 0.52 * coverage + 0.20 * weighted)))
+    if expected_plain and response_plain == expected_plain:
+        score, missing = 100, []
+    elif not expected_tokens:
+        # Very short answers (numbers, initials, "yes") have no scorable
+        # words, so they must match closely as a whole.
+        score, missing = (round(100 * sequence) if sequence >= 0.9 else round(40 * sequence)), []
+    else:
+        unmatched = list(response_tokens)
+        hits = 0
+        matched_words = set()
+        for word in expected_tokens:
+            partner = next((token for token in unmatched if tokens_match(word, token)), None)
+            if partner is not None:
+                unmatched.remove(partner)
+                hits += 1
+                matched_words.add(word)
+        weighted = hits / len(expected_tokens)
+        coverage = len(matched_words) / len(expected_counts)
+        if len(expected_counts) <= 2:
+            score = round(100 * (0.5 * sequence + 0.5 * coverage))
+        else:
+            score = round(100 * (0.28 * sequence + 0.52 * coverage + 0.20 * weighted))
+        score = min(100, score)
+        missing = [word for word, _count in expected_counts.most_common(6) if word not in matched_words]
+
     if score >= 82:
         quality, label, reps, bucket = 5, "Strong match", 1, "Easy"
     elif score >= 64:
@@ -180,7 +217,6 @@ def answer_assessment(response, expected, context=""):
     else:
         quality, label, reps, bucket = 1, "Missed context", 5, "Again"
 
-    missing = [word for word, _count in expected_counts.most_common(6) if word not in response_set]
     detail = "Missing key cues: " + ", ".join(missing[:4]) if missing else "Main cues are covered."
     return {"score": score, "quality": quality, "label": label, "bucket": bucket, "repetitions": reps, "detail": detail}
 

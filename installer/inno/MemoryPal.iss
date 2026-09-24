@@ -1,5 +1,5 @@
 #define MyAppName "MemoryPal"
-#define MyAppVersion "0.41.0"
+#define MyAppVersion "0.43.0"
 #define MyAppPublisher "MemoryPal"
 #define MyAppExeName "MemoryPal.exe"
 
@@ -8,6 +8,7 @@ AppId={{A66C598E-2E7B-4B88-B49C-91E1A6E7D6A1}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+VersionInfoVersion={#MyAppVersion}
 DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableDirPage=no
