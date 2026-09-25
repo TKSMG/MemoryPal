@@ -11,7 +11,8 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 - Latest app: `latest_app/MemoryPalDesktop.py`
 - Desktop support package: `latest_app/memorypal/`
 - Unit tests: `latest_app/tests/`
-- App icon exports: `assets/memorypal.ico`, `assets/memorypal-logo-preview.png`, `assets/memorypal-logo.svg`
+- App icon exports: `assets/memorypal.ico`, `assets/memorypal-logo-preview.png` (1024px), `assets/memorypal-logo.svg`
+- Logo source: `latest_app/memorypal/icon.py` (run `python latest_app\memorypal\icon.py` to re-export the `.ico` and PNG)
 - Testing checklist: `TESTING_CHECKLIST.md`
 - Tester quick-start guide: `TESTER_START_HERE.md`
 - Build notes: `BUILDING_APP.md`
@@ -85,7 +86,7 @@ To build only the app folder, run:
 ```
 
 The default build uses PyInstaller in normal app-folder mode. It creates `release\MemoryPal\MemoryPal.exe`, which opens faster than a self-extracting one-file EXE and proved steadier for the current tester package than the latest local Nuitka build. The build also bundles the checked-in icon assets so installed copies do not regenerate the app icon during startup. The release folder is ignored by Git so the repository stays focused on source code and documentation.
-The fast tester build keeps desktop recording and text-to-speech packages optional, so normal launches do not carry large media libraries unless a special media-enabled build is made later.
+The tester build needs no media packages: audio recording, playback, image previews, and spoken cue files use what Windows already includes (MCI, Windows Imaging, and the System.Speech voice), and video is recorded with the Windows Camera app. Heavy optional libraries such as OpenCV and `pyttsx3` stay out of the package.
 
 Before making a fresh package, generated build leftovers can be cleared with:
 
@@ -135,8 +136,20 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 
 ## Current Features
 
+- New MemoryPal logo: a cleaner connected "memory path" M on a blue-to-violet tile, with mint and amber recall nodes and a small spark. The same design is used for the app/taskbar icon, title strip, navigation rail, installer, macOS icon, and the `assets/` exports; tiny sizes use a simplified mark so it stays crisp at 16-32px.
+- Ctrl+K page finder opens a searchable list of every page and common action; a Back button in the header (or Alt+Left) returns to the previous page.
+- App-styled dropdown lists replace the stock Tk menus.
+- Theme, text-size, and accessibility changes rebuild the whole interface under a screen snapshot and swap it in one frame, so there is no white or half-drawn flash. Popups are laid out invisibly and appear already finished instead of fading in.
+- Dashboard is built around today: the saved study plan's steps for today (tick them off as you go), a greeting and best next action, a progress strip with streak, level and XP, persona-picked study modes (Quick 10, Deep study, Exam cram, Gentle review, and more), and the next badge to earn.
+- Study Plan can be saved with Make this my plan; minute plans repeat daily and day/week plans follow the right day of the multi-day schedule. Plans can include Pomodoro-style rest breaks with a break timer, a capped Learn new cards step, an Explain it back step, and a short Wrap up.
+- Stats page now shows charts: the last 30 days, cards coming up over two weeks, card maturity, how recent answers went, weekday rhythm, the activity calendar, deck mastery, and achievement badges with progress.
+- Audio can be recorded with a live level meter and played back without extra packages; videos are recorded through the Windows Camera app and pulled in automatically; image previews support JPEG, PNG, GIF, BMP, TIFF, WebP, and HEIC through Windows; spoken cues can be saved as audio files.
+- Document import reads `.rtf`, handles Notepad encodings (UTF-8, UTF-16, ANSI), keeps tabs and line breaks from `.docx`, and reads ordinary PDFs with a built-in reader when `pypdf` is not installed. Scanned PDFs get a clear message instead of an error.
+- Saving only merges with the data file when another window has actually written to it, which makes normal saves faster; undo now correctly lowers review counts after a merge.
+- The logo is drawn once at 256px and cached on disk, so startup does not redraw it at every size.
 - First-run Welcome screen asks who is using MemoryPal (studying, everyday memory, helping someone else, or just exploring), then sets the navigation order, text size, calmer accessibility defaults, and read-aloud choice to match.
 - Guided tour for each persona walks through the pages that person will use most, and can be replayed or redone from Settings > Welcome & tour. Existing profiles skip the Welcome screen automatically.
+- Finishing or skipping the Welcome screen, and moving between tour steps, build the new layout under a screen snapshot and swap it in one frame (the same calculation-gap method used for window resizing), so no white or half-styled frames flash on Windows.
 - Offline Read aloud uses the voice built into the operating system (Windows System.Speech, macOS `say`, or Linux `espeak`), with no extra packages. Questions and answers can be read automatically, and card text is passed on standard input so it cannot break the command.
 - More time accessibility setting doubles timed displays in puzzles and messages and slows the read-aloud voice.
 - Multi-day Study Plan projects which cards will be due on each day, schedules new material on expanding review days (2, 4, 7, 14, 21, 30), grows heavy review days instead of using a fixed block, and makes the day before a test a light confidence pass.
@@ -191,7 +204,7 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 - Everyday Memory keeps routines, people, places, familiar cues, and caregiver-created cards in the normal review system.
 - Chunk-based capture, with each study bit stored separately.
 - Capture has horizontal scrolling for the two-column set builder, so the right-side captured/cue panel remains reachable on smaller or scaled windows.
-- Note/document imports for `.txt`, `.md`, `.csv`, `.docx`, and PDFs when a PDF reader library is available.
+- Note/document imports for `.txt`, `.md`, `.csv`, `.rtf`, `.docx`, and text-based PDFs.
 - Imported note/document text can be extracted into the study bit box and turned into decks/cards.
 - Separate question/title and answer boxes for prompt-answer cards.
 - Optional self-check cards without a saved answer.
@@ -253,6 +266,7 @@ development_versions/MemoryPal_v64_beta_low_end_readiness.py
 development_versions/MemoryPal_v65_beta_macos_packaging.py
 development_versions/MemoryPal_v66_beta_accessibility_elder_support.py
 v67 beta - onboarding, read aloud, and planning (live app only; see VERSION_JOURNAL.md)
+v68 beta - dashboard, charts, navigation, media, and new logo (live app only; see VERSION_JOURNAL.md)
 assets/memorypal.ico
 assets/memorypal-logo-preview.png
 assets/memorypal-logo.svg

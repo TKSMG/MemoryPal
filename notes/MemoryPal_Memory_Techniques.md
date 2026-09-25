@@ -170,6 +170,22 @@ On first launch, MemoryPal asks who is using it:
 
 The answer sets the page order, text size, and calm defaults, then a short tour shows the five or six pages that person will use most. Starting small lowers the effort of the first session, which matters more than showing every feature at once.
 
+## Rest Breaks
+
+Attention drops after long unbroken study. Study Plans can add a five-minute rest after about every 25 minutes (Pomodoro style). Standing up, stretching, and looking away from the screen help the next block start fresh.
+
+## Explaining It Back
+
+Explaining an answer in your own words, as if teaching a friend, shows exactly which parts are missing. This is sometimes called the Feynman technique, and it is one of the habits a Study Plan can include.
+
+## Pacing New Cards
+
+Every new card adds future reviews. Plans cap how many new cards to learn in one session so tomorrow's review load stays manageable.
+
+## Progress And Motivation
+
+Levels, streaks, badges, and charts make progress visible. Card maturity shows how many cards have moved from new, to learning, to young, to mature (coming back three weeks or more apart), which is a better sign of long-term memory than a single good score.
+
 ## Profiles
 
 Profiles keep study data separate.
@@ -351,7 +367,7 @@ For older adults, familiar images and voices can be especially helpful.
 
 Longer notes can become study material if they are broken down into smaller pieces.
 
-MemoryPal can attach notes and documents, including plain text, Markdown, CSV, Word `.docx`, and PDFs when a PDF text reader is available.
+MemoryPal can attach notes and documents, including plain text, Markdown, CSV, RTF, Word `.docx`, and text-based PDFs (read with a built-in reader, no extra packages). Scanned PDFs are attached but need the key points typed in, because they contain pictures of text rather than text.
 
 Extracted document text can be split into study bits, then reused in decks, repetition practice, plans, and review.
 
@@ -492,7 +508,7 @@ Packaged startup should use the icon files already shipped with the app. Generat
 
 Small cached UI assets matter in a Tkinter app. Reusing generated logo images and rounded-control images keeps redraws lighter while preserving the smoother visual style.
 
-The generated MemoryPal logo should be used anywhere the app needs a main mark. The connected-dot M now has exported `.ico`, PNG, and SVG versions, so the project can use the same identity in the window, titlebar, build output, and documentation.
+The MemoryPal logo is a connected "memory path" M with three recall nodes, which mirrors how the app works: small ideas linked in a path are easier to recall than loose facts. The generated MemoryPal logo should be used anywhere the app needs a main mark. The connected-dot M now has exported `.ico`, PNG, and SVG versions, so the project can use the same identity in the window, titlebar, build output, and documentation.
 
 The startup fade feels calm, but page and layout changes should not dim the whole app. A same-color overlay can fade away over the changed area while the shell stays solid. Page changes use the smoother overlay; sidebar changes keep compact rail content visible so labels do not get squeezed during the animation.
 
@@ -561,6 +577,8 @@ MemoryPal combines:
 - A first-run Welcome screen and guided tour.
 - Offline read aloud and a More time setting.
 - Multi-day study plans that look ahead at due cards.
+- A Dashboard built around today's saved plan, study modes, levels, badges, and progress charts.
+- Rest breaks, explain-it-back practice, and paced new cards in study plans.
 - A desktop release path.
 - A Windows installer path.
 - A faster app-folder build for tester releases.

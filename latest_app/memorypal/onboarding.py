@@ -12,12 +12,12 @@ PERSONAS = {
         "nav": ["dashboard", "plan", "capture", "review", "testing", "quiz", "decks", "tools", "shuffle", "stats"],
         "accessibility": {},
         "tour": [
-            ("dashboard", "Your home page", "Each day starts here. It shows what's due and the one best thing to do next."),
+            ("dashboard", "Your home page", "Each day starts here: your study plan's steps for today, your streak and level, and study modes like Quick 10 or Exam cram."),
             ("capture", "Add what you're learning", "Paste notes or type questions and answers. Each small fact becomes its own card."),
-            ("plan", "Plan a session", "Say how long you have and what's coming up. MemoryPal builds a step-by-step plan."),
+            ("plan", "Plan your study", "Say how long you have and what's coming up. Press Make this my plan and the Dashboard turns it into steps to tick off each day."),
             ("review", "Review cards on time", "Answer first, then check. Cards you know come back later; tricky ones come back sooner."),
             ("tools", "Memory techniques", "Turn lists into acronyms, stories, peg lists, or a memory palace."),
-            ("stats", "See your progress", "Streaks, a daily goal, and a calendar of the days you practised."),
+            ("stats", "See your progress", "Charts of your practice, what's coming up, how settled your cards are, and badges to earn."),
         ],
     },
     "everyday": {
@@ -26,7 +26,7 @@ PERSONAS = {
         "nav": ["dashboard", "elder", "review", "testing", "games", "capture", "library", "stats"],
         "accessibility": {"text_size": "Large", "simple_language": True, "more_time": True, "reduce_motion": True},
         "tour": [
-            ("dashboard", "Your home page", "Start here each day. It shows how many cards are ready for you."),
+            ("dashboard", "Your home page", "Start here each day. Pick Gentle review or Daily puzzles, and watch your streak grow."),
             ("elder", "Everyday Memory", "Make cards for people, routines, and places. Press Start Gentle Review to practise."),
             ("review", "Practise your cards", "Read the question, try to remember, then check. Use Read aloud to hear it."),
             ("games", "Gentle puzzles", "Short, calm memory games. There is no rush and no score to worry about."),
@@ -52,7 +52,7 @@ PERSONAS = {
         "nav": ["dashboard", "training", "capture", "review", "games", "plan", "tools", "stats"],
         "accessibility": {},
         "tour": [
-            ("dashboard", "Your home page", "What's due, your streak, and quick links to everything."),
+            ("dashboard", "Your home page", "What to do today, your streak and level, and quick study modes. Press Ctrl+K any time to jump to a page."),
             ("training", "Memory Gym", "Every technique MemoryPal offers, with a short explanation of why it works."),
             ("capture", "Add something to learn", "Type or paste anything you want to remember."),
             ("review", "Practise on a schedule", "Answer, check, and rate. MemoryPal decides when to show each card again."),

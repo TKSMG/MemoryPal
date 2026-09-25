@@ -63,6 +63,7 @@ fi
   --add-data "$PWD/assets/memorypal-logo-preview.png:assets" \
   --add-data "$PWD/assets/memorypal-logo.svg:assets" \
   --hidden-import pypdf \
+  --hidden-import memorypal.pdftext \
   --exclude-module sounddevice \
   --exclude-module cv2 \
   --exclude-module pyttsx3 \
