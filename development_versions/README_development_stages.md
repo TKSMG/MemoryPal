@@ -464,7 +464,22 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Added multi-day Study Plans that project due cards per day, expanding review days for new material, and a light final day before a test.
 - Changed Smart Check to score against the saved answer only.
 - Added the first `unittest` suite in `latest_app/tests/`.
+- Removed white flashes after finishing or skipping the Welcome screen and between tour steps by reusing the resize snapshot method (`run_hidden_change`).
 - Added `build_release_windows.cmd` and `TESTER_START_HERE.md`, and trimmed the tester zip to tester-facing files. Release version bumped to 0.43.0.
+
+### v68 Beta - dashboard, charts, navigation, media, and new logo
+
+- Recorded in the live app only; no separate standalone milestone file.
+- Rebuilt the Dashboard around today's saved study plan (tick-off steps), a greeting and best next action, a streak/level/XP progress strip, persona study modes, and the next badge (`memorypal/progress.py`).
+- Added Stats charts (30-day activity, two-week forecast, card maturity, answer mix, weekday rhythm, deck mastery) and achievement badges.
+- Added a Ctrl+K page finder, a header Back button with Alt+Left, and app-styled dropdowns.
+- Made theme, text-size, and accessibility rebuilds use the screen-snapshot swap, and changed popups to appear fully drawn instead of fading.
+- Added saved study plans (Make this my plan) with daily steps, Pomodoro rest breaks and a break timer, capped new-card steps, Explain it back, and Wrap up.
+- Added package-free media on Windows (`memorypal/media.py`): audio recording with a level meter, playback, Camera app video capture, Windows Imaging previews, and spoken cue files.
+- Added RTF and encoding-aware text import, better `.docx` reading, and a built-in PDF text reader (`memorypal/pdftext.py`).
+- Made saves skip the merge when no other window has written, fixed undo counts after merges, and cached the logo master on disk.
+- Redesigned the logo as a flatter connected "memory path" M with mint/amber nodes and a spark; updated `icon.py`, the `.ico`, a 1024px PNG, and the SVG, with a simplified mark at 32px and below.
+- Added tests for documents, media, progress, planning, store, and the icon. Release version bumped to 0.44.0.
 
 ## Mobile Version Note
 

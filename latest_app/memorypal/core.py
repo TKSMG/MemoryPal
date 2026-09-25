@@ -82,38 +82,89 @@ def parse_prompt_answer_lines(raw):
     return items
 
 
+def read_text_file(path):
+    """Read a plain-text note whatever encoding Notepad or another app used."""
+    raw = Path(path).read_bytes()
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw[3:].decode("utf-8", "replace")
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16", "replace")
+    if len(raw) >= 4 and raw[1:2] == b"\x00" and raw[3:4] == b"\x00":
+        return raw.decode("utf-16-le", "replace")  # UTF-16 without a byte order mark
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("cp1252", "replace")
+
+
+def rtf_to_text(data):
+    """Plain text from an RTF document (WordPad, TextEdit), dropping formatting."""
+    # Escaped braces and backslashes are text, not formatting: park them on
+    # placeholder characters until the formatting braces are gone.
+    backslash = chr(92)
+    parked = {backslash * 2: chr(2), backslash + "{": chr(0), backslash + "}": chr(1)}
+    for escaped, placeholder in parked.items():
+        data = data.replace(escaped, placeholder)
+    text = re.sub(r"\\'([0-9a-fA-F]{2})", lambda m: bytes([int(m.group(1), 16)]).decode("cp1252", "replace"), data)
+    text = re.sub(r"\\u(-?\d+)\??", lambda m: chr(int(m.group(1)) % 65536), text)
+    # Drop header groups (fonts, colours, styles, pictures) with their contents.
+    text = re.sub(r"\{(?:\\\*)?\\(?:fonttbl|colortbl|stylesheet|info|pict|listtable|listoverridetable|generator)(?:[^{}]|\{[^{}]*\})*\}", "", text)
+    text = re.sub(r"\\(?:par|line)\b ?", "\n", text)
+    text = re.sub(r"\\tab\b ?", "\t", text)
+    text = re.sub(r"\\[a-zA-Z]+-?\d* ?", "", text)
+    text = text.replace("{", "").replace("}", "")
+    for escaped, placeholder in parked.items():
+        text = text.replace(placeholder, escaped[1])
+    return "\n".join(line.strip() for line in text.splitlines()).strip()
+
+
 def extract_document_text(path):
-    # Keep document import local and dependency-light. DOCX is parsed directly;
-    # PDFs use pypdf/PyPDF2 if the user's Python environment already has one.
+    # Keep document import local and dependency-light. DOCX and RTF are parsed
+    # directly; PDFs use pypdf/PyPDF2 when installed and otherwise the
+    # built-in reader in pdftext.py.
     source = Path(path)
     suffix = source.suffix.lower()
     if suffix in {".txt", ".md", ".csv"}:
-        try:
-            return source.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            return source.read_text(encoding="utf-8", errors="ignore")
+        return read_text_file(source)
+    if suffix == ".rtf":
+        return rtf_to_text(read_text_file(source))
     if suffix == ".docx":
         with zipfile.ZipFile(source) as archive:
             xml = archive.read("word/document.xml")
         root = ET.fromstring(xml)
-        namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
         pieces = []
-        for paragraph in root.findall(".//w:p", namespace):
-            text = "".join(node.text or "" for node in paragraph.findall(".//w:t", namespace))
-            if text.strip():
-                pieces.append(text.strip())
+        for paragraph in root.iter(f"{w}p"):
+            parts = []
+            for node in paragraph.iter():
+                if node.tag == f"{w}t":
+                    parts.append(node.text or "")
+                elif node.tag == f"{w}tab":
+                    parts.append("\t")
+                elif node.tag in (f"{w}br", f"{w}cr"):
+                    parts.append("\n")
+            text = "".join(parts).strip()
+            if text:
+                pieces.append(text)
         return "\n".join(pieces)
     if suffix == ".pdf":
         for module_name in ("pypdf", "PyPDF2"):
             try:
                 module = __import__(module_name)
                 reader = module.PdfReader(str(source))
-                return "\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
+                text = "\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
+                if text:
+                    return text
             except Exception:
                 continue
-        raise RuntimeError("PDF text extraction needs pypdf or PyPDF2 installed for this Python environment.")
+        from .pdftext import extract_pdf_text
+
+        text = extract_pdf_text(source)
+        if not text.strip():
+            raise RuntimeError("This PDF has no text layer (it may be a scanned image). The file is attached; type the key points into the box.")
+        return text
     if suffix == ".doc":
-        raise RuntimeError("Older .doc files can be attached, but automatic extraction needs the file converted to .docx first.")
+        raise RuntimeError("Older .doc files can be attached, but automatic extraction needs the file saved as .docx first.")
     return ""
 
 

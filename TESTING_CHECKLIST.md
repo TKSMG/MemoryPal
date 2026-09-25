@@ -17,6 +17,8 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Tick "read questions and answers aloud" and confirm the setting is on in Settings afterwards.
 - Pick Start the Tour and step through every tour page; confirm each step opens the page it describes and the tour can be finished or closed.
 - Pick Skip the Tour and confirm the dashboard opens.
+- On Windows, press Skip the Tour and Start the Tour (try Large text too) and confirm there is no white flash, blank frame, or unstyled page before the new layout appears.
+- Step through the tour with Next and Back and confirm each page and its tour card appear together with no white flash.
 - Use Back, Next, Finish, and End Tour, then press the ? button at the top and confirm the tour starts again.
 - In Settings > Welcome & tour, confirm the chosen persona is shown, Replay Tour works, and Redo Welcome Questions reopens the Welcome screen.
 - Redo the Welcome questions with a different persona and confirm settings from the old persona do not stay stuck on.
@@ -91,7 +93,9 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Confirm the default packaged app includes Pillow for smoother custom UI edges but does not bundle heavy optional audio/video/TTS libraries.
 - Confirm the left navigation mark uses the generated MemoryPal logo artwork instead of a plain letter.
 - Confirm the titlebar mark and navigation mark look like the same MemoryPal logo.
-- Confirm the refreshed icon still has the connected-dot M and does not look jagged in the titlebar, taskbar, or navigation rail.
+- Confirm the new logo (white connected M with mint and amber nodes and a small spark on a blue-to-violet tile) appears in the titlebar, taskbar, navigation rail, Start Menu shortcut, installer, and desktop shortcut.
+- At 16-32px (titlebar, taskbar) confirm the logo shows a clean white M without coloured speckles.
+- If Windows still shows the old icon after installing, restart Explorer or sign out and in; Windows caches shortcut icons.
 - Confirm `assets/memorypal.ico`, `assets/memorypal-logo-preview.png`, and `assets/memorypal-logo.svg` open as reusable project icon exports.
 - After a Windows package is built, confirm `release\MemoryPal\assets\memorypal.ico` exists so installed copies do not regenerate icons during startup.
 - Confirm the header and navigation logo appear immediately from packaged assets instead of causing a long startup delay.
@@ -137,9 +141,15 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Add a question/title card without a saved answer.
 - Import a `.txt`, `.md`, or `.csv` note and confirm the text appears in the study bit box.
 - Import a `.docx` note and confirm readable text is extracted.
-- Import a PDF and confirm extraction works when `pypdf` or `PyPDF2` is installed.
+- Import a text-based PDF with no extra packages installed and confirm the built-in reader extracts the text.
+- Import a scanned (image-only) PDF and confirm a clear no-text-layer message appears and the file is still attached.
+- Import an `.rtf` file and a Notepad `.txt` saved as UTF-16 and ANSI, and confirm the text is readable.
+- Import a `.docx` with tabs and line breaks and confirm they are kept.
 - Attach image, audio, and video cues.
-- Try audio/video recording without the optional packages installed and confirm the modern unavailable dialog appears.
+- Record an audio cue, watch the level meter move, stop, and play it back.
+- Record a video with Record video: press Open Camera, record in the Camera app, then Use my recording, and confirm the video is attached.
+- Attach JPEG, PNG, and WebP images (and HEIC if the Windows HEIF extension is installed) and confirm previews appear.
+- Save a spoken cue as an audio file and play it.
 - Run `development_versions/MemoryPal_v35_test_speech_to_text.py`; confirm it opens without speech packages installed and shows a clear unavailable message when dictation is requested.
 
 ## Study Modes
@@ -178,7 +188,28 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Confirm Category Sort creates suggested groups from pasted or sample items.
 - Confirm Routine Recall hides the shown steps and scores the typed recall attempt.
 
+## Navigation
+
+- Press Ctrl+K, type part of a page name, use the arrow keys and Enter, and confirm the page opens. Press Escape to close the finder.
+- Visit three pages, then press the header Back button and Alt+Left and confirm you step back through them. On the first page, confirm a friendly "nothing to go back to" message appears.
+- Open several dropdowns (deck, goal, time unit) and confirm they open in the app's style, scroll with the mouse wheel, and close with Escape or a click outside.
+- Change theme, text size, and Higher Contrast and confirm the interface swaps in one step with no white flash.
+- Open dialogs and popups and confirm they appear already drawn, without fading or a blank first frame.
+
+## Dashboard
+
+- Confirm the Dashboard shows a greeting, the best next action, today's plan steps, the progress strip (streak, level, XP), study modes for your persona, and the next badge.
+- Tick off a plan step, switch pages, return, and confirm it stays ticked for today.
+- Try Quick 10 and one other study mode and confirm each opens the right page or plan.
+
 ## Planning And Progress
+
+- Build a 60-minute plan with the rest-breaks habit and confirm a Rest break appears after about every 25 minutes (never at the very end) and the minutes still add up.
+- Start a break from a plan and confirm a message appears when the break ends.
+- With new cards waiting, confirm the plan includes a Learn new cards step capped at a sensible number.
+- Tick the explain-in-my-own-words habit and confirm an Explain it back step appears.
+- Press Make this my plan and confirm the Dashboard shows today's part of the plan; for a multi-day plan, confirm the day number is right and a finished plan says it is complete.
+- Open Stats and confirm the 30-day chart, Coming up chart, card maturity bar, answer results, weekly rhythm, activity calendar, deck mastery, and achievements all show sensible values. Hover over chart bars to see their values.
 
 - Build a minutes-based Study Plan.
 - Build a days- or weeks-based Study Plan.

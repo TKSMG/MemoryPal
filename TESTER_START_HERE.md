@@ -1,6 +1,6 @@
 # MemoryPal Tester Guide - Start Here
 
-Thanks for testing MemoryPal. This beta is version 0.43.0 (development milestone v67). It takes about 20-30 minutes to try the main parts.
+Thanks for testing MemoryPal. This beta is version 0.44.0 (development milestone v68). It takes about 20-30 minutes to try the main parts.
 
 ## 1. Install
 
@@ -56,5 +56,7 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 ## Known limits in this beta
 
 - Read aloud uses the voice built into Windows. It needs no internet connection, but some cut-down Windows installs have no voice.
-- Audio/video recording and speech-to-text are not included in the tester build.
+- Audio recording and playback use Windows' built-in tools. Video is recorded with the Windows Camera app and then brought into MemoryPal.
+- Speech-to-text dictation is not included in the tester build.
+- If your taskbar or desktop still shows the old MemoryPal icon after updating, sign out and back in; Windows caches icons.
 - The Mac version is a separate download.

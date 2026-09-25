@@ -40,6 +40,8 @@ Custom Canvas shapes should use antialiased image drawing when Pillow is availab
 
 The app can reuse the feeling of the startup fade after layout changes without fading the whole app window. Build the new state first, then fade away a temporary same-color overlay so the background shell stays solid.
 
+The logo is a connected "memory path" M: one unbroken white stroke with three recall nodes where the path turns (mint for the first and recalled idea, amber for the link that makes it stick) and a small spark for the moment something is remembered. It sits on a blue-to-violet tile that reads on both the dark rail and light backgrounds. Keep it flat and clean: one soft shadow, no extra glows or ghost lines. At 32px and below, drop the node cores and spark so the M stays sharp.
+
 The navigation mark should use the generated MemoryPal logo as the standard product mark. A plain letter should only appear as an emergency fallback if the logo renderer fails.
 
 The titlebar and navigation should use the same mark so the app feels like one product instead of a mix of sketches.
@@ -53,6 +55,14 @@ Custom resize grips should apply the final size on release. This avoids constant
 Feedback capture should stay local, short, and easy to export. Testers should not need an account just to say that something was confusing, too small, broken, or useful.
 
 Legacy data migration should copy old files forward without overwriting newer app-data changes. Long testing periods make data trust part of the user experience.
+
+## Navigation And Motion
+
+People should never feel lost: every page is reachable from the rail, from Ctrl+K, and by going Back. Big changes (theme, text size, rebuilding the shell) happen out of sight and appear in one frame; popups appear already finished instead of fading.
+
+## Dashboard And Progress
+
+The Dashboard should answer "what do I do now?" with today's plan steps first, then quick study modes chosen for the person's persona. Progress (streaks, levels, badges, charts) should encourage without pressure: badges show how close the next one is, and charts explain what they mean in plain words.
 
 ## First Run And Onboarding
 

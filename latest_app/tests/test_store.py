@@ -115,6 +115,49 @@ class SchedulingTests(StoreTestCase):
         self.assertTrue(self.store.undo_last())
         self.assertEqual((card.repetitions, card.interval), (0, 0))
 
+    def test_undo_takes_back_the_review_count_and_todays_activity(self):
+        card = self.fresh_card()
+        before = (self.store.practiced, self.store.today_count())
+        self.store.schedule(card, 4)
+        self.store.undo_last()
+        self.assertEqual((self.store.practiced, self.store.today_count()), before)
+        saved = self.reload()
+        self.assertEqual((saved.practiced, saved.today_count()), before)
+
+    def test_ease_stays_within_bounds(self):
+        card = self.fresh_card(repetitions=3, interval=10, ease=3.45)
+        self.store.schedule(card, 5)
+        self.assertLessEqual(card.ease, 3.5)
+
+
+class TwoWindowTests(StoreTestCase):
+    """Two open windows on one profile must not lose each other's work."""
+
+    def test_reviews_from_both_windows_add_up(self):
+        other = self.reload()
+        self.store.schedule(self.store.cards[0], 4)
+        other.schedule(other.cards[1], 4)
+        saved = self.reload()
+        self.assertEqual(saved.practiced, 2)
+        self.assertEqual(saved.today_count(), 2)
+        rated = {card.id for card in saved.cards if card.repetitions}
+        self.assertEqual(rated, {self.store.cards[0].id, other.cards[1].id})
+
+    def test_undo_in_one_window_keeps_the_other_windows_review(self):
+        other = self.reload()
+        self.store.schedule(self.store.cards[0], 4)
+        other.schedule(other.cards[1], 4)
+        self.store.undo_last()
+        saved = self.reload()
+        self.assertEqual(saved.practiced, 1)
+        self.assertEqual(saved.today_count(), 1)
+
+    def test_card_added_elsewhere_appears_after_next_save(self):
+        other = self.reload()
+        other.add_card(Card(front="From the other window", back="Hi"))
+        self.store.schedule(self.store.cards[0], 4)
+        self.assertIn("From the other window", [card.front for card in self.store.cards])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,11 +16,8 @@ from uuid import uuid4
 
 sys.dont_write_bytecode = True
 
-# Shared motion language for startup and popup fades. In-window page reveals use
-# canvas covers so the desktop window itself stays opaque during resizing and
-# fullscreen changes.
-FADE_STEP_MS = 14
-FADE_IN_CURVE = (0.0, 0.207, 0.388, 0.544, 0.675, 0.782, 0.867, 0.929, 0.971, 0.994, 1.0)
+# Windows and popups never fade: they are laid out and painted while fully
+# transparent, then shown in one step (see reveal_window).
 
 
 
@@ -69,7 +66,7 @@ except ImportError:
             counts[lower] = counts.get(lower, 0) + 1
         ranked = sorted(counts, key=lambda w: (-counts[w], words.index(next(x for x in words if x.lower() == w))))
         return [w.capitalize() for w in ranked[:count]]
-from memorypal.icon import ensure_icon_file, render_icon_pixels
+from memorypal.icon import ensure_icon_file, icon_pixels
 from memorypal.models import Card, Capture, FeedbackEntry, sample_cards
 from memorypal.paths import (
     active_profile_name,
@@ -80,7 +77,8 @@ from memorypal.paths import (
     rename_profile,
     switch_active_profile_paths,
 )
-from memorypal import onboarding, techniques
+from memorypal import onboarding, progress, techniques
+from memorypal import media
 from memorypal.speech import Speaker
 from memorypal.planning import (
     STUDY_HABIT_OPTIONS,
@@ -88,6 +86,7 @@ from memorypal.planning import (
     TIME_UNIT_ORDER,
     build_multi_day_plan,
     build_study_plan,
+    plan_for_today,
 )
 from memorypal.store import MemoryStore, default_accessibility, load_items, normalize_accessibility, safe_int
 
@@ -750,6 +749,8 @@ class MemoryPalApp(tk.Tk):
         self._pillow_unavailable = False
         self._font_families = None
         self.speaker = Speaker()
+        self.audio_player = media.AudioPlayer()
+        self.preview_photos = {}
 
         self.app_icon_path = None
         self.title(f"{APP_NAME} \u2014 {active_profile_name()}")
@@ -767,14 +768,24 @@ class MemoryPalApp(tk.Tk):
             except tk.TclError:
                 pass
         self.bind("<Escape>", lambda _event: self.exit_fullscreen_or_focus())
+        self.bind("<Alt-Left>", lambda _event: self.go_back())
+        for sequence in ("<Control-k>", "<Control-K>"):
+            self.bind(sequence, self.open_page_finder)
+            # Entry/Text use Ctrl+K to delete to the end of the line; open the
+            # finder there too instead of silently erasing what was typed.
+            for widget_class in ("Entry", "TEntry", "Text"):
+                self.bind_class(widget_class, sequence, self.open_page_finder)
         self.bind("<Configure>", self.handle_window_configure, add="+")
         self.update_idletasks()
         self._taskbar_ready = self.ensure_taskbar_presence()
-        self.deiconify()
-        self.after(120, lambda: setattr(self, "_taskbar_ready", self.ensure_taskbar_presence()))
-        self.fade_window_in()
         self.tour = None
-        self.after_idle(lambda: self.show_view(self.start_view(), transition=False))
+        # Map the window while it is still fully transparent, build and settle
+        # the first page, then show the finished frame in one step (no fade).
+        self.deiconify()
+        self.show_view(self.start_view(), transition=False)
+        self.settle_layout()
+        self.reveal_window(self)
+        self.after(120, lambda: setattr(self, "_taskbar_ready", self.ensure_taskbar_presence()))
         self._ui_ready = True
 
     def capture_normal_geometry(self):
@@ -893,6 +904,42 @@ class MemoryPalApp(tk.Tk):
             if cover is not None:
                 remove_screen_cover(cover)
 
+    def run_hidden_change(self, change, fallback=None):
+        """Run a big in-window change with the calculation gap hidden.
+
+        Same idea as run_window_change, without a resize: a pixel-identical
+        snapshot of the screen (or, failing that, frozen painting) covers the
+        window while the change is built and every layout pass settles, then
+        the finished result replaces the snapshot in a single frame. Nothing
+        half-built, unstyled, or blank is ever painted in between.
+
+        When neither hiding method is available (macOS/native chrome, or the
+        window is not visible yet), run `fallback` instead, which should use
+        the older in-window canvas cover.
+        """
+        cover = None
+        frozen = False
+        try:
+            viewable = bool(self.winfo_viewable())
+        except tk.TclError:
+            viewable = False
+        if viewable and not self.use_native_window_chrome:
+            cover = show_screen_cover(self.winfo_screenwidth(), self.winfo_screenheight())
+            if cover is None:
+                frozen = self.set_redraw_frozen(True)
+        if cover is None and not frozen:
+            (fallback or change)()
+            return
+        try:
+            change()
+            self.settle_layout()
+        finally:
+            if frozen:
+                self.set_redraw_frozen(False)
+            flush_pending_paint(self)
+            if cover is not None:
+                remove_screen_cover(cover)
+
     def prelayout_shell(self, width, height):
         """Lay the rail and main area out for a window size not applied yet."""
         chrome = getattr(self, "app_chrome", None)
@@ -969,9 +1016,24 @@ class MemoryPalApp(tk.Tk):
         current_y = (bbox[1] + bbox[3]) / 2
         canvas.move(item, x - current_x, y - current_y)
 
+    ICON_FONTS = ("Segoe MDL2 Assets", "Segoe Fluent Icons", "Segoe UI Symbol", "Segoe UI Emoji")
+
     def create_centered_canvas_text(self, canvas, x, y, text, **kwargs):
         item = canvas.create_text(x, y, text=text, **kwargs)
         self.center_canvas_item(canvas, item, x, y)
+        font = kwargs.get("font")
+        family = font[0] if isinstance(font, tuple) and font else ""
+        if font and family not in self.ICON_FONTS:
+            # The text box includes the font's leading above the capitals and
+            # room for descenders below, so box-centred text looks low. Centre
+            # on the letters instead: capitals and digits fill ~65% of the
+            # ascent in Segoe UI and similar UI fonts.
+            try:
+                metrics = tkfont.Font(font=font).metrics()
+                ascent, descent = metrics["ascent"], metrics["descent"]
+                canvas.move(item, 0, -round((ascent - descent - ascent * 0.649) / 2))
+            except (tk.TclError, KeyError):
+                pass
         return item
 
     def draw_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0):
@@ -1062,8 +1124,19 @@ class MemoryPalApp(tk.Tk):
             return (px - corner_x) ** 2 + (py - corner_y) ** 2 <= radius ** 2
 
         pixels = bytearray()
+        full = (*rgb, 255)
+        empty = (*rgb, 0)
         for y in range(height):
             for x in range(width):
+                # Shapes are convex: a pixel whose four corners agree is fully
+                # in or out, so only edge pixels need supersampling.
+                corners = inside(x, y) + inside(x + 1, y) + inside(x, y + 1) + inside(x + 1, y + 1)
+                if corners == 4:
+                    pixels.extend(full)
+                    continue
+                if corners == 0 and not inside(x + 0.5, y + 0.5):
+                    pixels.extend(empty)
+                    continue
                 covered = 0
                 for sy in range(scale):
                     py = y + (sy + 0.5) / scale
@@ -1109,9 +1182,30 @@ class MemoryPalApp(tk.Tk):
         edge = 0.85
         progress_sweep = pct * 360
         pixels = bytearray()
+        clear = (*track_rgb, 0)
+        half_stroke = stroke / 2
 
         for y in range(size):
             for x in range(size):
+                dx = x + 0.5 - center
+                dy = y + 0.5 - center
+                band = abs(math.hypot(dx, dy) - radius) - half_stroke
+                if band > edge + 0.75:
+                    # Well outside the ring: fully transparent, skip sampling.
+                    pixels.extend(clear)
+                    continue
+                if band < -0.75:
+                    # Solidly inside the stroke: only the sweep edge needs care.
+                    distance = max(1.0, math.hypot(dx, dy))
+                    angle = (math.degrees(math.atan2(dx, -dy)) + 360) % 360
+                    margin = math.degrees(1.0 / distance)
+                    near_edge = progress_sweep > 0 and (angle < margin or angle > 360 - margin or abs(angle - progress_sweep) < margin)
+                    if not near_edge:
+                        if progress_sweep > 0 and angle <= progress_sweep:
+                            pixels.extend((*progress_rgb, 255))
+                        else:
+                            pixels.extend((*track_rgb, 255))
+                        continue
                 track_hits = 0.0
                 progress_hits = 0.0
                 for sy in range(scale):
@@ -1198,7 +1292,7 @@ class MemoryPalApp(tk.Tk):
                             image = image.resize((size, size), lanczos)
                         photo = ImageTk.PhotoImage(image)
                     else:
-                        pixels = render_icon_pixels(size, scale=3 if size <= 96 else 2)
+                        pixels = icon_pixels(size)
                         bg_rgb = [value // 256 for value in self.winfo_rgb(bg)]
                         rows = []
                         for row in pixels:
@@ -1214,7 +1308,7 @@ class MemoryPalApp(tk.Tk):
                         photo = tk.PhotoImage(width=size, height=size)
                         photo.put(" ".join(rows))
                 else:
-                    pixels = render_icon_pixels(size, scale=3 if size <= 96 else 2)
+                    pixels = icon_pixels(size)
                     bg_rgb = [value // 256 for value in self.winfo_rgb(bg)]
                     rows = []
                     for row in pixels:
@@ -1270,48 +1364,6 @@ class MemoryPalApp(tk.Tk):
 
     def exit_fullscreen(self):
         self.exit_fullscreen_or_focus()
-
-    def fade_window_in(self, step=0, callback=None):
-        if getattr(self, "accessibility", {}).get("reduce_motion"):
-            try:
-                self.attributes("-alpha", 1.0)
-            except tk.TclError:
-                pass
-            if callback:
-                callback()
-            return
-        alpha_steps = FADE_IN_CURVE
-        try:
-            self.attributes("-alpha", alpha_steps[min(step, len(alpha_steps) - 1)])
-        except tk.TclError:
-            if callback:
-                callback()
-            return
-        if step < len(alpha_steps) - 1:
-            self.after(FADE_STEP_MS, lambda: self.fade_window_in(step + 1, callback))
-        elif callback:
-            callback()
-
-    def fade_window_out(self, callback, step=0):
-        """Fade the whole app out before a window-mode transition."""
-        if getattr(self, "accessibility", {}).get("reduce_motion"):
-            try:
-                self.attributes("-alpha", 0.0)
-            except tk.TclError:
-                pass
-            callback()
-            return
-        progress = FADE_IN_CURVE[min(step, len(FADE_IN_CURVE) - 1)]
-        alpha = 1.0 - progress
-        try:
-            self.attributes("-alpha", alpha)
-        except tk.TclError:
-            callback()
-            return
-        if step < len(FADE_IN_CURVE) - 1:
-            self.after(FADE_STEP_MS, lambda: self.fade_window_out(callback, step + 1))
-        else:
-            callback()
 
     def restore_window_chrome(self, _event=None):
         if self.use_native_window_chrome:
@@ -1566,9 +1618,21 @@ class MemoryPalApp(tk.Tk):
         cover.update_idletasks()
         return cover
 
-    def rebuild_shell(self, view=None, refresh_styles=False, cover=None):
+    def rebuild_shell(self, view=None, refresh_styles=False, cover=None, use_cover=True):
         current = view or self.current_view
-        cover = cover or self.start_root_cover()
+        if use_cover and cover is None:
+            # Build the new shell under a snapshot of the old one, then swap
+            # in one frame; the canvas cover is only the fallback.
+            self.run_hidden_change(
+                lambda: self.rebuild_shell(current, refresh_styles, use_cover=False),
+                fallback=lambda: self._rebuild_shell_covered(current, refresh_styles),
+            )
+            return
+        self._rebuild_shell_covered(current, refresh_styles, cover, use_cover)
+
+    def _rebuild_shell_covered(self, current, refresh_styles=False, cover=None, use_cover=True):
+        if use_cover:
+            cover = cover or self.start_root_cover()
         for child in self.winfo_children():
             if child is cover:
                 continue
@@ -1584,6 +1648,8 @@ class MemoryPalApp(tk.Tk):
             self._styles()
         self._shell()
         self.show_view(current, transition=False)
+        if cover is None:
+            return
         self.raise_widget(cover)
         self.after(70, lambda: self.fade_simple_cover(cover))
 
@@ -1659,32 +1725,39 @@ class MemoryPalApp(tk.Tk):
         x = owner.winfo_rootx() + max(0, (owner.winfo_width() - popup_width) // 2)
         y = owner.winfo_rooty() + max(0, (owner.winfo_height() - popup_height) // 3)
         top.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
+        self.reveal_window(top, owner)
+        if modal:
+            top.grab_set()
+
+    def reveal_window(self, top, owner=None):
+        """Map a window invisibly, let it lay out and paint, then show it at once.
+
+        No fade: the window stays fully transparent until every geometry and
+        paint pass has run, so its first visible frame is the finished one.
+        """
         try:
             top.attributes("-alpha", 0.0)
         except tk.TclError:
             pass
         top.deiconify()
-        top.lift(owner)
-        if modal:
-            top.grab_set()
-        self.fade_popup_in(top)
-
-    def fade_popup_in(self, top, step=0):
-        if not top.winfo_exists():
-            return
-        if getattr(self, "accessibility", {}).get("reduce_motion"):
-            try:
-                top.attributes("-alpha", 1.0)
-            except tk.TclError:
-                pass
-            return
-        alpha_steps = FADE_IN_CURVE
+        if owner is not None:
+            top.lift(owner)
+        else:
+            top.lift()
+        for _ in range(4):
+            top.update_idletasks()
+            if not flush_pending_paint(top):
+                break
         try:
-            top.attributes("-alpha", alpha_steps[min(step, len(alpha_steps) - 1)])
+            import ctypes
+
+            ctypes.windll.dwmapi.DwmFlush()
+        except (AttributeError, OSError):
+            pass
+        try:
+            top.attributes("-alpha", 1.0)
         except tk.TclError:
-            return
-        if step < len(alpha_steps) - 1:
-            self.after(FADE_STEP_MS, lambda: self.fade_popup_in(top, step + 1))
+            pass
 
     def _display_scales(self):
         try:
@@ -1754,11 +1827,8 @@ class MemoryPalApp(tk.Tk):
         self.store.save()
         if rebuild:
             self.save_current_draft()
-            cover = self.start_root_cover()
-            current = self.current_view
             self.apply_accessibility_preferences()
-            self.configure(bg=COLORS["bg"])
-            self.rebuild_shell(current, refresh_styles=True, cover=cover)
+            self.rebuild_shell(self.current_view, refresh_styles=True)
 
     def apply_senior_layout_defaults(self):
         self.accessibility.update({
@@ -1802,10 +1872,10 @@ class MemoryPalApp(tk.Tk):
         if not self.accessibility.get("simple_language"):
             return f"{checked['label']} | {checked['score']}% | Bucket: {checked['bucket']} | Reps: {checked['repetitions']} | {checked['detail']}"
         message = {
-            "Easy": "Well done — you remembered it.",
+            "Easy": "Well done \u2014 you remembered it.",
             "Good": "Nearly all there.",
             "Review": "You remembered part of it.",
-            "Again": "Not quite yet — that's okay, it will come back soon.",
+            "Again": "Not quite yet \u2014 that's okay, it will come back soon.",
         }.get(checked["bucket"], checked["label"])
         if checked["detail"].startswith("Missing key cues:"):
             message += " Words that would help: " + checked["detail"].split(":", 1)[1].strip() + "."
@@ -1873,9 +1943,9 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("Stat.TLabel", background=COLORS["surface"], foreground=COLORS["primary"], font=self.font("Segoe UI Semibold", 34))
         self.style.configure("RailTitle.TLabel", background=COLORS["rail"], foreground=COLORS["white"], font=self.font("Segoe UI Semibold", 20))
         self.style.configure("RailText.TLabel", background=COLORS["rail"], foreground="#9ca3af", font=self.font("Segoe UI", 12))
-        self.style.configure("TEntry", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], insertcolor=COLORS["ink"], bordercolor=COLORS["line"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
+        self.style.configure("TEntry", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], insertcolor=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
         self.style.map("TEntry", bordercolor=[("focus", COLORS["primary"])], lightcolor=[("focus", COLORS["input"])], darkcolor=[("focus", COLORS["input"])])
-        self.style.configure("TCombobox", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], bordercolor=COLORS["line"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
+        self.style.configure("TCombobox", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
         for scrollbar_style in ("Vertical.TScrollbar", "Horizontal.TScrollbar"):
             self.style.configure(
                 scrollbar_style,
@@ -1901,9 +1971,9 @@ class MemoryPalApp(tk.Tk):
         self.style.map("TButton", background=[("active", COLORS["alt"]), ("pressed", self.tint(COLORS["alt"], -14))], foreground=[("active", COLORS["primary"])])
         self.style.configure("Primary.TButton", padding=self.pad(18, 12), background=COLORS["primary"], foreground=COLORS["white"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 12))
         self.style.map("Primary.TButton", background=[("active", COLORS["primary_dark"]), ("pressed", self.tint(COLORS["primary_dark"], -14))])
-        self.style.configure("TMenubutton", padding=self.pad(18, 12), background=COLORS["surface_soft"], foreground=COLORS["ink"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.configure("TMenubutton", padding=self.pad(18, 12), background=COLORS["surface_soft"], foreground=COLORS["ink"], borderwidth=0, bordercolor=COLORS["surface_soft"], lightcolor=COLORS["surface_soft"], darkcolor=COLORS["surface_soft"], arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.map("TMenubutton", background=[("active", COLORS["alt"]), ("pressed", self.tint(COLORS["alt"], -14))], foreground=[("active", COLORS["primary"])])
-        self.style.configure("Select.TMenubutton", padding=self.pad(16, 11), background=COLORS["input"], foreground=COLORS["ink"], borderwidth=1, relief="flat", font=self.font("Segoe UI", 11))
+        self.style.configure("Select.TMenubutton", padding=self.pad(16, 11), background=COLORS["input"], foreground=COLORS["ink"], borderwidth=0, bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 11))
         self.style.map("Select.TMenubutton", background=[("active", COLORS["alt"])])
         self.style.configure("Danger.TButton", padding=self.pad(18, 12), background=COLORS["danger"], foreground=COLORS["white"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.configure("Again.TButton", padding=self.pad(18, 12), background=COLORS["again_bg"], foreground=COLORS["again_fg"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
@@ -1942,7 +2012,7 @@ class MemoryPalApp(tk.Tk):
 
     def render_window_chrome(self, parent, title, close_command, window=None, show_minimize=True, show_fullscreen=True):
         window = window or self
-        bar = tk.Frame(parent, bg=COLORS["surface_soft"], highlightthickness=1, highlightbackground=COLORS["line"])
+        bar = tk.Frame(parent, bg=COLORS["surface_soft"])
         bar.pack(fill="x")
         grip = tk.Frame(bar, bg=COLORS["surface_soft"])
         grip.pack(side="left", fill="x", expand=True, padx=self.px(14), pady=self.px(8))
@@ -2287,6 +2357,8 @@ class MemoryPalApp(tk.Tk):
                     "backup": "\ue896",
                     "settings": "\ue713",
                     "help": "\ue897",
+                    "search": "\ue721",
+                    "back": "\ue72b",
                 }
                 return family, glyphs.get(name, name)
             fallback = {
@@ -2295,6 +2367,8 @@ class MemoryPalApp(tk.Tk):
                 "backup": "\u2193",
                 "settings": "\u2699",
                 "help": "?",
+                "search": "\u2315",
+                "back": "\u2190",
             }
             return family, fallback.get(name, name)
 
@@ -2334,6 +2408,8 @@ class MemoryPalApp(tk.Tk):
                 draw_icon_text("backup", 18, ink)
             elif icon == "help":
                 draw_icon_text("help", 17, ink)
+            elif icon in ("search", "back"):
+                draw_icon_text(icon, 16, ink)
             elif icon == "settings":
                 draw_icon_text("settings", 17, ink)
             else:
@@ -2427,12 +2503,17 @@ class MemoryPalApp(tk.Tk):
         streak = self.store.current_streak()
         streak_chip = tk.Label(status_row, text=f"\U0001F525 {streak} day{'s' if streak != 1 else ''}", bg=COLORS["warm"], fg=COLORS["warm_text"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         streak_chip.pack(side="left", padx=(0, self.px(10)))
+        self.streak_chip = streak_chip
         today = self.store.today_count()
         goal_chip = tk.Label(status_row, text=f"{today}/{self.store.daily_goal} today", bg=COLORS["good_bg"] if today >= self.store.daily_goal else COLORS["alt"], fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         goal_chip.pack(side="left", padx=(0, self.px(10)))
         self.goal_chip = goal_chip
         local_chip = tk.Label(status_row, text="Local save", bg=COLORS["alt"], fg=COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         local_chip.pack(side="left", padx=(0, self.px(10)))
+        back_button = self.header_icon_button(action_strip, "back", self.go_back, "Back to the previous page (Alt + Left).")
+        back_button.pack(side="left", padx=(0, self.px(8)))
+        find_button = self.header_icon_button(action_strip, "search", self.open_page_finder, "Go to any page or action (Ctrl + K).")
+        find_button.pack(side="left", padx=(0, self.px(8)))
         help_button = self.header_icon_button(action_strip, "help", self.start_tour, "Show me around: a short guided tour of the pages you use most.")
         help_button.pack(side="left", padx=(0, self.px(8)))
         theme_button = self.header_icon_button(action_strip, "theme", self.toggle_theme, "Switch between light and dark appearance.")
@@ -2462,6 +2543,10 @@ class MemoryPalApp(tk.Tk):
         self.after_idle(self.layout_app_body)
 
     def refresh_header_status(self):
+        streak_chip = getattr(self, "streak_chip", None)
+        if streak_chip is not None and streak_chip.winfo_exists():
+            streak = self.store.current_streak()
+            streak_chip.configure(text=f"\U0001F525 {streak} day{'s' if streak != 1 else ''}")
         chip = getattr(self, "goal_chip", None)
         if chip is None or not chip.winfo_exists():
             return
@@ -2505,12 +2590,12 @@ class MemoryPalApp(tk.Tk):
 
     def nav_hint(self, key):
         return {
-            "dashboard": "Your daily overview, progress, and next best action.",
+            "dashboard": "Today's path from your study plan, your streak and level, and study modes.",
             "training": "Pick evidence-based study drills or gentle memory-support games.",
             "elder": "Large, calm memory support for routines, people, places, and caregiver-created prompts.",
             "decks": "Browse your decks, see per-deck mastery, and study one deck at a time.",
             "plan": "Answer a few questions and get a tailored study plan for today.",
-            "stats": "Streaks, daily goal, and an activity heatmap of your practice history.",
+            "stats": "Charts of your practice, what's coming up, card maturity, and achievements.",
             "focus": "A queue of due, weak, and fresh cards.",
             "capture": "Add study bits, Q/A cards, text, image, audio, and video cues.",
             "review": "Start due cards in Test Lab.",
@@ -2539,8 +2624,15 @@ class MemoryPalApp(tk.Tk):
             "welcome": ("Welcome", "Let's set things up"),
         }
         self.speaker.stop()
+        self.audio_player.stop()
+        self.close_page_finder()
         if self.current_view != view:
             self.save_current_draft()
+            previous = self.current_view
+            history = self.__dict__.setdefault("view_history", [])
+            if previous and previous != "welcome" and not getattr(self, "_going_back", False):
+                history.append(previous)
+                del history[:-40]
         self.clear_rating_hotkeys()
         self.route_token += 1
         token = self.route_token
@@ -2582,6 +2674,7 @@ class MemoryPalApp(tk.Tk):
             if old_host is not None and old_host.winfo_exists() and old_host is not self.view_host:
                 old_host.destroy()
             return
+        self.refresh_header_status()
         self.eyebrow.configure(text=titles[view][0])
         self.title_label.configure(text=titles[view][1])
         if old_host is not None and old_host.winfo_exists() and old_host is not new_host:
@@ -2590,6 +2683,134 @@ class MemoryPalApp(tk.Tk):
         self.after_idle(self.layout_app_body)
         if getattr(self, "tour", None):
             self.render_tour_card()
+
+    def go_back(self):
+        history = getattr(self, "view_history", [])
+        while history:
+            view = history.pop()
+            if view != self.current_view and hasattr(self, f"view_{view}"):
+                self._going_back = True
+                try:
+                    self.show_view(view)
+                finally:
+                    self._going_back = False
+                return
+        self.toast_message("You're at the start. Nothing to go back to.")
+
+    def finder_entries(self):
+        entries = [(label, self.nav_hint(key), lambda key=key: self.show_view(key)) for key, label, _short in self.ordered_nav_items()]
+        entries.append(("Settings", self.nav_hint("settings"), lambda: self.show_view("settings")))
+        entries += [
+            ("Quick 10-minute session", "Ten focused minutes on whatever matters most right now.", self.quick_session),
+            ("Start today's review", "Go through the cards that are due now.", lambda: self.show_view("review")),
+            ("Make a study plan", "Choose your time and goal and get a step-by-step path.", lambda: self.show_view("plan")),
+            ("Take the guided tour", "A short walk through the pages you use most.", self.start_tour),
+            ("Switch light / dark", "Change the app's appearance.", self.toggle_theme),
+            ("Go back", "Return to the page you were on before (Alt + Left).", self.go_back),
+        ]
+        return entries
+
+    def close_page_finder(self):
+        finder = getattr(self, "_finder", None)
+        self._finder = None
+        if finder is None:
+            return
+        try:
+            finder.grab_release()
+            finder.destroy()
+        except tk.TclError:
+            pass
+
+    def open_page_finder(self, _event=None):
+        """Ctrl+K: type part of a page or action name and press Enter."""
+        self.close_dropdown()
+        if getattr(self, "_finder", None) is not None:
+            self.close_page_finder()
+            return "break"
+        entries = self.finder_entries()
+        top = tk.Toplevel(self)
+        top.withdraw()
+        top.overrideredirect(True)
+        top.configure(bg=COLORS["surface_soft"])
+        top.transient(self)
+        self._finder = top
+        box = tk.Frame(top, bg=COLORS["surface_soft"], padx=self.px(16), pady=self.px(14))
+        box.pack(fill="both", expand=True)
+        tk.Label(box, text="Go to a page or action", bg=COLORS["surface_soft"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="w", pady=(0, self.px(6)))
+        query = tk.StringVar()
+        entry = ttk.Entry(box, textvariable=query, font=self.font("Segoe UI", 13))
+        entry.pack(fill="x")
+        listbox = tk.Listbox(
+            box, height=9, bg=COLORS["surface_soft"], fg=COLORS["ink"], selectbackground=COLORS["primary"], selectforeground=COLORS["white"],
+            relief="flat", bd=0, highlightthickness=0, activestyle="none", font=self.font("Segoe UI", 12), exportselection=False, cursor="hand2",
+        )
+        listbox.pack(fill="both", expand=True, pady=(self.px(10), self.px(6)))
+        detail = tk.Label(box, text="", bg=COLORS["surface_soft"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(520))
+        detail.pack(fill="x")
+        tk.Label(box, text="\u2191 \u2193 to move  \u2022  Enter to open  \u2022  Esc to close", bg=COLORS["surface_soft"], fg=COLORS["muted"], font=self.font("Segoe UI", 9)).pack(anchor="w", pady=(self.px(8), 0))
+        shown = []
+
+        def select(index):
+            if not shown:
+                detail.configure(text="No match. Try another word.")
+                return
+            index = max(0, min(len(shown) - 1, index))
+            listbox.selection_clear(0, "end")
+            listbox.selection_set(index)
+            listbox.see(index)
+            detail.configure(text=shown[index][1])
+
+        def refresh(*_args):
+            words = query.get().lower().split()
+            shown[:] = [item for item in entries if all(word in f"{item[0]} {item[1]}".lower() for word in words)]
+            listbox.delete(0, "end")
+            for label, _hint, _action in shown:
+                listbox.insert("end", f"  {label}")
+            select(0)
+
+        def current():
+            picked = listbox.curselection()
+            return picked[0] if picked else 0
+
+        def choose(_event=None):
+            if not shown:
+                return "break"
+            action = shown[current()][2]
+            self.close_page_finder()
+            action()
+            return "break"
+
+        def press(event):
+            inside = 0 <= event.x_root - top.winfo_rootx() < top.winfo_width() and 0 <= event.y_root - top.winfo_rooty() < top.winfo_height()
+            if not inside:
+                self.close_page_finder()
+                return "break"
+            return None
+
+        query.trace_add("write", refresh)
+        entry.bind("<Down>", lambda _event: (select(current() + 1), "break")[1])
+        entry.bind("<Up>", lambda _event: (select(current() - 1), "break")[1])
+        entry.bind("<Return>", choose)
+        top.bind("<Escape>", lambda _event: (self.close_page_finder(), "break")[1])
+        listbox.bind("<Motion>", lambda event: select(listbox.nearest(event.y)))
+        listbox.bind("<ButtonRelease-1>", choose)
+        top.bind("<ButtonPress-1>", press)
+        refresh()
+
+        width = self.px(600)
+        top.update_idletasks()
+        height = top.winfo_reqheight()
+        anchor = getattr(self, "main", self)
+        x = anchor.winfo_rootx() + max(0, (anchor.winfo_width() - width) // 2)
+        y = anchor.winfo_rooty() + self.px(70)
+        top.geometry(f"{width}x{height}+{x}+{y}")
+        self.reveal_window(top)
+        entry.focus_force()
+        try:
+            top.grab_set()
+        except tk.TclError:
+            pass
+        return "break"
 
     def register_draft_saver(self, view, saver):
         self.draft_savers[view] = saver
@@ -2637,7 +2858,7 @@ class MemoryPalApp(tk.Tk):
         top.geometry(f"{self.px(420)}x{self.px(480)}")
         top.minsize(self.px(360), self.px(360))
 
-        shell = tk.Frame(top, bg=COLORS["surface"], highlightthickness=1, highlightbackground=COLORS["line"])
+        shell = tk.Frame(top, bg=COLORS["bg"])
         shell.pack(fill="both", expand=True)
         self.render_window_chrome(shell, "Profiles", top.destroy, window=top, show_minimize=False, show_fullscreen=False)
 
@@ -2654,7 +2875,7 @@ class MemoryPalApp(tk.Tk):
                 child.destroy()
             active = active_profile_name()
             for name in list_profiles():
-                row = tk.Frame(list_holder, bg=COLORS["surface"], highlightthickness=1, highlightbackground=(COLORS["primary"] if name == active else COLORS["line"]), padx=self.px(14), pady=self.px(12))
+                row = tk.Frame(list_holder, bg=COLORS["surface"], padx=self.px(14), pady=self.px(12))
                 row.pack(fill="x", pady=(0, 8))
                 label_text = f"\U0001F464 {name}" + ("   \u2022 active" if name == active else "")
                 tk.Label(row, text=label_text, bg=COLORS["surface"], fg=(COLORS["primary"] if name == active else COLORS["ink"]), font=self.font("Segoe UI Semibold", 12)).pack(side="left")
@@ -2721,11 +2942,9 @@ class MemoryPalApp(tk.Tk):
 
     def toggle_theme(self):
         self.save_current_draft()
-        cover = self.start_root_cover()
         self.theme = "dark" if self.theme == "light" else "light"
         self.apply_theme_palette()
-        current = self.current_view
-        self.rebuild_shell(current, refresh_styles=True, cover=cover)
+        self.rebuild_shell(self.current_view, refresh_styles=True)
 
     def clear_rating_hotkeys(self):
         if not self._hotkeys_bound:
@@ -2770,28 +2989,30 @@ class MemoryPalApp(tk.Tk):
         self.apply_app_icon(top)
         top.transient(owner)
         top.resizable(False, False)
-        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20), highlightthickness=1, highlightbackground=COLORS["line"])
-        shell.pack(fill="both", expand=True, padx=self.px(14), pady=self.px(14))
-        self.render_window_chrome(shell, title, top.destroy, window=top, show_minimize=False, show_fullscreen=False)
+        top.configure(bg=COLORS["surface"])
+        self.render_window_chrome(top, title, top.destroy, window=top, show_minimize=False, show_fullscreen=False)
+        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(22), pady=self.px(18))
+        shell.pack(fill="both", expand=True)
         if body:
             tk.Label(shell, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(width - 70), justify="left", anchor="w").pack(fill="x", pady=(self.px(6), self.px(14)))
         content = ttk.Frame(shell, style="Card.TFrame")
         content.pack(fill="x")
         actions = ttk.Frame(shell, style="Card.TFrame")
         actions.pack(fill="x", pady=(self.px(18), 0))
-        top.update_idletasks()
-        x = owner.winfo_rootx() + max(0, (owner.winfo_width() - self.px(width)) // 2)
-        y = owner.winfo_rooty() + max(0, (owner.winfo_height() - top.winfo_height()) // 3)
-        top.minsize(self.px(width), 1)
-        top.geometry(f"+{x}+{y}")
-        self.show_popup_window(top, owner, self.px(width), modal=True)
+        top.dialog_owner = owner
+        top.dialog_width = self.px(width)
         return top, content, actions
+
+    def present_dialog(self, top):
+        # Shown only once its fields and buttons exist, so the height fits them.
+        self.show_popup_window(top, top.dialog_owner, top.dialog_width, modal=True)
 
     def dialog_alert(self, title, body, kind="info", parent=None):
         top, _content, actions = self.dialog_window(title, body, parent=parent)
         color = COLORS["danger"] if kind == "error" else COLORS["primary"]
         ok = self.solid_button(actions, "OK", top.destroy, color)
         ok.pack(fill="x")
+        self.present_dialog(top)
         top.bind("<Return>", lambda _event: top.destroy())
         top.bind("<Escape>", lambda _event: top.destroy())
         ok.focus_set()
@@ -2811,6 +3032,7 @@ class MemoryPalApp(tk.Tk):
         confirm.grid(row=0, column=1, sticky="ew")
         actions.columnconfigure(0, weight=1)
         actions.columnconfigure(1, weight=1)
+        self.present_dialog(top)
         top.bind("<Escape>", lambda _event: finish(False))
         confirm.focus_set()
         top.wait_window()
@@ -2839,6 +3061,7 @@ class MemoryPalApp(tk.Tk):
         save.grid(row=0, column=1, sticky="ew")
         actions.columnconfigure(0, weight=1)
         actions.columnconfigure(1, weight=1)
+        self.present_dialog(top)
         top.bind("<Return>", lambda _event: submit())
         top.bind("<Escape>", lambda _event: top.destroy())
         entry.focus_set()
@@ -2873,6 +3096,7 @@ class MemoryPalApp(tk.Tk):
         start.grid(row=0, column=1, sticky="ew")
         actions.columnconfigure(0, weight=1)
         actions.columnconfigure(1, weight=1)
+        self.present_dialog(top)
         top.bind("<Return>", lambda _event: submit())
         top.bind("<Escape>", lambda _event: top.destroy())
         entry.focus_set()
@@ -2884,7 +3108,7 @@ class MemoryPalApp(tk.Tk):
         return ttk.Frame(parent, style=style, padding=self.px(padding))
 
     def text_box(self, parent, height=4, font_size=12):
-        box = tk.Text(parent, height=height, wrap="word", bg=COLORS["input"], fg=COLORS["ink"], bd=0, relief="flat", highlightthickness=1, highlightbackground=COLORS["soft_line"], highlightcolor=COLORS["primary"], padx=self.px(12), pady=self.px(12), font=self.font("Segoe UI", font_size), insertbackground=COLORS["primary"])
+        box = tk.Text(parent, height=height, wrap="word", bg=COLORS["input"], fg=COLORS["ink"], bd=0, relief="flat", highlightthickness=1, highlightbackground=COLORS["input"], highlightcolor=COLORS["primary"], padx=self.px(12), pady=self.px(12), font=self.font("Segoe UI", font_size), insertbackground=COLORS["primary"])
         return box
 
     def answer_area(self, parent, title="Your answer", hint="Type what you remember, then check or reveal.", height=4):
@@ -3047,10 +3271,7 @@ class MemoryPalApp(tk.Tk):
 
     def cue_menu_button(self, parent, text, actions, hint=""):
         button = ttk.Menubutton(parent, text=text)
-        menu = tk.Menu(button, tearoff=0, bg=COLORS["surface"], fg=COLORS["ink"], activebackground=COLORS["alt"], activeforeground=COLORS["primary"])
-        for label, command in actions:
-            menu.add_command(label=label, command=command)
-        button.configure(menu=menu)
+        self.bind_dropdown(button, lambda: [(label, command, False) for label, command in actions])
         self.add_tooltip(button, hint or self.action_hint(text))
         return button
 
@@ -3058,7 +3279,6 @@ class MemoryPalApp(tk.Tk):
         button = ttk.Menubutton(parent, text=variable.get(), style="Select.TMenubutton")
         if width:
             button.configure(width=width)
-        menu = tk.Menu(button, tearoff=0, bg=COLORS["surface"], fg=COLORS["ink"], activebackground=COLORS["primary"], activeforeground=COLORS["white"], font=self.font("Segoe UI", 11), bd=0, relief="flat")
 
         def choose(value):
             variable.set(value)
@@ -3066,10 +3286,123 @@ class MemoryPalApp(tk.Tk):
             if on_change:
                 on_change(value)
 
-        for option in options:
-            menu.add_command(label=option, command=lambda value=option: choose(value))
-        button.configure(menu=menu)
+        self.bind_dropdown(button, lambda: [(option, lambda value=option: choose(value), option == variable.get()) for option in options])
         return button
+
+    def bind_dropdown(self, button, entries):
+        # Native Tk menus get a light system border on Windows; this opens
+        # MemoryPal's own borderless list instead.
+        def open_list(_event=None):
+            if str(button.cget("state")) != "disabled":
+                self.open_dropdown(button, entries())
+            return "break"
+
+        for sequence in ("<ButtonPress-1>", "<Key-space>", "<Return>", "<Key-Down>"):
+            button.bind(sequence, open_list)
+
+    def close_dropdown(self):
+        dropdown = getattr(self, "_dropdown", None)
+        self._dropdown = None
+        if dropdown is None:
+            return
+        top, previous_grab = dropdown
+        try:
+            top.grab_release()
+            top.destroy()
+        except tk.TclError:
+            pass
+        if previous_grab is not None:
+            try:
+                if previous_grab.winfo_exists():
+                    previous_grab.grab_set()
+            except tk.TclError:
+                pass
+
+    def open_dropdown(self, anchor, entries):
+        self.close_dropdown()
+        if not entries:
+            return
+        previous_grab = self.grab_current()
+        top = tk.Toplevel(self)
+        top.withdraw()
+        top.overrideredirect(True)
+        top.configure(bg=COLORS["surface_soft"])
+        top.transient(anchor.winfo_toplevel())
+        inset = self.px(6)
+        listbox = tk.Listbox(
+            top,
+            height=min(len(entries), 10),
+            bg=COLORS["surface_soft"],
+            fg=COLORS["ink"],
+            selectbackground=COLORS["primary"],
+            selectforeground=COLORS["white"],
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            activestyle="none",
+            font=self.font("Segoe UI", 11),
+            exportselection=False,
+            cursor="hand2",
+        )
+        listbox.pack(fill="both", expand=True, padx=inset, pady=inset)
+        current = 0
+        for index, (label, _command, selected) in enumerate(entries):
+            listbox.insert("end", f"  {label}  ")
+            if selected:
+                current = index
+                listbox.itemconfigure(index, fg=COLORS["primary"])
+        listbox.selection_set(current)
+        listbox.see(current)
+        self._dropdown = (top, previous_grab)
+
+        def choose(_event=None):
+            picked = listbox.curselection()
+            self.close_dropdown()
+            if picked:
+                entries[picked[0]][1]()
+            return "break"
+
+        def hover(event):
+            index = listbox.nearest(event.y)
+            listbox.selection_clear(0, "end")
+            listbox.selection_set(index)
+
+        def press(event):
+            # With the grab set, clicks anywhere in the app arrive here.
+            inside = 0 <= event.x_root - top.winfo_rootx() < top.winfo_width() and 0 <= event.y_root - top.winfo_rooty() < top.winfo_height()
+            if not inside:
+                self.close_dropdown()
+                return "break"
+            return None
+
+        def wheel(event):
+            listbox.yview_scroll(-1 if event.delta > 0 else 1, "units")
+            return "break"
+
+        listbox.bind("<Motion>", hover)
+        listbox.bind("<ButtonRelease-1>", choose)
+        listbox.bind("<Return>", choose)
+        listbox.bind("<Escape>", lambda _event: (self.close_dropdown(), "break")[1])
+        listbox.bind("<MouseWheel>", wheel)
+        top.bind("<ButtonPress-1>", press)
+        listbox.bind("<ButtonPress-1>", press, add="+")
+        listbox.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
+
+        top.update_idletasks()
+        width = max(anchor.winfo_width(), listbox.winfo_reqwidth() + inset * 2)
+        height = listbox.winfo_reqheight() + inset * 2
+        x = anchor.winfo_rootx()
+        y = anchor.winfo_rooty() + anchor.winfo_height() + self.px(4)
+        if y + height > self.winfo_screenheight():
+            y = anchor.winfo_rooty() - height - self.px(4)
+        x = max(0, min(x, self.winfo_screenwidth() - width))
+        top.geometry(f"{width}x{height}+{x}+{y}")
+        self.reveal_window(top)
+        listbox.focus_force()
+        try:
+            top.grab_set()
+        except tk.TclError:
+            pass
 
     def pill_group(self, parent, variable, options, on_change=None, max_columns=None, bg=None):
         bg = bg or COLORS["surface"]
@@ -3104,6 +3437,10 @@ class MemoryPalApp(tk.Tk):
             row.columnconfigure(grid_col, weight=1)
             buttons[option] = btn
         refresh()
+        # Follow the variable too, so a selection made elsewhere (e.g. clicking
+        # a chart bar) moves the highlighted pill.
+        trace = variable.trace_add("write", lambda *_args: row.winfo_exists() and refresh())
+        row.bind("<Destroy>", lambda event: event.widget is row and variable.trace_remove("write", trace), add="+")
         return row
 
     def fit_wrap(self, label, **pack_options):
@@ -3397,17 +3734,28 @@ class MemoryPalApp(tk.Tk):
         self.store.onboarding = {"done": True, "persona": persona_key}
         self.set_nav_order(data["nav"])  # saves the profile
         self.nav_first_index = 0
-        self.apply_accessibility_preferences()
         self.tour = {"persona": persona_key, "index": 0} if take_tour else None
         first_view = onboarding.tour_steps(persona_key)[0][0] if take_tour else "dashboard"
-        self.rebuild_shell(first_view, refresh_styles=True)
+
+        def rebuild(hidden):
+            # New text size, palette, nav order and first page all change at
+            # once; build them out of sight so no white or unstyled frame shows.
+            self.apply_accessibility_preferences()
+            self.configure(bg=COLORS["bg"])
+            self.rebuild_shell(first_view, refresh_styles=True, use_cover=not hidden)
+
+        self.run_hidden_change(lambda: rebuild(True), fallback=lambda: rebuild(False))
         if not take_tour:
             self.toast_message("All set. Press ? at the top any time for a quick tour.")
+
+    def show_tour_view(self, view):
+        """Switch pages for a tour step with the new page and tour card built out of sight."""
+        self.run_hidden_change(lambda: self.show_view(view))
 
     def start_tour(self):
         persona_key = self.store.onboarding.get("persona") or "general"
         self.tour = {"persona": persona_key, "index": 0}
-        self.show_view(onboarding.tour_steps(persona_key)[0][0])
+        self.show_tour_view(onboarding.tour_steps(persona_key)[0][0])
 
     def move_tour(self, step):
         if not self.tour:
@@ -3418,7 +3766,7 @@ class MemoryPalApp(tk.Tk):
             self.end_tour("That's the tour. Press ? at the top any time to see it again.")
             return
         self.tour["index"] = max(0, index)
-        self.show_view(steps[self.tour["index"]][0])
+        self.show_tour_view(steps[self.tour["index"]][0])
 
     def end_tour(self, message="Tour closed. Press ? at the top any time to see it again."):
         self.tour = None
@@ -3439,15 +3787,15 @@ class MemoryPalApp(tk.Tk):
         index = min(self.tour["index"], len(steps) - 1)
         _view, title, body = steps[index]
         last = index == len(steps) - 1
-        card = tk.Frame(self.main, bg=COLORS["surface"], highlightthickness=max(2, self.px(2)), highlightbackground=COLORS["primary"], padx=self.px(22), pady=self.px(18))
+        card = tk.Frame(self.main, bg=COLORS["alt"], padx=self.px(22), pady=self.px(18))
         card.place(relx=1.0, rely=1.0, anchor="se", x=-self.px(52), y=-self.px(34), width=self.px(460))
-        tk.Label(card, text=f"Guided tour  \u2022  step {index + 1} of {len(steps)}", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x")
-        tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16), anchor="w").pack(fill="x", pady=(self.px(4), 0))
-        text = tk.Label(card, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(410))
+        tk.Label(card, text=f"Guided tour  \u2022  step {index + 1} of {len(steps)}", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x")
+        tk.Label(card, text=title, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+        text = tk.Label(card, text=body, bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(410))
         text.pack(fill="x", pady=(self.px(6), self.px(14)))
         buttons = [("Back", lambda: self.move_tour(-1), "TButton")] if index else []
         buttons += [("Finish" if last else "Next", lambda: self.move_tour(1), "Primary.TButton"), ("End Tour", self.end_tour, "TButton")]
-        row = tk.Frame(card, bg=COLORS["surface"])
+        row = tk.Frame(card, bg=COLORS["alt"])
         row.pack(fill="x")
         for column, (label, command, style_name) in enumerate(buttons):
             button = self.row_button(row, label, command, style_name)
@@ -3684,163 +4032,430 @@ class MemoryPalApp(tk.Tk):
         self.current_review = everyday[0]
         self.open_testing(everyday[0], "elder", "everyday")
 
+    # ------------------------------------------------------------------
+    # Small chart kit (plain Tk canvases that redraw when resized)
+    # ------------------------------------------------------------------
+    def blend_hex(self, first, second, ratio):
+        a = self.hex_to_rgb(first)
+        b = self.hex_to_rgb(second)
+        if a is None or b is None:
+            return first
+        return "#" + "".join(f"{round(x + (y - x) * ratio):02x}" for x, y in zip(a, b))
+
+    @staticmethod
+    def short_number(value):
+        if isinstance(value, float) and not value.is_integer():
+            return f"{value:.1f}"
+        value = int(value)
+        return f"{value / 1000:.1f}k" if value >= 1000 else str(value)
+
+    def chart_canvas(self, parent, height, draw, bg=None):
+        """A canvas that fills its width and redraws its chart whenever resized."""
+        bg = bg or COLORS["surface"]
+        pixel_height = self.px(height)
+        canvas = tk.Canvas(parent, width=1, height=pixel_height, bg=bg, highlightthickness=0, bd=0)
+        state = {"width": 0}
+
+        def redraw(event=None):
+            width = event.width if event is not None else canvas.winfo_width()
+            if width <= 1 or width == state["width"]:
+                return
+            state["width"] = width
+            canvas.delete("all")
+            draw(canvas, width, pixel_height)
+
+        canvas.bind("<Configure>", redraw, add="+")
+        return canvas
+
+    def bar_chart(self, parent, values, labels, color, height=150, highlight=None, tips=None, on_click=None, bg=None):
+        bg = bg or COLORS["surface"]
+        values = list(values)
+        small = self.font("Segoe UI", 9)
+        bold = self.font("Segoe UI Semibold", 9)
+
+        def draw(canvas, width, h):
+            count = max(1, len(values))
+            top, bottom = self.px(20), self.px(22)
+            plot = max(1, h - top - bottom)
+            peak = max(values) if values and max(values) > 0 else 1
+            slot = width / count
+            bar_w = max(self.px(4), min(self.px(44), slot * 0.62))
+            soft = self.blend_hex(color, bg, 0.5)
+            longest = max((len(str(label)) for label in labels), default=1) if labels else 1
+            every = max(1, math.ceil(count * self.px(10 + 7 * longest) / max(1, width)))
+            show_values = count <= 16
+            baseline = top + plot
+            canvas.create_line(0, baseline, width, baseline, fill=COLORS["line"])
+            for index, value in enumerate(values):
+                cx = slot * index + slot / 2
+                bar_h = plot * value / peak
+                fill = color if highlight is None or index == highlight else soft
+                if value > 0:
+                    canvas.create_rectangle(cx - bar_w / 2, baseline - max(self.px(2), bar_h), cx + bar_w / 2, baseline, fill=fill, outline="")
+                    if show_values:
+                        canvas.create_text(cx, baseline - bar_h - self.px(3), text=self.short_number(value), anchor="s", fill=COLORS["muted"], font=bold)
+                # Label every Nth bar, always the highlighted one, and never a
+                # neighbour close enough to collide with the highlighted label.
+                near_highlight = highlight is not None and index != highlight and abs(index - highlight) < every
+                if labels and (index == highlight or (index % every == 0 and not near_highlight)):
+                    item = canvas.create_text(cx, baseline + self.px(5), text=labels[index], anchor="n", fill=COLORS["ink"] if index == highlight else COLORS["muted"], font=bold if index == highlight else small)
+                    x0, _y0, x1, _y1 = canvas.bbox(item)
+                    if x0 < 0:
+                        canvas.move(item, -x0, 0)
+                    elif x1 > width:
+                        canvas.move(item, width - x1, 0)
+
+            def index_at(x):
+                return min(count - 1, max(0, int(x // slot)))
+
+            def hover(event):
+                canvas.delete("tip")
+                if not tips:
+                    return
+                index = index_at(event.x)
+                cx = slot * index + slot / 2
+                text = canvas.create_text(0, 0, text=tips[index], anchor="n", fill=COLORS["white"], font=bold, tags="tip")
+                x0, y0, x1, y1 = canvas.bbox(text)
+                half = (x1 - x0) / 2 + self.px(8)
+                cx = min(max(cx, half), width - half)
+                canvas.coords(text, cx, self.px(4))
+                x0, y0, x1, y1 = canvas.bbox(text)
+                pad = self.px(6)
+                box = canvas.create_rectangle(x0 - pad, y0 - self.px(3), x1 + pad, y1 + self.px(3), fill=COLORS["rail"], outline="", tags="tip")
+                canvas.tag_raise(text, box)
+
+            canvas.bind("<Motion>", hover)
+            canvas.bind("<Leave>", lambda _event: canvas.delete("tip"))
+            if on_click:
+                canvas.configure(cursor="hand2")
+                canvas.bind("<Button-1>", lambda event: on_click(index_at(event.x)))
+
+        return self.chart_canvas(parent, height, draw, bg)
+
+    def stacked_bar(self, parent, segments, height=28, bg=None):
+        total = sum(value for _label, value, _color in segments)
+
+        def draw(canvas, width, h):
+            canvas.create_rectangle(0, 0, width, h, fill=COLORS["line"], outline="")
+            if not total:
+                return
+            x = 0
+            for _label, value, color in segments:
+                if value <= 0:
+                    continue
+                span = width * value / total
+                canvas.create_rectangle(x, 0, x + span, h, fill=color, outline="")
+                if span > self.px(34):
+                    canvas.create_text(x + span / 2, h / 2, text=str(value), fill=COLORS["white"], font=self.font("Segoe UI Semibold", 10))
+                x += span
+
+        return self.chart_canvas(parent, height, draw, bg)
+
+    def chart_legend(self, parent, items, bg=None):
+        bg = bg or COLORS["surface"]
+        row = tk.Frame(parent, bg=bg)
+        for label, color in items:
+            tk.Frame(row, bg=color, width=self.px(10), height=self.px(10)).pack(side="left", padx=(0, self.px(6)))
+            tk.Label(row, text=label, bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(0, self.px(14)))
+        return row
+
+    def meter(self, parent, fraction, color, height=10, bg=None):
+        fraction = clamp(fraction, 0, 1)
+
+        def draw(canvas, width, h):
+            canvas.create_rectangle(0, 0, width, h, fill=COLORS["line"], outline="")
+            if fraction > 0:
+                canvas.create_rectangle(0, 0, max(self.px(3), width * fraction), h, fill=color, outline="")
+
+        return self.chart_canvas(parent, height, draw, bg)
+
+    def meter_rows(self, parent, rows, bg=None):
+        """Label | bar | note rows; rows are (label, value, maximum, color, note)."""
+        bg = bg or COLORS["surface"]
+        table = tk.Frame(parent, bg=bg)
+        table.columnconfigure(1, weight=1)
+        for index, (label, value, maximum, color, note) in enumerate(rows):
+            tk.Label(table, text=label, bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 11), anchor="w").grid(row=index, column=0, sticky="w", padx=(0, self.px(12)), pady=self.px(5))
+            self.meter(table, 0 if maximum <= 0 else value / maximum, color, 12, bg).grid(row=index, column=1, sticky="ew")
+            tk.Label(table, text=note, bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="e").grid(row=index, column=2, sticky="e", padx=(self.px(12), 0))
+        return table
+
+    def panel_row(self, parent, count, per_row=None):
+        """A row of plain surface panels that stacks for large text."""
+        per_row = per_row or count
+        if self.accessibility_multiplier() > 1.1:
+            per_row = min(per_row, 2 if count >= 4 else 1)
+        row = tk.Frame(parent, bg=COLORS["bg"])
+        row.pack(fill="x", padx=(0, 8), pady=(0, self.px(16)))
+        gap = self.px(14)
+        cells = []
+        for index in range(count):
+            r, c = divmod(index, per_row)
+            cell = tk.Frame(row, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20))
+            cell.grid(row=r, column=c, sticky="nsew", padx=(0 if c == 0 else gap, 0), pady=(0 if r == 0 else gap, 0))
+            cells.append(cell)
+        for c in range(per_row):
+            row.columnconfigure(c, weight=1, uniform=f"panels{count}")
+        return cells
+
+    def panel_title(self, panel, title, subtitle=None):
+        tk.Label(panel, text=title, bg=panel.cget("bg"), fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
+        if subtitle:
+            tk.Label(panel, text=subtitle, bg=panel.cget("bg"), fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(600), justify="left").pack(anchor="w", pady=(self.px(2), 0))
+        tk.Frame(panel, bg=panel.cget("bg"), height=self.px(12)).pack(fill="x")
+
+    # ------------------------------------------------------------------
+    # Dashboard: today's path, a fun progress strip, modes, next badge
+    # ------------------------------------------------------------------
     def view_dashboard(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
+        path = tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(24))
+        path.pack(fill="x", padx=(0, 8), pady=(0, self.px(16)))
+        self.render_today_path(path)
+        self.render_progress_strip(page.inner)
+        self.render_study_modes(page.inner)
+        self.render_next_badge(page.inner)
+
+    def greeting(self):
+        hour = datetime.now().hour
+        return "Good morning" if hour < 12 else "Good afternoon" if hour < 18 else "Good evening"
+
+    def best_next_action(self):
         due = self.store.due_cards()
         weak = self.store.weak_cards()
-        upcoming = self.store.upcoming_cards()
-        everyday_cards = [card for card in self.store.cards if (card.deck or "General") == "Everyday Memory"]
-        everyday_due = [card for card in due if (card.deck or "General") == "Everyday Memory"]
-        mastery, mastered, learning = self.mastery_summary()
         if due:
-            next_title, next_body, next_view, next_color = "Start today's review", f"{len(due)} card{'s' if len(due) != 1 else ''} due now.", "review", COLORS["primary"]
-        elif weak:
-            next_title, next_body, next_view, next_color = "Focus weak items", f"{len(weak)} item{'s' if len(weak) != 1 else ''} need a confidence pass.", "focus", COLORS["pink"]
-        elif not self.store.captures:
-            next_title, next_body, next_view, next_color = "Add study material", "Build your first study set from notes, media, or Q/A lines.", "capture", COLORS["orange"]
+            return "Start today's review", f"{len(due)} card{'s' if len(due) != 1 else ''} are ready for you." if len(due) != 1 else "1 card is ready for you.", lambda: self.show_view("review"), COLORS["primary"]
+        if weak:
+            return "Strengthen shaky cards", f"{len(weak)} card{'s' if len(weak) != 1 else ''} could use a confidence pass.", lambda: self.show_view("focus"), COLORS["pink"]
+        if not self.store.captures:
+            return "Add something to learn", "Paste notes or type questions and answers to build your first set.", lambda: self.show_view("capture"), COLORS["orange"]
+        return "Try a quick quiz", "Everything is up to date. A short quiz keeps recall fresh.", lambda: self.show_view("quiz"), COLORS["green"]
+
+    def render_today_path(self, box):
+        for child in box.winfo_children():
+            child.destroy()
+        bg = COLORS["surface"]
+        today = plan_for_today(self.store)
+        head = tk.Frame(box, bg=bg)
+        head.pack(fill="x")
+        head.columnconfigure(0, weight=1)
+        text = tk.Frame(head, bg=bg)
+        text.grid(row=0, column=0, sticky="nsew")
+        tk.Label(text, text=f"{self.greeting().upper()}  \u2022  TODAY'S PATH", bg=bg, fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x")
+        buttons = tk.Frame(head, bg=bg)
+        buttons.grid(row=0, column=1, sticky="ne", padx=(self.px(16), 0))
+
+        if not today:
+            title, body, action, color = self.best_next_action()
+            tk.Label(text, text=title, bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+            tk.Label(text, text=body, bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 13), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(6), 0))
+            self.solid_button(buttons, title, action, color).pack(fill="x")
+            ttk.Button(buttons, text="Make a study plan", command=lambda: self.show_view("plan")).pack(fill="x", pady=(self.px(8), 0))
+            tip = tk.Frame(box, bg=COLORS["alt"], padx=self.px(16), pady=self.px(12))
+            tip.pack(fill="x", pady=(self.px(18), 0))
+            tk.Label(tip, text="\U0001F5FA  Save a study plan and this card turns into a step-by-step path for each day, with steps you can tick off.", bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI", 11), wraplength=self.px(900), justify="left").pack(anchor="w")
+            return
+
+        if today["finished"]:
+            tk.Label(text, text="You finished your plan \U0001F389", bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+            tk.Label(text, text=f"{today['title']}. Make a new plan to keep the momentum going, or just keep reviewing what's due.", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 13), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(6), 0))
+            self.solid_button(buttons, "Make a new plan", lambda: self.show_view("plan"), COLORS["primary"]).pack(fill="x")
+            ttk.Button(buttons, text="Review due cards", command=lambda: self.show_view("review")).pack(fill="x", pady=(self.px(8), 0))
+            return
+
+        steps = today["steps"]
+        done = {index for index in self.store.plan_steps_done() if index < len(steps)}
+        remaining = [index for index in range(len(steps)) if index not in done]
+        heading = "Your plan is done for today \u2705" if not remaining else "Your study plan for today"
+        tk.Label(text, text=heading, bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+        tk.Label(text, text=today["title"], bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(4), 0))
+        if remaining:
+            step = steps[remaining[0]]
+            self.solid_button(buttons, f"Continue: {step['title']}", lambda s=step: self.start_plan_step(s), COLORS["primary"]).pack(fill="x")
         else:
-            next_title, next_body, next_view, next_color = "Try a quick quiz", "Keep recall active with a short self-check session.", "quiz", COLORS["green"]
+            self.solid_button(buttons, "Keep going: quick quiz", lambda: self.show_view("quiz"), COLORS["green"]).pack(fill="x")
+        ttk.Button(buttons, text="Edit plan", command=lambda: self.show_view("plan")).pack(fill="x", pady=(self.px(8), 0))
 
-        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
-        hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        hero.columnconfigure(0, weight=0)
-        hero.columnconfigure(1, weight=3)
-        hero.columnconfigure(2, weight=2)
-        tk.Frame(hero, bg=next_color, width=self.px(5), height=self.px(62)).grid(row=0, column=0, rowspan=2, sticky="nsw", padx=(0, self.px(16)))
-        tk.Label(hero, text=next_title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).grid(row=0, column=1, sticky="w")
-        tk.Label(hero, text=next_body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 13)).grid(row=1, column=1, sticky="w", pady=(8, 0))
-        quick = tk.Frame(hero, bg=COLORS["surface"])
-        quick.grid(row=0, column=2, rowspan=2, sticky="nsew")
-        quick.columnconfigure(0, weight=1)
-        quick.columnconfigure(1, weight=1)
-        self.solid_button(quick, next_title, lambda view=next_view: self.show_view(view), next_color).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
-        self.solid_button(quick, "Start Review", lambda: self.show_view("review"), COLORS["green"]).grid(row=1, column=0, sticky="ew", padx=(0, 8))
-        self.solid_button(quick, "Add Material", lambda: self.show_view("capture"), COLORS["orange"]).grid(row=1, column=1, sticky="ew")
+        progress_row = tk.Frame(box, bg=bg)
+        progress_row.pack(fill="x", pady=(self.px(16), self.px(12)))
+        progress_row.columnconfigure(0, weight=1)
+        self.meter(progress_row, len(done) / max(1, len(steps)), COLORS["green"], 10, bg).grid(row=0, column=0, sticky="ew")
+        tk.Label(progress_row, text=f"{len(done)} of {len(steps)} steps", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).grid(row=0, column=1, padx=(self.px(12), 0))
 
-        progress = ttk.Frame(page.inner, style="Page.TFrame")
-        progress.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        mastery_card = self.card(progress, "AltCard.TFrame", 20)
-        mastery_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        ttk.Label(mastery_card, text="Mastery progress", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(mastery_card, text=f"{mastery}% mastered across {len(self.store.cards)} cards", style="AltMuted.TLabel").pack(anchor="w", pady=(4, 10))
-        bar = ttk.Progressbar(mastery_card, style="Horizontal.TProgressbar", maximum=100, value=mastery)
-        bar.pack(fill="x", pady=(0, 10))
-        chip_row = tk.Frame(mastery_card, bg=COLORS["alt"])
-        chip_row.pack(fill="x")
-        self.render_status_chip(chip_row, f"Due {len(due)}", COLORS["primary"])
-        self.render_status_chip(chip_row, f"Learning {learning}", COLORS["orange"])
-        self.render_status_chip(chip_row, f"Mastered {mastered}", COLORS["green"])
+        def toggle(index):
+            now_done = self.store.toggle_plan_step(index)
+            if now_done and len(self.store.plan_steps_done()) >= len(steps):
+                self.toast_message("Plan done for today. Nice work! \U0001F389")
+            self.render_today_path(box)
+            self.fit_wrap_tree(box)
 
-        goal_card = self.card(progress, "WarmCard.TFrame", 20)
-        goal_card.grid(row=0, column=1, sticky="nsew")
-        ttk.Label(goal_card, text="Today feel", style="WarmH2.TLabel").pack(anchor="w")
-        ttk.Label(goal_card, text="Complete one review, one Test Lab check, or one new capture. Small sessions count.", style="WarmCard.TLabel", wraplength=self.px(420)).pack(anchor="w", pady=(4, 12))
-        self.button_row(goal_card, [("Open in Test Lab", lambda: self.open_testing(return_view="dashboard", context="study"), "Primary.TButton"), ("Focus Queue", lambda: self.show_view("focus"), "TButton")], "WarmCard.TFrame")
-        progress.columnconfigure(0, weight=3)
-        progress.columnconfigure(1, weight=2)
+        for index, step in enumerate(steps):
+            self.plan_step_row(box, index, step, index in done, toggle)
+        tk.Label(box, text="Tick each step when you finish it.", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w", pady=(self.px(2), 0))
 
-        stats = ttk.Frame(page.inner, style="Page.TFrame")
-        stats.pack(fill="x", padx=(0, 8))
-        for index, (number, label, color) in enumerate([
-            (len(self.store.due_cards()), "Due today", COLORS["primary"]),
-            (len(self.store.cards), "Cards", COLORS["violet"]),
-            (len(weak), "Focus", COLORS["pink"]),
-            (self.store.practiced, "Practiced", COLORS["orange"]),
-        ]):
-            tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]))
-            tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 12, 0))
-            tk.Frame(tile, bg=color, width=34, height=4).pack(anchor="w", pady=(0, 12))
-            tk.Label(tile, text=str(number), bg=COLORS["surface"], fg=color, font=("Segoe UI Semibold", 34)).pack(anchor="w")
-            tk.Label(tile, text=label, bg=COLORS["surface"], fg=COLORS["muted"], font=("Segoe UI", 12)).pack(anchor="w")
-            stats.columnconfigure(index, weight=1)
+    def plan_step_row(self, parent, index, step, done, on_toggle):
+        bg = COLORS["alt"]
+        row = tk.Frame(parent, bg=bg, padx=self.px(14), pady=self.px(10))
+        row.pack(fill="x", pady=(0, self.px(8)))
+        mark = tk.Label(
+            row,
+            text="\u2713" if done else str(index + 1),
+            width=3,
+            bg=COLORS["green"] if done else COLORS["surface"],
+            fg=COLORS["white"] if done else COLORS["primary"],
+            font=self.font("Segoe UI Semibold", 12),
+            cursor="hand2",
+            pady=self.px(4),
+        )
+        mark.pack(side="left", padx=(0, self.px(14)))
+        mark.bind("<Button-1>", lambda _event: on_toggle(index))
+        self.add_tooltip(mark, "Mark as not done yet." if done else "Tick this step as done.")
+        action = "Rest" if step.get("view") == "break" else "Start"
+        start = ttk.Button(row, text=action, command=lambda s=step: self.start_plan_step(s))
+        start.pack(side="right", padx=(self.px(12), 0))
+        body = tk.Frame(row, bg=bg)
+        body.pack(side="left", fill="x", expand=True)
+        tk.Label(body, text=step["title"], bg=bg, fg=COLORS["muted"] if done else COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
+        tk.Label(body, text=f"~{step['minutes']} min", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x")
+        return row
 
-        reminders = ttk.Frame(page.inner, style="Page.TFrame")
-        reminders.pack(fill="x", padx=(0, 8), pady=(16, 0))
-        reminder_columns = 1 if self.accessibility_multiplier() > 1.1 else 3
-        for column in range(reminder_columns):
-            reminders.columnconfigure(column, weight=1, uniform="reminders")
-        next_due_text = due[0].front if due else "No due cards right now."
-        next_scheduled = upcoming[0].next_review if upcoming else "Nothing scheduled yet"
-        reminder_items = [
-            ("Next review", next_due_text, "Open Review", lambda: self.show_view("review"), COLORS["primary"]),
-            ("Everyday Memory", f"{len(everyday_due)} due | {len(everyday_cards)} saved", "Open Everyday Memory", lambda: self.show_view("elder"), COLORS["cyan"]),
-            ("Upcoming", next_scheduled, "Study Plan", lambda: self.show_view("plan"), COLORS["violet"]),
-        ]
-        for index, (title, body, action_label, action, color) in enumerate(reminder_items):
-            tile = self.hover_card(tk.Frame(reminders, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color, command=action)
-            row, column = divmod(index, reminder_columns)
-            tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(10), 0), pady=(0 if row == 0 else self.px(10), 0))
-            tk.Frame(tile, bg=color, width=self.px(34), height=self.px(4)).pack(anchor="w", pady=(0, self.px(10)))
-            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15)).pack(anchor="w")
-            tk.Label(tile, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(820 if reminder_columns == 1 else 315), justify="left").pack(anchor="w", pady=(self.px(5), self.px(12)))
-            self.solid_button(tile, action_label, action, color).pack(fill="x")
-
-        streak_row = ttk.Frame(page.inner, style="Page.TFrame")
-        streak_row.pack(fill="x", padx=(0, 8), pady=(16, 0))
+    def render_progress_strip(self, parent):
         streak = self.store.current_streak()
-        today_count = self.store.today_count()
-        streak_tile = self.card(streak_row, "WarmCard.TFrame", 20)
-        streak_tile.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        tk.Label(streak_tile, text=f"\U0001F525 {streak} day{'s' if streak != 1 else ''}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        ttk.Label(streak_tile, text="Current streak. Practice today to keep it going.", style="WarmMuted.TLabel", wraplength=340).pack(anchor="w", pady=(4, 0))
-        goal_tile = self.card(streak_row, "Card.TFrame", 20)
-        goal_tile.grid(row=0, column=1, sticky="nsew")
-        ttk.Label(goal_tile, text="Daily goal", style="H2.TLabel").pack(anchor="w", pady=(0, 6))
-        ring_holder = tk.Frame(goal_tile, bg=COLORS["surface"])
-        ring_holder.pack(anchor="w")
-        self.render_goal_ring(ring_holder, today_count, self.store.daily_goal, size=104, color=COLORS["green"] if today_count >= self.store.daily_goal else COLORS["primary"])
-        streak_row.columnconfigure(0, weight=1)
-        streak_row.columnconfigure(1, weight=1)
+        best = max(streak, progress.best_streak(self.store.activity))
+        today = self.store.today_count()
+        goal = self.store.daily_goal
+        level = progress.level_info(self.store.practiced)
+        week = progress.daily_series(self.store.activity, 7)
+        streak_panel, goal_panel, level_panel, week_panel = self.panel_row(parent, 4)
 
-        actions = ttk.Frame(page.inner, style="Page.TFrame")
-        actions.pack(fill="x", padx=(0, 8), pady=(16, 0))
-        available_width = max(1, self.content.winfo_width() or self.main.winfo_width())
-        gap = self.px(12)
-        if self.accessibility_multiplier() > 1.1:
-            action_columns = 1 if available_width < self.px(980) else 2
-        elif available_width >= self.px(1380):
-            action_columns = 3
-        elif available_width >= self.px(880):
-            action_columns = 2
+        streak_panel.configure(bg=COLORS["warm"])
+        tk.Label(streak_panel, text=f"\U0001F525 {streak}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f"day streak" if streak == 1 else "days in a row", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
+        message = "Practise today to start one." if streak == 0 else ("Practise today to keep it going." if today == 0 else "Kept alive today.")
+        tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}.", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
+
+        tk.Label(goal_panel, text="Daily goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
+        ring = tk.Frame(goal_panel, bg=COLORS["surface"])
+        ring.pack(anchor="w", pady=(self.px(6), 0))
+        self.render_goal_ring(ring, today, goal, size=96, color=COLORS["green"] if today >= goal else COLORS["primary"]).pack()
+        left = max(0, goal - today)
+        tk.Label(goal_panel, text="Goal reached! \U0001F3AF" if not left else f"{left} more to go", bg=COLORS["surface"], fg=COLORS["green"] if not left else COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(6), 0))
+
+        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["violet"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
+        tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
+        self.meter(level_panel, level["pct"], COLORS["violet"], 10).pack(fill="x")
+        tk.Label(level_panel, text=f"+{progress.XP_PER_REVIEW} XP for every review.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
+
+        total = sum(count for _day, count in week)
+        tk.Label(week_panel, text="This week", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
+        tk.Label(week_panel, text=f"{total} review{'s' if total != 1 else ''} in 7 days", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x")
+        chart = self.bar_chart(
+            week_panel,
+            [count for _day, count in week],
+            [day.strftime("%a")[:2] for day, _count in week],
+            COLORS["primary"],
+            height=108,
+            highlight=len(week) - 1,
+            tips=[f"{day.strftime('%a %d %b')}: {count}" for day, count in week],
+            on_click=lambda _index: self.show_view("stats"),
+        )
+        chart.pack(fill="x", pady=(self.px(6), 0))
+
+    def study_modes(self):
+        persona_key = self.store.onboarding.get("persona") or "general"
+        quick = ("\u26a1", "Quick 10", "Ten focused minutes on whatever matters most right now.", self.quick_session, COLORS["primary"])
+        modes = {
+            "student": ("Picked for studying", [
+                quick,
+                ("\U0001F4DA", "Deep study", "A full hour: review, new cards, drills, and a self-test.", lambda: self.open_plan_preset(60, "Long-term retention"), COLORS["violet"]),
+                ("\u23f1", "Exam cram", "45 minutes aimed at the test: weak cards first.", lambda: self.open_plan_preset(45, "Cram"), COLORS["pink"]),
+                ("\U0001F4DD", "Add notes", "Turn today's notes into cards.", lambda: self.show_view("capture"), COLORS["orange"]),
+            ]),
+            "everyday": ("Picked for everyday memory", [
+                ("\U0001F33F", "Gentle review", "People, routines, and places at a calm pace.", lambda: self.show_view("elder"), COLORS["cyan"]),
+                ("\U0001F9E9", "Daily puzzles", "Short, friendly memory games.", lambda: self.show_view("games"), COLORS["pink"]),
+                quick,
+                ("\U0001F50A", "Listen and practise", "Hear each question read aloud as you review.", self.read_aloud_review, COLORS["green"]),
+            ]),
+            "caregiver": ("Picked for caregivers", [
+                ("\U0001F5C2", "Add a memory card", "A person, routine, place, or reminder in plain words.", lambda: self.show_view("elder"), COLORS["cyan"]),
+                ("\U0001F91D", "Practise together", "Sit together for a short review.", lambda: self.show_view("review"), COLORS["primary"]),
+                ("\U0001F4F7", "Photos and voices", "Attach familiar photos or recordings as cues.", lambda: self.show_view("capture"), COLORS["orange"]),
+                ("\U0001F4C8", "Check progress", "See how practice is going this week.", lambda: self.show_view("stats"), COLORS["green"]),
+            ]),
+            "general": ("Pick a way to practise", [
+                quick,
+                ("\U0001F9E0", "Try a technique", "Memory palaces, stories, peg lists and more.", lambda: self.show_view("training"), COLORS["violet"]),
+                ("\U0001F9E9", "Play a puzzle", "A quick recall game for a warm-up or break.", lambda: self.show_view("games"), COLORS["pink"]),
+                ("\U0001F5FA", "Build a plan", "Tell MemoryPal your time and goal; get a path.", lambda: self.show_view("plan"), COLORS["green"]),
+            ]),
+        }
+        return modes.get(persona_key, modes["general"])
+
+    def render_study_modes(self, parent):
+        subtitle, modes = self.study_modes()
+        head = tk.Frame(parent, bg=COLORS["bg"])
+        head.pack(fill="x", padx=(0, 8), pady=(self.px(4), self.px(10)))
+        tk.Label(head, text="Study modes", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(side="left")
+        tk.Label(head, text=f"{subtitle}  \u2022  Ctrl+K jumps to any page", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0), pady=(self.px(4), 0))
+        panels = self.panel_row(parent, len(modes))
+        for panel, (icon, title, body, action, color) in zip(panels, modes):
+            card = self.hover_card(panel, normal=COLORS["surface"], hover=color, command=action)
+            card.configure(highlightthickness=max(1, self.px(2)), highlightbackground=COLORS["surface"])
+            tk.Label(card, text=icon, bg=COLORS["surface"], fg=color, font=self.font("Segoe UI Emoji", 22), anchor="w").pack(fill="x")
+            tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").pack(fill="x", pady=(self.px(6), 0))
+            tk.Label(card, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(4), 0))
+
+    def render_next_badge(self, parent):
+        badges = progress.achievements(self.store)
+        earned = [badge for badge in badges if badge["done"]]
+        upcoming = next((badge for badge in badges if not badge["done"]), None)
+        (panel,) = self.panel_row(parent, 1)
+        card = self.hover_card(panel, normal=COLORS["surface"], hover=COLORS["orange"], command=lambda: self.show_view("stats"))
+        card.configure(highlightthickness=max(1, self.px(2)), highlightbackground=COLORS["surface"])
+        card.columnconfigure(1, weight=1)
+        if upcoming:
+            tk.Label(card, text=upcoming["icon"], bg=COLORS["surface"], font=self.font("Segoe UI Emoji", 26)).grid(row=0, column=0, rowspan=3, sticky="nw", padx=(0, self.px(16)))
+            tk.Label(card, text=f"Next badge: {upcoming['title']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").grid(row=0, column=1, sticky="ew")
+            tk.Label(card, text=f"{upcoming['body']}  {upcoming['current']} / {upcoming['target']}", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").grid(row=1, column=1, sticky="ew", pady=(self.px(2), self.px(8)))
+            self.meter(card, upcoming["current"] / upcoming["target"], COLORS["orange"], 10).grid(row=2, column=1, sticky="ew")
         else:
-            action_columns = 1
-        card_wrap = max(self.px(245), int((available_width - gap * (action_columns + 3)) / max(1, action_columns)) - self.px(58))
-        for column in range(action_columns):
-            actions.columnconfigure(column, weight=1, uniform="dashboard_actions")
-        cards = [
-            ("Memory Gym", "Choose evidence-based study drills or gentle memory-support activities.", "training", COLORS["green"]),
-            ("Everyday Memory", "Large, calm tools for routines, people, places, and caregiver-created reminders.", "elder", COLORS["cyan"]),
-            ("Decks", "Browse decks with per-deck mastery and study one at a time.", "decks", COLORS["cyan"]),
-            ("Study plan", "Get a tailored plan for today based on your time, material, and habits.", "plan", COLORS["violet"]),
-            ("Focus session", "A study-app style queue for due, weak, and new cards.", "focus", COLORS["pink"]),
-            ("Capture material", "Build separate study bits with text, image, audio, and video cues.", "capture", COLORS["orange"]),
-            ("Spaced review", "Smart-check recall, reveal answers, and schedule next practice.", "review", COLORS["primary"]),
-            ("Repetition path", "Practice chunks backwards, then walk back to the first item.", "shuffle", COLORS["green"]),
-            ("Associations", "Turn material into acronyms, story routes, and recall hooks.", "tools", COLORS["violet"]),
-            ("Cue Lab", "Generate text, image, and audio cues for any card.", "cuelab", COLORS["cyan"]),
-            ("Puzzles", "Short recall games with large, steady controls.", "games", COLORS["pink"]),
-            ("Library", "Browse captures, cards, media cues, and exports.", "library", COLORS["cyan"]),
-            ("Stats", "Streaks, daily goal, and a full activity heatmap.", "stats", COLORS["orange"]),
-            ("Feedback", "Log tester notes, ratings, bugs, and accessibility comments.", "feedback", COLORS["green"]),
-        ]
-        for index, (title, body, target, color) in enumerate(cards):
-            row, column = divmod(index, action_columns)
-            frame = self.hover_card(tk.Frame(actions, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20), highlightthickness=1, highlightbackground=COLORS["line"]), hover=color, command=lambda view=target: self.show_view(view))
-            frame.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else gap, 0), pady=(0, gap))
-            frame.columnconfigure(0, weight=1)
-            tk.Frame(frame, bg=color, width=self.px(38), height=self.px(4)).pack(anchor="w", pady=(0, self.px(12)))
-            tk.Label(frame, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(anchor="w")
-            tk.Label(frame, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=card_wrap, justify="left").pack(anchor="w", pady=(self.px(6), self.px(10)))
-            self.solid_button(frame, "Open", lambda view=target: self.show_view(view), color).pack(fill="x")
+            tk.Label(card, text="\U0001F3C6  Every badge earned. Legendary!", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14)).grid(row=0, column=0, columnspan=2, sticky="w")
+        shelf = tk.Frame(card, bg=COLORS["surface"])
+        shelf.grid(row=0, column=2, rowspan=3, sticky="e", padx=(self.px(20), 0))
+        icons = "".join(badge["icon"] for badge in earned[:6]) or "\u2014"
+        tk.Label(shelf, text=icons, bg=COLORS["surface"], font=self.font("Segoe UI Emoji", 16)).pack(anchor="e")
+        tk.Label(shelf, text=f"{len(earned)} of {len(badges)} badges  \u2022  see all", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="e")
 
-        if weak or upcoming:
-            insight = self.card(page.inner, "AltCard.TFrame")
-            insight.pack(fill="x", padx=(0, 8), pady=(4, 0))
-            ttk.Label(insight, text="Study insight", style="AltH2.TLabel").pack(anchor="w")
-            message = f"Weak/new cards: {len(weak)}. "
-            message += f"Next scheduled card: {upcoming[0].next_review}." if upcoming else "No future cards are scheduled yet."
-            ttk.Label(insight, text=message, style="AltCard.TLabel", wraplength=1040).pack(anchor="w", pady=(6, 0))
+    def quick_session(self):
+        if self.store.due_cards():
+            self.toast_message("Quick 10: clear the due cards first.")
+            self.show_view("review")
+        elif self.store.weak_cards():
+            self.toast_message("Quick 10: firm up a few shaky cards.")
+            self.show_view("focus")
+        else:
+            self.quiz_mode = "choices"
+            self.view_drafts["quiz"] = {}
+            self.toast_message("Quick 10: nothing due, so here's a fast quiz.")
+            self.show_view("quiz")
+
+    def read_aloud_review(self):
+        if not self.accessibility.get("read_aloud"):
+            self.accessibility["read_aloud"] = True
+            self.store.accessibility = dict(self.accessibility)
+            self.store.save()
+            self.toast_message("Read aloud is on. Turn it off any time in Settings.")
+        self.show_view("review")
+
+    def open_plan_preset(self, minutes, goal_label):
+        draft = dict(self.view_drafts.get("plan") or {})
+        draft.update({"unit": "minutes", "amount": str(minutes), "goal_label": goal_label})
+        draft.setdefault("deck", "All decks")
+        draft.setdefault("habits", [])
+        self.view_drafts["plan"] = draft
+        self.show_view("plan")
 
     def render_goal_ring(self, parent, done, goal, size=132, color=None):
         color = color or COLORS["primary"]
@@ -3855,7 +4470,9 @@ class MemoryPalApp(tk.Tk):
             if pct > 0:
                 canvas.create_arc(pad, pad, box, box, start=90, extent=-360 * pct, style="arc", outline=color, width=stroke)
         self.create_centered_canvas_text(canvas, pixel_size / 2, pixel_size / 2 - self.px(6), text=str(done), fill=COLORS["ink"], font=self.font("Segoe UI Semibold", 22))
-        self.create_centered_canvas_text(canvas, pixel_size / 2, pixel_size / 2 + self.px(16), text=f"of {goal} goal", fill=COLORS["muted"], font=self.font("Segoe UI", 10))
+        # The small ring has room for "of 15" but not "of 15 goal".
+        caption = f"of {goal}" if size < 120 else f"of {goal} goal"
+        self.create_centered_canvas_text(canvas, pixel_size / 2, pixel_size / 2 + self.px(16), text=caption, fill=COLORS["muted"], font=self.font("Segoe UI", 10))
         return canvas
 
     def render_heatmap(self, parent, weeks=18):
@@ -3895,78 +4512,119 @@ class MemoryPalApp(tk.Tk):
             tk.Frame(legend, bg=COLORS[levels[level]], width=self.px(12), height=self.px(12)).pack(side="left", padx=self.px(3))
         tk.Label(legend, text="More", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9)).pack(side="left")
 
+    # ------------------------------------------------------------------
+    # Stats: every number with a picture
+    # ------------------------------------------------------------------
     def view_stats(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        streak = self.store.current_streak()
-        today = self.store.today_count()
+        store = self.store
+        streak = store.current_streak()
+        best = max(streak, progress.best_streak(store.activity))
+        today = store.today_count()
+        level = progress.level_info(store.practiced)
         mastery, mastered, learning = self.mastery_summary()
 
-        hero = ttk.Frame(page.inner, style="Page.TFrame")
-        hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        streak_card = self.card(hero, "WarmCard.TFrame", 22)
-        streak_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        tk.Label(streak_card, text=f"\U0001F525 {streak}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 36)).pack(anchor="w")
-        ttk.Label(streak_card, text=f"day streak{'s' if streak != 1 else ''}", style="WarmMuted.TLabel").pack(anchor="w")
-        ttk.Label(streak_card, text="Practice at least one card a day to keep it alive.", style="WarmCard.TLabel", wraplength=340).pack(anchor="w", pady=(10, 0))
+        streak_panel, level_panel, goal_panel, mastery_panel = self.panel_row(page.inner, 4)
+        streak_panel.configure(bg=COLORS["warm"])
+        tk.Label(streak_panel, text=f"\U0001F525 {streak}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f"current streak  \u2022  best {best}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x")
+        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["violet"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
+        tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP  \u2022  {store.practiced} reviews", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
+        self.meter(level_panel, level["pct"], COLORS["violet"], 10).pack(fill="x")
+        goal_head = tk.Frame(goal_panel, bg=COLORS["surface"])
+        goal_head.pack(fill="x")
+        tk.Label(goal_head, text="Today's goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13)).pack(side="left")
+        change = tk.Label(goal_head, text="Change", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), cursor="hand2")
+        change.pack(side="right")
+        change.bind("<Button-1>", lambda _event: self.edit_daily_goal())
+        self.render_goal_ring(goal_panel, today, store.daily_goal, size=96, color=COLORS["green"] if today >= store.daily_goal else COLORS["primary"]).pack(anchor="w", pady=(self.px(6), 0))
+        tk.Label(mastery_panel, text=f"{mastery}%", bg=COLORS["surface"], fg=COLORS["green"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
+        tk.Label(mastery_panel, text=f"mastered  \u2022  {mastered} of {len(store.cards)} cards", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
+        self.meter(mastery_panel, mastery / 100, COLORS["green"], 10).pack(fill="x")
 
-        goal_card = self.card(hero, "Card.TFrame", 22)
-        goal_card.grid(row=0, column=1, sticky="nsew", padx=(0, 12))
-        ttk.Label(goal_card, text="Today's goal", style="H2.TLabel").pack(anchor="w", pady=(0, 8))
-        ring_row = tk.Frame(goal_card, bg=COLORS["surface"])
-        ring_row.pack(anchor="w")
-        self.render_goal_ring(ring_row, today, self.store.daily_goal, color=COLORS["green"] if today >= self.store.daily_goal else COLORS["primary"])
-        ttk.Button(goal_card, text="Change goal", command=self.edit_daily_goal).pack(anchor="w", pady=(10, 0))
+        (month_panel,) = self.panel_row(page.inner, 1)
+        month = progress.daily_series(store.activity, 30)
+        month_total = sum(count for _day, count in month)
+        active = [count for _day, count in month if count > 0]
+        self.panel_title(month_panel, "Last 30 days", f"{month_total} reviews on {len(active)} days" + (f"  \u2022  about {round(month_total / len(active))} on a day you practise" if active else "  \u2022  your practice will show up here"))
+        self.bar_chart(
+            month_panel, [count for _day, count in month], [day.strftime("%d %b").lstrip("0") for day, _count in month], COLORS["primary"],
+            height=170, highlight=len(month) - 1, tips=[f"{day.strftime('%a %d %b')}: {count} review{'s' if count != 1 else ''}" for day, count in month],
+        ).pack(fill="x")
 
-        mastery_card = self.card(hero, "AltCard.TFrame", 22)
-        mastery_card.grid(row=0, column=2, sticky="nsew")
-        ttk.Label(mastery_card, text=f"{mastery}%", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(mastery_card, text="overall mastery", style="AltMuted.TLabel").pack(anchor="w")
-        ttk.Label(mastery_card, text=f"{mastered} mastered, {learning} learning, {self.store.practiced} total reviews", style="AltCard.TLabel", wraplength=320).pack(anchor="w", pady=(10, 0))
-        hero.columnconfigure(0, weight=1)
-        hero.columnconfigure(1, weight=1)
-        hero.columnconfigure(2, weight=1)
+        forecast_panel, maturity_panel = self.panel_row(page.inner, 2)
+        forecast = progress.due_forecast(store.cards, 14)
+        tomorrow = forecast[1][1] if len(forecast) > 1 else 0
+        self.panel_title(forecast_panel, "Coming up", f"Cards due over the next two weeks  \u2022  {tomorrow} tomorrow")
+        self.bar_chart(
+            forecast_panel, [count for _day, count in forecast], ["Today" if index == 0 else day.strftime("%a")[:2] for index, (day, _count) in enumerate(forecast)], COLORS["violet"],
+            height=150, highlight=0, tips=[f"{'Today (incl. overdue)' if index == 0 else day.strftime('%a %d %b')}: {count} due" for index, (day, count) in enumerate(forecast)],
+        ).pack(fill="x")
+        groups = progress.maturity_breakdown(store.cards)
+        segments = [("New", groups["new"], COLORS["muted"]), ("Learning", groups["learning"], COLORS["orange"]), ("Young", groups["young"], COLORS["primary"]), ("Mature", groups["mature"], COLORS["green"])]
+        self.panel_title(maturity_panel, "Card maturity", "How settled your cards are: mature cards come back 3+ weeks apart.")
+        self.stacked_bar(maturity_panel, segments, height=30).pack(fill="x", pady=(self.px(8), self.px(12)))
+        self.chart_legend(maturity_panel, [(f"{label} {value}", color) for label, value, color in segments]).pack(anchor="w")
 
-        week_start = date.today() - timedelta(days=date.today().weekday())
-        week_total = sum(self.store.activity.get((week_start + timedelta(days=offset)).isoformat(), 0) for offset in range(7))
-        active_days = len([count for count in self.store.activity.values() if count > 0])
-        best_day, best_count = ("None yet", 0)
-        if self.store.activity:
-            best_iso, best_count = max(self.store.activity.items(), key=lambda item: item[1])
-            best_day = best_iso
-        rhythm = ttk.Frame(page.inner, style="Page.TFrame")
-        rhythm.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        rhythm_items = [
-            ("This week", str(week_total), "reviews completed since Monday", COLORS["primary"]),
-            ("Active days", str(active_days), "days with at least one practice", COLORS["green"]),
-            ("Best day", str(best_count), best_day, COLORS["orange"]),
-            ("Needs care", str(len(self.store.weak_cards())), "weak or new cards to revisit", COLORS["pink"]),
-        ]
-        for index, (title, number, caption, color) in enumerate(rhythm_items):
-            card = self.hover_card(tk.Frame(rhythm, bg=COLORS["surface"], padx=self.px(18), pady=self.px(16), highlightthickness=1, highlightbackground=COLORS["line"]))
-            card.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else self.px(10), 0))
-            tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w")
-            tk.Label(card, text=number, bg=COLORS["surface"], fg=color, font=self.font("Segoe UI Semibold", 24)).pack(anchor="w", pady=(self.px(2), 0))
-            tk.Label(card, text=caption, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9), wraplength=self.px(230), justify="left").pack(anchor="w")
-            rhythm.columnconfigure(index, weight=1)
+        answers_panel, rhythm_panel = self.panel_row(page.inner, 2)
+        mix = progress.rating_mix(store.cards)
+        answered = sum(mix.values())
+        self.panel_title(answers_panel, "How your answers went", "Each card's most recent result.")
+        if answered:
+            colors = {"Again": COLORS["pink"], "Hard": COLORS["orange"], "Good": COLORS["primary"], "Easy": COLORS["green"]}
+            rows = [(self.rating_label(name), value, answered, colors[name], f"{round(value / answered * 100)}%") for name, value in mix.items()]
+            self.meter_rows(answers_panel, rows).pack(fill="x")
+        else:
+            tk.Label(answers_panel, text="Review a few cards to see this.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11)).pack(anchor="w")
+        rhythm = progress.weekday_rhythm(store.activity)
+        busiest = max(rhythm, key=lambda item: item[1])
+        self.panel_title(rhythm_panel, "Your weekly rhythm", f"Average reviews by weekday (last 12 weeks)" + (f"  \u2022  busiest: {busiest[0]}" if busiest[1] > 0 else ""))
+        self.bar_chart(
+            rhythm_panel, [round(value, 1) for _day, value in rhythm], [name for name, _value in rhythm], COLORS["cyan"],
+            height=150, highlight=date.today().weekday(), tips=[f"{name}: {value:.1f} a day" for name, value in rhythm],
+        ).pack(fill="x")
 
-        heat_card = self.card(page.inner)
-        heat_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        ttk.Label(heat_card, text="Activity heatmap", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(heat_card, text="Each square is one day. Darker squares mean more reviews that day.", style="CardMuted.TLabel").pack(anchor="w", pady=(4, 10))
-        self.render_heatmap(heat_card)
+        (heat_panel,) = self.panel_row(page.inner, 1)
+        self.panel_title(heat_panel, "Activity calendar", "Each square is one day. Darker squares mean more reviews.")
+        self.render_heatmap(heat_panel)
 
-        deck_card = self.card(page.inner)
-        deck_card.pack(fill="x", padx=(0, 8))
-        ttk.Label(deck_card, text="Deck breakdown", style="H2.TLabel").pack(anchor="w", pady=(0, 10))
-        summary = self.store.deck_summary()
-        if not summary:
-            ttk.Label(deck_card, text="Add cards to see per-deck stats.", style="CardMuted.TLabel").pack(anchor="w")
-        for deck, info in summary.items():
-            row = tk.Frame(deck_card, bg=COLORS["alt"], padx=self.px(14), pady=self.px(10))
-            row.pack(fill="x", pady=(0, 8))
-            tk.Label(row, text=deck, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 12)).pack(side="left")
-            tk.Label(row, text=f"{info['mastery']}% mastered  \u2022  {info['due']} due  \u2022  {info['total']} cards", bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 11)).pack(side="right")
+        (deck_panel,) = self.panel_row(page.inner, 1)
+        summary = store.deck_summary()
+        self.panel_title(deck_panel, "Deck mastery", "How much of each deck you've mastered.")
+        if summary:
+            palette = [COLORS["primary"], COLORS["green"], COLORS["orange"], COLORS["violet"], COLORS["pink"], COLORS["cyan"]]
+            rows = [(deck, info["mastery"], 100, palette[index % len(palette)], f"{info['mastery']}%  \u2022  {info['due']} due  \u2022  {info['total']} cards") for index, (deck, info) in enumerate(summary.items())]
+            self.meter_rows(deck_panel, rows).pack(fill="x")
+        else:
+            tk.Label(deck_panel, text="Add cards to see per-deck stats.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11)).pack(anchor="w")
+
+        badges = progress.achievements(store)
+        earned = sum(1 for badge in badges if badge["done"])
+        head = tk.Frame(page.inner, bg=COLORS["bg"])
+        head.pack(fill="x", padx=(0, 8), pady=(self.px(4), self.px(10)))
+        tk.Label(head, text="Achievements", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(side="left")
+        tk.Label(head, text=f"{earned} of {len(badges)} earned", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0), pady=(self.px(4), 0))
+        per_row = 4
+        for start in range(0, len(badges), per_row):
+            chunk = badges[start:start + per_row]
+            panels = self.panel_row(page.inner, per_row)
+            for panel, badge in zip(panels, chunk):
+                done = badge["done"]
+                panel.configure(bg=COLORS["surface"] if done else COLORS["alt"])
+                bg = panel.cget("bg")
+                top = tk.Frame(panel, bg=bg)
+                top.pack(fill="x")
+                tk.Label(top, text=badge["icon"], bg=bg, font=self.font("Segoe UI Emoji", 20)).pack(side="left")
+                if done:
+                    tk.Label(top, text="Earned", bg=COLORS["good_bg"], fg=COLORS["good_fg"], font=self.font("Segoe UI Semibold", 9), padx=self.px(8), pady=self.px(2)).pack(side="right")
+                tk.Label(panel, text=badge["title"], bg=bg, fg=COLORS["ink"] if done else COLORS["muted"], font=self.font("Segoe UI Semibold", 12), anchor="w").pack(fill="x", pady=(self.px(6), 0))
+                tk.Label(panel, text=badge["body"], bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w")
+                if not done:
+                    tk.Label(panel, text=f"{badge['current']} / {badge['target']}", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 9), anchor="w").pack(fill="x", pady=(self.px(6), self.px(4)))
+                    self.meter(panel, badge["current"] / badge["target"], COLORS["orange"], 6, bg).pack(fill="x")
+            for panel in panels[len(chunk):]:
+                panel.configure(bg=COLORS["bg"])
 
     def view_decks(self):
         page = ScrollFrame(self.view_host)
@@ -4125,9 +4783,26 @@ class MemoryPalApp(tk.Tk):
                 tk.Label(title_box, text=step["title"], bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14)).pack(anchor="w")
                 tk.Label(title_box, text=f"~{step['minutes']} min", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w")
                 ttk.Label(row, text=step["blurb"], style="Card.TLabel", wraplength=900).pack(anchor="w", pady=(8, 10))
-                start_button = ttk.Button(row, text="Start this step", style="Primary.TButton", command=lambda s=step: self.start_plan_step(s))
+                is_break = step.get("view") == "break"
+                start_button = ttk.Button(row, text=f"Start {step['minutes']}-min break" if is_break else "Start this step", style="TButton" if is_break else "Primary.TButton", command=lambda s=step: self.start_plan_step(s))
                 start_button.pack(fill="x")
-                self.add_tooltip(start_button, "Open the app section for this plan step.")
+                self.add_tooltip(start_button, "Start a rest timer." if is_break else "Open the app section for this plan step.")
+
+        def render_follow_row(container):
+            settings = self.view_drafts.get("plan", {})
+            saved = self.store.study_plan.get("settings") if self.store.study_plan else None
+            row = tk.Frame(container, bg=COLORS["alt"])
+            row.pack(fill="x", pady=(self.px(10), 0))
+            if saved == settings:
+                tk.Label(row, text="\u2713 This is your plan. The Dashboard shows today's steps.", bg=COLORS["alt"], fg=COLORS["green"], font=self.font("Segoe UI Semibold", 11)).pack(side="left")
+                ttk.Button(row, text="Stop following", command=lambda: (self.store.set_study_plan(None), self.toast_message("Plan cleared."), render_plan())).pack(side="right")
+            else:
+                def follow():
+                    self.store.set_study_plan(settings)
+                    self.toast_message("Saved. Your Dashboard now follows this plan.")
+                    render_plan()
+                self.solid_button(row, "Make this my plan", follow, COLORS["primary"]).pack(side="left")
+                tk.Label(row, text="Your Dashboard will show these steps each day, ready to tick off.", bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0))
 
         def render_plan():
             for child in result_holder.winfo_children():
@@ -4151,7 +4826,13 @@ class MemoryPalApp(tk.Tk):
                 summary = self.card(result_holder, "AltCard.TFrame", 16)
                 summary.pack(fill="x", pady=(0, 12))
                 ttk.Label(summary, text=f"Your {amount} {unit} plan", style="AltH2.TLabel").pack(anchor="w")
-                ttk.Label(summary, text=f"{len(steps)} step{'s' if len(steps) != 1 else ''} \u2022 {deck_choice} \u2022 {goal_var.get()}", style="AltMuted.TLabel").pack(anchor="w", pady=(2, 0))
+                study_steps = [step for step in steps if step.get("view") != "break"]
+                rests = len(steps) - len(study_steps)
+                parts = [f"{len(study_steps)} step{'s' if len(study_steps) != 1 else ''}", deck_choice, goal_var.get()]
+                if rests:
+                    parts.append(f"{rests} rest break{'s' if rests != 1 else ''}")
+                ttk.Label(summary, text=" \u2022 ".join(parts), style="AltMuted.TLabel").pack(anchor="w", pady=(2, 0))
+                render_follow_row(summary)
                 render_steps_list(result_holder, steps)
                 self.fit_wrap_tree(result_holder)
             else:
@@ -4160,7 +4841,11 @@ class MemoryPalApp(tk.Tk):
                 summary = self.card(result_holder, "AltCard.TFrame", 16)
                 summary.pack(fill="x", pady=(0, 12))
                 ttk.Label(summary, text=f"Your {total_days}-day plan", style="AltH2.TLabel").pack(anchor="w")
-                ttk.Label(summary, text=f"Learn early, reinforce in the middle, sharpen near the end \u2022 {deck_choice} \u2022 {goal_var.get()}", style="AltMuted.TLabel", wraplength=1000).pack(anchor="w", pady=(2, 0))
+                total_minutes = sum(day["minutes"] for day in days)
+                ttk.Label(summary, text=f"Learn early, reinforce in the middle, sharpen near the end \u2022 {deck_choice} \u2022 {goal_var.get()} \u2022 about {round(total_minutes / 60, 1):g} hours in total", style="AltMuted.TLabel", wraplength=1000).pack(anchor="w", pady=(2, 0))
+                render_follow_row(summary)
+                chart_host = tk.Frame(result_holder, bg=COLORS["surface"], padx=self.px(20), pady=self.px(16))
+                chart_host.pack(fill="x", pady=(0, 12))
                 tab_host = tk.Frame(result_holder, bg=COLORS["bg"])
                 tab_host.pack(fill="x", pady=(0, 12))
                 tk.Label(tab_host, text="Jump to day:", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w", pady=(0, 6))
@@ -4168,17 +4853,28 @@ class MemoryPalApp(tk.Tk):
                 day_steps_host.pack(fill="both", expand=True)
                 day_var = tk.StringVar(value="1")
 
+                def render_day_chart(selected):
+                    for child in chart_host.winfo_children():
+                        child.destroy()
+                    tk.Label(chart_host, text="Minutes each day  \u2022  click a bar to open that day", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="w")
+                    self.bar_chart(
+                        chart_host, [d["minutes"] for d in days], [str(d["day"]) for d in days], COLORS["violet"], height=120,
+                        highlight=selected, tips=[f"Day {d['day']}: {d['minutes']} min, {d.get('due', 0)} due" for d in days],
+                        on_click=lambda index: (day_var.set(str(days[index]["day"])), show_day(str(days[index]["day"]))),
+                    ).pack(fill="x", pady=(self.px(6), 0))
+
                 def show_day(value):
                     for child in day_steps_host.winfo_children():
                         child.destroy()
                     day = next((d for d in days if str(d["day"]) == value), days[0])
+                    render_day_chart(days.index(day))
                     kind_labels = {"learn": "Learn day", "review": "Spaced review day", "maintenance": "Short maintenance day", "light": "Light day before the test", "study": "Study day"}
                     try:
                         when = datetime.strptime(day["date"], "%Y-%m-%d").strftime("%a %d %b")
                     except (KeyError, ValueError):
                         when = ""
                     parts = [f"Day {day['day']}", when, kind_labels.get(day.get("kind"), "Study day"), f"{day.get('due', 0)} due", f"{day['minutes']} min"]
-                    tk.Label(day_steps_host, text="  •  ".join(part for part in parts if part), bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 11)).pack(anchor="w", pady=(0, 8))
+                    tk.Label(day_steps_host, text="  \u2022  ".join(part for part in parts if part), bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 11)).pack(anchor="w", pady=(0, 8))
                     render_steps_list(day_steps_host, day["steps"])
                     self.fit_wrap_tree(day_steps_host)
 
@@ -4191,11 +4887,24 @@ class MemoryPalApp(tk.Tk):
         self.register_draft_saver("plan", lambda: self.view_drafts.get("plan", {}))
 
     def start_plan_step(self, step):
+        if step.get("view") == "break":
+            self.start_break(step.get("minutes", 5))
+            return
         self.deck_filter = step.get("deck")
         if "quiz_mode" in step:
             self.quiz_mode = step["quiz_mode"]
             self.view_drafts["quiz"] = {}
         self.show_view(step["view"])
+
+    def start_break(self, minutes):
+        pending = getattr(self, "_break_after", None)
+        if pending is not None:
+            try:
+                self.after_cancel(pending)
+            except tk.TclError:
+                pass
+        self.toast_message(f"Break started. I'll let you know in {minutes} minutes.")
+        self._break_after = self.after(int(minutes * 60_000), lambda: (self.bell(), self.toast_message("Break's over. Ready for the next step?")))
 
     def view_focus(self):
         page = ScrollFrame(self.view_host)
@@ -4236,38 +4945,57 @@ class MemoryPalApp(tk.Tk):
                 self.add_tooltip(practice_button, self.action_hint("Practice"))
                 row.columnconfigure(0, weight=1)
 
-    def attach_media(self, kind, labels, text_target=None):
+    MEDIA_NAMES = {"text_file": "note or document", "image": "image", "audio": "audio clip", "video": "video"}
+    MEDIA_SUFFIXES = {"text_file": media.TEXT_TYPES, "image": media.IMAGE_TYPES, "audio": media.AUDIO_TYPES, "video": media.VIDEO_TYPES}
+
+    def import_media_file(self, kind):
+        """Ask for a file of this kind and copy it into the profile. Returns the new path or None."""
         import shutil
         from tkinter import filedialog
 
-        filetypes = {
-            "text_file": [("Notes and documents", "*.txt *.md *.csv *.pdf *.docx *.doc"), ("Text notes", "*.txt *.md *.csv"), ("PDF", "*.pdf"), ("Word documents", "*.docx *.doc")],
-            "image": [("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp")],
-            "audio": [("Audio", "*.mp3 *.wav *.m4a *.ogg *.webm *.aac")],
-            "video": [("Video", "*.mp4 *.mov *.avi *.mkv *.webm *.wmv")],
-        }.get(kind, [("All files", "*.*")])
-        label_name = "note/document" if kind == "text_file" else kind
-        selected = filedialog.askopenfilename(title=f"Choose {label_name}", filetypes=filetypes + [("All files", "*.*")])
+        name = self.MEDIA_NAMES.get(kind, kind)
+        selected = filedialog.askopenfilename(parent=self, title=f"Choose a {name}", filetypes=media.FILETYPES.get(kind, []) + [("All files", "*.*")])
         if not selected:
-            return
-        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
+            return None
         source = Path(selected)
+        if source.suffix.lower() not in self.MEDIA_SUFFIXES.get(kind, ()):
+            if not self.dialog_confirm(f"Attach this {name}?", f"\"{source.name}\" doesn't look like a {name} MemoryPal knows. Attach it anyway? It will open in whatever app Windows uses for it.", "Attach anyway"):
+                return None
+        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
         target = self.store.attachment_dir / f"{uuid4().hex}{source.suffix.lower()}"
-        shutil.copy2(source, target)
-        self.pending_media[kind] = str(target)
-        labels[kind].configure(text=target.name)
-        if kind == "text_file" and text_target is not None:
-            try:
-                text = extract_document_text(source)
-            except Exception as exc:
-                self.toast_message(f"Note attached, but automatic text extraction was not available: {exc}")
-                return
-            if not normalize_space(text):
-                self.toast_message("Note attached, but no readable text was found.")
-                return
-            text_target.delete("1.0", "end")
-            text_target.insert("1.0", text)
-            self.toast_message("Note imported and extracted into the study bit box.")
+        try:
+            shutil.copy2(source, target)
+        except OSError as exc:
+            self.dialog_alert("Couldn't copy the file", f"{source.name} could not be copied into MemoryPal: {exc}", "error")
+            return None
+        if kind == "image" and self.image_photo(target) is None:
+            self.toast_message("Image attached. Windows couldn't make a preview, but it will still open in your photo viewer.")
+        return target
+
+    def set_pending_media(self, kind, path, labels):
+        self.pending_media[kind] = str(path) if path else ""
+        if kind in labels and labels[kind].winfo_exists():
+            labels[kind].configure(text=Path(path).name if path else f"No {self.MEDIA_NAMES.get(kind, kind)} selected")
+
+    def attach_media(self, kind, labels, text_target=None):
+        target = self.import_media_file(kind)
+        if target is None:
+            return
+        self.set_pending_media(kind, target, labels)
+        if kind != "text_file" or text_target is None:
+            self.toast_message(f"{self.MEDIA_NAMES.get(kind, kind).capitalize()} attached. It is saved with this capture.")
+            return
+        try:
+            text = extract_document_text(target)
+        except Exception as exc:
+            self.toast_message(f"Note attached, but its text couldn't be read: {exc}")
+            return
+        if not normalize_space(text):
+            self.toast_message("Note attached, but no readable text was found in it.")
+            return
+        text_target.delete("1.0", "end")
+        text_target.insert("1.0", text)
+        self.toast_message("Note imported. Its text is in the study bit box, ready to split into cards.")
 
     def record_text_note(self, labels, text_target):
         text = normalize_space(text_target.get("1.0", "end"))
@@ -4282,92 +5010,144 @@ class MemoryPalApp(tk.Tk):
         self.toast_message("Text note saved as an attached file.")
 
     def record_audio(self, labels):
-        seconds = self.dialog_integer("Record audio", "How many seconds should MemoryPal record?", initial=10, minvalue=1, maxvalue=120)
-        if not seconds:
-            return
-        try:
-            import wave
-            sd = importlib.import_module("sounddevice")
-        except ImportError:
-            self.dialog_alert(
-                "Audio recorder unavailable",
-                "Import an audio file for now, or install sounddevice for desktop recording. The planned mobile version should use the phone's native recorder.",
-            )
-            return
-        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
-        target = self.store.attachment_dir / f"audio-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
-        samplerate = 44100
-        try:
-            data = sd.rec(int(seconds * samplerate), samplerate=samplerate, channels=1, dtype="int16")
-            sd.wait()
-            with wave.open(str(target), "wb") as handle:
-                handle.setnchannels(1)
-                handle.setsampwidth(2)
-                handle.setframerate(samplerate)
-                handle.writeframes(data.tobytes())
-        except Exception as exc:
-            self.dialog_alert("Audio recording failed", str(exc), "error")
-            return
-        self.pending_media["audio"] = str(target)
-        labels["audio"].configure(text=target.name)
-        self.toast_message("Audio recording attached.")
+        self.record_audio_file(lambda path: (self.set_pending_media("audio", path, labels), self.toast_message(f"Voice recording attached ({media.wav_duration(path):.0f} s).")))
+
+    def record_audio_file(self, on_saved, max_seconds=300):
+        """A small recorder window: live timer and level, Stop to save, Cancel to discard."""
+        recorder = media.AudioRecorder()
+        top, content, actions = self.dialog_window("Record audio", "Press Start, speak clearly, then press Stop and save. Recordings can be up to 5 minutes.")
+        status = tk.Label(content, text="Ready", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 22), anchor="w")
+        status.pack(fill="x")
+        note = tk.Label(content, text="Your microphone is only used while recording.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w")
+        note.pack(fill="x", pady=(self.px(2), self.px(10)))
+        level = tk.Canvas(content, height=self.px(10), bg=COLORS["surface"], highlightthickness=0)
+        level.pack(fill="x")
+        state = {"after": None, "saved": None}
+
+        def draw_level(amount):
+            level.delete("all")
+            width = max(1, level.winfo_width())
+            level.create_rectangle(0, 0, width, self.px(10), fill=COLORS["line"], outline="")
+            if amount > 0:
+                level.create_rectangle(0, 0, width * min(1.0, amount * 1.6), self.px(10), fill=COLORS["green"], outline="")
+
+        def tick():
+            if not top.winfo_exists():
+                return
+            seconds = recorder.elapsed()
+            status.configure(text=f"\u25cf  Recording  {int(seconds // 60)}:{int(seconds % 60):02d}", fg=COLORS["danger"])
+            draw_level(recorder.level())
+            if seconds >= max_seconds:
+                finish()
+                return
+            state["after"] = self.after(100, tick)
+
+        def start():
+            ok, message = recorder.start()
+            if not ok:
+                status.configure(text="Microphone unavailable", fg=COLORS["danger"])
+                note.configure(text=f"{message} Check Settings > Privacy & security > Microphone, or import an audio file instead.")
+                return
+            start_button.configure(text="Stop and save", command=finish, bg=COLORS["danger"], activebackground=COLORS["danger"])
+            note.configure(text="Speak now. Press Stop and save when you're done.")
+            tick()
+
+        def finish():
+            if state["after"]:
+                self.after_cancel(state["after"])
+                state["after"] = None
+            self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
+            target = self.store.attachment_dir / f"audio-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
+            ok, message = recorder.stop(target)
+            if not ok:
+                status.configure(text="Nothing was saved", fg=COLORS["danger"])
+                note.configure(text=message)
+                start_button.configure(text="Try again", command=start, bg=COLORS["primary"], activebackground=COLORS["primary"])
+                return
+            state["saved"] = target
+            top.destroy()
+
+        def cancel():
+            if state["after"]:
+                self.after_cancel(state["after"])
+            recorder.cancel()
+            top.destroy()
+
+        cancel_button = ttk.Button(actions, text="Cancel", command=cancel)
+        cancel_button.grid(row=0, column=0, sticky="ew", padx=(0, self.px(8)))
+        start_button = self.solid_button(actions, "Start recording", start, COLORS["primary"])
+        start_button.grid(row=0, column=1, sticky="ew")
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        self.present_dialog(top)
+        top.protocol("WM_DELETE_WINDOW", cancel)
+        top.bind("<Escape>", lambda _event: cancel())
+        top.after(50, lambda: draw_level(0))
+        top.wait_window()
+        if state["saved"] is not None:
+            on_saved(state["saved"])
 
     def record_video(self, labels):
-        seconds = self.dialog_integer("Record video", "How many seconds should MemoryPal record from the webcam?", initial=8, minvalue=1, maxvalue=60)
-        if not seconds:
-            return
-        try:
-            cv2 = importlib.import_module("cv2")
-        except ImportError:
-            self.dialog_alert(
-                "Video recorder unavailable",
-                "Import a video file for now, or install opencv-python for desktop webcam recording. The planned mobile version should use the phone's camera recorder.",
-            )
-            return
-        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
-        target = self.store.attachment_dir / f"video-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.avi"
-        camera = cv2.VideoCapture(0)
-        if not camera.isOpened():
-            self.dialog_alert("Video recording failed", "No webcam was found.", "error")
-            return
-        width = int(camera.get(cv2.CAP_PROP_FRAME_WIDTH) or 640)
-        height = int(camera.get(cv2.CAP_PROP_FRAME_HEIGHT) or 480)
-        writer = cv2.VideoWriter(str(target), cv2.VideoWriter_fourcc(*"XVID"), 20.0, (width, height))
-        deadline = datetime.now() + timedelta(seconds=seconds)
-        try:
-            while datetime.now() < deadline:
-                ok, frame = camera.read()
-                if not ok:
-                    break
-                writer.write(frame)
-        finally:
-            camera.release()
-            writer.release()
-        self.pending_media["video"] = str(target)
-        labels["video"].configure(text=target.name)
-        self.toast_message("Video recording attached.")
+        self.record_video_file(lambda path: (self.set_pending_media("video", path, labels), self.toast_message("Video attached.")))
+
+    def record_video_file(self, on_saved):
+        """Record with the Windows Camera app, then bring the new video into MemoryPal."""
+        import shutil
+        import time as time_module
+
+        started = {"at": time_module.time()}
+        top, content, actions = self.dialog_window(
+            "Record a video",
+            "1. Press Open Camera. In the Camera app, switch to Video and record.\n2. Stop recording, then come back here and press Use my recording.",
+        )
+        status = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(420))
+        status.pack(fill="x")
+        result = {"path": None}
+
+        def open_camera():
+            started["at"] = time_module.time()
+            if media.open_camera_app():
+                status.configure(text="Camera opened. Record your video, then press Use my recording.", fg=COLORS["muted"])
+            else:
+                status.configure(text="The Camera app couldn't be opened. Use Import video instead.", fg=COLORS["danger"])
+
+        def use_recording():
+            found = media.newest_video_since(started["at"])
+            if found is None:
+                folders = ", ".join(str(folder) for folder in media.camera_folders()) or "your Pictures\\Camera Roll folder"
+                status.configure(text=f"No new video yet. Finish recording in the Camera app first. (Looked in {folders}.)", fg=COLORS["danger"])
+                return
+            self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
+            target = self.store.attachment_dir / f"video-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}{found.suffix.lower()}"
+            try:
+                shutil.copy2(found, target)
+            except OSError as exc:
+                status.configure(text=f"The video couldn't be copied: {exc}", fg=COLORS["danger"])
+                return
+            result["path"] = target
+            top.destroy()
+
+        ttk.Button(actions, text="Open Camera", command=open_camera).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, self.px(8)))
+        ttk.Button(actions, text="Cancel", command=top.destroy).grid(row=1, column=0, sticky="ew", padx=(0, self.px(8)))
+        self.solid_button(actions, "Use my recording", use_recording, COLORS["primary"]).grid(row=1, column=1, sticky="ew")
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        self.present_dialog(top)
+        top.bind("<Escape>", lambda _event: top.destroy())
+        top.wait_window()
+        if result["path"] is not None:
+            on_saved(result["path"])
 
     def attach_file_to_card(self, card, kind, refresh=None):
-        import shutil
-        from tkinter import filedialog
-
-        filetypes = {
-            "text_file": [("Notes and documents", "*.txt *.md *.csv *.pdf *.docx *.doc"), ("Text notes", "*.txt *.md *.csv"), ("PDF", "*.pdf"), ("Word documents", "*.docx *.doc")],
-            "image": [("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp")],
-            "audio": [("Audio", "*.mp3 *.wav *.m4a *.ogg *.webm *.aac")],
-            "video": [("Video", "*.mp4 *.mov *.avi *.mkv *.webm *.wmv")],
-        }.get(kind, [("All files", "*.*")])
-        label_name = "note/document" if kind == "text_file" else kind
-        selected = filedialog.askopenfilename(title=f"Choose {label_name}", filetypes=filetypes + [("All files", "*.*")])
-        if not selected:
+        target = self.import_media_file(kind)
+        if target is None:
             return
-        self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
-        source = Path(selected)
-        target = self.store.attachment_dir / f"{uuid4().hex}{source.suffix.lower()}"
-        shutil.copy2(source, target)
-        setattr(card, kind, str(target))
+        self.set_card_media(card, kind, target, refresh)
+
+    def set_card_media(self, card, kind, path, refresh=None):
+        setattr(card, kind, str(path))
         self.store.save()
-        self.toast_message(f"{label_name.title()} cue attached to the card.")
+        self.toast_message(f"{self.MEDIA_NAMES.get(kind, kind).capitalize()} cue attached to the card.")
         if refresh:
             refresh()
 
@@ -4403,26 +5183,17 @@ class MemoryPalApp(tk.Tk):
         if not text:
             self.toast_message("Nothing to speak yet.")
             return
-        try:
-            pyttsx3 = importlib.import_module("pyttsx3")
-        except ImportError:
-            self.dialog_alert(
-                "Offline voice unavailable",
-                "Install pyttsx3 (pip install pyttsx3) for offline text-to-speech cues, or import an audio file instead.",
-            )
-            return
         self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
         target = self.store.attachment_dir / f"voice-cue-{uuid4().hex}.wav"
-        try:
-            engine = pyttsx3.init()
-            engine.save_to_file(text, str(target))
-            engine.runAndWait()
-        except Exception as exc:
-            self.dialog_alert("Voice generation failed", str(exc), "error")
+        self.toast_message("Creating the spoken cue...")
+        self.update_idletasks()
+        ok, message = media.speech_to_wav(text, target)
+        if not ok:
+            self.dialog_alert("Voice generation failed", f"The computer's voice couldn't create the audio: {message}", "error")
             return
         card.audio = str(target)
         self.store.save()
-        self.toast_message("Spoken cue generated and attached.")
+        self.toast_message("Spoken cue created and attached. Press Play to hear it.")
         if refresh:
             refresh()
 
@@ -4441,7 +5212,7 @@ class MemoryPalApp(tk.Tk):
         intro = self.card(page.inner, "WarmCard.TFrame", 16)
         intro.pack(fill="x", padx=(0, 8), pady=(0, 14))
         ttk.Label(intro, text="Pick a card, then generate a cue", style="WarmH2.TLabel").pack(anchor="w")
-        ttk.Label(intro, text="Text hints are generated locally. Image search opens your browser (no auto-download). Audio uses offline text-to-speech if installed.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
+        ttk.Label(intro, text="Text hints are made on this computer. Image search opens your browser. Spoken cues use the computer's built-in voice, or record your own.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
 
         picker = self.card(page.inner)
         picker.pack(fill="x", padx=(0, 8), pady=(0, 14))
@@ -4505,7 +5276,19 @@ class MemoryPalApp(tk.Tk):
             ttk.Label(audio_card, text="Current: " + (Path(card.audio).name if card.audio else "none"), style="CardMuted.TLabel").pack(anchor="w", pady=(4, 10))
             self.button_row(audio_card, [
                 ("Generate Spoken Cue", lambda: self.generate_tts_cue(card, f"{card.front}. {card.back}", render), "Primary.TButton"),
+                ("Record a Voice", lambda: self.record_audio_file(lambda path: self.set_card_media(card, "audio", path, render)), "TButton"),
                 ("Attach Audio File", lambda: self.attach_file_to_card(card, "audio", render), "TButton"),
+            ])
+            if card.audio:
+                self.audio_play_button(audio_card, card.audio).pack(fill="x", pady=(self.px(10), 0))
+
+            video_card = self.card(body)
+            video_card.pack(fill="x", pady=(12, 0))
+            ttk.Label(video_card, text="Video cue", style="H2.TLabel").pack(anchor="w")
+            ttk.Label(video_card, text="Current: " + (Path(card.video).name if card.video else "none"), style="CardMuted.TLabel").pack(anchor="w", pady=(4, 10))
+            self.button_row(video_card, [
+                ("Record with Camera", lambda: self.record_video_file(lambda path: self.set_card_media(card, "video", path, render)), "Primary.TButton"),
+                ("Attach Video File", lambda: self.attach_file_to_card(card, "video", render), "TButton"),
             ])
 
         render()
@@ -4677,16 +5460,16 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(form, text="Attach cues", style="CardMuted.TLabel").pack(anchor="w", pady=(16, 6))
         self.pending_media = dict(draft.get("pending_media", {"text_file": "", "image": "", "audio": "", "video": ""}))
         labels = {
-            kind: ttk.Label(side, text=(Path(self.pending_media.get(kind, "")).name if self.pending_media.get(kind) else f"No {'note/document' if kind == 'text_file' else kind} selected"), style="AltCard.TLabel", wraplength=500)
+            kind: ttk.Label(side, text=(Path(self.pending_media.get(kind, "")).name if self.pending_media.get(kind) else f"No {self.MEDIA_NAMES.get(kind, kind)} selected"), style="AltCard.TLabel", wraplength=500)
             for kind in ("text_file", "image", "audio", "video")
         }
         cue_bar = ttk.Frame(form, style="Card.TFrame")
         cue_bar.pack(fill="x")
         cue_actions = [
-            ("NOTE", [("Import note/PDF/Word", lambda: self.attach_media("text_file", labels, entry)), ("Save current note", lambda: self.record_text_note(labels, entry))]),
-            ("IMG", [("Import image", lambda: self.attach_media("image", labels))]),
-            ("AUD", [("Import audio", lambda: self.attach_media("audio", labels)), ("Record audio", lambda: self.record_audio(labels))]),
-            ("VID", [("Import video", lambda: self.attach_media("video", labels)), ("Record video", lambda: self.record_video(labels))]),
+            ("NOTE", [("Import note, PDF, Word or RTF", lambda: self.attach_media("text_file", labels, entry)), ("Save current note", lambda: self.record_text_note(labels, entry)), ("Remove note", lambda: self.set_pending_media("text_file", "", labels))]),
+            ("IMG", [("Import image", lambda: self.attach_media("image", labels)), ("Remove image", lambda: self.set_pending_media("image", "", labels))]),
+            ("AUD", [("Record audio", lambda: self.record_audio(labels)), ("Import audio", lambda: self.attach_media("audio", labels)), ("Remove audio", lambda: self.set_pending_media("audio", "", labels))]),
+            ("VID", [("Record video (Camera app)", lambda: self.record_video(labels)), ("Import video", lambda: self.attach_media("video", labels)), ("Remove video", lambda: self.set_pending_media("video", "", labels))]),
         ]
         for index, (cue_label, actions) in enumerate(cue_actions):
             menu_button = self.cue_menu_button(cue_bar, cue_label, actions)
@@ -4780,21 +5563,56 @@ class MemoryPalApp(tk.Tk):
         except OSError as exc:
             self.dialog_alert("Could not open media", str(exc), "error")
 
+    def audio_play_button(self, parent, path):
+        """Play/Stop inside the app; falls back to the default player if needed."""
+        button = ttk.Button(parent, text="\u25b6 Play Audio")
+        self.add_tooltip(button, "Play the attached audio here. Press again to stop.")
+
+        def watch():
+            if not button.winfo_exists():
+                return
+            if self.audio_player.path == str(path) and self.audio_player.is_playing():
+                button.after(250, watch)
+            else:
+                button.configure(text="\u25b6 Play Audio")
+
+        def toggle():
+            if self.audio_player.path == str(path) and self.audio_player.is_playing():
+                self.audio_player.stop()
+                button.configure(text="\u25b6 Play Audio")
+                return
+            if not Path(path).exists():
+                self.toast_message("Audio file was not found.")
+                return
+            if self.audio_player.play(path):
+                button.configure(text="\u25a0 Stop")
+                button.after(250, watch)
+            else:
+                self.open_media(path)
+
+        button.configure(command=toggle)
+        return button
+
     def image_photo(self, path, max_width=620, max_height=360):
+        """A Tk image of any picture Windows can read, scaled to fit (cached)."""
         source = Path(path)
         if not source.exists():
             return None
-        try:
-            from PIL import Image, ImageTk
-            image = Image.open(source)
-            image.thumbnail((self.px(max_width), self.px(max_height)))
-            return ImageTk.PhotoImage(image)
-        except Exception:
+        width, height = self.px(max_width), self.px(max_height)
+        preview = media.image_preview(source, self.store.attachment_dir / "previews", width, height)
+        if preview is None:
+            return None
+        key = str(preview)
+        photo = self.preview_photos.get(key)
+        if photo is None:
             try:
-                photo = tk.PhotoImage(file=str(source))
+                photo = tk.PhotoImage(file=key)
             except tk.TclError:
                 return None
-            return photo
+            if len(self.preview_photos) > 40:
+                self.preview_photos.clear()
+            self.preview_photos[key] = photo
+        return photo
 
     def render_media_controls(self, parent, item):
         media = [(kind, getattr(item, kind, "")) for kind in ("text_file", "image", "audio", "video") if getattr(item, kind, "")]
@@ -4808,10 +5626,13 @@ class MemoryPalApp(tk.Tk):
         action_row.pack(fill="x")
         for index, (kind, path) in enumerate(media):
             label = "Note" if kind == "text_file" else kind.title()
-            action = "Read" if kind == "text_file" else "Display" if kind == "image" else "Play"
-            button = ttk.Button(action_row, text=f"{action} {label}", command=lambda value=path: self.open_media(value))
+            if kind == "audio":
+                button = self.audio_play_button(action_row, path)
+            else:
+                action = "Open" if kind == "text_file" else "View" if kind == "image" else "Play"
+                button = ttk.Button(action_row, text=f"{action} {label}", command=lambda value=path: self.open_media(value))
+                self.add_tooltip(button, "Opens in your photo viewer." if kind == "image" else "Opens in your video player." if kind == "video" else "Opens the full note.")
             button.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else 8, 0))
-            self.add_tooltip(button, f"{action} the attached {label.lower()} cue.")
             action_row.columnconfigure(index, weight=1)
 
         for kind, path in media:
@@ -4833,8 +5654,8 @@ class MemoryPalApp(tk.Tk):
                     holder = tk.Frame(panel, bg=COLORS["alt"])
                     holder.pack(fill="x", pady=(10, 0))
                     tk.Label(holder, image=photo, bg=COLORS["alt"]).pack(anchor="w")
-            elif kind in ("audio", "video"):
-                hint = "Audio/video plays in your default desktop player so the app stays lightweight."
+            elif kind == "video":
+                hint = "Videos play in your usual video player."
                 ttk.Label(panel, text=hint, style="AltMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(8, 0))
 
     def resource_items(self, limit=3):
@@ -6263,9 +7084,7 @@ class MemoryPalApp(tk.Tk):
             selectforeground=COLORS["white"],
             relief="flat",
             bd=0,
-            highlightthickness=1,
-            highlightbackground=COLORS["soft_line"],
-            highlightcolor=COLORS["primary"],
+            highlightthickness=0,
             activestyle="none",
             font=self.font("Segoe UI", 11),
             exportselection=False,

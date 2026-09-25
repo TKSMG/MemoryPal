@@ -39,6 +39,19 @@ def default_payload():
         "accessibility": default_accessibility(),
         "feedback": [],
         "onboarding": default_onboarding(),
+        "study_plan": {},
+    }
+
+
+def normalize_study_plan(raw):
+    """A saved plan: the choices it was built from, when, and ticked-off steps."""
+    if not isinstance(raw, dict) or not isinstance(raw.get("settings"), dict):
+        return {}
+    done = raw.get("done") if isinstance(raw.get("done"), dict) else {}
+    return {
+        "settings": dict(raw["settings"]),
+        "created": str(raw.get("created") or today_iso()),
+        "done": {str(day): sorted({int(index) for index in indexes if str(index).isdigit()}) for day, indexes in done.items() if isinstance(indexes, list)},
     }
 
 
@@ -165,7 +178,9 @@ class MemoryStore:
         self.accessibility = default_accessibility()
         self.feedback = []
         self.onboarding = default_onboarding()
+        self.study_plan = {}
         self.last_action = None
+        self._file_stamp = None
         self._loaded_onboarding = default_onboarding()
         self._loaded_practiced = 0
         self._loaded_activity = {}
@@ -201,6 +216,8 @@ class MemoryStore:
             self.accessibility = normalize_accessibility(raw.get("accessibility", {}))
             self.feedback = load_items(raw.get("feedback", []), FeedbackEntry.from_dict)
             self.onboarding = normalize_onboarding(raw.get("onboarding"))
+            self.study_plan = normalize_study_plan(raw.get("study_plan"))
+            self._file_stamp = self.file_stamp()
         except (OSError, json.JSONDecodeError, ValueError):
             self.cards = sample_cards()
             self.captures = []
@@ -212,16 +229,26 @@ class MemoryStore:
             self.feedback = []
         self.remember_loaded_state()
 
-    def remember_loaded_state(self):
+    def remember_loaded_state(self, payload=None):
         self._loaded_practiced = self.practiced
         self._loaded_activity = dict(self.activity)
         self._loaded_daily_goal = self.daily_goal
         self._loaded_nav_order = list(self.nav_order)
         self._loaded_accessibility = dict(self.accessibility)
         self._loaded_onboarding = dict(self.onboarding)
-        self._loaded_cards = self.item_snapshot(self.cards)
-        self._loaded_captures = self.item_snapshot(self.captures)
-        self._loaded_feedback = self.item_snapshot(self.feedback)
+        self._loaded_study_plan = normalize_study_plan(self.study_plan)
+        if payload is None:
+            self._loaded_cards = self.item_snapshot(self.cards)
+            self._loaded_captures = self.item_snapshot(self.captures)
+            self._loaded_feedback = self.item_snapshot(self.feedback)
+        else:
+            self._loaded_cards = self.raw_snapshot(payload.get("cards"))
+            self._loaded_captures = self.raw_snapshot(payload.get("captures"))
+            self._loaded_feedback = self.raw_snapshot(payload.get("feedback"))
+
+    @staticmethod
+    def raw_snapshot(raw_items):
+        return {item["id"]: item for item in raw_items or [] if isinstance(item, dict) and item.get("id")}
 
     @staticmethod
     def item_snapshot(items):
@@ -244,6 +271,7 @@ class MemoryStore:
             "accessibility": dict(self.accessibility),
             "feedback": [asdict(entry) for entry in self.feedback],
             "onboarding": dict(self.onboarding),
+            "study_plan": normalize_study_plan(self.study_plan),
         }
 
     def merge_items(self, local_items, existing_items, loaded_items=None):
@@ -275,14 +303,15 @@ class MemoryStore:
         return merged
 
     def merge_activity(self, existing_activity):
+        # Apply this window's change (which can be negative after an undo)
+        # on top of whatever another window saved in the meantime.
         merged = dict(existing_activity or {})
         keys = set(merged) | set(self.activity) | set(self._loaded_activity)
         for key in keys:
             existing_count = safe_int(merged.get(key, 0), 0)
             loaded_count = safe_int(self._loaded_activity.get(key, 0), 0)
             local_count = safe_int(self.activity.get(key, 0), 0)
-            delta = max(0, local_count - loaded_count)
-            count = max(existing_count, loaded_count) + delta
+            count = existing_count + local_count - loaded_count
             if count > 0:
                 merged[key] = count
             elif key in merged:
@@ -296,8 +325,8 @@ class MemoryStore:
         merged["cards"] = self.merge_items(local.get("cards", []), existing.get("cards", []), self._loaded_cards)
         merged["captures"] = self.merge_items(local.get("captures", []), existing.get("captures", []), self._loaded_captures)
         merged["feedback"] = self.merge_items(local.get("feedback", []), existing.get("feedback", []), self._loaded_feedback)
-        practiced_delta = max(0, safe_int(local.get("practiced", 0), 0) - self._loaded_practiced)
-        merged["practiced"] = max(safe_int(existing.get("practiced", 0), 0), self._loaded_practiced) + practiced_delta
+        practiced_delta = safe_int(local.get("practiced", 0), 0) - self._loaded_practiced
+        merged["practiced"] = max(0, safe_int(existing.get("practiced", 0), 0) + practiced_delta)
         merged["activity"] = self.merge_activity(existing.get("activity", {}))
         if self.daily_goal == self._loaded_daily_goal:
             merged["daily_goal"] = safe_int(existing.get("daily_goal", self.daily_goal), self.daily_goal)
@@ -307,6 +336,8 @@ class MemoryStore:
             merged["accessibility"] = normalize_accessibility(existing.get("accessibility", self.accessibility))
         if self.onboarding == self._loaded_onboarding and "onboarding" in existing:
             merged["onboarding"] = normalize_onboarding(existing.get("onboarding"))
+        if normalize_study_plan(self.study_plan) == self._loaded_study_plan and "study_plan" in existing:
+            merged["study_plan"] = normalize_study_plan(existing.get("study_plan"))
         return merged
 
     @staticmethod
@@ -339,7 +370,15 @@ class MemoryStore:
         self.accessibility = normalize_accessibility(payload.get("accessibility", {}))
         self.feedback = load_items(payload.get("feedback", []), FeedbackEntry.from_dict)
         self.onboarding = normalize_onboarding(payload.get("onboarding"))
+        self.study_plan = normalize_study_plan(payload.get("study_plan"))
         self.remember_loaded_state()
+
+    def file_stamp(self):
+        try:
+            stat = self.data_file.stat()
+            return (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            return None
 
     def save(self, merge_existing=True):
         paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -347,9 +386,37 @@ class MemoryStore:
         self.attachment_dir.mkdir(parents=True, exist_ok=True)
         local = self.payload()
         with DataFileLock(self.data_file):
-            payload = self.merge_payload(read_payload(self.data_file), local) if merge_existing else local
+            # Only merge when another window has written since our last
+            # load/save; otherwise the file is exactly what we last wrote.
+            external = merge_existing and self.file_stamp() != self._file_stamp
+            payload = self.merge_payload(read_payload(self.data_file), local) if external else local
             atomic_write_json(self.data_file, payload)
-        self.apply_saved_payload(payload)
+            self._file_stamp = self.file_stamp()
+        if external:
+            self.apply_saved_payload(payload)
+        else:
+            self.remember_loaded_state(payload)
+
+    def set_study_plan(self, settings):
+        """Make these plan choices the profile's plan, starting today."""
+        self.study_plan = {"settings": dict(settings), "created": today_iso(), "done": {}} if settings else {}
+        self.save()
+
+    def plan_steps_done(self, day=None):
+        return set(self.study_plan.get("done", {}).get(day or today_iso(), [])) if self.study_plan else set()
+
+    def toggle_plan_step(self, index, day=None):
+        if not self.study_plan:
+            return False
+        day = day or today_iso()
+        done = self.plan_steps_done(day)
+        done.symmetric_difference_update({int(index)})
+        # Keep only the last couple of weeks of ticks.
+        history = {key: value for key, value in self.study_plan.setdefault("done", {}).items() if key >= add_days(-14)}
+        history[day] = sorted(done)
+        self.study_plan["done"] = history
+        self.save()
+        return int(index) in done
 
     def add_feedback(self, rating, category, page, note):
         entry = FeedbackEntry(rating=rating, category=category, page=page, note=note)
@@ -518,7 +585,7 @@ class MemoryStore:
         else:
             card.interval = self.next_interval(card, quality)
             card.repetitions += 1
-        card.ease = max(1.3, card.ease + (0.1 - (5 - quality) * 0.08))
+        card.ease = min(3.5, max(1.3, card.ease + (0.1 - (5 - quality) * 0.08)))
         card.next_review = add_days(card.interval)
         if assessment:
             card.last_score = int(assessment.get("score", 0))
@@ -560,5 +627,6 @@ class MemoryStore:
         self.accessibility = default_accessibility()
         self.feedback = []
         self.onboarding = default_onboarding()
+        self.study_plan = {}
         self.last_action = None
         self.save(merge_existing=False)

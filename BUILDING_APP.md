@@ -56,12 +56,22 @@ It runs these steps in order and stops at the first failure:
 Before a new tester round, bump the version in three places so testers and Windows can tell builds apart:
 
 ```text
-pyproject.toml                  version = "0.43.0"
-installer\inno\MemoryPal.iss    #define MyAppVersion "0.43.0"
+pyproject.toml                  version = "0.44.0"
+installer\inno\MemoryPal.iss    #define MyAppVersion "0.44.0"
 build_nuitka_windows.cmd        --product-version / --file-version
 ```
 
 The sections below explain each step separately.
+
+## Update The Logo
+
+The logo is drawn in code in `latest_app\memorypal\icon.py`; the `LOGO_*` constants at the top hold its shape and colours, and `assets\memorypal-logo.svg` uses the same numbers on a 1024 grid. After changing the design:
+
+1. Increase `MASTER_CACHE_VERSION` in `icon.py` so installed copies redraw their cached logo.
+2. Run `python latest_app\memorypal\icon.py` to rewrite `assets\memorypal.ico` and `assets\memorypal-logo-preview.png` (takes a minute or two; it is pure Python).
+3. Update `assets\memorypal-logo.svg` to match.
+
+The build scripts, installer, and macOS `.icns` all read these files, so nothing else needs changing.
 
 ## Run The Tests
 

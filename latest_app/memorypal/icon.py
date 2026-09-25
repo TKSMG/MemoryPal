@@ -1,5 +1,7 @@
 import math
+import os
 import struct
+import tempfile
 import zlib
 from functools import lru_cache
 from pathlib import Path
@@ -47,88 +49,215 @@ def dot_alpha(px, py, cx, cy, radius, softness=0.16):
     return max(0, min(1, (radius + edge - distance) / edge))
 
 
+# Logo geometry, as fractions of the icon size. assets/memorypal-logo.svg
+# uses the same numbers on a 1024 grid, so the SVG and every rendered size
+# match. The mark is a connected "memory path" M: one unbroken stroke with
+# three recall nodes where the path turns.
+LOGO_RADIUS = 0.225
+LOGO_PATH = ((0.265, 0.730), (0.265, 0.330), (0.500, 0.600), (0.735, 0.330), (0.735, 0.730))
+LOGO_STROKE = 0.108
+LOGO_NODES = (
+    (0.265, 0.330, "#3ee6b4"),  # first idea (mint)
+    (0.500, 0.600, "#ffc24b"),  # the link that makes it stick (amber)
+    (0.735, 0.330, "#3ee6b4"),  # recalled idea (mint)
+)
+LOGO_NODE_RADIUS = 0.079
+LOGO_CORE_RADIUS = 0.037
+LOGO_SPARK = (0.815, 0.185, 0.050)  # small four-point spark, top right
+LOGO_COLORS = {
+    "top_left": "#4fb3ff",
+    "middle": "#4a6cf7",
+    "bottom_right": "#6b3fe0",
+    "highlight": "#ffffff",
+    "shadow": "#1a1450",
+    "mark": "#ffffff",
+    "spark": "#fff4c7",
+}
+
+
+def segment_distance(px, py, x1, y1, x2, y2):
+    vx, vy = x2 - x1, y2 - y1
+    length = vx * vx + vy * vy
+    t = 0 if length == 0 else max(0.0, min(1.0, ((px - x1) * vx + (py - y1) * vy) / length))
+    return math.hypot(px - (x1 + vx * t), py - (y1 + vy * t))
+
+
+def coverage(distance, edge):
+    """Anti-aliased coverage for a signed distance (negative = inside)."""
+    return max(0.0, min(1.0, 0.5 - distance / edge))
+
+
+def rounded_square_distance(x, y, size, radius):
+    half = size / 2
+    qx = abs(x - half) - (half - radius)
+    qy = abs(y - half) - (half - radius)
+    outside = math.hypot(max(qx, 0), max(qy, 0))
+    return outside + min(max(qx, qy), 0) - radius
+
+
+def spark_distance(px, py, cx, cy, reach):
+    """Distance to a four-point star (a thin diamond cross)."""
+    dx, dy = abs(px - cx), abs(py - cy)
+    # Two slim diamonds: long along one axis, narrow along the other.
+    first = (dx / (reach * 0.26) + dy / reach) - 1
+    second = (dx / reach + dy / (reach * 0.26)) - 1
+    return min(first, second) * reach * 0.26
+
+
 @lru_cache(maxsize=24)
 def render_icon_pixels(size, scale=None):
-    scale = scale or (4 if size <= 64 else 3 if size <= 128 else 2)
-    canvas_size = size * scale
-    radius = canvas_size * 0.22
-    top = rgba("#50d5ff")
-    middle = rgba("#456cf6")
-    bottom = rgba("#6a3dce")
-    glow = rgba("#e5ffff")
-    mint = rgba("#7cffd4")
-    white = rgba("#ffffff")
-    shadow = rgba("#07111f")
-    line_shadow = rgba("#10284b")
-    edge_blue = rgba("#152b4a")
-    pixels = []
+    """Draw the MemoryPal logo as RGBA rows (pure Python, no Pillow needed).
 
-    for y in range(canvas_size):
+    Tiny sizes (taskbar, title bar) drop the node cores and spark so the M
+    stays crisp instead of turning into coloured noise.
+    """
+    scale = scale or (4 if size <= 64 else 3 if size <= 128 else 2)
+    canvas = size * scale
+    edge = max(1.0, scale * 1.0)
+    detailed = size > 32
+    top_left = rgba(LOGO_COLORS["top_left"])
+    middle = rgba(LOGO_COLORS["middle"])
+    bottom_right = rgba(LOGO_COLORS["bottom_right"])
+    highlight = rgba(LOGO_COLORS["highlight"])
+    shadow = rgba(LOGO_COLORS["shadow"])
+    mark = rgba(LOGO_COLORS["mark"])
+    spark_color = rgba(LOGO_COLORS["spark"])
+    radius = canvas * LOGO_RADIUS
+    path = [(x * canvas, y * canvas) for x, y in LOGO_PATH]
+    half_stroke = canvas * LOGO_STROKE / 2
+    nodes = [(x * canvas, y * canvas, rgba(color)) for x, y, color in LOGO_NODES]
+    node_radius = canvas * LOGO_NODE_RADIUS
+    core_radius = canvas * LOGO_CORE_RADIUS
+    shadow_dy = canvas * 0.022
+    shadow_blur = canvas * 0.045
+    spark = (LOGO_SPARK[0] * canvas, LOGO_SPARK[1] * canvas, LOGO_SPARK[2] * canvas)
+
+    def mark_distance(x, y):
+        stroke = min(segment_distance(x, y, *path[i], *path[i + 1]) for i in range(len(path) - 1)) - half_stroke
+        dots = min(math.hypot(x - nx, y - ny) for nx, ny, _c in nodes) - node_radius
+        return min(stroke, dots)
+
+    pixels = []
+    for y in range(canvas):
         row = []
-        for x in range(canvas_size):
-            if not inside_rounded_square(x, y, canvas_size, radius):
+        py = y + 0.5
+        for x in range(canvas):
+            px = x + 0.5
+            shape = coverage(rounded_square_distance(px, py, canvas, radius), edge)
+            if shape <= 0:
                 row.append([0, 0, 0, 0])
                 continue
-
-            vertical = y / (canvas_size - 1)
-            color = blend(top, middle, min(1, vertical * 1.55))
-            if vertical > 0.48:
-                color = blend(color, bottom, (vertical - 0.48) / 0.52)
-            color = blend(color, glow, dot_alpha(x, y, canvas_size * 0.75, canvas_size * 0.17, canvas_size * 0.36, 0.28) * 0.26)
-            color = blend(color, white, dot_alpha(x, y, canvas_size * 0.20, canvas_size * 0.14, canvas_size * 0.34, 0.4) * 0.08)
-            color = blend(color, edge_blue, dot_alpha(x, y, canvas_size * 0.18, canvas_size * 0.94, canvas_size * 0.52, 0.55) * 0.16)
-            shade = 0.96 + 0.05 * (1 - vertical)
-            color = [clamp_color(color[0] * shade), clamp_color(color[1] * shade), clamp_color(color[2] * shade), 255]
-
-            path_mark = max(
-                line_alpha(x, y, canvas_size * 0.24, canvas_size * 0.71, canvas_size * 0.42, canvas_size * 0.33, canvas_size * 0.075, 0.18),
-                line_alpha(x, y, canvas_size * 0.42, canvas_size * 0.33, canvas_size * 0.58, canvas_size * 0.59, canvas_size * 0.075, 0.18),
-                line_alpha(x, y, canvas_size * 0.58, canvas_size * 0.59, canvas_size * 0.76, canvas_size * 0.31, canvas_size * 0.075, 0.18),
-            )
-            color = blend(color, mint, path_mark * 0.26)
-
-            shadow_mark = max(
-                line_alpha(x - canvas_size * 0.012, y - canvas_size * 0.020, canvas_size * 0.245, canvas_size * 0.72, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.150, 0.12),
-                line_alpha(x - canvas_size * 0.012, y - canvas_size * 0.020, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.150, 0.12),
-                line_alpha(x - canvas_size * 0.012, y - canvas_size * 0.020, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.150, 0.12),
-                line_alpha(x - canvas_size * 0.012, y - canvas_size * 0.020, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.755, canvas_size * 0.72, canvas_size * 0.150, 0.12),
-            )
-            color = blend(color, line_shadow, shadow_mark * 0.22)
-
-            main_mark = max(
-                line_alpha(x, y, canvas_size * 0.245, canvas_size * 0.72, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.122, 0.08),
-                line_alpha(x, y, canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.122, 0.08),
-                line_alpha(x, y, canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.122, 0.08),
-                line_alpha(x, y, canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.755, canvas_size * 0.72, canvas_size * 0.122, 0.08),
-            )
-            color = blend(color, white, main_mark * 0.96)
-
-            for cx, cy, dot_radius in (
-                (canvas_size * 0.245, canvas_size * 0.31, canvas_size * 0.054),
-                (canvas_size * 0.50, canvas_size * 0.62, canvas_size * 0.052),
-                (canvas_size * 0.755, canvas_size * 0.31, canvas_size * 0.054),
-            ):
-                dot_shadow = dot_alpha(x - canvas_size * 0.010, y - canvas_size * 0.016, cx, cy, dot_radius * 1.16, 0.12)
-                amount = dot_alpha(x, y, cx, cy, dot_radius, 0.07)
-                color = blend(color, shadow, dot_shadow * 0.24)
-                color = blend(color, white, amount * 0.98)
-
+            # Diagonal three-stop gradient, top-left to bottom-right.
+            t = (px + py) / (2 * canvas)
+            color = blend(top_left, middle, t / 0.5) if t < 0.5 else blend(middle, bottom_right, (t - 0.5) / 0.5)
+            # Soft light from the top-left corner.
+            glow = max(0.0, 1 - math.hypot(px - canvas * 0.18, py - canvas * 0.10) / (canvas * 0.75))
+            color = blend(color, highlight, glow * glow * 0.22)
+            # Soft shadow under the mark so it lifts off the background.
+            shade = mark_distance(px, py - shadow_dy)
+            color = blend(color, shadow, max(0.0, min(1.0, 1 - shade / shadow_blur)) * 0.30 if shade > 0 else 0.30)
+            if detailed:
+                sx, sy, reach = spark
+                color = blend(color, spark_color, coverage(spark_distance(px, py, sx, sy, reach), edge) * 0.95)
+            color = blend(color, mark, coverage(mark_distance(px, py), edge))
+            if detailed:
+                for nx, ny, core in nodes:
+                    color = blend(color, core, coverage(math.hypot(px - nx, py - ny) - core_radius, edge))
+            color[3] = clamp_color(255 * shape)
             row.append(color)
         pixels.append(row)
 
     sampled = []
+    area = scale * scale
     for y in range(size):
         row = []
         for x in range(size):
-            total = [0, 0, 0, 0]
+            red = green = blue = alpha = 0
             for yy in range(scale):
+                source_row = pixels[y * scale + yy]
                 for xx in range(scale):
-                    source = pixels[y * scale + yy][x * scale + xx]
-                    for channel in range(4):
-                        total[channel] += source[channel]
-            row.append([clamp_color(value / (scale * scale)) for value in total])
+                    r, g, b, a = source_row[x * scale + xx]
+                    red += r * a
+                    green += g * a
+                    blue += b * a
+                    alpha += a
+            if alpha:
+                row.append([clamp_color(red / alpha), clamp_color(green / alpha), clamp_color(blue / alpha), clamp_color(alpha / area)])
+            else:
+                row.append([0, 0, 0, 0])
         sampled.append(row)
     return sampled
+
+
+MASTER_SIZE = 256
+MASTER_CACHE_VERSION = 2  # bump whenever the logo artwork changes
+
+
+def master_cache_path():
+    base = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+    return Path(base) / "MemoryPal" / f"icon-master-v{MASTER_CACHE_VERSION}.bin"
+
+
+@lru_cache(maxsize=1)
+def master_pixels():
+    """The logo at 256px, drawn once and kept on disk between runs.
+
+    Drawing the logo is pure Python and takes seconds at larger sizes, so
+    every other size is shrunk from this copy instead of drawn again.
+    """
+    expected = MASTER_SIZE * MASTER_SIZE * 4
+    path = master_cache_path()
+    try:
+        raw = zlib.decompress(path.read_bytes())
+    except (OSError, zlib.error):
+        raw = b""
+    if len(raw) != expected:
+        pixels = render_icon_pixels(MASTER_SIZE, scale=1)
+        raw = bytes(channel for row in pixels for pixel in row for channel in pixel)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(zlib.compress(raw, 6))
+        except OSError:
+            pass
+    return raw
+
+
+@lru_cache(maxsize=24)
+def icon_pixels(size):
+    """RGBA rows for the logo at any size up to 256, area-averaged from the master."""
+    size = max(1, int(size))
+    if size <= 32:
+        # Tiny sizes are drawn directly with the simplified mark (no node
+        # cores or spark), which stays crisp where a shrunk copy would blur.
+        return [list(map(list, row)) for row in render_icon_pixels(size)]
+    raw = master_pixels()
+    master = MASTER_SIZE
+    if size >= master:
+        return [[list(raw[(y * master + x) * 4:(y * master + x) * 4 + 4]) for x in range(master)] for y in range(master)]
+    step = master / size
+    bounds = [(int(round(index * step)), max(int(round(index * step)) + 1, int(round((index + 1) * step)))) for index in range(size)]
+    rows = []
+    for y0, y1 in bounds:
+        row = []
+        for x0, x1 in bounds:
+            red = green = blue = alpha = 0
+            for y in range(y0, y1):
+                offset = (y * master + x0) * 4
+                for _x in range(x0, x1):
+                    a = raw[offset + 3]
+                    # Premultiply so transparent corners don't darken the edge.
+                    red += raw[offset] * a
+                    green += raw[offset + 1] * a
+                    blue += raw[offset + 2] * a
+                    alpha += a
+                    offset += 4
+            count = (y1 - y0) * (x1 - x0)
+            if alpha:
+                row.append([clamp_color(red / alpha), clamp_color(green / alpha), clamp_color(blue / alpha), clamp_color(alpha / count)])
+            else:
+                row.append([0, 0, 0, 0])
+        rows.append(row)
+    return rows
 
 
 def dib_from_pixels(pixels):
@@ -145,7 +274,7 @@ def dib_from_pixels(pixels):
 
 
 def build_ico_bytes():
-    images = [dib_from_pixels(render_icon_pixels(size)) for size in ICON_SIZES]
+    images = [dib_from_pixels(icon_pixels(size)) for size in ICON_SIZES]
     offset = 6 + 16 * len(images)
     entries = []
     for size, image in zip(ICON_SIZES, images):
@@ -192,7 +321,7 @@ def ensure_png_file(path, size=1024):
     return path
 
 
-def export_icon_assets(directory, png_size=512):
+def export_icon_assets(directory, png_size=1024):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     ico_path = ensure_icon_file(directory / "memorypal.ico")
