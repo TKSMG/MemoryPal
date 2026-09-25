@@ -1,6 +1,6 @@
 # MemoryPal Tester Guide - Start Here
 
-Thanks for testing MemoryPal. This beta is version 0.44.0 (development milestone v68). It takes about 20-30 minutes to try the main parts.
+Thanks for testing MemoryPal. This beta is version 0.45.0 (development milestone v69). It takes about 20-30 minutes to try the main parts.
 
 ## 1. Install
 
@@ -43,7 +43,9 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 
 ## 4. Send feedback
 
-- In the app, open **Feedback Log**, add notes as you go, then use **Export CSV** and send me the file.
+- In the app, open **Feedback Log** and add notes as you go (a rating, what page, and what happened).
+- When you're done, press **Send Feedback Now** to send them straight to the MemoryPal team (needs internet). If that doesn't work, use **Email Feedback** or **Save Feedback File** instead.
+- Only your notes plus your Windows version, text size, and theme are sent. Your profile name and study cards are never included.
 - For crashes or odd behaviour, a screenshot and one sentence about what you clicked is very helpful.
 - Please also mention your Windows version and screen scaling (for example 100%, 125%, or 150%).
 

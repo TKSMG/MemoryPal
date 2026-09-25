@@ -136,6 +136,12 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 
 ## Current Features
 
+- Feedback can be sent to the MemoryPal team straight from the Feedback Log: Send Feedback Now posts the waiting notes through FormSubmit (no mail account needed), Email Feedback opens the tester's own mail app or Gmail with the report filled in, and Save Feedback File writes a text report to attach. Notes are marked as sent so they are not sent twice. Reports include the notes plus Windows version, text size, and theme, never the profile name or study cards, and nothing is sent unless the person presses a button.
+- Dragging the custom resize edges shows a Windows-style outline of the new size; the window resizes once when the mouse is released.
+- In-page updates (adding rows, showing a new section) swap in finished in one frame, using the same snapshot method as page switches, so sections no longer flash or jump.
+- Popups become the active window so typing goes to them straight away, stay above the main window, and hand focus back when closed.
+- Flat buttons no longer nudge their text when pressed.
+- Text in labels can be highlighted and copied (drag, double-click for a word, triple-click for a line, Ctrl+C).
 - New MemoryPal logo: a cleaner connected "memory path" M on a blue-to-violet tile, with mint and amber recall nodes and a small spark. The same design is used for the app/taskbar icon, title strip, navigation rail, installer, macOS icon, and the `assets/` exports; tiny sizes use a simplified mark so it stays crisp at 16-32px.
 - Ctrl+K page finder opens a searchable list of every page and common action; a Back button in the header (or Alt+Left) returns to the previous page.
 - App-styled dropdown lists replace the stock Tk menus.
@@ -197,7 +203,7 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 - Study Plan page that builds a short session plan from time, goal, deck choice, and preferred study habits.
 - Stats page with daily goal editing, streaks, activity heatmap, and upcoming review preview.
 - Stats page includes weekly pace, active-day count, best-day signal, weak-card count, daily goal, streaks, and heatmap.
-- Feedback Log page for tester ratings, bug notes, confusing moments, accessibility comments, and CSV export.
+- Feedback Log page for tester ratings, bug notes, confusing moments, accessibility comments, and spreadsheet (CSV) export.
 - Focus queue for due, weak, and fresh cards.
 - Dashboard next-step recommendations, mastery progress, due/learning/mastered chips, and a small daily-action prompt.
 - Memory Gym page with separate student-study and everyday-memory practice paths.
@@ -267,6 +273,7 @@ development_versions/MemoryPal_v65_beta_macos_packaging.py
 development_versions/MemoryPal_v66_beta_accessibility_elder_support.py
 v67 beta - onboarding, read aloud, and planning (live app only; see VERSION_JOURNAL.md)
 v68 beta - dashboard, charts, navigation, media, and new logo (live app only; see VERSION_JOURNAL.md)
+v69 beta - in-app feedback sending, resize outline, and smoothness fixes (live app only; see VERSION_JOURNAL.md)
 assets/memorypal.ico
 assets/memorypal-logo-preview.png
 assets/memorypal-logo.svg

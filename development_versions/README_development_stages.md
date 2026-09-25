@@ -481,6 +481,16 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 - Redesigned the logo as a flatter connected "memory path" M with mint/amber nodes and a spark; updated `icon.py`, the `.ico`, a 1024px PNG, and the SVG, with a simplified mark at 32px and below.
 - Added tests for documents, media, progress, planning, store, and the icon. Release version bumped to 0.44.0.
 
+### v69 Beta - in-app feedback, resize outline, and smoothness
+
+- Recorded in the live app only; no separate standalone milestone file.
+- Added `memorypal/feedback.py`: Send Feedback Now (FormSubmit relay to the team address, with a one-time activation), Email Feedback (mail app or Gmail), and Save Feedback File, plus sent/unsent tracking on feedback entries.
+- Added a Windows-style resize outline while dragging the custom resize edges.
+- Added `smooth()` so in-page rebuilds swap in under the screen snapshot.
+- Fixed popup activation and focus return, kept borderless popups above their owner, and stopped flat buttons shifting text on press.
+- Made label text selectable and copyable.
+- Added feedback tests. Release version bumped to 0.45.0.
+
 ## Mobile Version Note
 
 A separate production mobile version is still needed later. The Kivy prototype in `mobile_app/` is a starting point, but the finished app should use native phone APIs for the microphone, camera, file picker, storage permissions, and large touch controls instead of copying the desktop Tkinter interface directly.

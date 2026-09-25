@@ -5,7 +5,7 @@ from dataclasses import asdict
 from datetime import date, timedelta
 
 from . import paths
-from .core import add_days, today_iso
+from .core import add_days, now_label, today_iso
 from .models import Card, Capture, FeedbackEntry, sample_cards
 
 
@@ -423,6 +423,17 @@ class MemoryStore:
         self.feedback.insert(0, entry)
         self.save()
         return entry
+
+    def unsent_feedback(self):
+        return [entry for entry in self.feedback if not entry.sent_at]
+
+    def mark_feedback_sent(self, ids):
+        ids = set(ids)
+        stamp = now_label()
+        for entry in self.feedback:
+            if entry.id in ids:
+                entry.sent_at = stamp
+        self.save()
 
     def feedback_summary(self):
         rated = [entry.rating for entry in self.feedback if entry.rating > 0]
