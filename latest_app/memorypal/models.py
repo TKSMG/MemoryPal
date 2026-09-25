@@ -115,6 +115,7 @@ class FeedbackEntry:
     page: str = "Overall app"
     note: str = ""
     created_at: str = field(default_factory=now_label)
+    sent_at: str = ""  # when it was sent from the app; empty until then
 
     @classmethod
     def from_dict(cls, raw):
@@ -129,6 +130,7 @@ class FeedbackEntry:
             page=raw.get("page", "Overall app") or "Overall app",
             note=raw.get("note", ""),
             created_at=raw.get("created_at", raw.get("createdAt", now_label())),
+            sent_at=raw.get("sent_at", "") or "",
         )
 
 

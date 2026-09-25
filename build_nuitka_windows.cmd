@@ -78,8 +78,8 @@ if not exist release mkdir release
   --company-name="MemoryPal" ^
   --product-name="MemoryPal" ^
   --file-description="MemoryPal desktop memory trainer" ^
-  --product-version="0.44.0" ^
-  --file-version="0.44.0" ^
+  --product-version="0.45.0" ^
+  --file-version="0.45.0" ^
   --windows-icon-from-ico="%MEMORYPAL_ICON%" ^
   --tcl-library-dir="%TCL_LIBRARY%" ^
   --tk-library-dir="%TK_LIBRARY%" ^

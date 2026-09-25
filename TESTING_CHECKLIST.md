@@ -82,7 +82,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Use the titlebar square button and confirm it uses borderless focus mode instead of true fullscreen.
 - While editing a field, toggle true fullscreen and focus mode and confirm the current page is not rebuilt.
 - Confirm fullscreen, focus mode, and resize release do not rebuild the active page or lose current field contents.
-- Drag a custom resize grip and confirm the window size only changes after releasing the mouse.
+- Drag a custom resize grip and confirm a thin outline shows the new size while dragging, the window only changes after releasing the mouse, and the outline disappears afterwards.
 - Toggle true fullscreen and focus mode from Settings and confirm the active page returns cleanly without a white flash, whole-window dim, freeze, or stuck cover.
 - While already in true fullscreen, switch pages and confirm the page content changes without white flashes.
 - Confirm fullscreen/focus changes do not freeze the app or leave a cover stuck on screen.
@@ -188,6 +188,13 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Confirm Category Sort creates suggested groups from pasted or sample items.
 - Confirm Routine Recall hides the shown steps and scores the typed recall attempt.
 
+## Smoothness And Text
+
+- On pages that add or remove rows (Capture, Study Plan, Feedback Log), confirm the section updates in one step without a flash or jump.
+- Open a dialog, type straight away without clicking it, and confirm the text goes into the dialog. Close it and confirm typing goes back to the main window.
+- Press and hold a flat button and confirm its text does not shift.
+- Drag across text in a label, double-click a word, triple-click a line, press Ctrl+C, and paste elsewhere to confirm the copy worked.
+
 ## Navigation
 
 - Press Ctrl+K, type part of a page name, use the arrow keys and Enter, and confirm the page opens. Press Escape to close the finder.
@@ -223,7 +230,13 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Confirm Stats shows this week, active days, best day, weak-card count, streak, daily goal, heatmap, and deck breakdown.
 - Add a note in Feedback Log and confirm it stays after switching pages.
 - Close and reopen the app, then confirm Feedback Log still shows the saved note.
-- Export Feedback Log and confirm the CSV opens with rating, category, page, note, and created date.
+- Export Feedback Log with Export as Spreadsheet and confirm the CSV opens with rating, category, page, note, and created date.
+- Press Send Feedback Now while online and confirm a "Sent!" message appears and the notes are marked as sent (they are not offered again).
+- On the very first send, confirm the "Almost ready" message explains the one-time activation, then activate the form from the confirmation email in memorypal09@gmail.com and send again.
+- Turn Wi-Fi off, press Send Feedback Now, and confirm a calm offline message appears and the notes stay saved.
+- Press Email Feedback and confirm the mail app (or Gmail link) opens with the report filled in; with a long report, confirm the file to attach is saved and shown in File Explorer.
+- Press Save Feedback File and confirm the text report contains the notes, Windows version, text size, and theme, but not the profile name or any cards.
+- Confirm the app stays responsive (no freeze) while a send is in progress.
 - Switch profiles and confirm each profile has separate data.
 - Confirm each profile can keep a different navigation order.
 

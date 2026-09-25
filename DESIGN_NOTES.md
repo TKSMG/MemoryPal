@@ -52,13 +52,15 @@ Wide builder pages need horizontal scrolling when they use side-by-side panels. 
 
 Custom resize grips should apply the final size on release. This avoids constant redraw jitter and gives the fade a single settled state to reveal.
 
-Feedback capture should stay local, short, and easy to export. Testers should not need an account just to say that something was confusing, too small, broken, or useful.
+Feedback capture should stay local, short, and easy to export. Sending is always the tester's choice: one button sends directly, with email and a saved file as fallbacks, and the report says plainly what it includes. It never includes profile names or study cards. Testers should not need an account just to say that something was confusing, too small, broken, or useful.
 
 Legacy data migration should copy old files forward without overwriting newer app-data changes. Long testing periods make data trust part of the user experience.
 
 ## Navigation And Motion
 
 People should never feel lost: every page is reachable from the rail, from Ctrl+K, and by going Back. Big changes (theme, text size, rebuilding the shell) happen out of sight and appear in one frame; popups appear already finished instead of fading.
+
+Resizing shows an outline of the new size while dragging and applies it once on release, the same way Windows does, so the page never reflows repeatedly. Small in-page updates use the same snapshot swap as page changes.
 
 ## Dashboard And Progress
 

@@ -6,6 +6,7 @@ import random
 import re
 import struct
 import sys
+import threading
 import tkinter as tk
 import tkinter.font as tkfont
 import zlib
@@ -78,6 +79,7 @@ from memorypal.paths import (
     switch_active_profile_paths,
 )
 from memorypal import onboarding, progress, techniques
+from memorypal import feedback as feedback_report
 from memorypal import media
 from memorypal.speech import Speaker
 from memorypal.planning import (
@@ -758,6 +760,8 @@ class MemoryPalApp(tk.Tk):
         self._set_window_size()
         self.configure(bg=COLORS["bg"])
         self._styles()
+        self.install_text_selection()
+        self.keep_flat_buttons_still()
         self._shell()
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self.bind("<Map>", self.restore_window_chrome, add="+")
@@ -904,6 +908,30 @@ class MemoryPalApp(tk.Tk):
             if cover is not None:
                 remove_screen_cover(cover)
 
+    def smooth(self, rebuild):
+        """Wrap an in-page rebuild so it swaps in finished, in one frame.
+
+        Rebuilding part of a page (new buttons, a different number of rows,
+        a taller or shorter section) paints each geometry pass as it happens,
+        which reads as a flash and a jump. The wrapped function runs under the
+        same pixel-identical snapshot used for page switches. While a page is
+        first being built, or inside another hidden change, it just runs.
+        """
+        def run(*args, **kwargs):
+            if getattr(self, "_building_view", False) or getattr(self, "_hidden_active", False):
+                return rebuild(*args, **kwargs)
+            try:
+                viewable = bool(self.winfo_viewable())
+            except tk.TclError:
+                viewable = False
+            if not viewable:
+                return rebuild(*args, **kwargs)
+            result = {}
+            self.run_hidden_change(lambda: result.setdefault("value", rebuild(*args, **kwargs)))
+            return result.get("value")
+
+        return run
+
     def run_hidden_change(self, change, fallback=None):
         """Run a big in-window change with the calculation gap hidden.
 
@@ -930,10 +958,12 @@ class MemoryPalApp(tk.Tk):
         if cover is None and not frozen:
             (fallback or change)()
             return
+        self._hidden_active = True
         try:
             change()
             self.settle_layout()
         finally:
+            self._hidden_active = False
             if frozen:
                 self.set_redraw_frozen(False)
             flush_pending_paint(self)
@@ -1482,7 +1512,8 @@ class MemoryPalApp(tk.Tk):
 
     def start_resize(self, event, mode="se"):
         self.capture_normal_geometry()
-        self.resize_start = (event.x_root, event.y_root, self.winfo_width(), self.winfo_height(), self.winfo_x(), self.winfo_y(), mode)
+        self.resize_start = (event.x_root, event.y_root, self.winfo_width(), self.winfo_height(), self.winfo_rootx(), self.winfo_rooty(), mode)
+        self.pending_resize_geometry = None
 
     def resize_window(self, event):
         if not self.resize_start or self.is_fullscreen:
@@ -1494,21 +1525,115 @@ class MemoryPalApp(tk.Tk):
         width = max(min_width, start_width + (dx if "e" in mode else 0))
         height = max(min_height, start_height + (dy if "s" in mode else 0))
         self.pending_resize_geometry = f"{width}x{height}+{window_x}+{window_y}"
+        self.show_resize_outline(window_x, window_y, width, height)
+
+    def show_resize_outline(self, x, y, width, height):
+        """Preview the new size as an outline, like Windows does while dragging.
+
+        The outline is four thin, solid, always-on-top bars, one per edge. The
+        real window is resized once, on release. Moving small solid windows
+        is cheap and never shows a half-drawn edge; an earlier version used one
+        big see-through window, which had to be recomposited on every mouse
+        move and made the moving edge blink.
+        """
+        bars = getattr(self, "resize_outline", None)
+        if bars is None or not all(bar.winfo_exists() for bar in bars):
+            self.hide_resize_outline()
+            thickness = max(2, self.px(3)) + 2  # accent line plus a dark 1px rim each side
+            bars = []
+            for side in ("top", "bottom", "left", "right"):
+                bar = tk.Toplevel(self)
+                bar.withdraw()
+                bar.overrideredirect(True)
+                bar.configure(bg="#0b1220")
+                try:
+                    bar.attributes("-topmost", True)
+                except tk.TclError:
+                    pass
+                # A dark rim around a bright accent line reads on light and
+                # dark backgrounds alike. The side bars fit between the top
+                # and bottom bars, so their accent runs straight into them.
+                accent = COLORS["primary"]
+                if side in ("top", "bottom"):
+                    tk.Frame(bar, bg=accent).place(x=1, y=1, relwidth=1, relheight=1, width=-2, height=-2)
+                    # Open the inner rim where a side bar joins, so the corner is one clean L.
+                    joint_y = thickness - 1 if side == "top" else 0
+                    tk.Frame(bar, bg=accent).place(x=1, y=joint_y, width=thickness - 2, height=1)
+                    tk.Frame(bar, bg=accent).place(relx=1, x=-(thickness - 1), y=joint_y, width=thickness - 2, height=1)
+                else:
+                    tk.Frame(bar, bg=accent).place(x=1, y=0, relwidth=1, relheight=1, width=-2)
+                bar.side = side
+                bars.append(bar)
+            self.resize_outline = bars
+            self.resize_outline_thickness = thickness
+            self.place_resize_bars(bars, x, y, width, height)
+            for bar in bars:
+                bar.deiconify()
+            return
+        self.place_resize_bars(bars, x, y, width, height)
+
+    def place_resize_bars(self, bars, x, y, width, height):
+        t = self.resize_outline_thickness
+        spots = {
+            "top": (x, y, width, t),
+            "bottom": (x, y + height - t, width, t),
+            "left": (x, y + t, t, max(1, height - 2 * t)),
+            "right": (x + width - t, y + t, t, max(1, height - 2 * t)),
+        }
+        # Move all four in one step so the edges never drift apart mid-drag.
+        try:
+            import ctypes
+
+            user32 = ctypes.windll.user32
+            user32.BeginDeferWindowPos.restype = ctypes.c_void_p
+            user32.DeferWindowPos.restype = ctypes.c_void_p
+            user32.DeferWindowPos.argtypes = (ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint)
+            user32.EndDeferWindowPos.argtypes = (ctypes.c_void_p,)
+            handles = [self.window_handle(bar) for bar in bars]
+            if all(handles) and all(bar.winfo_ismapped() for bar in bars):
+                batch = user32.BeginDeferWindowPos(len(bars))
+                for bar, hwnd in zip(bars, handles):
+                    bx, by, bw, bh = spots[bar.side]
+                    # SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
+                    batch = user32.DeferWindowPos(batch, hwnd, None, bx, by, bw, bh, 0x0004 | 0x0010 | 0x0200) if batch else None
+                if batch and user32.EndDeferWindowPos(batch):
+                    return
+        except (AttributeError, OSError):
+            pass
+        for bar in bars:
+            bx, by, bw, bh = spots[bar.side]
+            bar.geometry(f"{bw}x{bh}+{bx}+{by}")
+
+    def hide_resize_outline(self):
+        bars = getattr(self, "resize_outline", None)
+        self.resize_outline = None
+        for bar in bars or ():
+            try:
+                bar.destroy()
+            except tk.TclError:
+                pass
 
     def stop_resize(self, _event=None):
         geometry = self.pending_resize_geometry
         self.resize_start = None
         self.pending_resize_geometry = None
-        if geometry:
-            # Resize the existing widget tree directly.  The layout managers
-            # already respond to <Configure>; hiding the whole application here
-            # only masked the underlying geometry problem.
-            try:
-                self.geometry(geometry)
-                self.update_idletasks()
-                self.layout_app_body()
-            except tk.TclError:
-                pass
+        if not geometry:
+            self.hide_resize_outline()
+            return
+        size = geometry.split("+")[0]
+        width, height = (int(value) for value in size.split("x"))
+        position = geometry[len(size):]
+
+        def apply():
+            self.hide_resize_outline()
+            self.geometry(f"{width}x{height}{position}")
+
+        # Same single-frame swap as fullscreen: everything reflows under a
+        # snapshot and the finished layout appears at once.
+        try:
+            self.run_window_change(apply, (width, height))
+        except tk.TclError:
+            self.hide_resize_outline()
 
     def ease_out_cubic(self, step, total_steps):
         progress = clamp(step / max(1, total_steps), 0, 1)
@@ -1726,8 +1851,100 @@ class MemoryPalApp(tk.Tk):
         y = owner.winfo_rooty() + max(0, (owner.winfo_height() - popup_height) // 3)
         top.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
         self.reveal_window(top, owner)
+        previous_grab = None
         if modal:
+            previous_grab = top.grab_current()
             top.grab_set()
+        self.activate_popup(top, owner, previous_grab)
+
+    def activate_popup(self, top, owner, previous_grab=None):
+        """Make a popup the active window, and give focus back when it closes.
+
+        Borderless (override-redirect) windows are shown without being
+        activated, so Windows keeps sending keystrokes to the window
+        underneath. Typing into a popup's box then only worked when Tk
+        happened to pass the keys along. Activating the popup sends keys to
+        it every time.
+        """
+        def activate():
+            try:
+                if not top.winfo_exists():
+                    return
+                top.focus_force()
+                hwnd = self.window_handle(top)
+                if hwnd and sys.platform.startswith("win"):
+                    import ctypes
+
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+            except (tk.TclError, AttributeError, OSError):
+                pass
+
+        activate()
+
+        def give_back(event):
+            if event.widget is not top:
+                return
+
+            def restore():
+                try:
+                    # A dialog opened from another popup (like Profiles) takes
+                    # over its grab; hand it back so that popup stays modal.
+                    if previous_grab is not None and previous_grab is not top and previous_grab.winfo_exists():
+                        previous_grab.grab_set()
+                    if owner is not None and owner.winfo_exists() and owner.winfo_ismapped():
+                        owner.focus_force()
+                except tk.TclError:
+                    pass
+
+            try:
+                self.after_idle(restore)
+            except tk.TclError:
+                pass
+
+        top.bind("<Destroy>", give_back, add="+")
+
+    def window_handle(self, window):
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            get_ancestor = ctypes.windll.user32.GetAncestor
+            get_ancestor.restype = wintypes.HWND
+            get_ancestor.argtypes = (wintypes.HWND, ctypes.c_uint)
+            return get_ancestor(window.winfo_id(), 2)  # GA_ROOT: the real top-level window
+        except (AttributeError, OSError, tk.TclError):
+            return None
+
+    def own_window(self, top, owner):
+        """Keep a borderless popup above the window it belongs to.
+
+        On Windows, Tk turns a borderless window marked transient into a
+        child window, and Windows never lets a child window be the active
+        one, so it can't get keyboard focus (typing in it only worked by
+        chance). Instead the owner is set directly when the popup is shown:
+        it still stays above its owner, and it can be activated.
+        """
+        if sys.platform.startswith("win"):
+            top._native_owner = owner
+        else:
+            top.transient(owner)
+
+    def apply_native_owner(self, top):
+        owner = getattr(top, "_native_owner", None)
+        if owner is None:
+            return
+        try:
+            import ctypes
+
+            user32 = ctypes.windll.user32
+            setter = getattr(user32, "SetWindowLongPtrW", None) or user32.SetWindowLongW
+            setter.restype = ctypes.c_void_p
+            setter.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p)
+            hwnd, owner_hwnd = self.window_handle(top), self.window_handle(owner)
+            if hwnd and owner_hwnd:
+                setter(hwnd, -8, owner_hwnd)  # GWLP_HWNDPARENT: the owner window
+        except (AttributeError, OSError, tk.TclError):
+            pass
 
     def reveal_window(self, top, owner=None):
         """Map a window invisibly, let it lay out and paint, then show it at once.
@@ -1740,6 +1957,7 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             pass
         top.deiconify()
+        self.apply_native_owner(top)
         if owner is not None:
             top.lift(owner)
         else:
@@ -2015,7 +2233,7 @@ class MemoryPalApp(tk.Tk):
         bar = tk.Frame(parent, bg=COLORS["surface_soft"])
         bar.pack(fill="x")
         grip = tk.Frame(bar, bg=COLORS["surface_soft"])
-        grip.pack(side="left", fill="x", expand=True, padx=self.px(14), pady=self.px(8))
+        grip.pack(side="left", fill="both", expand=True, padx=self.px(14))
         icon_size = self.px(22)
         dot = tk.Canvas(grip, width=icon_size, height=icon_size, bg=COLORS["surface_soft"], highlightthickness=0)
         dot.pack(side="left", padx=(0, self.px(10)))
@@ -2032,8 +2250,10 @@ class MemoryPalApp(tk.Tk):
 
         def chrome_button(text, command, bg=None, fg=None, hint=""):
             symbol = {"value": text}
-            width = self.px(38)
-            height = self.px(30)
+            # Even sizes with an even stroke put symbols exactly on the centre
+            # line; odd combinations land half a pixel off.
+            width = self.px(38) // 2 * 2
+            height = self.px(30) // 2 * 2
             button = tk.Canvas(controls, width=width, height=height, bg=COLORS["surface_soft"], highlightthickness=0, cursor="hand2")
             button.pack(side="left", padx=self.px(2))
 
@@ -2049,14 +2269,14 @@ class MemoryPalApp(tk.Tk):
                 # Draw the window controls geometrically instead of using font glyphs.
                 # Font metrics make X/minimize/maximize symbols look subtly off-center
                 # on different platforms and scaling levels.
-                stroke = max(2, self.px(2))
+                stroke = max(2, self.px(2) // 2 * 2)
                 if value == "\u00d7":
                     arm = self.px(6)
                     button.create_line(cx - arm, cy - arm, cx + arm, cy + arm, fill=text_color, width=stroke, capstyle="round")
                     button.create_line(cx + arm, cy - arm, cx - arm, cy + arm, fill=text_color, width=stroke, capstyle="round")
                 elif value == "\u2212":
                     arm = self.px(7)
-                    button.create_line(cx - arm, cy, cx + arm, cy, fill=text_color, width=stroke, capstyle="round")
+                    button.create_line(cx - arm, cy, cx + arm, cy, fill=text_color, width=stroke, capstyle="butt")
                 elif value in ("\u25a1", "\u2750"):
                     half = self.px(6)
                     button.create_rectangle(cx - half, cy - half, cx + half, cy + half, outline=text_color, width=stroke)
@@ -2148,15 +2368,26 @@ class MemoryPalApp(tk.Tk):
     def ensure_nav_item_visible(self, key):
         items = getattr(self, "nav_items_cache", self.ordered_nav_items())
         keys = [item_key for item_key, _label, _short in items]
-        if key not in keys:
-            return
-        index = keys.index(key)
         visible = self.nav_visible_count()
         first = int(getattr(self, "nav_first_index", 0))
-        if index < first:
-            self.nav_first_index = index
-        elif index >= first + visible:
-            self.nav_first_index = max(0, index - visible + 1)
+        # Pages outside the list (Settings, Welcome) keep the current window
+        # of items, but the list must still be drawn: skipping it here left the
+        # rail empty after a rebuild (e.g. switching theme on Settings).
+        if key in keys:
+            index = keys.index(key)
+            if index < first:
+                self.nav_first_index = index
+            elif index >= first + visible:
+                self.nav_first_index = max(0, index - visible + 1)
+        host = getattr(self, "nav_list_frame", None)
+        drawn = getattr(self, "nav_rendered_state", None)
+        state = (host, int(getattr(self, "nav_first_index", 0)), visible, len(items))
+        if drawn == state and getattr(self, "nav_buttons", None) and all(button.winfo_exists() for button in self.nav_buttons.values()):
+            # Already showing exactly this page of items: redrawing it again
+            # (as the idle re-check after a rebuild did) only causes a flash.
+            for nav_key, button in self.nav_buttons.items():
+                button.configure(style="ActiveNav.TButton" if nav_key == key else "Nav.TButton")
+            return
         self.render_nav_page()
 
     def render_nav_page(self):
@@ -2171,6 +2402,7 @@ class MemoryPalApp(tk.Tk):
         max_first = max(0, len(items) - visible)
         first = int(clamp(getattr(self, "nav_first_index", 0), 0, max_first))
         self.nav_first_index = first
+        self.nav_rendered_state = (host, first, visible, len(items))
         end = min(len(items), first + visible)
         self.nav_buttons = {}
         above = first > 0
@@ -2374,9 +2606,11 @@ class MemoryPalApp(tk.Tk):
 
         def draw_icon_text(name, icon_size, icon_color):
             family, glyph = icon_glyph(name)
+            # Nudges for glyphs whose ink isn't centred in the font's box.
+            nudge = {"help": 0.022, "backup": 0.019}.get(name, 0) * pixel_size
             self.create_centered_canvas_text(
                 canvas,
-                pixel_size / 2,
+                pixel_size / 2 + nudge,
                 pixel_size / 2,
                 text=glyph,
                 fill=icon_color,
@@ -2497,7 +2731,7 @@ class MemoryPalApp(tk.Tk):
         self.title_label = ttk.Label(title_box, text="Dashboard", style="Title.TLabel")
         self.title_label.pack(anchor="w", fill="x")
         action_strip = tk.Frame(top, bg=COLORS["surface"])
-        action_strip.grid(row=0, column=1, rowspan=2, sticky="ne", padx=(self.px(18), 0))
+        action_strip.grid(row=0, column=1, sticky="e", padx=(self.px(18), 0))
         status_row = tk.Frame(top, bg=COLORS["surface"])
         status_row.grid(row=1, column=0, sticky="w", pady=(self.px(14), 0))
         streak = self.store.current_streak()
@@ -2625,6 +2859,7 @@ class MemoryPalApp(tk.Tk):
         }
         self.speaker.stop()
         self.audio_player.stop()
+        self.clear_text_selection()
         self.close_page_finder()
         if self.current_view != view:
             self.save_current_draft()
@@ -2656,7 +2891,11 @@ class MemoryPalApp(tk.Tk):
                 pass
         self.view_host = new_host
         try:
-            getattr(self, f"view_{view}")()
+            self._building_view = True
+            try:
+                getattr(self, f"view_{view}")()
+            finally:
+                self._building_view = False
             # Fixed wrap widths clip text on narrow windows and at larger text
             # sizes; make every wrapped label on the page fit its real width.
             self.fit_wrap_tree(new_host)
@@ -2732,7 +2971,7 @@ class MemoryPalApp(tk.Tk):
         top.withdraw()
         top.overrideredirect(True)
         top.configure(bg=COLORS["surface_soft"])
-        top.transient(self)
+        self.own_window(top, self)
         self._finder = top
         box = tk.Frame(top, bg=COLORS["surface_soft"], padx=self.px(16), pady=self.px(14))
         box.pack(fill="both", expand=True)
@@ -2854,7 +3093,7 @@ class MemoryPalApp(tk.Tk):
         top.title("Profiles")
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
-        top.transient(self)
+        self.own_window(top, self)
         top.geometry(f"{self.px(420)}x{self.px(480)}")
         top.minsize(self.px(360), self.px(360))
 
@@ -2870,6 +3109,7 @@ class MemoryPalApp(tk.Tk):
         list_holder = tk.Frame(wrap, bg=COLORS["bg"])
         list_holder.pack(fill="both", expand=True)
 
+        @self.smooth
         def render_list():
             for child in list_holder.winfo_children():
                 child.destroy()
@@ -2987,7 +3227,7 @@ class MemoryPalApp(tk.Tk):
         top.title(title)
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
-        top.transient(owner)
+        self.own_window(top, owner)
         top.resizable(False, False)
         top.configure(bg=COLORS["surface"])
         self.render_window_chrome(top, title, top.destroy, window=top, show_minimize=False, show_fullscreen=False)
@@ -3327,7 +3567,7 @@ class MemoryPalApp(tk.Tk):
         top.withdraw()
         top.overrideredirect(True)
         top.configure(bg=COLORS["surface_soft"])
-        top.transient(anchor.winfo_toplevel())
+        self.own_window(top, anchor.winfo_toplevel())
         inset = self.px(6)
         listbox = tk.Listbox(
             top,
@@ -3522,6 +3762,346 @@ class MemoryPalApp(tk.Tk):
         draw()
         return row
 
+    # ------------------------------------------------------------------
+    # Selectable text
+    # ------------------------------------------------------------------
+    def keep_flat_buttons_still(self):
+        """Stop flat buttons nudging their text when pressed.
+
+        Tk shows a press by sinking the button, and on Windows a sunken
+        button draws its label one pixel lower and to the right, so the words
+        jump under the pointer. Flat buttons here show presses with colour
+        instead, so they stay flat; buttons with a real border keep sinking.
+        """
+        try:
+            self.tk.eval(
+                "if {[info procs ::tk::_mpButtonDown] eq {}} {"
+                " rename ::tk::ButtonDown ::tk::_mpButtonDown;"
+                " rename ::tk::ButtonEnter ::tk::_mpButtonEnter;"
+                " proc ::tk::_mpStayFlat w {"
+                "  variable ::tk::Priv;"
+                "  if {[info exists Priv($w,relief)] && $Priv($w,relief) eq {flat} && [$w cget -relief] eq {sunken}} {"
+                "   $w configure -relief flat; set Priv($w,prelief) flat } };"
+                " proc ::tk::ButtonDown w { ::tk::_mpButtonDown $w; ::tk::_mpStayFlat $w };"
+                " proc ::tk::ButtonEnter w { ::tk::_mpButtonEnter $w; ::tk::_mpStayFlat $w } }"
+            )
+        except tk.TclError:
+            pass  # an unusual Tk: presses just sink as before
+
+    def install_text_selection(self):
+        """Let people highlight and copy any text shown in a label.
+
+        Tk labels can't be selected, and swapping every label for a text box
+        would change how pages lay out. Instead, pressing on a label's text
+        lays a read-only text box with the same font, colours and wrapping
+        exactly over it; the drag carries on in that box, so the highlight
+        appears where the words are. It goes away on the next click elsewhere.
+        Buttons and clickable cards (hand cursor) are left alone.
+        """
+        self._select_overlay = None
+        for widget_class in ("Label", "TLabel"):
+            self.bind_class(widget_class, "<ButtonPress-1>", self._label_press, add="+")
+            self.bind_class(widget_class, "<B1-Motion>", self._label_drag, add="+")
+            self.bind_class(widget_class, "<Double-Button-1>", lambda event: self._label_multi_click(event, "word"), add="+")
+            self.bind_class(widget_class, "<Triple-Button-1>", lambda event: self._label_multi_click(event, "line"), add="+")
+            self.bind_class(widget_class, "<Button-3>", self._label_copy_all, add="+")
+            self.bind_class(widget_class, "<Enter>", self._label_hover_cursor, add="+")
+        self.bind_all("<ButtonPress-1>", self._maybe_clear_selection, add="+")
+
+    def _selectable_label(self, widget):
+        if not isinstance(widget, (tk.Label, ttk.Label)) or not widget.winfo_exists():
+            return False
+        try:
+            text = str(widget.cget("text"))
+            if len(text.strip()) < 2 or str(widget.cget("image")):
+                return False
+            if str(widget.cget("cursor")) not in ("", "xterm"):
+                return False  # clickable (hand) labels keep their click
+        except tk.TclError:
+            return False
+        if widget is getattr(self, "toast", None):
+            return False
+        # Navigation rail and tooltips aren't content.
+        rail = getattr(self, "rail", None)
+        parent = widget
+        while parent is not None:
+            if parent is rail:
+                return False
+            if isinstance(parent, tk.Toplevel) and parent.overrideredirect() and not hasattr(parent, "dialog_owner") and parent is not getattr(self, "_finder", None):
+                return False  # tooltips and dropdown lists
+            parent = parent.master
+        return True
+
+    def _label_hover_cursor(self, event):
+        widget = event.widget
+        if self._selectable_label(widget) and not str(widget.cget("cursor")):
+            try:
+                widget.configure(cursor="xterm")
+            except tk.TclError:
+                pass
+
+    def _label_style(self, label):
+        """Font, colours and layout of a tk or ttk label, as a text box needs them."""
+        if isinstance(label, ttk.Label):
+            style = str(label.cget("style")) or "TLabel"
+
+            def look(option, fallback):
+                value = str(label.cget(option)) if option in label.keys() else ""
+                return value or self.style.lookup(style, option) or fallback
+
+            padding = str(label.cget("padding") or self.style.lookup(style, "padding") or "0").split()
+            # The clam Label layout wraps the text in a 1px border element and
+            # a 1px padding element before any padding of its own.
+            pad = [int(float(value)) + 2 for value in padding] or [2]
+            return {
+                "font": look("font", "TkDefaultFont"),
+                "fg": look("foreground", COLORS["ink"]),
+                "bg": self.style.lookup(style, "background") or COLORS["surface"],
+                "padx": pad[0], "pady": pad[1] if len(pad) > 1 else pad[0],
+                "anchor": look("anchor", "w"), "justify": look("justify", "left"),
+                "wrap": int(float(str(label.cget("wraplength") or 0) or 0)),
+            }
+        return {
+            "font": label.cget("font"), "fg": label.cget("fg"), "bg": label.cget("bg"),
+            "padx": int(float(label.cget("padx"))) + int(float(label.cget("bd"))),
+            "pady": int(float(label.cget("pady"))) + int(float(label.cget("bd"))),
+            "anchor": str(label.cget("anchor")), "justify": str(label.cget("justify")),
+            "wrap": int(float(str(label.cget("wraplength")) or 0)),
+        }
+
+    def clear_text_selection(self):
+        overlay = getattr(self, "_select_overlay", None)
+        self._select_overlay = None
+        if overlay is not None:
+            try:
+                overlay.destroy()
+            except tk.TclError:
+                pass
+
+    def _maybe_clear_selection(self, event):
+        overlay = getattr(self, "_select_overlay", None)
+        if overlay is not None and event.widget not in (overlay, getattr(overlay, "owner", None)):
+            self.clear_text_selection()
+
+    def _overlay_for(self, label):
+        overlay = getattr(self, "_select_overlay", None)
+        if overlay is not None and getattr(overlay, "owner", None) is label and overlay.winfo_exists():
+            return overlay
+        self.clear_text_selection()
+        look = self._label_style(label)
+        text = str(label.cget("text"))
+        box = tk.Text(
+            label.master, font=look["font"], fg=look["fg"], bg=look["bg"], bd=0, highlightthickness=0,
+            padx=0, pady=0, wrap="none", cursor="xterm", insertwidth=0,
+            selectbackground=COLORS["primary"], selectforeground=COLORS["white"], inactiveselectbackground=COLORS["primary"],
+            exportselection=True, takefocus=0, undo=False,
+        )
+        box.owner = label
+        # Break the lines exactly where the label does. Letting the text box
+        # wrap by itself can put a word on a different line (the two measure
+        # the end of a line slightly differently), which makes the text jump
+        # as soon as it is clicked. The added breaks are "soft": copying
+        # turns them back into spaces.
+        for number, line in enumerate(self.label_lines(look["font"], text, look["wrap"])):
+            if number:
+                box.insert("end", "\n", ("soft",) if line[1] else ())
+            box.insert("end", line[0])
+        # Only our own bindings: no typing, no text-box scrolling (the wheel
+        # still scrolls the page through the "all" bindings).
+        box.bindtags((str(box), str(label.winfo_toplevel()), "all"))
+        # place(in_=...) measures from inside the label's border; step back
+        # over it so the text box covers the whole label, pixel for pixel.
+        border = 0
+        if isinstance(label, tk.Label):
+            border = int(float(label.cget("bd"))) + int(float(label.cget("highlightthickness")))
+        box.place(in_=label, x=-border, y=-border, relwidth=1, relheight=1, width=2 * border, height=2 * border)
+        box.update_idletasks()
+        width, height = label.winfo_width(), label.winfo_height()
+        inner_w = max(1, width - 2 * look["padx"])
+        box.tag_configure("all", justify=look["justify"] if look["justify"] in ("left", "center", "right") else "left")
+        box.tag_add("all", "1.0", "end")
+        # Lay the lines out, then measure the block they make.
+        box.tag_configure("all", lmargin1=look["padx"], lmargin2=look["padx"], rmargin=0)
+        box.update_idletasks()
+        lines = []
+        index = "1.0"
+        while True:
+            info = box.dlineinfo(index)
+            if info is None:
+                break
+            lines.append(info)
+            nxt = box.index(f"{index} +1 display lines")
+            if box.compare(nxt, "<=", index):
+                break
+            index = nxt
+        block_h = (lines[-1][1] + lines[-1][3] - lines[0][1]) if lines else 0
+        block_w = max((info[2] for info in lines), default=0)
+        anchor = look["anchor"]
+        left = look["padx"]
+        if anchor in ("center", "n", "s"):
+            left = look["padx"] + max(0, (inner_w - block_w) // 2)
+        elif anchor in ("e", "ne", "se"):
+            left = look["padx"] + max(0, inner_w - block_w)
+        # The label places its text block by anchor and aligns lines inside
+        # that block by justify; make the text box area exactly the block.
+        slack = 2  # spare room for rounding in centred and right-aligned text
+        shift = {"center": slack // 2, "right": slack}.get(look["justify"], 0)
+        box.tag_configure("all", lmargin1=left - shift, lmargin2=left - shift, rmargin=max(0, width - left - max(block_w, 1) - slack + shift))
+        top = look["pady"]
+        if anchor in ("w", "center", "e"):
+            top = max(0, (height - block_h) // 2)
+        elif anchor in ("sw", "s", "se"):
+            top = max(0, height - look["pady"] - block_h)
+        box.configure(pady=0)
+        box.tag_configure("first", spacing1=top)
+        box.tag_add("first", "1.0", "1.0 lineend")
+        box.bind("<ButtonPress-1>", lambda event: self._overlay_press(box, event))
+        box.bind("<B1-Motion>", lambda event: self._overlay_drag(box, event))
+        box.bind("<Double-Button-1>", lambda event: self._overlay_select_unit(box, event, "word"))
+        box.bind("<Triple-Button-1>", lambda event: self._overlay_select_unit(box, event, "line"))
+        box.bind("<Button-3>", lambda _event: self._copy_overlay(box, whole_if_empty=True))
+        for sequence in ("<Control-c>", "<Control-C>", "<Control-Insert>"):
+            box.bind(sequence, lambda _event: (self._copy_overlay(box), "break")[1])
+        for sequence in ("<Control-a>", "<Control-A>"):
+            box.bind(sequence, lambda _event: (box.tag_add("sel", "1.0", "end-1c"), "break")[1])
+        box.bind("<Escape>", lambda _event: self.clear_text_selection())
+        self._select_overlay = box
+        return box
+
+    def label_lines(self, font, text, wrap):
+        """[(line, soft_break_before)] as a Tk label with this wraplength shows them.
+
+        Tk doesn't report where a label wrapped its text, so ask it: a hidden
+        probe label with the same font says whether a stretch of text fits on
+        one line (its requested height is one line tall). The longest stretch
+        that fits, with the space after it, is the line, just as Tk decides it,
+        including a very long word being split when nothing else fits.
+        """
+        paragraphs = str(text).split("\n")
+        if wrap <= 0:
+            return [(line, False) for line in paragraphs]
+        probe = getattr(self, "_wrap_probe", None)
+        if probe is None or not probe.winfo_exists():
+            probe = self._wrap_probe = tk.Label(self, bd=0, padx=0, pady=0, highlightthickness=0, justify="left")
+        probe.configure(font=font, wraplength=wrap, text="x")
+        one_line = probe.winfo_reqheight()
+
+        def fits(chunk):
+            probe.configure(text=chunk)
+            return probe.winfo_reqheight() <= one_line
+
+        lines = []
+        for paragraph in paragraphs:
+            rest = paragraph
+            soft = False
+            while True:
+                if not rest or fits(rest):
+                    lines.append((rest, soft))
+                    break
+                breaks = [index for index, char in enumerate(rest) if char == " " and index and rest[index - 1] != " "]
+                low, high, best = 0, len(breaks) - 1, 0
+                while low <= high:
+                    middle = (low + high) // 2
+                    # Tk counts the space after a word when deciding whether it fits.
+                    if fits(rest[:breaks[middle] + 1]):
+                        best = breaks[middle]
+                        low = middle + 1
+                    else:
+                        high = middle - 1
+                if not best:
+                    # The first word alone is too wide: Tk splits it where it runs out of room.
+                    low, high, best = 1, (breaks[0] if breaks else len(rest)) - 1, 1
+                    while low <= high:
+                        middle = (low + high) // 2
+                        if fits(rest[:middle]):
+                            best = middle
+                            low = middle + 1
+                        else:
+                            high = middle - 1
+                lines.append((rest[:best], soft))
+                rest = rest[best:].lstrip(" ")
+                soft = True
+        return lines
+
+    def _overlay_text(self, box, first, last):
+        """Text between two indices, with the added line breaks put back as spaces."""
+        parts = []
+        cursor = first
+        ranges = box.tag_ranges("soft")
+        for start, end in zip(ranges[0::2], ranges[1::2]):
+            if box.compare(end, "<=", first) or box.compare(start, ">=", last):
+                continue
+            parts.append(box.get(cursor, start))
+            parts.append(" ")
+            cursor = end
+        parts.append(box.get(cursor, last))
+        return "".join(parts)
+
+    def _overlay_press(self, box, event):
+        box.tag_remove("sel", "1.0", "end")
+        box._anchor = box.index(f"@{event.x},{event.y}")
+        box.mark_set("insert", box._anchor)
+        try:
+            box.focus_set()
+        except tk.TclError:
+            pass
+        return "break"
+
+    def _overlay_drag(self, box, event):
+        anchor = getattr(box, "_anchor", None)
+        if anchor is None:
+            return "break"
+        here = box.index(f"@{event.x},{event.y}")
+        box.tag_remove("sel", "1.0", "end")
+        first, last = (anchor, here) if box.compare(anchor, "<=", here) else (here, anchor)
+        box.tag_add("sel", first, last)
+        return "break"
+
+    def _overlay_select_unit(self, box, event, unit):
+        here = f"@{event.x},{event.y}"
+        box.tag_remove("sel", "1.0", "end")
+        if unit == "word":
+            box.tag_add("sel", f"{here} wordstart", f"{here} wordend")
+        else:
+            box.tag_add("sel", f"{here} display linestart", f"{here} display lineend")
+        return "break"
+
+    def _copy_overlay(self, box, whole_if_empty=False):
+        try:
+            text = self._overlay_text(box, box.index("sel.first"), box.index("sel.last"))
+        except tk.TclError:
+            text = self._overlay_text(box, "1.0", box.index("end-1c")) if whole_if_empty else ""
+        if text:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self.toast_message("Copied.")
+
+    def _label_press(self, event):
+        if not self._selectable_label(event.widget):
+            return None
+        box = self._overlay_for(event.widget)
+        return self._overlay_press(box, event)
+
+    def _label_drag(self, event):
+        overlay = getattr(self, "_select_overlay", None)
+        if overlay is not None and getattr(overlay, "owner", None) is event.widget:
+            return self._overlay_drag(overlay, event)
+        return None
+
+    def _label_multi_click(self, event, unit):
+        overlay = getattr(self, "_select_overlay", None)
+        if overlay is not None and getattr(overlay, "owner", None) is event.widget:
+            return self._overlay_select_unit(overlay, event, unit)
+        return None
+
+    def _label_copy_all(self, event):
+        if not self._selectable_label(event.widget):
+            return None
+        self.clipboard_clear()
+        self.clipboard_append(str(event.widget.cget("text")))
+        self.toast_message("Copied.")
+        return "break"
+
     def add_tooltip(self, widget, text):
         if text:
             Tooltip(widget, text)
@@ -3653,6 +4233,7 @@ class MemoryPalApp(tk.Tk):
             choices.columnconfigure(column, weight=1, uniform="persona")
         colors = {"student": COLORS["primary"], "everyday": COLORS["cyan"], "caregiver": COLORS["violet"], "general": COLORS["green"]}
 
+        @self.smooth
         def render_choices():
             for child in choices.winfo_children():
                 child.destroy()
@@ -4283,6 +4864,7 @@ class MemoryPalApp(tk.Tk):
         self.meter(progress_row, len(done) / max(1, len(steps)), COLORS["green"], 10, bg).grid(row=0, column=0, sticky="ew")
         tk.Label(progress_row, text=f"{len(done)} of {len(steps)} steps", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).grid(row=0, column=1, padx=(self.px(12), 0))
 
+        @self.smooth
         def toggle(index):
             now_done = self.store.toggle_plan_step(index)
             if now_done and len(self.store.plan_steps_done()) >= len(steps):
@@ -4711,6 +5293,7 @@ class MemoryPalApp(tk.Tk):
                 child.destroy()
             self.pill_group(amount_host, amount_var, TIME_UNIT_OPTIONS[unit_var.get()], max_columns=4, bg=COLORS["alt"]).pack(fill="x")
 
+        @self.smooth
         def cycle_unit(_event=None):
             current_index = TIME_UNIT_ORDER.index(unit_var.get())
             new_unit = TIME_UNIT_ORDER[(current_index + 1) % len(TIME_UNIT_ORDER)]
@@ -4804,6 +5387,7 @@ class MemoryPalApp(tk.Tk):
                 self.solid_button(row, "Make this my plan", follow, COLORS["primary"]).pack(side="left")
                 tk.Label(row, text="Your Dashboard will show these steps each day, ready to tick off.", bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0))
 
+        @self.smooth
         def render_plan():
             for child in result_holder.winfo_children():
                 child.destroy()
@@ -4863,6 +5447,7 @@ class MemoryPalApp(tk.Tk):
                         on_click=lambda index: (day_var.set(str(days[index]["day"])), show_day(str(days[index]["day"]))),
                     ).pack(fill="x", pady=(self.px(6), 0))
 
+                @self.smooth
                 def show_day(value):
                     for child in day_steps_host.winfo_children():
                         child.destroy()
@@ -5230,6 +5815,7 @@ class MemoryPalApp(tk.Tk):
             index = options.index(pick_var.get()) if pick_var.get() in options else 0
             return self.store.cards[index]
 
+        @self.smooth
         def render():
             for child in body.winfo_children():
                 child.destroy()
@@ -5370,6 +5956,7 @@ class MemoryPalApp(tk.Tk):
                 qa_answer_frame.pack_forget()
                 qa_answer.delete("1.0", "end")
 
+        @self.smooth
         def refresh_qa():
             for child in qa_list.winfo_children():
                 child.destroy()
@@ -5420,6 +6007,7 @@ class MemoryPalApp(tk.Tk):
         chunk_panel = tk.Frame(form, bg=COLORS["surface"])
         chunk_panel.pack(fill="both", expand=True, pady=(8, 12))
 
+        @self.smooth
         def refresh():
             for child in chunk_panel.winfo_children():
                 child.destroy()
@@ -5715,6 +6303,8 @@ class MemoryPalApp(tk.Tk):
         self.button_row(host, [("Start in Test Lab", lambda: self.open_testing(self.current_review, "review", "review"), "Primary.TButton"), ("Focus Queue", lambda: self.show_view("focus"), "TButton"), ("Library", lambda: self.show_view("library"), "TButton")])
 
     def render_review(self, host, show_answer=False, assessment=None, response_text=""):
+        if not getattr(self, "_building_view", False) and not getattr(self, "_hidden_active", False):
+            return self.smooth(lambda: self.render_review(host, show_answer, assessment, response_text))()
         for child in host.winfo_children():
             child.destroy()
         due = self.store.due_cards()
@@ -5944,6 +6534,8 @@ class MemoryPalApp(tk.Tk):
         self.render_quiz(host)
 
     def render_quiz(self, host):
+        if not getattr(self, "_building_view", False) and not getattr(self, "_hidden_active", False):
+            return self.smooth(lambda: self.render_quiz(host))()
         for child in host.winfo_children():
             child.destroy()
         if not self.store.cards:
@@ -6119,6 +6711,7 @@ class MemoryPalApp(tk.Tk):
         count_label = ttk.Label(panel, text="0 repetition items staged", style="CardMuted.TLabel")
         count_label.pack(anchor="w", pady=(0, 8))
 
+        @self.smooth
         def refresh_staged():
             for child in staged_panel.winfo_children():
                 child.destroy()
@@ -6205,6 +6798,7 @@ class MemoryPalApp(tk.Tk):
             refresh_staged()
             self.toast_message("Loaded saved material.")
 
+        @self.smooth
         def build():
             for child in results.winfo_children():
                 child.destroy()
@@ -6228,6 +6822,7 @@ class MemoryPalApp(tk.Tk):
                 return
             round_state = {"index": 0, "items": items, "steps": steps}
 
+            @self.smooth
             def render_round():
                 for child in results.winfo_children():
                     child.destroy()
@@ -6252,6 +6847,7 @@ class MemoryPalApp(tk.Tk):
                 answer_frame = ttk.Frame(item_card, style="Card.TFrame")
                 visible = {"value": False}
 
+                @self.smooth
                 def reveal(frame=answer_frame, ids=indexes, flag=visible):
                     if flag["value"]:
                         frame.pack_forget()
@@ -6265,6 +6861,7 @@ class MemoryPalApp(tk.Tk):
                     frame.pack(fill="x", pady=(8, 0))
                     flag["value"] = True
 
+                @self.smooth
                 def check(box=response, target=result, ids=indexes):
                     for child in bucket_slot.winfo_children():
                         child.destroy()
@@ -6576,6 +7173,7 @@ class MemoryPalApp(tk.Tk):
             "found": set(draft.get("visual_found", [])),
         }
 
+        @self.smooth
         def render_visual_grid():
             for child in visual_holder.winfo_children():
                 child.destroy()
@@ -6868,6 +7466,130 @@ class MemoryPalApp(tk.Tk):
                 })
         self.toast_message("Feedback exported.")
 
+    def feedback_report_text(self, entries):
+        details = feedback_report.system_details(self.accessibility, self.theme)
+        return feedback_report.compose_report(entries, details)
+
+    def send_feedback_now(self, collect, reply_to, button):
+        """Send the waiting notes straight from the app, without freezing it."""
+        reply_to = (reply_to or "").strip()
+        if reply_to and not feedback_report.looks_like_email(reply_to):
+            self.dialog_alert("Check your email address", "That doesn't look like an email address. Fix it, or leave the box empty to send without one.", "error")
+            return
+        self.feedback_reply_to = reply_to
+        entries = collect()
+        if not entries:
+            return
+        if getattr(self, "_feedback_sending", False):
+            return
+        self._feedback_sending = True
+        subject, body = self.feedback_report_text(entries)
+        ids = [entry.id for entry in entries]
+        outcome = {}
+        idle_label = str(button.cget("text"))
+        try:
+            button.configure(text="Sending\u2026", state="disabled", cursor="watch", disabledforeground=COLORS["white"])
+        except tk.TclError:
+            pass
+
+        def work():
+            outcome["result"] = feedback_report.send_report(subject, body, reply_to)
+
+        def finish():
+            self._feedback_sending = False
+            result = outcome["result"]
+            if result.ok:
+                self.store.mark_feedback_sent(ids)
+                self.toast_message(f"Sent! Thank you, the MemoryPal team got your {'notes' if len(ids) != 1 else 'note'}.")
+            elif result.status == "offline":
+                self.dialog_alert("Couldn't reach the internet", "Your notes are saved. Try again when you're online, or save them as a file to send later.", "error")
+            elif result.status == "activation":
+                self.dialog_alert("Almost ready", f"Sending from the app has to be switched on once from {feedback_report.FEEDBACK_EMAIL} (a confirmation email was just sent there). Your notes are saved; send them again once that's done, or use Email or Save meanwhile.", "info")
+            else:
+                self.dialog_alert("Couldn't send the feedback", f"{result.detail} Your notes are saved; try Email or Save instead.".strip(), "error")
+            if self.current_view == "feedback":
+                self.show_view("feedback")
+            else:
+                try:
+                    button.configure(text=idle_label, state="normal", cursor="hand2")
+                except tk.TclError:
+                    pass
+
+        def wait(thread):
+            if thread.is_alive():
+                self.after(100, lambda: wait(thread))
+            else:
+                finish()
+
+        thread = threading.Thread(target=work, daemon=True)
+        thread.start()
+        self.after(100, lambda: wait(thread))
+
+    def email_feedback(self, collect, prefer_gmail=False):
+        entries = collect()
+        if not entries:
+            return
+        import webbrowser
+
+        subject, body = self.feedback_report_text(entries)
+        attachment = None
+        if len(body) > feedback_report.MAX_LINK_BODY:
+            # Too long for an email link: save the whole report to attach.
+            attachment = feedback_report.save_report(feedback_report.default_report_folder() / feedback_report.default_report_name(), subject, body)
+        short = feedback_report.link_body(body, attachment.name if attachment else None)
+        opened = False
+        if not prefer_gmail and feedback_report.has_mail_app():
+            try:
+                os.startfile(feedback_report.mailto_url(subject, short))
+                opened = True
+            except OSError:
+                opened = False
+        if not opened:
+            opened = webbrowser.open(feedback_report.gmail_url(subject, short))
+        if attachment:
+            self.reveal_file(attachment)
+            self.toast_message(f"Email opened. Attach {attachment.name} (it's open in File Explorer), then press Send.")
+        elif opened:
+            self.toast_message("Your email is ready. Check it, then press Send.")
+        else:
+            self.dialog_alert("Couldn't open email", f"Save the feedback as a file instead and send it to {feedback_report.FEEDBACK_EMAIL}.", "error")
+        self.show_view("feedback")
+
+    def save_feedback_file(self, collect):
+        entries = collect()
+        if not entries:
+            return
+        from tkinter import filedialog
+
+        subject, body = self.feedback_report_text(entries)
+        path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Save MemoryPal feedback",
+            initialdir=str(feedback_report.default_report_folder()),
+            initialfile=feedback_report.default_report_name(),
+            defaultextension=".txt",
+            filetypes=[("Text file", "*.txt")],
+        )
+        if not path:
+            self.show_view("feedback")
+            return
+        try:
+            saved = feedback_report.save_report(path, subject, body)
+        except OSError as exc:
+            self.dialog_alert("Couldn't save the file", str(exc), "error")
+            return
+        if self.dialog_confirm("Feedback saved", f"Saved as {saved.name}. Attach it to an email to {feedback_report.FEEDBACK_EMAIL}. Thank you!", "Show the File"):
+            self.reveal_file(saved)
+        self.show_view("feedback")
+
+    def reveal_file(self, path):
+        import subprocess
+
+        try:
+            subprocess.Popen(["explorer", f"/select,{Path(path)}"])
+        except OSError:
+            pass
+
     def view_feedback(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
@@ -6933,7 +7655,81 @@ class MemoryPalApp(tk.Tk):
             self.toast_message("Feedback saved.")
             self.show_view("feedback")
 
-        self.button_row(form, [("Save Feedback", save_feedback, "Primary.TButton"), ("Export Feedback", self.export_feedback, "TButton")])
+        self.button_row(form, [("Save Feedback", save_feedback, "Primary.TButton"), ("Export as Spreadsheet", self.export_feedback, "TButton")])
+
+        def notes_to_send():
+            """Saved notes, plus the one being typed (saved first so nothing is lost)."""
+            typed = note.get("1.0", "end").strip()
+            if typed:
+                rating = int(rating_var.get()) if rating_var.get().isdigit() else 0
+                self.store.add_feedback(rating, category_var.get(), page_var.get(), typed)
+                note.delete("1.0", "end")
+                self.view_drafts["feedback"] = {}
+            if not self.store.feedback:
+                self.toast_message("Write a note first, then send it.")
+                return None
+            return list(self.store.feedback)
+
+        def unsent_notes():
+            """Notes not sent from the app yet (the typed one saved first)."""
+            if notes_to_send() is None:
+                return None
+            waiting = self.store.unsent_feedback()
+            if not waiting:
+                self.toast_message("All your notes have already been sent. Write a new one to send more.")
+                return None
+            return waiting
+
+        send = tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(24), pady=self.px(22))
+        send.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        tk.Frame(send, bg=COLORS["primary"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, self.px(12)))
+        tk.Label(send, text="Send feedback to the MemoryPal team", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w").pack(fill="x")
+        tk.Label(send, text="Your notes stay on this computer until you choose to send them.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(self.px(4), self.px(14)))
+
+        # The main way: straight from the app.
+        direct = tk.Frame(send, bg=COLORS["alt"], padx=self.px(18), pady=self.px(16))
+        direct.pack(fill="x")
+        waiting = len(self.store.unsent_feedback())
+        tk.Label(direct, text="\u27a4  Send it now", bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").pack(fill="x")
+        ready = f"{waiting} note{'s' if waiting != 1 else ''} ready to send." if waiting else "Everything saved so far has been sent."
+        tk.Label(direct, text=f"Goes straight to the MemoryPal team from here. No email app or account needed. {ready}", bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(900), justify="left").pack(anchor="w", pady=(self.px(4), self.px(12)))
+        reply_row = tk.Frame(direct, bg=COLORS["alt"])
+        reply_row.pack(fill="x", pady=(0, self.px(12)))
+        tk.Label(reply_row, text="Your email (optional, so we can reply)", bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="w")
+        reply_var = tk.StringVar(value=draft.get("reply_to", getattr(self, "feedback_reply_to", "")))
+        ttk.Entry(reply_row, textvariable=reply_var, font=self.font("Segoe UI", 11)).pack(fill="x", pady=(self.px(4), 0))
+        send_button = self.solid_button(direct, "Send Feedback Now", None, COLORS["primary"])
+        send_button.configure(command=lambda: self.send_feedback_now(unsent_notes, reply_var.get(), send_button))
+        send_button.pack(fill="x")
+
+        tk.Label(send, text="Or do it yourself:", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(16), self.px(8)))
+        options = tk.Frame(send, bg=COLORS["surface"])
+        options.pack(fill="x")
+        stack = self.accessibility_multiplier() > 1.1
+        for index, (icon, title, body, label, action, color) in enumerate((
+            ("\u2709", "Email it", "Opens your email app (or Gmail in your browser) with everything filled in. Check it, then press Send.", "Email Feedback", lambda: self.email_feedback(notes_to_send), COLORS["violet"]),
+            ("\U0001F4BE", "Save it as a file", f"Saves a text file you can attach to an email and send to {feedback_report.FEEDBACK_EMAIL} yourself.", "Save Feedback File", lambda: self.save_feedback_file(notes_to_send), COLORS["green"]),
+        )):
+            option = tk.Frame(options, bg=COLORS["alt"], padx=self.px(18), pady=self.px(16))
+            if stack:
+                option.grid(row=index, column=0, sticky="nsew", pady=(0 if index == 0 else self.px(12), 0))
+            else:
+                option.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else self.px(12), 0))
+                options.columnconfigure(index, weight=1, uniform="send")
+            tk.Label(option, text=f"{icon}  {title}", bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").pack(fill="x")
+            tk.Label(option, text=body, bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(440), justify="left").pack(anchor="w", pady=(self.px(4), self.px(12)))
+            self.solid_button(option, label, action, color).pack(fill="x")
+        if stack:
+            options.columnconfigure(0, weight=1)
+        address = tk.Frame(send, bg=COLORS["surface"])
+        address.pack(fill="x", pady=(self.px(14), 0))
+        tk.Label(address, text="Send to:", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11)).pack(side="left")
+        tk.Label(address, text=feedback_report.FEEDBACK_EMAIL, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11)).pack(side="left", padx=(self.px(6), self.px(12)))
+        ttk.Button(address, text="Copy Address", command=lambda: (self.clipboard_clear(), self.clipboard_append(feedback_report.FEEDBACK_EMAIL), self.toast_message("Email address copied."))).pack(side="left")
+        gmail = tk.Label(address, text="Use Gmail in the browser instead", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10, ), cursor="hand2")
+        gmail.pack(side="right")
+        gmail.bind("<Button-1>", lambda _event: self.email_feedback(notes_to_send, prefer_gmail=True))
+        tk.Label(send, text="Included: your saved notes, plus your Windows version, text size and theme to help fix problems. Never your study cards or profile name.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(self.px(10), 0))
 
         recent = self.card(page.inner, "AltCard.TFrame", 22)
         recent.pack(fill="x", padx=(0, 8))
@@ -6943,7 +7739,8 @@ class MemoryPalApp(tk.Tk):
         for entry in self.store.feedback[:10]:
             item = tk.Frame(recent, bg=COLORS["surface"], padx=self.px(14), pady=self.px(12), highlightthickness=1, highlightbackground=COLORS["soft_line"])
             item.pack(fill="x", pady=(10, 0))
-            tk.Label(item, text=f"{entry.rating}/5 | {entry.category} | {entry.page} | {entry.created_at}", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="w")
+            sent = f" | sent {entry.sent_at}" if entry.sent_at else ""
+            tk.Label(item, text=f"{entry.rating}/5 | {entry.category} | {entry.page} | {entry.created_at}{sent}", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="w")
             tk.Label(item, text=entry.note, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 11), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(4, 0))
 
         self.register_draft_saver("feedback", lambda: {
@@ -6951,6 +7748,7 @@ class MemoryPalApp(tk.Tk):
             "category": category_var.get(),
             "page": page_var.get(),
             "note": note.get("1.0", "end").strip(),
+            "reply_to": reply_var.get().strip(),
         })
 
     def view_settings(self):
@@ -7193,6 +7991,7 @@ class MemoryPalApp(tk.Tk):
             query = normalize_space(search_var.get()).lower()
             return not query or query in text.lower()
 
+        @self.smooth
         def render():
             for child in page.inner.winfo_children():
                 child.destroy()
