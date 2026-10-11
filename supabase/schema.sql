@@ -92,24 +92,34 @@ create policy "change own records" on public.sync_records
 -- Two-step sign-in, enforced by the database: once someone has added an
 -- authenticator app, their data can only be reached with a session that
 -- passed that second step (aal2). A stolen password alone is not enough.
+-- Signed-in users can't read auth.mfa_factors themselves (querying it from
+-- the policy failed every sync with "permission denied"), so a definer
+-- function in the unexposed "private" schema answers for them.
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to authenticated;
+
+create or replace function private.has_verified_second_step()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from auth.mfa_factors
+    where user_id = (select auth.uid()) and status = 'verified'
+  );
+$$;
+revoke all on function private.has_verified_second_step() from public, anon;
+grant execute on function private.has_verified_second_step() to authenticated;
+
 drop policy if exists "two-step accounts need the second step" on public.sync_records;
 create policy "two-step accounts need the second step" on public.sync_records
   as restrictive
   to authenticated
-  using (
-    array[(select auth.jwt()->>'aal')] <@ (
-      select case when count(id) > 0 then array['aal2'] else array['aal1', 'aal2'] end
-      from auth.mfa_factors
-      where (select auth.uid()) = user_id and status = 'verified'
-    )
-  )
-  with check (
-    array[(select auth.jwt()->>'aal')] <@ (
-      select case when count(id) > 0 then array['aal2'] else array['aal1', 'aal2'] end
-      from auth.mfa_factors
-      where (select auth.uid()) = user_id and status = 'verified'
-    )
-  );
+  using ((select auth.jwt()->>'aal') = 'aal2' or not (select private.has_verified_second_step()))
+  with check ((select auth.jwt()->>'aal') = 'aal2' or not (select private.has_verified_second_step()));
 
 -- No delete policy: deletions travel as rows with deleted = true, so every
 -- device learns about them. Whole accounts are removed with the function below.
