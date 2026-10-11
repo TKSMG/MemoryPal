@@ -910,8 +910,12 @@ class Tooltip:
         label = tk.Label(
             self.tip,
             text=self.text,
-            bg=COLORS["rail"],
-            fg=COLORS["white"],
+            # A raised surface with a hairline edge: on the rail, a rail-coloured
+            # tip had no visible box and read as stray text.
+            bg=COLORS["surface_soft"],
+            fg=COLORS["ink"],
+            highlightthickness=1,
+            highlightbackground=COLORS["line"],
             padx=10,
             pady=7,
             justify="left",
@@ -1003,6 +1007,7 @@ class MemoryPalApp(tk.Tk):
         self._styles()
         self.install_text_selection()
         self.keep_flat_buttons_still()
+        self.track_focus_source()
         self._shell()
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         if IS_MAC:
@@ -2580,9 +2585,9 @@ class MemoryPalApp(tk.Tk):
         # Compact rail items so every page fits without paging on a normal
         # laptop screen; the active page is a calm filled pill, not a bright
         # block (white on the old bright blue was only 2.3:1).
-        self.style.configure("Nav.TButton", padding=self.pad(14, 3), foreground=COLORS["rail_text"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI", 11))
+        self.style.configure("Nav.TButton", padding=self.pad(14, 6), foreground=COLORS["rail_text"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI", 11))
         self.style.map("Nav.TButton", foreground=[("disabled", self.tint(COLORS["rail_muted"], -50)), ("active", COLORS["white"])])
-        self.style.configure("ActiveNav.TButton", padding=self.pad(14, 3), foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.configure("ActiveNav.TButton", padding=self.pad(14, 6), foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.map("ActiveNav.TButton", foreground=[("active", COLORS["white"])])
 
         # Keyboard focus is always visible (a ring inside the button).
@@ -2684,13 +2689,15 @@ class MemoryPalApp(tk.Tk):
         big._memorypal_source = small  # keep the small tile alive with it
         return big
 
-    def rounded_element(self, normal, hover=None, pressed=None, disabled=None, focus=None, focus_hover=None):
+    def rounded_element(self, normal, hover=None, pressed=None, disabled=None, focus=None, focus_hover=None, keyboard_only=False):
         """A ttk image element (cached by its tiles) with per-state tiles.
 
         Keyboard focus is a solid ring drawn into the tile (clam's own focus
-        indicator is a faint dotted box that is easy to miss).
+        indicator is a faint dotted box that is easy to miss). With
+        keyboard_only, the ring needs the "user1" state too, which
+        track_focus_source sets only when focus arrived from the keyboard.
         """
-        key = (str(normal), str(hover), str(pressed), str(disabled), str(focus), str(focus_hover))
+        key = (str(normal), str(hover), str(pressed), str(disabled), str(focus), str(focus_hover), keyboard_only)
         name = self._rounded_elements.get(key)
         if name:
             return name
@@ -2700,10 +2707,11 @@ class MemoryPalApp(tk.Tk):
             states.append(("disabled", disabled))
         if pressed:
             states.append(("pressed", pressed))
+        focused = ("focus", "user1") if keyboard_only else ("focus",)
         if focus_hover:
-            states.append(("focus", "active", focus_hover))
+            states.append((*focused, "active", focus_hover))
         if focus:
-            states.append(("focus", focus))
+            states.append((*focused, focus))
         if hover:
             states.append(("active", hover))
         # The border is the 9-slice corner size (it must leave a middle strip
@@ -2732,6 +2740,7 @@ class MemoryPalApp(tk.Tk):
             disabled=self.rounded_tile(disabled, bg),
             focus=self.rounded_tile(normal, bg, ring=ring, ring_width=width),
             focus_hover=self.rounded_tile(hover, bg, ring=ring, ring_width=width),
+            keyboard_only=True,
         )
         self.style.layout(style, [(element, {"sticky": "nsew", "children": self.inner_layout(widget_class)})])
         self.set_corner_background(style, bg)
@@ -2765,6 +2774,50 @@ class MemoryPalApp(tk.Tk):
         if len(children) == 1 and children[0][0].endswith(".focus"):
             children = children[0][1].get("children", [])
         return children
+
+    def track_focus_source(self):
+        """Show the focus ring on buttons only when focus came from the keyboard.
+
+        ttk buttons take focus when clicked, so the amber ring used to stay on
+        whatever was last clicked (a rail item, a tile's button) and read as a
+        stuck selection. Like a Mac or a browser's :focus-visible, the ring
+        now appears when someone moves with Tab or the arrow keys, and goes
+        away once they use the mouse again. Text fields keep their ring
+        always, since that shows where typing will go.
+        """
+        self._keyboard_focus = False
+
+        def mark(widget):
+            try:
+                if isinstance(widget, (ttk.Button, ttk.Menubutton, ttk.Checkbutton, ttk.Radiobutton)):
+                    widget.state(["user1" if self._keyboard_focus else "!user1"])
+            except tk.TclError:
+                pass
+
+        def keyboard(_event=None):
+            self._keyboard_focus = True
+            self.after_idle(lambda: mark(self.focus_get()))
+
+        def pointer(_event=None):
+            self._keyboard_focus = False
+            widget = self.focus_get()
+            if widget is not None:
+                mark(widget)
+
+        # Tab moves focus through Tk's <<NextWindow>>/<<PrevWindow>> virtual
+        # events; binding <Tab> itself on "all" would shadow them.
+        for sequence in ("<<NextWindow>>", "<<PrevWindow>>", "<Up>", "<Down>", "<Left>", "<Right>"):
+            try:
+                self.bind_all(sequence, keyboard, add="+")
+            except tk.TclError:
+                pass
+        # "<ButtonPress-1>" is listed on its own because a more specific
+        # binding on the same tag (text selection uses one) hides the general one.
+        for sequence in ("<ButtonPress>", "<ButtonPress-1>"):
+            self.bind_all(sequence, pointer, add="+")
+        for widget_class in ("TButton", "TMenubutton", "TCheckbutton", "TRadiobutton"):
+            self.bind_class(widget_class, "<FocusIn>", lambda event: mark(event.widget), add="+")
+            self.bind_class(widget_class, "<FocusOut>", lambda event: event.widget.state(["!user1"]) if hasattr(event.widget, "state") else None, add="+")
 
     def install_rounded_controls(self):
         if not hasattr(self, "_tile_cache"):
@@ -3051,9 +3104,8 @@ class MemoryPalApp(tk.Tk):
             return self.px(16)
 
     def nav_top_padding(self, has_previous=False):
-        # Minimum gap above/below the item list; the spacers in
-        # render_nav_page expand past this to centre the list vertically.
-        return self.px(8)
+        # Gap between the brand (or Previous control) and the first item.
+        return self.px(12)
 
     def bind_nav_wheel(self, widget):
         widget.bind("<MouseWheel>", self.handle_nav_wheel, add="+")
@@ -3136,15 +3188,15 @@ class MemoryPalApp(tk.Tk):
         # or Settings at every scale.
         top_padding = self.nav_top_padding(has_previous=above)
         top_edge, bottom_edge = self.nav_edge_padding(above, below)
+        # The list starts just under the brand, like a Mac sidebar or the
+        # phone's tab order, with one fixed rhythm between items. (Centring
+        # five items in a tall rail left them floating mid-window with a
+        # large empty band above.) Spare room collects below the list.
         spacer = tk.Frame(host, bg=COLORS["rail"], height=top_edge)
-        spacer.pack(fill="both", expand=True)
+        spacer.pack(fill="x")
         self.bind_nav_wheel(spacer)
 
-        gap = self.px(1)
-        base_step = getattr(self, "_nav_item_step", 0)
-        if base_step and end > first:
-            spare = self.nav_list_room(above, below) - (end - first) * base_step
-            gap += int(clamp(spare / (end - first), 0, self.px(14)) // 2)
+        gap = self.px(2)
         self._nav_spacing_state = (getattr(self.nav_list_host, "winfo_height", lambda: 0)(), gap)
 
         for key, label, _short in items[first:end]:
@@ -3274,11 +3326,11 @@ class MemoryPalApp(tk.Tk):
         tk.Frame(pinned, bg=self.tint(COLORS["rail"], 26), height=max(1, self.px(1))).pack(fill="x", padx=self.px(4), pady=(0, self.px(8)))
         # Feedback sits with Settings while the app is in testing.
         self.nav_feedback_button = ttk.Button(pinned, text="Feedback", style="Nav.TButton", command=lambda: self.show_view("feedback"))
-        self.nav_feedback_button.pack(fill="x")
+        self.nav_feedback_button.pack(fill="x", pady=self.px(2))
         self.add_tooltip(self.nav_feedback_button, self.nav_hint("feedback"))
         self.bind_nav_wheel(self.nav_feedback_button)
         self.nav_settings_button = ttk.Button(pinned, text="Settings", style="Nav.TButton", command=lambda: self.show_view("settings"))
-        self.nav_settings_button.pack(fill="x")
+        self.nav_settings_button.pack(fill="x", pady=self.px(2))
         self.add_tooltip(self.nav_settings_button, self.nav_hint("settings"))
         self.bind_nav_wheel(pinned)
         self.nav_pinned = pinned
@@ -5449,9 +5501,12 @@ class MemoryPalApp(tk.Tk):
             note = self.hub_page_note(key)
             if note:
                 tk.Label(tile, text=note, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x", pady=(self.px(8), 0))
-            # The whole tile is clickable; the button gives keyboard users a
-            # focus stop with the visible focus ring.
-            self.solid_button(tile, f"Open {title}", lambda view=key: self.show_view(view), color).pack(fill="x", pady=(self.px(12), 0))
+            # The whole tile is clickable; the button is a quiet secondary one
+            # (five bright filled buttons competed with each other and with the
+            # page's real next step) that gives keyboard users a focus stop.
+            # Packed to the bottom so the buttons in a row line up even when
+            # one tile's description runs to an extra line.
+            ttk.Button(tile, text="Open", style="TButton", command=lambda view=key: self.show_view(view)).pack(side="bottom", anchor="w", pady=(self.px(14), 0))
 
     def view_training(self):
         page = ScrollFrame(self.view_host)

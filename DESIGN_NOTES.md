@@ -82,11 +82,12 @@ Controls: buttons, dropdowns, choice pills and text fields are rounded 9-slice i
 - Text fields always show an edge. A white field on a white card with no border gives no hint of where to type.
 - Use `row_button`, `solid_button` or a ttk style. Avoid new classic `tk.Button`s, which can't share the look.
 
-Focus: keyboard focus is always visible as a solid amber rounded ring (WCAG 2.4.7). It is not an opt-in setting. The setting and high contrast only make the ring thicker.
+Focus: keyboard focus is always visible as a solid amber rounded ring (WCAG 2.4.7). It is not an opt-in setting. The setting and high contrast only make the ring thicker. On buttons, the ring shows when focus arrives from the keyboard (Tab or the arrow keys) and clears once the mouse is used again, like a Mac or a browser's `:focus-visible`; otherwise it stayed on whatever was last clicked and read as a stuck selection. Text fields keep their ring always, because it shows where typing will go.
 
 Navigation rail:
 
 - The rail holds five destinations, the same as the phone's tabs: Today, Study, Create, Practice and Progress. Feedback and Settings are pinned at the bottom. It still falls back to paging on very short windows or very large text.
+- The list starts just under the logo with one fixed rhythm between items, like a Mac sidebar; spare height collects below it, not around it.
 - The active destination is a calm filled pill, not a bright block. Pages inside a destination (Review inside Study, Puzzles inside Practice) light up their destination.
 - The line above each page title names the destination it belongs to.
 
