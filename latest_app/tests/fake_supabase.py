@@ -91,7 +91,7 @@ class FakeSupabase:
                 raise self.error(request, 422, "user_already_exists", "User already registered")
             if len(body["password"]) < 6:
                 raise self.error(request, 422, "weak_password")
-            self.users[email] = {"id": secrets.token_hex(6), "password": body["password"], "confirmed": not self.confirm_email}
+            self.users[email] = {"id": secrets.token_hex(6), "password": body["password"], "confirmed": not self.confirm_email, "metadata": dict(body.get("data") or {})}
             if self.confirm_email:
                 self.codes[(email, "signup")] = "123456"
                 return {"id": self.users[email]["id"], "email": email}

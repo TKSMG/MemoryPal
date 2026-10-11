@@ -42,6 +42,39 @@ create trigger sync_records_touch
   before insert or update on public.sync_records
   for each row execute function public.sync_records_touch();
 
+-- A storage allowance per person, so one account (or a stolen one) can't
+-- fill the database. Far above real use: thousands of cards are a few MB.
+-- Checked once per write statement (an upload batch), not once per row.
+create or replace function public.sync_records_quota()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1
+    from (select distinct user_id from changed) as who
+    where (select count(*) from public.sync_records s where s.user_id = who.user_id) > 50000
+       or (select coalesce(sum(pg_column_size(s.data)), 0) from public.sync_records s where s.user_id = who.user_id) > 100 * 1024 * 1024
+  ) then
+    raise exception 'MemoryPal storage limit reached' using errcode = 'P0001', hint = 'storage_limit';
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists sync_records_quota_insert on public.sync_records;
+create trigger sync_records_quota_insert
+  after insert on public.sync_records
+  referencing new table as changed
+  for each statement execute function public.sync_records_quota();
+
+drop trigger if exists sync_records_quota_update on public.sync_records;
+create trigger sync_records_quota_update
+  after update on public.sync_records
+  referencing new table as changed
+  for each statement execute function public.sync_records_quota();
+
 alter table public.sync_records enable row level security;
 
 drop policy if exists "read own records" on public.sync_records;

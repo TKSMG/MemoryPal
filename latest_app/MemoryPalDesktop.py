@@ -60,7 +60,7 @@ from memorypal.paths import (
     rename_profile,
     switch_active_profile_paths,
 )
-from memorypal import cloud, onboarding, progress, security, techniques
+from memorypal import cloud, cloud_config, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
 from memorypal.speech import Speaker
@@ -98,6 +98,12 @@ def bundled_resource_path(*parts):
         if candidate.exists():
             return candidate
     return None
+
+
+def open_web_page(url):
+    import webbrowser
+
+    webbrowser.open(url)
 
 
 def set_window_redraw(widget, enabled):
@@ -8378,12 +8384,14 @@ class MemoryPalApp(tk.Tk):
         if seen:
             raise cloud.CloudError(f"This password has appeared in data breaches {seen:,} times, so attackers try it first. Please choose a different one.", "pwned_password")
 
-    def cloud_dialog(self, title, body, fields, submit_label, work, on_success, extra_links=(), hint=None, extra_widgets=None):
+    def cloud_dialog(self, title, body, fields, submit_label, work, on_success, extra_links=(), hint=None, extra_widgets=None, footer=None):
         """A small form dialog whose network call runs in the background.
 
         fields: [(name, label, secret)]. work(values) runs on a worker thread;
         on_success(result, values) runs on the UI thread after the dialog closes.
         hint(values) -> (text, colour) updates a line under the fields as people type.
+        footer(content) adds widgets under the fields and returns {name: getter};
+        the getters are read on the UI thread into `values` when submitting.
         """
         top, content, actions = self.dialog_window(title, body, width=520)
         if extra_widgets:
@@ -8405,6 +8413,7 @@ class MemoryPalApp(tk.Tk):
             for entry in entries.values():
                 entry.bind("<KeyRelease>", update_hint, add="+")
             update_hint()
+        footer_values = footer(content) if footer else {}
         error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["danger"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(470))
         error.pack(fill="x", pady=(self.px(8), 0))
         for text, action in extra_links:
@@ -8417,6 +8426,7 @@ class MemoryPalApp(tk.Tk):
             if busy["on"]:
                 return
             values = {name: entry.get() for name, entry in entries.items()}
+            values.update({name: read() for name, read in (footer_values or {}).items()})
             busy["on"] = True
             error.configure(text="Working…", fg=COLORS["muted"])
             go.configure(state="disabled")
@@ -8447,15 +8457,51 @@ class MemoryPalApp(tk.Tk):
     def open_account_dialog(self, mode):
         client = self.account.client
         if mode == "create":
+            age_gate = cloud.AgeGate(app_paths.DATA_DIR)
+            if age_gate.blocked():
+                self.dialog_alert(f"Accounts are for ages {security.MIN_ACCOUNT_AGE} and up", security.UNDER_AGE_MESSAGE, "info")
+                return
+
             def create(values):
+                # The age check runs on the device before anything is sent,
+                # and the birth month and year are never stored or uploaded.
+                if age_gate.blocked():
+                    raise cloud.CloudError(security.UNDER_AGE_MESSAGE, "under_age")
+                today = date.today()
+                problem, under_age = security.account_age_check(values["birth_month"], values["birth_year"], today.year, today.month)
+                if under_age:
+                    age_gate.refuse()
+                if problem:
+                    raise cloud.CloudError(problem, "under_age" if under_age else "age_format")
                 email, password = values["email"].strip(), values["password"]
                 if not cloud.looks_like_email(email):
                     raise cloud.CloudError("That doesn't look like an email address.")
                 if password != values["again"]:
                     raise cloud.CloudError("The two passwords don't match.")
+                if not values.get("agreed"):
+                    raise cloud.CloudError("To create an account, tick the box to agree to the Terms of Use and Privacy Policy.")
                 cloud.check_password(password, email)
                 self.check_not_leaked(password)
-                return client.sign_up(email, password), email
+                return client.sign_up(email, password, cloud.consent_record()), email
+
+            def consent_box(content):
+                agreed = tk.BooleanVar(value=False)
+                row = tk.Frame(content, bg=COLORS["surface"])
+                row.pack(fill="x", pady=(self.px(12), 0))
+                tk.Checkbutton(
+                    row, text="I agree to the Terms of Use and Privacy Policy", variable=agreed,
+                    bg=COLORS["surface"], fg=COLORS["ink"], activebackground=COLORS["surface"], activeforeground=COLORS["ink"],
+                    selectcolor=COLORS["surface"], font=self.font("Segoe UI", 10), anchor="w", highlightthickness=0, takefocus=1,
+                ).pack(anchor="w")
+                links = tk.Frame(row, bg=COLORS["surface"])
+                links.pack(anchor="w", padx=(self.px(24), 0))
+                for label, url in (("Read the Terms of Use", cloud_config.TERMS_URL), ("Read the Privacy Policy", cloud_config.PRIVACY_URL)):
+                    if not url:
+                        continue
+                    link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
+                    link.pack(side="left", padx=(0, self.px(14)))
+                    link.bind("<Button-1>", lambda _event, target=url: open_web_page(target))
+                return {"agreed": agreed.get}
 
             def created(result, _values):
                 session, email = result
@@ -8466,11 +8512,18 @@ class MemoryPalApp(tk.Tk):
 
             self.cloud_dialog(
                 "Create your MemoryPal account",
-                "Use an email you can check: we'll send a 6-digit code to confirm it.",
-                [("email", "Email", False), ("password", "Password", True), ("again", "Password again", True)],
+                "Use an email you can check: we'll send a 6-digit code to confirm it. You don't need an account to use MemoryPal; it only keeps your cards in step across devices.",
+                [
+                    ("birth_month", "Month you were born (1-12)", False),
+                    ("birth_year", "Year you were born", False),
+                    ("email", "Email", False),
+                    ("password", "Password", True),
+                    ("again", "Password again", True),
+                ],
                 "Create account", create, created,
                 extra_links=[("Already have an account? Sign in", lambda: self.open_account_dialog("sign_in"))],
                 hint=self.password_hint("password", email_field="email"),
+                footer=consent_box,
             )
             return
 
