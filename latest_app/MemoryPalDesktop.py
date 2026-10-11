@@ -138,13 +138,20 @@ def flush_pending_paint(widget):
         return 0
 
 
-def show_screen_cover(width, height, left=0, top=0):
+def show_screen_cover(width, height, left=0, top=0, source=None):
     """Put a pixel-identical, topmost snapshot of part of the screen over it.
 
     The captured bitmap is handed straight to a layered popup window
     (UpdateLayeredWindow), so it appears atomically with no Tk image
     conversion. The window never takes focus, ignores the mouse (clicks and
     drags go to the app underneath), and doesn't show in the taskbar.
+
+    With `source` (a widget at left/top), its pixels are copied from its own
+    window instead of the screen, which reads memory rather than the
+    composed screen (about 1ms instead of 10-50ms). That copy doesn't
+    include windows overlapping the app, so the snapshot is slotted into the
+    z-order directly above the app's top-level window, below anything
+    already above it (dialogs, tooltips, other programs).
     Returns a handle for remove_screen_cover, or None if unavailable.
     """
     if not sys.platform.startswith("win"):
@@ -162,16 +169,23 @@ def show_screen_cover(width, height, left=0, top=0):
         user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
                                            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                            wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+        source_hwnd = source.winfo_id() if source is not None else 0
+        app_hwnd = user32.GetAncestor(source_hwnd, 2) if source_hwnd else 0  # GA_ROOT
+        topmost = not app_hwnd or bool(user32.GetWindowLongW(app_hwnd, -20) & 0x00000008)  # GWL_EXSTYLE, WS_EX_TOPMOST
         screen_dc = user32.GetDC(0)
+        source_dc = user32.GetDC(source_hwnd) if source_hwnd else screen_dc
         memory_dc = gdi32.CreateCompatibleDC(screen_dc)
         bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
         previous = gdi32.SelectObject(memory_dc, bitmap)
         hwnd = None
         try:
-            gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, left, top, 0x00CC0020)  # SRCCOPY
-            # WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WS_POPUP
-            hwnd = user32.CreateWindowExW(0x00080000 | 0x00000020 | 0x00000008 | 0x00000080 | 0x08000000, "STATIC", None,
-                                          0x80000000, left, top, width, height, None, None, None, None)
+            if source_hwnd:
+                gdi32.BitBlt(memory_dc, 0, 0, width, height, source_dc, 0, 0, 0x00CC0020)  # SRCCOPY
+            else:
+                gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, left, top, 0x00CC0020)
+            # WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE (+ WS_EX_TOPMOST), WS_POPUP
+            ex_style = 0x00080000 | 0x00000020 | 0x00000080 | 0x08000000 | (0x00000008 if topmost else 0)
+            hwnd = user32.CreateWindowExW(ex_style, "STATIC", None, 0x80000000, left, top, width, height, None, None, None, None)
             if not hwnd:
                 return None
             origin, size = wintypes.POINT(left, top), wintypes.SIZE(width, height)
@@ -180,6 +194,16 @@ def show_screen_cover(width, height, left=0, top=0):
                                               ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4):  # ULW_OPAQUE
                 user32.DestroyWindow(hwnd)
                 return None
+            insert_after = 0  # HWND_TOP of the cover's band
+            if app_hwnd:
+                above = user32.GetWindow(app_hwnd, 3)  # GW_HWNDPREV: the window right above the app
+                # A topmost window above a normal app marks the top of the
+                # normal band, where HWND_TOP already lands.
+                if above and topmost == bool(user32.GetWindowLongW(above, -20) & 0x00000008):
+                    insert_after = above
+            # Slot it in (SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE), then show
+            # it where it is; SWP_SHOWWINDOW here left layered windows hidden.
+            user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
             user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE
             ctypes.windll.dwmapi.DwmFlush()  # make sure it is on screen before anything changes
             return hwnd
@@ -187,8 +211,10 @@ def show_screen_cover(width, height, left=0, top=0):
             gdi32.SelectObject(memory_dc, previous)
             gdi32.DeleteObject(bitmap)
             gdi32.DeleteDC(memory_dc)
+            if source_hwnd:
+                user32.ReleaseDC(source_hwnd, source_dc)
             user32.ReleaseDC(0, screen_dc)
-    except (AttributeError, OSError):
+    except (AttributeError, OSError, tk.TclError):
         return None
 
 
@@ -469,7 +495,7 @@ class ScrollFrame(ttk.Frame):
             if not getattr(root, "use_native_window_chrome", True) and not getattr(root, "_hidden_active", False):
                 width, height = self.viewport.winfo_width(), self.viewport.winfo_height()
                 if width > 1 and height > 1:
-                    cover = show_screen_cover(width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty())
+                    cover = show_screen_cover(width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty(), source=self.viewport)
             move()
             self._sync_scrollbars()
             self.viewport.update_idletasks()
@@ -946,7 +972,8 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             viewable = False
         if viewable and not self.use_native_window_chrome:
-            cover = show_screen_cover(self.winfo_screenwidth(), self.winfo_screenheight())
+            # Only the app window changes here (no resize), so copy just it.
+            cover = show_screen_cover(self.winfo_width(), self.winfo_height(), self.winfo_rootx(), self.winfo_rooty(), source=self)
             if cover is None:
                 frozen = self.set_redraw_frozen(True)
         if cover is None and not frozen:
