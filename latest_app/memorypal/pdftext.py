@@ -11,6 +11,26 @@ import zlib
 
 OBJECT_RE = re.compile(rb"(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj", re.S)
 REF_RE = re.compile(rb"(\d+)\s+\d+\s+R")
+# Limits for untrusted files: a small crafted PDF can inflate to gigabytes
+# (a "zip bomb") or nest page trees deeply enough to exhaust the stack.
+MAX_STREAM_BYTES = 32 * 1024 * 1024
+MAX_TOTAL_BYTES = 256 * 1024 * 1024
+MAX_PAGE_DEPTH = 64
+MAX_TABLE_ENTRIES = 200_000
+MAX_FILE_BYTES = 200 * 1024 * 1024
+
+
+class PdfTooLarge(RuntimeError):
+    pass
+
+
+def inflate(raw, limit=MAX_STREAM_BYTES):
+    """zlib-decompress at most `limit` bytes; anything bigger is refused."""
+    decompressor = zlib.decompressobj()
+    data = decompressor.decompress(raw, limit)
+    if decompressor.unconsumed_tail:
+        raise PdfTooLarge("A part of this PDF is too large to read.")
+    return data
 
 
 class PdfText:
@@ -18,6 +38,7 @@ class PdfText:
         self.data = data
         self.objects = {}
         self.cmaps = {}
+        self.inflated = 0
         self._collect_objects()
 
     # -- objects ---------------------------------------------------------
@@ -38,9 +59,12 @@ class PdfText:
                 continue
             numbers = stream[:first].split()
             for index in range(min(count, len(numbers) // 2)):
-                obj_number = int(numbers[index * 2])
-                start = first + int(numbers[index * 2 + 1])
-                end = first + int(numbers[index * 2 + 3]) if index + 1 < count and index * 2 + 3 < len(numbers) else len(stream)
+                try:
+                    obj_number = int(numbers[index * 2])
+                    start = first + int(numbers[index * 2 + 1])
+                    end = first + int(numbers[index * 2 + 3]) if index + 1 < count and index * 2 + 3 < len(numbers) else len(stream)
+                except ValueError:
+                    break  # a damaged object index; keep what was read so far
                 self.objects.setdefault(obj_number, stream[start:end])
 
     @staticmethod
@@ -65,12 +89,13 @@ class PdfText:
         raw = raw.rstrip(b"\r\n")
         if b"/FlateDecode" in head or b"/Fl " in head or b"/Fl]" in head:
             try:
-                return zlib.decompress(raw)
+                data = inflate(raw)
             except zlib.error:
-                try:
-                    return zlib.decompressobj().decompress(raw)
-                except zlib.error:
-                    return None
+                return None
+            self.inflated += len(data)
+            if self.inflated > MAX_TOTAL_BYTES:
+                raise PdfTooLarge("This PDF is too large to read.")
+            return data
         if b"/Filter" in head:
             return None  # images and other encodings carry no text
         return raw
@@ -139,7 +164,9 @@ class PdfText:
                     ordered.append((number, None))
         return ordered
 
-    def _walk_pages(self, ref, ordered, seen, inherited):
+    def _walk_pages(self, ref, ordered, seen, inherited, depth=0):
+        if depth > MAX_PAGE_DEPTH:
+            return
         for number in self.refs(ref):
             if number in seen:
                 continue
@@ -148,7 +175,7 @@ class PdfText:
             resources = self.entry(body, b"/Resources") or inherited.get("resources")
             if re.search(rb"/Type\s*/Pages", body):
                 kids = self.entry(body, b"/Kids")
-                self._walk_pages(kids or b"", ordered, seen, {"resources": resources})
+                self._walk_pages(kids or b"", ordered, seen, {"resources": resources}, depth + 1)
             else:
                 ordered.append((number, resources))
 
@@ -244,11 +271,13 @@ def parse_cmap(data):
                     continue
                 prefix, last = base[:-2] if len(base) >= 2 else b"", int.from_bytes(base[-2:], "big")
                 for offset in range(0, min(high - low, 65535) + 1):
-                    value = prefix + (last + offset).to_bytes(2, "big")
                     try:
+                        value = prefix + (last + offset).to_bytes(2, "big")
                         mapping[low + offset] = value.decode("utf-16-be")
-                    except UnicodeDecodeError:
+                    except (UnicodeDecodeError, OverflowError):
                         continue
+            if len(mapping) > MAX_TABLE_ENTRIES:
+                return mapping  # far beyond any real font; stop instead of hanging
     return mapping
 
 
@@ -311,6 +340,8 @@ def parse_cid_widths(array):
             index += 3
         else:
             break
+        if len(widths) > MAX_TABLE_ENTRIES:
+            break  # far beyond any real font; stop instead of hanging
     return widths
 
 
@@ -456,5 +487,7 @@ def run_content(data, fonts):
 
 def extract_pdf_text(path):
     with open(path, "rb") as handle:
-        data = handle.read()
+        data = handle.read(MAX_FILE_BYTES + 1)
+    if len(data) > MAX_FILE_BYTES:
+        raise PdfTooLarge("This PDF is too large to read. Split it into smaller files or paste the key points.")
     return PdfText(data).text()

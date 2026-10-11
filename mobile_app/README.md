@@ -1,6 +1,8 @@
-# MemoryPal Mobile Prototype
+# MemoryPal Mobile Prototype (superseded)
 
-This folder is the starting point for a future iOS and Android version of MemoryPal.
+> **Superseded by `../mobile/`**, the React Native + Expo app, which has screen-reader support, runs in Expo Go on real phones, and is checked against the desktop logic by parity tests. This Kivy prototype is kept as project history only.
+
+This folder was the starting point for a future iOS and Android version of MemoryPal.
 
 The desktop app should stay in Tkinter for the PC version. The mobile app needs its own interface because phones need larger touch targets, native file picking, microphone permissions, camera permissions, and a simpler navigation pattern.
 

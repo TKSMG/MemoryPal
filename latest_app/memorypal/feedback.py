@@ -28,9 +28,11 @@ FEEDBACK_EMAIL = "memorypal09@gmail.com"
 # Mail apps and browsers cut off very long mailto/Gmail links; beyond this the
 # full report goes in a file to attach instead.
 MAX_LINK_BODY = 1800
-# FormSubmit's JSON endpoint. After the address is confirmed, FormSubmit also
-# offers a random alias to use here instead of the plain address.
-SEND_URL = f"https://formsubmit.co/ajax/{FEEDBACK_EMAIL}"
+# FormSubmit's JSON endpoint. FormSubmit's activation email also gives a
+# random alias for the form; put it in FORM_ALIAS so the address doesn't
+# appear in the request (or the published code's send URL).
+FORM_ALIAS = ""
+SEND_URL = f"https://formsubmit.co/ajax/{FORM_ALIAS or FEEDBACK_EMAIL}"
 # FormSubmit tells forms apart by the page they come from; the desktop app has
 # no page, so it names itself.
 SEND_REFERER = "https://memorypal.app/desktop-feedback"
@@ -193,6 +195,7 @@ def default_report_folder():
 def save_report(path, subject, body):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    header = f"To: {FEEDBACK_EMAIL}\nSubject: {subject}\n\n"
+    # No "To:" line: the team's address isn't shown anywhere people can read it.
+    header = f"Subject: {subject}\n\n"
     path.write_text(header + body, encoding="utf-8")
     return path

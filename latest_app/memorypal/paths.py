@@ -44,6 +44,30 @@ def slugify_profile(name):
     return slug or "profile"
 
 
+MAX_PROFILE_NAME = 40
+
+
+def folder_clash(name, names, ignore=None):
+    """The existing profile whose data folder `name` would share, if any.
+
+    "My Profile", "my-profile" and "My  Profile!" all map to one folder (and
+    Windows folders ignore case), so two of them would read and write the
+    same data, and deleting one would delete the other's cards.
+    """
+    slug = slugify_profile(name).lower()
+    for other in names:
+        if other != ignore and slugify_profile(other).lower() == slug:
+            return other
+    return None
+
+
+def write_config_atomically(config):
+    PROFILES_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    temp = PROFILES_CONFIG.with_name(f".{PROFILES_CONFIG.name}.{os.getpid()}.tmp")
+    temp.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    os.replace(temp, PROFILES_CONFIG)
+
+
 def copy_profile_config(config):
     return {
         "active": config.get("active", DEFAULT_PROFILE),
@@ -113,7 +137,7 @@ def load_profiles_config():
         return copy_profile_config(_PROFILE_CONFIG_CACHE)
     if not PROFILES_CONFIG.exists():
         config = {"active": DEFAULT_PROFILE, "names": [DEFAULT_PROFILE]}
-        PROFILES_CONFIG.write_text(json.dumps(config, indent=2), encoding="utf-8")
+        write_config_atomically(config)
         try:
             _PROFILE_CONFIG_MTIME = PROFILES_CONFIG.stat().st_mtime_ns
         except OSError:
@@ -122,21 +146,23 @@ def load_profiles_config():
         return copy_profile_config(config)
     try:
         config = json.loads(PROFILES_CONFIG.read_text(encoding="utf-8"))
-        if not config.get("names"):
-            config["names"] = [DEFAULT_PROFILE]
+        if not isinstance(config, dict):
+            raise ValueError("profiles.json is not a profile list")
+        names = [normalize_profile_name(str(name)) for name in config.get("names") or [] if isinstance(name, str) and normalize_profile_name(name)]
+        config["names"] = list(dict.fromkeys(names)) or [DEFAULT_PROFILE]
         if config.get("active") not in config["names"]:
             config["active"] = config["names"][0]
         _PROFILE_CONFIG_CACHE = copy_profile_config(config)
         _PROFILE_CONFIG_MTIME = current_mtime
         return copy_profile_config(config)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return {"active": DEFAULT_PROFILE, "names": [DEFAULT_PROFILE]}
 
 
 def save_profiles_config(config):
     global _PROFILE_CONFIG_CACHE, _PROFILE_CONFIG_MTIME
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    PROFILES_CONFIG.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    write_config_atomically(config)
     try:
         _PROFILE_CONFIG_MTIME = PROFILES_CONFIG.stat().st_mtime_ns
     except OSError:
@@ -156,9 +182,14 @@ def create_profile(name):
     name = normalize_profile_name(name)
     if not name:
         return False, "Enter a profile name."
+    if len(name) > MAX_PROFILE_NAME:
+        return False, f"Keep the name to {MAX_PROFILE_NAME} characters or fewer."
     config = load_profiles_config()
     if name in config["names"]:
         return False, "A profile with that name already exists."
+    clash = folder_clash(name, config["names"])
+    if clash:
+        return False, f"That name is too close to \"{clash}\". Try a different name."
     config["names"].append(name)
     save_profiles_config(config)
     profile_dir(name)
@@ -169,17 +200,25 @@ def rename_profile(old_name, new_name):
     new_name = normalize_profile_name(new_name)
     if not new_name:
         return False, "Enter a profile name."
+    if len(new_name) > MAX_PROFILE_NAME:
+        return False, f"Keep the name to {MAX_PROFILE_NAME} characters or fewer."
     config = load_profiles_config()
     if old_name not in config["names"]:
         return False, "Profile not found."
     if new_name != old_name and new_name in config["names"]:
         return False, "A profile with that name already exists."
+    clash = folder_clash(new_name, config["names"], ignore=old_name)
+    if clash:
+        return False, f"That name is too close to \"{clash}\". Try a different name."
     old_dir = profile_dir(old_name)
     new_dir = PROFILES_DIR / slugify_profile(new_name)
     if old_dir != new_dir:
-        if new_dir.exists():
+        if new_dir.exists() and old_dir.resolve() != new_dir.resolve():
             return False, "A profile folder with that name already exists."
-        old_dir.rename(new_dir)
+        try:
+            old_dir.rename(new_dir)
+        except OSError as exc:
+            return False, f"The profile folder couldn't be renamed ({exc.strerror or exc})."
     config["names"] = [new_name if item == old_name else item for item in config["names"]]
     if config["active"] == old_name:
         config["active"] = new_name
@@ -195,7 +234,10 @@ def delete_profile(name):
     if config["active"] == name:
         config["active"] = config["names"][0]
     save_profiles_config(config)
-    shutil.rmtree(profile_dir(name), ignore_errors=True)
+    # Older versions allowed names that share a folder; never delete a folder
+    # another remaining profile still uses.
+    if not folder_clash(name, config["names"]):
+        shutil.rmtree(profile_dir(name), ignore_errors=True)
     return True, ""
 
 

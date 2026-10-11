@@ -232,7 +232,7 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Close and reopen the app, then confirm Feedback Log still shows the saved note.
 - Export Feedback Log with Export as Spreadsheet and confirm the CSV opens with rating, category, page, note, and created date.
 - Press Send Feedback Now while online and confirm a "Sent!" message appears and the notes are marked as sent (they are not offered again).
-- On the very first send, confirm the "Almost ready" message explains the one-time activation, then activate the form from the confirmation email in memorypal09@gmail.com and send again.
+- Confirm the Feedback Log never shows the team's email address (not on the page, in messages, or in a saved feedback file).
 - Turn Wi-Fi off, press Send Feedback Now, and confirm a calm offline message appears and the notes stay saved.
 - Press Email Feedback and confirm the mail app (or Gmail link) opens with the report filled in; with a long report, confirm the file to attach is saved and shown in File Explorer.
 - Press Save Feedback File and confirm the text report contains the notes, Windows version, text size, and theme, but not the profile name or any cards.

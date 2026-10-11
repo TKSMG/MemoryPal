@@ -20,6 +20,8 @@ import time
 import wave
 from pathlib import Path
 
+from .core import powershell_exe
+
 IS_WINDOWS = sys.platform.startswith("win")
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -40,7 +42,7 @@ def run_powershell(script, timeout=60, stdin_text=None):
     """Run a PowerShell script (passed on stdin-free -Command) and return (ok, stdout)."""
     try:
         result = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+            [powershell_exe(), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
             input=stdin_text.encode("utf-8") if stdin_text is not None else None,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, creationflags=NO_WINDOW,
         )

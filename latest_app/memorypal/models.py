@@ -135,8 +135,11 @@ class FeedbackEntry:
 
 
 def sample_cards():
+    # Fixed ids: every device starts with the same four cards, so syncing
+    # merges them instead of showing each starter card once per device.
     return [
         Card(
+            id="sample-spaced-repetition",
             deck="Memory Techniques",
             front="What is spaced repetition?",
             back="Reviewing information at increasing intervals so recall strengthens over time.",
@@ -144,6 +147,7 @@ def sample_cards():
             association="The space between reviews grows like stepping stones.",
         ),
         Card(
+            id="sample-retrieval-practice",
             deck="Memory Techniques",
             front="What is retrieval practice?",
             back="Trying to recall the answer before rereading or revealing it.",
@@ -151,6 +155,7 @@ def sample_cards():
             association="Pull the memory out instead of looking it up first.",
         ),
         Card(
+            id="sample-chunking",
             deck="Memory Techniques",
             front="What is chunking?",
             back="Breaking information into smaller meaningful pieces so each part is easier to practise.",
@@ -158,6 +163,7 @@ def sample_cards():
             association="One shelf per idea.",
         ),
         Card(
+            id="sample-media-cues",
             deck="Memory Techniques",
             front="Why use media cues?",
             back="Images, audio, video, and text notes can make a memory more familiar and easier to retrieve.",

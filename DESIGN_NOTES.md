@@ -40,7 +40,7 @@ Custom Canvas shapes should use antialiased image drawing when Pillow is availab
 
 The app can reuse the feeling of the startup fade after layout changes without fading the whole app window. Build the new state first, then fade away a temporary same-color overlay so the background shell stays solid.
 
-The logo is a connected "memory path" M: one unbroken white stroke with three recall nodes where the path turns (mint for the first and recalled idea, amber for the link that makes it stick) and a small spark for the moment something is remembered. It sits on a blue-to-violet tile that reads on both the dark rail and light backgrounds. Keep it flat and clean: one soft shadow, no extra glows or ghost lines. At 32px and below, drop the node cores and spark so the M stays sharp.
+The logo is a lowercase "m" drawn as one unbroken white line of two arches (one idea leading to the next), with a single amber dot at the top right for the idea you just recalled. It sits on a flat blue tile with only a gentle top-to-bottom shade. The earlier blue-to-violet gradient, sparkle and bead-like nodes were dropped in v70: sparkles and glossy purple gradients are what generic AI-made apps look like, and the beads blurred at small sizes. Keep it flat: no shadows, glows, sparkles or extra colours. The mark is simple enough to need no special small-size version; it stays crisp at 16px.
 
 The navigation mark should use the generated MemoryPal logo as the standard product mark. A plain letter should only appear as an emergency fallback if the logo renderer fails.
 
@@ -56,11 +56,73 @@ Feedback capture should stay local, short, and easy to export. Sending is always
 
 Legacy data migration should copy old files forward without overwriting newer app-data changes. Long testing periods make data trust part of the user experience.
 
+Data trust also covers damaged files and two open windows:
+
+- Every save keeps the previous file as `memorypal-data.json.bak`.
+- A damaged data file is copied aside and the last good save is loaded. Before v70, a damaged file loaded as an empty profile, and the next save wrote over it.
+- A card deleted in one window stays deleted, even when another window saved in the meantime.
+- Two profile names that would share a data folder ("My Profile" and "my-profile") are refused, because deleting one would have deleted the other's cards.
+
+## Design System (v70)
+
+These rules came out of a full review against Khan Academy, Duolingo and NeuroNation. All three feel professional for the same reasons: one clear next action, a consistent set of controls, real type hierarchy, and colour used only to mean something.
+
+Colour and contrast:
+
+- Every text/background pair meets WCAG AA (4.5:1). That includes white text on primary, green, danger and violet in light mode, and those colours used as text on cards.
+- Filled controls never hard-code white text. `on_color(fill)` picks white or dark ink, whichever reads better. Bright dark-mode accents such as `#65afff` get dark text, because white on them is only 2.3:1.
+- Colours are tokens in `constants.py` (`primary`, `rail_active`, `rail_text`, `rail_muted`, `focus`, `on_light`, ...). Don't use hex literals in views.
+- A secondary button that would vanish into a tinted card is lifted to the card colour automatically.
+
+Type: the scale is Title 28, H2 18, body 12, muted 11 (before the text-size multiplier). Do not set a global `*Font` option. It gives every ttk widget its own font, which overrides the style font, and until v70 it flattened every title and heading to body size. Fonts go on styles, or on classic Tk widget classes only.
+
+Controls: buttons, dropdowns, choice pills and text fields are rounded 9-slice image elements (`install_rounded_controls`).
+
+- Their corners take the colour of the surface they sit on, applied when the control is mapped.
+- Text fields always show an edge. A white field on a white card with no border gives no hint of where to type.
+- Use `row_button`, `solid_button` or a ttk style. Avoid new classic `tk.Button`s, which can't share the look.
+
+Focus: keyboard focus is always visible as a solid amber rounded ring (WCAG 2.4.7). It is not an opt-in setting. The setting and high contrast only make the ring thicker.
+
+Navigation rail:
+
+- Items are compact so all pages fit on a normal laptop screen. The rail falls back to paging only on short windows or very large text.
+- The active page is a calm filled pill, not a bright block.
+- The line above each page title names the area it belongs to: Today, Study, Create, Practice, or Progress.
+
+Destructive actions: never put them next to everyday actions. Reset all data lives in Settings. Delete card lives inside the card editor, behind a confirmation. Import shows how many cards a backup has and keeps a copy of the current data before replacing it.
+
+### Next step: fewer top-level pages
+
+The rail holds 17 pages. Duolingo has 5 tabs and Khan Academy about 4. The pages fit now, but scanning 17 labels is still slow, especially for older users. The recommended next structure groups pages into five destinations, each a hub page like Memory Gym already is:
+
+- **Today**: Dashboard, Study Plan.
+- **Study**: Review, Focus queue, Quiz, Repetition. Test Lab stays the place answers happen, but it is entered from these, not from the rail.
+- **Create**: Capture, Decks, Library, Cue Lab.
+- **Practice**: Memory Gym, Associations, Puzzles. Everyday Memory comes first for the everyday and caregiver personas.
+- **Progress**: Stats.
+
+Feedback moves into Settings or the help menu once testing ends. Every page stays reachable through Ctrl+K and Back.
+
 ## Navigation And Motion
 
 People should never feel lost: every page is reachable from the rail, from Ctrl+K, and by going Back. Big changes (theme, text size, rebuilding the shell) happen out of sight and appear in one frame; popups appear already finished instead of fading.
 
 Resizing shows an outline of the new size while dragging and applies it once on release, the same way Windows does, so the page never reflows repeatedly. Small in-page updates use the same snapshot swap as page changes.
+
+### Rendering Rules (v70)
+
+Tk on Windows paints each widget separately and later than it is moved or created, which shows up as tearing and as elements flashing in. These rules keep every change appearing as one finished frame:
+
+- **Page switches** (`show_view`) run under the screen snapshot (`run_hidden_change`), just like theme, text size, fullscreen, focus mode and resize. Building the new page underneath the old one wasn't enough: parts of it showed through, and widgets painted one by one.
+- **Each scroll step** runs under a snapshot of just the scrolling area (`ScrollFrame._present`). Without it, cards moved before their text was redrawn. A step costs about 35ms (two screen refreshes), so scrolling runs at roughly 28 clean frames a second.
+- **Snapshots are click-through** (`WS_EX_TRANSPARENT`), so a click or drag during the swap still reaches the app.
+- **Images drawn in widgets must be opaque.** Tk on Windows draws a transparent image by reading the screen back on every redraw; with rounded buttons that took startup from about 1s to 14s and made pages paint piece by piece. Rounded tiles are baked onto the colour of the surface they sit on, with a separate set per surface.
+- **Large 9-slice tiles.** ttk repeats an image element's middle rather than stretching it, so tiles are built large (in C, with Tk's photo copy) and the element is given a small minimum size.
+
+How to check: run `python tools\render_check\render_probe.py <outdir>` on Windows. It records the window at screen rate while it switches pages, scrolls, goes fullscreen, resizes, and changes theme and text size. For each scenario it reports how many distinct pictures appeared, any white flash, and any "mixed" frame that is neither the before nor the after state; mixed frames are saved as PNGs. A clean result is `changes=1 mixed_frames=0` for every scenario except scrolling. For scrolling, every saved frame should be a whole, fully drawn page.
+
+Speed budget (150 cards, 125% scaling): startup about 1.5s, most page switches under 0.6s, Library about 1s.
 
 ## Dashboard And Progress
 
@@ -84,8 +146,28 @@ More time is a pace setting, not a separate mode: it stretches timed displays an
 
 Each idea needs its own hook. When a peg list, memory palace, or story runs past its built-in list, it continues with a clearly different twist (golden, frozen, garden, garage) instead of reusing a peg or place, because two ideas sharing one hook interfere with each other.
 
+## Accounts And Sync
+
+Accounts are optional and never block studying: the apps work fully offline, and sync runs quietly in the background (20 s after a change on the desktop, 15 s on the phone, on launch, and every 10 minutes).
+
+- **Merging, not overwriting.** Each card, capture, settings group and day of activity is its own sync record. Both apps keep the last synced copy and merge field by field; the review schedule moves as one group and the side with more progress wins. An edit beats a delete, so nothing studied is lost.
+- **Plain-language account screens.** Codes rather than links (links break across devices and confuse older users), one question per step, a live strength line under new passwords, and friendly messages for every server error.
+- **Security lives on the server.** Row Level Security protects every row, and a restrictive policy makes two-step accounts finish the second step before any data is readable. The apps make no access decisions of their own: there are no client-side admin checks, because anything decided on a device can be changed by whoever holds it.
+- **Tokens in protected storage.** Windows DPAPI, the iOS Keychain or Android Keystore, and `sessionStorage` on the web build. Never `localStorage`, where any script on the page could read a long-lived token.
+- **Device checks are for friendliness.** Password rules (at least 10 characters, not common, not the email name, no runs like 1234), a breached-password lookup that sends only a 5-character hash prefix, and a wait that grows after five wrong tries give quick feedback. The server's rate limits and password policy are the real protection (`CLOUD_SYNC_SETUP.md`).
+
 ## Mobile Feel
 
-The mobile version should not copy the desktop layout. It should use fewer controls per screen, larger buttons, simple bottom navigation, and native phone features for recording and file picking.
+The mobile version (`mobile/`, React Native + Expo) doesn't copy the desktop layout. It has five bottom tabs (Today, Study, Create, Practice, Progress), one main action per screen, large targets, and native share sheets and file pickers. This is the five-hub structure proposed above for the desktop, tried first where space forces it.
 
-The Kivy prototype is only a starting point. Its validation and save feedback should use the same calm in-app language as the desktop app, while a real mobile release should still be tested on actual phones before it is treated as finished.
+Why React Native + Expo rather than Kivy or Flutter: the controls are real native ones, so TalkBack and VoiceOver work. For this audience that is non-negotiable, and Kivy has no screen-reader support. It runs on an actual phone straight away through Expo Go, needing no Mac or Android SDK, and one TypeScript codebase also gives a web build and a straightforward path to cloud sync.
+
+Rules carried over from the desktop:
+
+- **Colour and type:** the same WCAG AA palette, text on fills chosen by contrast, and the Comfort / Large / Extra Large text sizes. The phone's own font-size setting applies on top.
+- **Touch and screen readers:** targets are at least 44–52pt. Every control has an accessibility role and label. Groups of choices are radio groups, and toggles are switches.
+- **Calm results:** Smart Check results and puzzle feedback are announced politely (live regions), and the simple-language wording matches the desktop's.
+- **Never rushed:** puzzles show a countdown and an "I'm ready" button. More time doubles every timer and slows the voice.
+- **Ending a session:** every review ends with a summary of how many cards were reviewed and remembered, and which were missed. Duolingo's end-of-lesson screen is the model.
+
+Behaviour lives in `mobile/src/core/`, a line-by-line port of `latest_app/memorypal/`. Parity tests (`tools/parity/make_fixtures.py`) check that both versions give identical results. Change the logic on both sides together, regenerate the fixtures, and run the tests.

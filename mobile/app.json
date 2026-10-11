@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "MemoryPal",
+    "slug": "memorypal",
+    "scheme": "memorypal",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "supabaseUrl": "",
+      "supabasePublishableKey": ""
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.memorypal.mobile"
+    },
+    "android": {
+      "package": "app.memorypal.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#3451db",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "MemoryPal"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-sqlite",
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "backgroundColor": "#f6f8fc",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#111827"
+          }
+        }
+      ],
+      "expo-font",
+      "expo-secure-store"
+    ]
+  }
+}
