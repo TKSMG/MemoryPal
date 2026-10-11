@@ -1960,6 +1960,35 @@ class MemoryPalApp(tk.Tk):
             if grip.winfo_exists():
                 grip.place(**placement)
 
+    # The rail holds five destinations, like the phone's tabs. Every other
+    # page lives inside one of them (and stays reachable through the page
+    # finder and Back). Today and Progress are existing pages; Study, Create
+    # and Practice are hub pages listing what they hold.
+    HUBS = (
+        ("dashboard", "Today", "Td"),
+        ("study", "Study", "St"),
+        ("create", "Create", "Cr"),
+        ("practice", "Practice", "Pr"),
+        ("stats", "Progress", "Pg"),
+    )
+    HUB_PAGES = {
+        "dashboard": ("plan",),
+        "study": ("review", "focus", "quiz", "shuffle", "testing"),
+        "create": ("capture", "decks", "library", "cuelab"),
+        "practice": ("training", "elder", "tools", "games"),
+        "stats": (),
+    }
+
+    def rail_items(self):
+        return list(self.HUBS)
+
+    def hub_for(self, view):
+        """The rail item a page belongs to (pages outside the hubs map to themselves)."""
+        for hub, pages in self.HUB_PAGES.items():
+            if view == hub or view in pages:
+                return hub
+        return view
+
     def default_nav_items(self):
         return [
             ("dashboard", "Dashboard", "D"),
@@ -2971,7 +3000,7 @@ class MemoryPalApp(tk.Tk):
         if not host or not host.winfo_exists():
             return 7
         item_step = max(getattr(self, "_nav_item_step", 0) or self.px(46), 1)
-        total = len(getattr(self, "nav_items_cache", None) or self.ordered_nav_items())
+        total = len(getattr(self, "nav_items_cache", None) or self.rail_items())
         # Show every page when they fit (the usual case); only fall back to
         # Previous/Next paging on short windows or very large text.
         if self.nav_list_room(False, False) // item_step >= total:
@@ -3046,7 +3075,7 @@ class MemoryPalApp(tk.Tk):
         return "break"
 
     def shift_nav_window(self, delta):
-        items = getattr(self, "nav_items_cache", self.ordered_nav_items())
+        items = getattr(self, "nav_items_cache", None) or self.rail_items()
         visible = self.nav_visible_count()
         max_first = max(0, len(items) - visible)
         current = int(getattr(self, "nav_first_index", 0))
@@ -3057,7 +3086,8 @@ class MemoryPalApp(tk.Tk):
         self.render_nav_page()
 
     def ensure_nav_item_visible(self, key):
-        items = getattr(self, "nav_items_cache", self.ordered_nav_items())
+        items = getattr(self, "nav_items_cache", None) or self.rail_items()
+        key = self.hub_for(key)
         keys = [item_key for item_key, _label, _short in items]
         visible = self.nav_visible_count()
         first = int(getattr(self, "nav_first_index", 0))
@@ -3088,7 +3118,7 @@ class MemoryPalApp(tk.Tk):
         for child in host.winfo_children():
             child.destroy()
 
-        items = getattr(self, "nav_items_cache", self.ordered_nav_items())
+        items = getattr(self, "nav_items_cache", None) or self.rail_items()
         visible = self.nav_visible_count()
         max_first = max(0, len(items) - visible)
         first = int(clamp(getattr(self, "nav_first_index", 0), 0, max_first))
@@ -3204,7 +3234,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(label_box, text="MemoryPal", style="RailTitle.TLabel").pack(anchor="w")
         ttk.Label(label_box, text="Memory training", style="RailText.TLabel").pack(anchor="w")
 
-        self.nav_items_cache = self.ordered_nav_items()
+        self.nav_items_cache = self.rail_items()
         self.nav_buttons = {}
 
         nav_host = tk.Frame(self.rail, bg=COLORS["rail"], highlightthickness=0)
@@ -3242,6 +3272,11 @@ class MemoryPalApp(tk.Tk):
         pinned = tk.Frame(footer, bg=COLORS["rail"], highlightthickness=0)
         pinned.pack(side="bottom", fill="x", pady=(self.px(6), 0))
         tk.Frame(pinned, bg=self.tint(COLORS["rail"], 26), height=max(1, self.px(1))).pack(fill="x", padx=self.px(4), pady=(0, self.px(8)))
+        # Feedback sits with Settings while the app is in testing.
+        self.nav_feedback_button = ttk.Button(pinned, text="Feedback", style="Nav.TButton", command=lambda: self.show_view("feedback"))
+        self.nav_feedback_button.pack(fill="x")
+        self.add_tooltip(self.nav_feedback_button, self.nav_hint("feedback"))
+        self.bind_nav_wheel(self.nav_feedback_button)
         self.nav_settings_button = ttk.Button(pinned, text="Settings", style="Nav.TButton", command=lambda: self.show_view("settings"))
         self.nav_settings_button.pack(fill="x")
         self.add_tooltip(self.nav_settings_button, self.nav_hint("settings"))
@@ -3275,11 +3310,12 @@ class MemoryPalApp(tk.Tk):
     def refresh_nav_selection(self, current=None):
         if not hasattr(self, "nav_buttons"):
             return
-        current = current or self.current_view
+        current = self.hub_for(current or self.current_view)
         buttons = dict(self.nav_buttons)
-        settings_button = getattr(self, "nav_settings_button", None)
-        if settings_button is not None:
-            buttons["settings"] = settings_button
+        for key in ("settings", "feedback"):
+            pinned_button = getattr(self, f"nav_{key}_button", None)
+            if pinned_button is not None:
+                buttons[key] = pinned_button
         for key, button in buttons.items():
             if not button.winfo_exists():
                 continue
@@ -3556,25 +3592,28 @@ class MemoryPalApp(tk.Tk):
             "decks": "Browse your decks, see per-deck mastery, and study one deck at a time.",
             "plan": "Answer a few questions and get a tailored study plan for today.",
             "stats": "Charts of your practice, what's coming up, card maturity, and achievements.",
-            "focus": "A queue of due, weak, and fresh cards.",
+            "focus": "A queue of due, weak and new cards to work through.",
             "capture": "Add study bits, Q/A cards, text, image, audio, and video cues.",
-            "review": "Start due cards in Test Lab.",
-            "testing": "Focused answer, reveal, Smart Check, and rating page.",
+            "review": "Go through the cards that are due today, one at a time.",
+            "testing": "Answer, reveal, let Smart Check compare, then rate how it went.",
             "quiz": "Self-check or multiple choice practice.",
             "shuffle": "Structured repetition path such as 5, 5-4, 5-4-3, 3-2-1.",
-            "tools": "Generate acronyms and mini-stories.",
+            "tools": "Turn lists into acronyms and mini-stories that are easier to recall.",
             "cuelab": "Generate text, image, and audio cues for any card.",
             "games": "Short recall games for attention and memory.",
             "library": "Search, filter, import, export, and review saved material.",
             "feedback": "Record tester ratings, bug notes, accessibility comments, and feature ideas.",
             "settings": "Personalize appearance, profiles, storage, backups, and focus behavior.",
+            "study": "Every way to practise your cards: due review, focus, quizzes and repetition.",
+            "create": "Add things to learn, organise decks, browse the library and make cues.",
+            "practice": "Memory techniques, everyday memory support, associations and puzzles.",
         }.get(key, "")
 
     def page_titles(self):
         """(section, title) shown above each page."""
         return {
             "dashboard": ("Today", "Dashboard"), "training": ("Practice", "Memory Gym"),
-            "elder": ("Everyday support", "Everyday Memory"), "decks": ("Create", "Decks"),
+            "elder": ("Practice", "Everyday Memory"), "decks": ("Create", "Decks"),
             "plan": ("Today", "Study Plan"), "stats": ("Progress", "Stats & Streaks"),
             "focus": ("Study", "Focus Session"), "capture": ("Create", "Capture Material"),
             "review": ("Study", "Spaced Review"), "testing": ("Study", "Test Lab"),
@@ -3583,6 +3622,8 @@ class MemoryPalApp(tk.Tk):
             "games": ("Practice", "Puzzles"), "library": ("Create", "Library"),
             "feedback": ("Help us improve", "Feedback Log"), "settings": ("Personalize", "Settings"),
             "welcome": ("Welcome", "Let's set things up"),
+            "study": ("Study", "Ways to study"), "create": ("Create", "Make and organise"),
+            "practice": ("Practice", "Practise and play"),
         }
 
     def show_view(self, view, transition=False):
@@ -3814,7 +3855,8 @@ class MemoryPalApp(tk.Tk):
         self.toast_message("You're at the start. Nothing to go back to.")
 
     def finder_entries(self):
-        entries = [(label, self.nav_hint(key), lambda key=key: self.show_view(key)) for key, label, _short in self.ordered_nav_items()]
+        entries = [(label, self.nav_hint(key), lambda key=key: self.show_view(key)) for key, label, _short in self.rail_items()]
+        entries += [(label, self.nav_hint(key), lambda key=key: self.show_view(key)) for key, label, _short in self.ordered_nav_items()]
         entries.append(("Settings", self.nav_hint("settings"), lambda: self.show_view("settings")))
         entries += [
             ("Quick 10-minute session", "Ten focused minutes on whatever matters most right now.", self.quick_session),
@@ -5342,6 +5384,74 @@ class MemoryPalApp(tk.Tk):
         self.tour_card = card
         if self.accessibility.get("read_aloud"):
             self.speak(f"{title}. {body}")
+
+    HUB_INTROS = {
+        "study": "Answer from memory first, then rate how it went. Easy cards come back later; hard ones sooner.",
+        "create": "Add what you want to remember, keep it in decks, and give it cues that help it stick.",
+        "practice": "Techniques that make memories stronger, gentle everyday support, and short recall games.",
+    }
+
+    def view_study(self):
+        self.view_hub("study")
+
+    def view_create(self):
+        self.view_hub("create")
+
+    def view_practice(self):
+        self.view_hub("practice")
+
+    def hub_page_note(self, view):
+        """A short live count for a hub tile, or "" when there's nothing to count."""
+        store = self.store
+        if view == "review":
+            due = len(store.due_cards())
+            return f"{due} card{'s' if due != 1 else ''} due now" if due else "Nothing due right now"
+        if view == "focus":
+            weak = len(store.weak_cards())
+            return f"{weak} card{'s' if weak != 1 else ''} to strengthen" if weak else ""
+        if view == "library":
+            count = len(store.cards)
+            return f"{count} card{'s' if count != 1 else ''} saved"
+        if view == "decks":
+            count = len(store.decks())
+            return f"{count} deck{'s' if count != 1 else ''}"
+        return ""
+
+    def view_hub(self, hub):
+        """A section page: one clickable tile per page it holds, in this profile's page order."""
+        page = ScrollFrame(self.view_host)
+        page.pack(fill="both", expand=True)
+        intro = ttk.Label(page.inner, text=self.HUB_INTROS.get(hub, ""), style="Muted.TLabel", wraplength=self.px(1040))
+        intro.pack(anchor="w", padx=(0, 8), pady=(0, self.px(14)))
+
+        labels = {key: label for key, label, _short in self.default_nav_items()}
+        order = {key: index for index, (key, _label, _short) in enumerate(self.ordered_nav_items())}
+        pages = sorted(self.HUB_PAGES[hub], key=lambda key: order.get(key, len(order)))
+        accents = [COLORS["primary"], COLORS["green"], COLORS["orange"], COLORS["violet"], COLORS["cyan"]]
+
+        tiles = ttk.Frame(page.inner, style="Page.TFrame")
+        tiles.pack(fill="both", expand=True, padx=(0, 8))
+        for column in range(2):
+            tiles.columnconfigure(column, weight=1, uniform=f"hub-{hub}")
+        for index, key in enumerate(pages):
+            row, column = divmod(index, 2)
+            color = accents[index % len(accents)]
+            title = self.page_titles().get(key, ("", labels.get(key, key)))[1]
+            tile = self.hover_card(
+                tk.Frame(tiles, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18)),
+                hover=color,
+                command=lambda view=key: self.show_view(view),
+            )
+            tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
+            tk.Frame(tile, bg=color, width=self.px(32), height=self.px(3)).pack(anchor="w", pady=(0, self.px(10)))
+            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
+            tk.Label(tile, text=self.nav_hint(key), bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(500), justify="left", anchor="w").pack(fill="x", pady=(self.px(5), 0))
+            note = self.hub_page_note(key)
+            if note:
+                tk.Label(tile, text=note, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x", pady=(self.px(8), 0))
+            # The whole tile is clickable; the button gives keyboard users a
+            # focus stop with the visible focus ring.
+            self.solid_button(tile, f"Open {title}", lambda view=key: self.show_view(view), color).pack(fill="x", pady=(self.px(12), 0))
 
     def view_training(self):
         page = ScrollFrame(self.view_host)
@@ -9388,7 +9498,7 @@ class MemoryPalApp(tk.Tk):
         nav_card = self.card(page.inner, "AltCard.TFrame", 22)
         nav_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(nav_card, text="Page Order", style="AltH2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(nav_card, text="Move pages up or down to make the left navigation fit the way this profile studies. Settings stays pinned at the bottom.", style="AltMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
+        self.fit_wrap(ttk.Label(nav_card, text="Move pages up or down to choose which come first inside Today, Study, Create, Practice and Progress, and in the page finder.", style="AltMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
         nav_order = [key for key, _label, _short in self.ordered_nav_items()]
         nav_labels = {key: label for key, label, _short in self.default_nav_items()}
         order_row = tk.Frame(nav_card, bg=COLORS["alt"])
@@ -9436,14 +9546,14 @@ class MemoryPalApp(tk.Tk):
         def apply_nav_order():
             self.set_nav_order(nav_order)
             self.render_navigation_rail()
-            self.toast_message("Navigation order saved.")
+            self.toast_message("Page order saved.")
 
         def reset_nav_order():
             nav_order[:] = [key for key, _label, _short in self.default_nav_items()]
             self.set_nav_order(nav_order)
             self.render_navigation_rail()
             render_nav_order()
-            self.toast_message("Navigation order reset.")
+            self.toast_message("Page order reset.")
 
         render_nav_order()
         self.button_row(
