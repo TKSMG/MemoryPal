@@ -150,6 +150,32 @@ def set_window_redraw(widget, enabled):
         return False
 
 
+def display_refresh_hz(widget, default=60.0):
+    """Refresh rate of the screen showing this window (Windows; else default).
+
+    Asked fresh each time, since the window can move between a 60Hz and a
+    144Hz monitor. Values Windows reports as "hardware default" (0 or 1) or
+    anything implausible fall back to the default.
+    """
+    if not sys.platform.startswith("win"):
+        return default
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetAncestor(widget.winfo_id(), 2) or widget.winfo_id()  # GA_ROOT
+        hdc = user32.GetDC(hwnd)
+        if not hdc:
+            return default
+        try:
+            hz = ctypes.windll.gdi32.GetDeviceCaps(hdc, 116)  # VREFRESH
+        finally:
+            user32.ReleaseDC(hwnd, hdc)
+        return float(hz) if 24 <= hz <= 500 else default
+    except (AttributeError, OSError, tk.TclError):
+        return default
+
+
 def set_fine_timers(enabled):
     """Ask Windows for 1ms timer resolution while an animation runs.
 
@@ -329,7 +355,7 @@ class ScrollFrame(ttk.Frame):
     changed the measured scroll region, which in turn moved the content again.
     """
 
-    FRAME_MS = 1000 / 60  # wheel glide pacing: one step per 60Hz frame
+    FRAME_MS = 1000 / 60  # wheel glide pacing until the screen's own rate is known
 
     def __init__(self, parent, horizontal=False, min_width=0, bottom_padding=None):
         super().__init__(parent)
@@ -361,6 +387,7 @@ class ScrollFrame(ttk.Frame):
         self._live_cover_after = None
         self._glide_time = None
         self._fine_timers = False
+        self._frame_ms = self.FRAME_MS
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
@@ -570,9 +597,12 @@ class ScrollFrame(ttk.Frame):
         if self._destroyed:
             return
         now = time.perf_counter()
-        # Milliseconds since the last step (one 60Hz frame for the first),
+        if self._glide_time is None:
+            # A new glide: step at the refresh rate of the screen it's on.
+            self._frame_ms = 1000.0 / display_refresh_hz(self)
+        # Milliseconds since the last step (one frame for the first),
         # capped so a stall doesn't turn into a jump.
-        elapsed = 16.7 if self._glide_time is None else min(50.0, max(1.0, (now - self._glide_time) * 1000))
+        elapsed = self._frame_ms if self._glide_time is None else min(50.0, max(1.0, (now - self._glide_time) * 1000))
         self._glide_time = now
         for axis, target in list(self._wheel_targets.items()):
             position = self._scroll_position(axis)
@@ -603,10 +633,10 @@ class ScrollFrame(ttk.Frame):
         if self._wheel_targets and not self._destroyed:
             if not self._fine_timers:
                 self._fine_timers = set_fine_timers(True)
-            # One step per 60Hz frame, timed from when this frame started so
-            # the work done in it doesn't stretch the gap to the next one.
+            # One step per screen refresh (30, 60, 144Hz...), timed from when
+            # this step started so the work done in it doesn't stretch the gap.
             spent = (time.perf_counter() - now) * 1000
-            self._wheel_after = self.after(max(1, round(self.FRAME_MS - spent)), self._glide_wheel)
+            self._wheel_after = self.after(max(1, round(self._frame_ms - spent)), self._glide_wheel)
         else:
             self._end_glide_timing()
 
