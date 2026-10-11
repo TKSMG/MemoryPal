@@ -120,5 +120,50 @@ class CameraTests(MediaTestCase):
             media.camera_folders = original
 
 
+class AttachmentPathTests(unittest.TestCase):
+    """Attachment paths come from backups and sync, so only the profile's own folder is trusted."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="memorypal-attach-"))
+        self.folder = self.root / "attachments"
+        self.folder.mkdir()
+        self.photo = self.folder / "cue.png"
+        self.photo.write_bytes(b"png")
+
+    def test_file_inside_the_folder_is_used(self):
+        self.assertEqual(media.attachment_file(str(self.photo), self.folder), self.photo.resolve())
+
+    def test_file_outside_the_folder_is_refused(self):
+        outside = self.root / "elsewhere.png"
+        outside.write_bytes(b"png")
+        self.assertIsNone(media.attachment_file(str(outside), self.folder))
+
+    def test_climbing_out_with_dot_dot_is_refused(self):
+        (self.root / "secret.txt").write_text("x")
+        self.assertIsNone(media.attachment_file(str(self.folder / ".." / "secret.txt"), self.folder))
+
+    def test_network_paths_are_never_touched(self):
+        for path in ("\\\\attacker\\share\\cue.png", "//attacker/share/cue.png", "\\\\?\\UNC\\attacker\\share\\cue.png"):
+            # A same-named file in the folder is used instead; the share is never looked at.
+            self.assertEqual(media.attachment_file(path, self.folder), self.photo.resolve())
+            self.assertIsNone(media.attachment_file(path.replace("cue.png", "nothing.png"), self.folder))
+
+    def test_path_from_another_computer_matches_by_name(self):
+        moved = "C:\\Users\\someone\\AppData\\Local\\MemoryPal\\profiles\\old\\attachments\\cue.png"
+        self.assertEqual(media.attachment_file(moved, self.folder), self.photo.resolve())
+
+    def test_programs_are_never_returned(self):
+        for name in ("run.exe", "go.bat", "x.ps1", "link.lnk", "page.hta", "CAPS.EXE"):
+            (self.folder / name).write_bytes(b"x")
+            self.assertIsNone(media.attachment_file(str(self.folder / name), self.folder), name)
+            self.assertTrue(media.is_program(name))
+        self.assertFalse(media.is_program("notes.pdf"))
+
+    def test_empty_and_odd_values(self):
+        for value in ("", None, "   ", ".", "..", "attachments/"):
+            self.assertIsNone(media.attachment_file(value, self.folder))
+        self.assertIsNone(media.attachment_file(str(self.photo), None))
+
+
 if __name__ == "__main__":
     unittest.main()

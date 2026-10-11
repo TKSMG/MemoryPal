@@ -5966,6 +5966,9 @@ class MemoryPalApp(tk.Tk):
         if not selected:
             return None
         source = Path(selected)
+        if media.is_program(source):
+            self.dialog_alert("Programs can't be attached", f"\"{source.name}\" is a program or script. Attach notes, documents, pictures, audio or video instead.", "error")
+            return None
         if source.suffix.lower() not in self.MEDIA_SUFFIXES.get(kind, ()):
             if not self.dialog_confirm(f"Attach this {name}?", f"\"{source.name}\" doesn't look like a {name} MemoryPal knows. Attach it anyway? It will open in whatever app Windows uses for it.", "Attach anyway"):
                 return None
@@ -6564,13 +6567,18 @@ class MemoryPalApp(tk.Tk):
                 parts.append(f"{names[kind]}: {Path(path).name}")
         return " | ".join(parts)
 
+    def attachment(self, path):
+        """The attached file, only if it is in this profile's attachments folder (see media.attachment_file)."""
+        return media.attachment_file(path, self.store.attachment_dir)
+
     def open_media(self, path):
-        if not path or not Path(path).exists():
+        target = self.attachment(path)
+        if target is None:
             self.toast_message("Media file was not found.")
             return
         try:
             import os
-            os.startfile(path)
+            os.startfile(str(target))
         except OSError as exc:
             self.dialog_alert("Could not open media", str(exc), "error")
 
@@ -6579,23 +6587,28 @@ class MemoryPalApp(tk.Tk):
         button = ttk.Button(parent, text="\u25b6 Play Audio")
         self.add_tooltip(button, "Play the attached audio here. Press again to stop.")
 
+        def playing():
+            target = self.attachment(path)
+            return target is not None and self.audio_player.path == str(target) and self.audio_player.is_playing()
+
         def watch():
             if not button.winfo_exists():
                 return
-            if self.audio_player.path == str(path) and self.audio_player.is_playing():
+            if playing():
                 button.after(250, watch)
             else:
                 button.configure(text="\u25b6 Play Audio")
 
         def toggle():
-            if self.audio_player.path == str(path) and self.audio_player.is_playing():
+            if playing():
                 self.audio_player.stop()
                 button.configure(text="\u25b6 Play Audio")
                 return
-            if not Path(path).exists():
+            target = self.attachment(path)
+            if target is None:
                 self.toast_message("Audio file was not found.")
                 return
-            if self.audio_player.play(path):
+            if self.audio_player.play(target):
                 button.configure(text="\u25a0 Stop")
                 button.after(250, watch)
             else:
@@ -6606,8 +6619,8 @@ class MemoryPalApp(tk.Tk):
 
     def image_photo(self, path, max_width=620, max_height=360):
         """A Tk image of any picture Windows can read, scaled to fit (cached)."""
-        source = Path(path)
-        if not source.exists():
+        source = self.attachment(path)
+        if source is None:
             return None
         width, height = self.px(max_width), self.px(max_height)
         preview = media.image_preview(source, self.store.attachment_dir / "previews", width, height)
@@ -6647,8 +6660,8 @@ class MemoryPalApp(tk.Tk):
             action_row.columnconfigure(index, weight=1)
 
         for kind, path in media:
-            source = Path(path)
-            if kind == "text_file" and source.exists():
+            source = self.attachment(path)
+            if kind == "text_file" and source is not None:
                 try:
                     preview = extract_document_text(source).strip()
                 except Exception:
