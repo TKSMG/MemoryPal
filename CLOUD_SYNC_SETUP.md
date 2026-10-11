@@ -13,8 +13,10 @@ You don't need a domain to build or test this. You will want one before a public
 1. Create a free project at supabase.com. Pick the region closest to your users.
 2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql) and run it.
    It creates the `sync_records` table, its Row Level Security policies (people can read and
-   write only their own rows, and two-step accounts need the second step), and the
-   `delete_my_account()` function used by "Delete account".
+   write only their own rows, and two-step accounts need the second step), a storage
+   allowance per person (50,000 records or 100 MB, far above real use), and the
+   `delete_my_account()` function used by "Delete account". The script is safe to run again
+   after it changes; rerun it whenever `schema.sql` is updated.
 3. Open **Project Settings → API keys** and copy the **Project URL** and the **publishable
    key** (`sb_publishable_...`). Never put the secret / service-role key in either app.
 
@@ -83,15 +85,31 @@ $env:PYTHONIOENCODING="utf-8"; python tools\parity\sync_interop.py   # desktop <
   Postmark or Amazon SES with your domain, so codes arrive reliably and aren't capped at 2
   an hour.
 - **A privacy policy and terms** page on that domain. App stores require one for any app with
-  accounts. It should say what is stored (cards, review history, settings; photos and
-  recordings stay on the device), where (the Supabase region), and how to delete it (Delete
-  account in the app removes the account and its cloud copy).
+  accounts. Drafts written from what the app does are in [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
+  and [`TERMS_OF_USE.md`](TERMS_OF_USE.md). Fill in the bracketed parts and have them reviewed,
+  publish them, then put their addresses in `cloud_config.py` (`TERMS_URL`, `PRIVACY_URL`) and
+  `mobile/app.json` (`expo.extra.termsUrl`, `privacyUrl`). The sign-up screens link to them.
 - **CAPTCHA** (Authentication → Attack Protection) helps stop bot sign-ups, but the apps
   don't send a CAPTCHA token yet. Turning it on before that is built will block every sign-up
   and sign-in.
 - **Google and Apple sign-in** are planned. Apple requires Sign in with Apple on iOS if any
   other social sign-in is offered.
 - Consider the Pro plan for leaked-password protection, daily backups and no project pausing.
+
+## Age and consent
+
+- **Accounts are for people 13 and older** (`MIN_ACCOUNT_AGE` in `security.py` / `security.ts`),
+  the age where US children's privacy law (COPPA) stops requiring a parent's verified consent.
+  Everything else in MemoryPal works without an account for any age.
+- Sign-up asks for the month and year of birth first, with no hint of the required age. The
+  check runs on the device, and **the birth date is never stored or sent**. A refusal blocks
+  sign-up on that device for a day, so the answer can't simply be changed.
+- Sign-up requires agreeing to the Terms of Use and Privacy Policy. The account keeps only
+  `age_confirmed: "13+"`, the `terms_version` and `terms_accepted_at` (Supabase user metadata),
+  as a record of consent. Bump `TERMS_VERSION` when the documents change.
+- In the EU, some countries set the age for consent-based processing at up to 16. Sync is
+  provided as a service the person asked for rather than on consent, but get advice before
+  launching there; raising `MIN_ACCOUNT_AGE` is a one-line change on each side.
 
 ## Security design notes
 
@@ -112,3 +130,12 @@ $env:PYTHONIOENCODING="utf-8"; python tools\parity\sync_interop.py   # desktop <
   limits and password policy above are the real protection.
 - A sign-in that still needs its authenticator code is never saved, so closing the app at
   that step leaves you signed out.
+- **Off Windows** (the macOS desktop build) there is no DPAPI, so `account.bin` is created
+  readable only by its owner (permissions 600), the way command-line tools keep their tokens.
+  Moving it into the macOS Keychain would be stronger.
+- **Attachments are local and fenced in.** Attachment paths travel inside backups and synced
+  cards, so the desktop only ever opens, previews or plays files inside the profile's own
+  attachments folder (`media.attachment_file`), and never programs or scripts. A path
+  pointing anywhere else is treated as missing. Without this, a backup someone sent you could
+  run a program when you pressed Open, or leak your Windows sign-in to a network share just
+  by showing a card.
