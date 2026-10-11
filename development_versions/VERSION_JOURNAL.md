@@ -317,4 +317,4 @@ This version also starts the phone app: a React Native + Expo port in `mobile/` 
 
 Accounts and cloud sync arrive on both apps through Supabase: email codes, automatic field-by-field merging between devices, optional two-step sign-in, password strength and breach checks, and a growing wait after repeated wrong tries. Sign-in tokens stay in DPAPI or the phone's Keychain/Keystore, all access rules are enforced by the database, and `CLOUD_SYNC_SETUP.md` explains the project set-up.
 
-The release number is unchanged until the next tester build.
+This build is packaged as tester release 0.46.0. The installer, the Windows and macOS build scripts, and the tester guide were brought up to date for it, and the phone app's Android themed icon is now a proper one-colour mark.

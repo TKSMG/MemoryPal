@@ -1,6 +1,6 @@
 # MemoryPal Tester Guide - Start Here
 
-Thanks for testing MemoryPal. This beta is version 0.45.0 (development milestone v69). It takes about 20-30 minutes to try the main parts.
+Thanks for testing MemoryPal. This beta is version 0.46.0 (development milestone v70). It takes about 20-30 minutes to try the main parts.
 
 ## 1. Install
 
@@ -51,7 +51,8 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 
 ## 5. Your data
 
-- Cards and settings are saved only on your computer, in `%LOCALAPPDATA%\MemoryPal`. Nothing is uploaded.
+- Cards and settings are saved on your computer, in `%LOCALAPPDATA%\MemoryPal`.
+- Nothing is uploaded unless you sign in under **Settings > Account & sync**. If that card says "Sync isn't set up in this copy of MemoryPal yet", this build works fully offline.
 - Uninstalling MemoryPal (Windows Settings > Apps) keeps your data. Delete that folder only if you want a fresh start.
 - Installing a newer tester build over this one keeps your cards.
 
