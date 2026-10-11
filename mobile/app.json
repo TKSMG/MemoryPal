@@ -12,7 +12,9 @@
     },
     "extra": {
       "supabaseUrl": "",
-      "supabasePublishableKey": ""
+      "supabasePublishableKey": "",
+      "termsUrl": "",
+      "privacyUrl": ""
     },
     "ios": {
       "supportsTablet": true,

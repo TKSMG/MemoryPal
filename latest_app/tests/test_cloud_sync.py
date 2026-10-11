@@ -223,6 +223,51 @@ class PasswordAndLimitTests(unittest.TestCase):
         self.assertEqual(limiter.wait_seconds("pat@example.com"), 0)
 
 
+class AgeAndConsentTests(unittest.TestCase):
+    """Accounts are 13+; the check keeps no birth date; consent is recorded with the account."""
+
+    def test_age_check_is_conservative_around_the_birthday(self):
+        from memorypal import security
+
+        check = lambda month, year: security.account_age_check(month, year, 2026, 10)  # noqa: E731
+        self.assertEqual(check(9, 2013), ("", False))   # turned 13 last month
+        self.assertTrue(check(10, 2013)[1])               # birthday month: treated as not yet 13
+        self.assertTrue(check(11, 2013)[1])               # turns 13 next month
+        self.assertTrue(check(1, 2020)[1])
+        self.assertEqual(check(6, 1950), ("", False))
+        for month, year in ((13, 2000), (0, 2000), ("", "2000"), ("x", "2000"), (5, 2027), (5, 1890), ("1_0", "2000")):
+            message, under = check(month, year)
+            self.assertEqual((message, under), (security.AGE_FORMAT_MESSAGE, False), (month, year))
+
+    def test_a_refusal_holds_on_this_device_for_a_day(self):
+        now = [5000.0]
+        folder = tempfile.mkdtemp(prefix="memorypal-age-")
+        gate = cloud.AgeGate(folder, clock=lambda: now[0])
+        self.assertFalse(gate.blocked())
+        gate.refuse()
+        self.assertTrue(cloud.AgeGate(folder, clock=lambda: now[0]).blocked())
+        now[0] += 24 * 60 * 60 + 1
+        self.assertFalse(gate.blocked())
+        Path(folder, "age-check.json").write_text("not json")
+        self.assertFalse(gate.blocked())
+
+    def test_consent_is_kept_with_the_account_without_a_birth_date(self):
+        from memorypal import security
+
+        server = FakeSupabase()
+        client = cloud.CloudClient("https://example.supabase.co", server.key, opener=server.open)
+        client.sign_up(EMAIL, PASSWORD, cloud.consent_record(now=0))
+        metadata = server.users[EMAIL]["metadata"]
+        self.assertEqual(metadata, {"age_confirmed": "13+", "terms_version": security.TERMS_VERSION, "terms_accepted_at": "1970-01-01T00:00:00Z"})
+        self.assertFalse(any("birth" in key for key in metadata))
+
+    @unittest.skipIf(sys.platform.startswith("win"), "Windows uses DPAPI instead of file permissions")
+    def test_saved_sign_in_is_owner_only_off_windows(self):
+        folder = tempfile.mkdtemp(prefix="memorypal-token-")
+        cloud.TokenStore(folder).save(cloud.Session("a", "r", 0, "u", EMAIL))
+        self.assertEqual(os.stat(Path(folder, "account.bin")).st_mode & 0o777, 0o600)
+
+
 class TwoDeviceSyncTests(unittest.TestCase):
     def setUp(self):
         self.server = FakeSupabase(confirm_email=False)

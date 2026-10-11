@@ -7,7 +7,7 @@
  */
 import Constants from 'expo-constants';
 
-import { MIN_PASSWORD, passwordProblems } from '../core/security';
+import { MIN_ACCOUNT_AGE, MIN_PASSWORD, passwordProblems, TERMS_VERSION } from '../core/security';
 import { kindOf } from '../core/sync';
 import type { Data } from '../core/sync';
 
@@ -25,6 +25,21 @@ export function cloudConfig(): { url: string; key: string } {
 export function cloudConfigured(): boolean {
   const { url, key } = cloudConfig();
   return Boolean(url && key);
+}
+
+/** The published Terms of Use and Privacy Policy (app.json expo.extra termsUrl / privacyUrl). */
+export function legalLinks(): { terms: string; privacy: string } {
+  const extra = (Constants.expoConfig?.extra ?? {}) as { termsUrl?: string; privacyUrl?: string };
+  return { terms: String(extra.termsUrl ?? ''), privacy: String(extra.privacyUrl ?? '') };
+}
+
+/** What a new account keeps about consent: no birth date, just the outcome (cloud.py consent_record). */
+export function consentRecord(now = Date.now()): Record<string, string> {
+  return {
+    age_confirmed: `${MIN_ACCOUNT_AGE}+`,
+    terms_version: TERMS_VERSION,
+    terms_accepted_at: new Date(Math.floor(now / 1000) * 1000).toISOString().replace('.000Z', 'Z'),
+  };
 }
 
 export class CloudError extends Error {
@@ -54,6 +69,8 @@ const FRIENDLY: Record<string, string> = {
   mfa_factor_not_found: "Two-step sign-in isn't set up for this account any more.",
   too_many_enrolled_mfa_factors: 'Two-step sign-in is already set up. Turn it off first to set it up again.',
   // Row Level Security refused the request (for two-step accounts: no second step yet).
+  // The per-person storage allowance in supabase/schema.sql (sync_records_quota).
+  P0001: 'Your cloud copy is full. Delete cards or notes you no longer need, then sync again.',
   '42501': "MemoryPal couldn't reach your cloud data. Sign out and sign in again (with your authenticator code if you use one).",
 };
 
@@ -163,9 +180,11 @@ export class CloudClient {
   }
 
   /** Create an account: a Session, or null when the email must be confirmed with a code first. */
-  async signUp(email: string, password: string): Promise<Session | null> {
+  async signUp(email: string, password: string, consent?: Record<string, string>): Promise<Session | null> {
     checkPassword(password, email);
-    const data = ((await this.request('POST', '/auth/v1/signup', { body: { email: email.trim(), password } })) ?? {}) as Record<string, unknown>;
+    const body: Record<string, unknown> = { email: email.trim(), password };
+    if (consent) body.data = { ...consent };
+    const data = ((await this.request('POST', '/auth/v1/signup', { body })) ?? {}) as Record<string, unknown>;
     return data.access_token ? sessionFrom(data) : null;
   }
 

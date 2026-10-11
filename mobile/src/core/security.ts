@@ -118,3 +118,30 @@ export function waitMessage(seconds: number): string {
     ? `Too many tries. Please wait about ${pyRound(seconds / 60)} minutes before trying again.`
     : `Too many tries. Please wait ${seconds} seconds before trying again.`;
 }
+
+// Accounts (and so any personal data leaving the device) are for people 13
+// and older, as children's privacy laws expect (COPPA in the US). Everything
+// else in MemoryPal works without an account, for any age.
+export const MIN_ACCOUNT_AGE = 13;
+// A refused age check holds on that device for a day, so the answer can't
+// simply be changed and sent again.
+export const AGE_RETRY_SECONDS = 24 * 60 * 60;
+// Bump when the Terms or Privacy Policy change; stored with each new account.
+export const TERMS_VERSION = '2026-10-12';
+export const AGE_FORMAT_MESSAGE = 'Enter the month (1-12) and the year you were born.';
+export const UNDER_AGE_MESSAGE =
+  `MemoryPal accounts are for people ${MIN_ACCOUNT_AGE} and older. You can keep using ` +
+  'everything on this device without an account; your cards stay saved here.';
+
+/** ['', false] when old enough for an account, else [message, underAge]. See security.py. */
+export function accountAgeCheck(month: string | number, year: string | number, todayYear: number, todayMonth: number): [string, boolean] {
+  const m = String(month).trim();
+  const y = String(year).trim();
+  if (!/^[+-]?\d+$/.test(m) || !/^[+-]?\d+$/.test(y)) return [AGE_FORMAT_MESSAGE, false];
+  const birthMonth = parseInt(m, 10);
+  const birthYear = parseInt(y, 10);
+  if (birthMonth < 1 || birthMonth > 12 || birthYear < todayYear - 120 || birthYear > todayYear) return [AGE_FORMAT_MESSAGE, false];
+  const age = todayYear - birthYear - (todayMonth <= birthMonth ? 1 : 0);
+  if (age < MIN_ACCOUNT_AGE) return [UNDER_AGE_MESSAGE, true];
+  return ['', false];
+}

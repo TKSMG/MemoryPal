@@ -11,3 +11,9 @@ override them for testing.
 
 SUPABASE_URL = ""          # e.g. "https://abcdefghijklmnop.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = ""  # e.g. "sb_publishable_..."
+
+# The published Terms of Use and Privacy Policy (drafts: TERMS_OF_USE.md and
+# PRIVACY_POLICY.md). Account sign-up links to them; app stores require the
+# privacy policy before an app with accounts is published.
+TERMS_URL = ""             # e.g. "https://memorypal.app/terms"
+PRIVACY_URL = ""           # e.g. "https://memorypal.app/privacy"
