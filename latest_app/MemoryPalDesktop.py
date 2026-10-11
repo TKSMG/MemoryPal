@@ -1571,6 +1571,109 @@ class MemoryPalApp(tk.Tk):
         encoded = base64.b64encode(data).decode("ascii")
         return tk.PhotoImage(data=encoded, format="png")
 
+    # Line icons for the rail and hub tiles, drawn on a 24-unit grid like SF
+    # Symbols: one stroke weight, round ends, no fills except small knobs.
+    # Each shape is (kind, *numbers); strokes are measured from the centre line.
+    LINE_ICONS = {
+        "dashboard": [("circle", 12, 12, 4)] + [
+            ("seg", 12 + 7 * dx, 12 + 7 * dy, 12 + 9.5 * dx, 12 + 9.5 * dy)
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (0.7071, 0.7071), (-0.7071, 0.7071), (0.7071, -0.7071), (-0.7071, -0.7071))
+        ],
+        "study": [
+            ("box", 3, 7.5, 17, 20.5, 2),
+            ("seg", 7, 3.5, 18.5, 3.5), ("seg", 18.5, 3.5, 20.5, 5.5), ("seg", 20.5, 5.5, 20.5, 16.5),
+        ],
+        "create": [("circle", 12, 12, 9), ("seg", 12, 8, 12, 16), ("seg", 8, 12, 16, 12)],
+        "practice": [
+            ("seg", 7.5, 12, 16.5, 12), ("box", 4.5, 7, 7.5, 17, 1.2), ("box", 16.5, 7, 19.5, 17, 1.2),
+            ("seg", 2, 10, 2, 14), ("seg", 22, 10, 22, 14),
+        ],
+        "stats": [("seg", 5.5, 19.5, 5.5, 14), ("seg", 12, 19.5, 12, 9.5), ("seg", 18.5, 19.5, 18.5, 4.5)],
+        "feedback": [("box", 3, 4, 21, 16, 3), ("seg", 8, 16, 7, 20.5), ("seg", 7, 20.5, 12.5, 16)],
+        "settings": [
+            ("seg", 3.5, 8, 20.5, 8), ("seg", 3.5, 16, 20.5, 16), ("dot", 9, 8, 2.6), ("dot", 15, 16, 2.6),
+        ],
+        # Pages inside the hubs.
+        "review": [("box", 3.5, 5, 20.5, 20, 2.5), ("seg", 3.5, 9.5, 20.5, 9.5), ("seg", 8, 3, 8, 6.5), ("seg", 16, 3, 16, 6.5)],
+        "focus": [("circle", 12, 12, 8.5), ("circle", 12, 12, 4.5), ("dot", 12, 12, 1.4)],
+        "quiz": [("circle", 12, 12, 9), ("seg", 9.5, 9.5, 9.6, 9.2), ("seg", 9.6, 9.2, 12, 7.6), ("seg", 12, 7.6, 14.4, 9.2), ("seg", 14.4, 9.2, 12.2, 12.4), ("seg", 12.2, 12.4, 12.2, 13.4), ("dot", 12.2, 16.6, 1.2)],
+        "shuffle": [("seg", 3, 7, 21, 7), ("seg", 21, 7, 17.5, 3.5), ("seg", 21, 17, 3, 17), ("seg", 3, 17, 6.5, 20.5)],
+        "testing": [("box", 4, 3, 20, 21, 2.5), ("seg", 8, 12.5, 10.8, 15.3), ("seg", 10.8, 15.3, 16, 9)],
+        "capture": [("box", 3.5, 3.5, 20.5, 20.5, 3), ("seg", 12, 8, 12, 16), ("seg", 8, 12, 16, 12)],
+        "decks": [("box", 3, 9, 21, 20.5, 2), ("seg", 5.5, 5.5, 18.5, 5.5), ("seg", 8, 2.5, 16, 2.5)],
+        "library": [("seg", 5, 4, 5, 20), ("seg", 10, 4, 10, 20), ("seg", 14.5, 5, 19, 19.5)],
+        "cuelab": [("seg", 12, 2.5, 13.8, 10.2), ("seg", 13.8, 10.2, 21.5, 12), ("seg", 21.5, 12, 13.8, 13.8), ("seg", 13.8, 13.8, 12, 21.5), ("seg", 12, 21.5, 10.2, 13.8), ("seg", 10.2, 13.8, 2.5, 12), ("seg", 2.5, 12, 10.2, 10.2), ("seg", 10.2, 10.2, 12, 2.5)],
+        "training": [("seg", 7.5, 12, 16.5, 12), ("box", 4.5, 7, 7.5, 17, 1.2), ("box", 16.5, 7, 19.5, 17, 1.2), ("seg", 2, 10, 2, 14), ("seg", 22, 10, 22, 14)],
+        "elder": [("seg", 12, 20, 4.2, 12.2), ("seg", 12, 20, 19.8, 12.2), ("circle", 7.8, 8.6, 4.4), ("circle", 16.2, 8.6, 4.4)],
+        "tools": [("box", 2.5, 9, 10.5, 15, 3), ("box", 13.5, 9, 21.5, 15, 3), ("seg", 8, 12, 16, 12)],
+        "games": [("box", 2.5, 7, 21.5, 18, 4.5), ("seg", 7.5, 10, 7.5, 15), ("seg", 5, 12.5, 10, 12.5), ("dot", 15.5, 11, 1.3), ("dot", 18, 14, 1.3)],
+    }
+
+    def icon_coverage(self, name, size):
+        """Antialiased coverage (0-255 per pixel) of a line icon at this size."""
+        cache = self.__dict__.setdefault("_icon_coverage_cache", {})
+        key = (name, size)
+        if key in cache:
+            return cache[key]
+        shapes = self.LINE_ICONS.get(name)
+        if not shapes:
+            return None
+        unit = size / 24
+        half = 0.9  # half the stroke, in grid units
+
+        def distance(shape, x, y):
+            kind = shape[0]
+            if kind == "seg":
+                x1, y1, x2, y2 = shape[1:]
+                dx, dy = x2 - x1, y2 - y1
+                length = dx * dx + dy * dy
+                t = 0 if not length else max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / length))
+                return math.hypot(x - x1 - t * dx, y - y1 - t * dy) - half
+            if kind == "circle":
+                cx, cy, r = shape[1:]
+                return abs(math.hypot(x - cx, y - cy) - r) - half
+            if kind == "dot":
+                cx, cy, r = shape[1:]
+                return math.hypot(x - cx, y - cy) - r
+            x0, y0, x1, y1, r = shape[1:]
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+            qx = abs(x - cx) - ((x1 - x0) / 2 - r)
+            qy = abs(y - cy) - ((y1 - y0) / 2 - r)
+            outside = math.hypot(max(qx, 0), max(qy, 0)) + min(max(qx, qy), 0) - r
+            return abs(outside) - half
+
+        samples = 4
+        coverage = bytearray(size * size)
+        for py in range(size):
+            for px in range(size):
+                hits = 0
+                for sy in range(samples):
+                    gy = (py + (sy + 0.5) / samples) / unit
+                    for sx in range(samples):
+                        gx = (px + (sx + 0.5) / samples) / unit
+                        if any(distance(shape, gx, gy) <= 0 for shape in shapes):
+                            hits += 1
+                coverage[py * size + px] = round(255 * hits / (samples * samples))
+        cache[key] = coverage
+        return coverage
+
+    def line_icon(self, name, size, color):
+        """A cached PhotoImage of a line icon in one colour, or None."""
+        cache = self.__dict__.setdefault("_icon_photo_cache", {})
+        key = (name, size, color)
+        if key in cache:
+            return cache[key]
+        rgb = self.hex_to_rgb(color)
+        coverage = self.icon_coverage(name, size) if rgb else None
+        if coverage is None:
+            return None
+        pixels = bytearray()
+        for alpha in coverage:
+            pixels.extend((*rgb, alpha))
+        photo = tk.PhotoImage(master=self, data=base64.b64encode(self.png_rgba(size, size, bytes(pixels))).decode("ascii"), format="png")
+        cache[key] = photo
+        return photo
+
     def hex_to_rgb(self, hex_color):
         raw = str(hex_color).lstrip("#")
         if len(raw) != 6:
@@ -2585,9 +2688,9 @@ class MemoryPalApp(tk.Tk):
         # Compact rail items so every page fits without paging on a normal
         # laptop screen; the active page is a calm filled pill, not a bright
         # block (white on the old bright blue was only 2.3:1).
-        self.style.configure("Nav.TButton", padding=self.pad(14, 6), foreground=COLORS["rail_text"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI", 11))
+        self.style.configure("Nav.TButton", padding=self.pad(12, 9), space=self.px(12), foreground=COLORS["rail_text"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI", 12))
         self.style.map("Nav.TButton", foreground=[("disabled", self.tint(COLORS["rail_muted"], -50)), ("active", COLORS["white"])])
-        self.style.configure("ActiveNav.TButton", padding=self.pad(14, 6), foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.configure("ActiveNav.TButton", padding=self.pad(12, 9), space=self.px(12), foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 12))
         self.style.map("ActiveNav.TButton", foreground=[("active", COLORS["white"])])
 
         # Keyboard focus is always visible (a ring inside the button).
@@ -3159,7 +3262,7 @@ class MemoryPalApp(tk.Tk):
             # Already showing exactly this page of items: redrawing it again
             # (as the idle re-check after a rebuild did) only causes a flash.
             for nav_key, button in self.nav_buttons.items():
-                button.configure(style="ActiveNav.TButton" if nav_key == key else "Nav.TButton")
+                self.set_nav_button_state(button, nav_key, nav_key == key)
             return
         self.render_nav_page()
 
@@ -3206,6 +3309,7 @@ class MemoryPalApp(tk.Tk):
                 style="Nav.TButton",
                 command=lambda view=key: self.show_view(view),
             )
+            self.set_nav_button_state(button, key, False)
             button.pack(fill="x", padx=self.px(14), pady=gap)
             self.bind_nav_wheel(button)
             self.add_tooltip(button, self.nav_hint(key))
@@ -3326,10 +3430,12 @@ class MemoryPalApp(tk.Tk):
         tk.Frame(pinned, bg=self.tint(COLORS["rail"], 26), height=max(1, self.px(1))).pack(fill="x", padx=self.px(4), pady=(0, self.px(8)))
         # Feedback sits with Settings while the app is in testing.
         self.nav_feedback_button = ttk.Button(pinned, text="Feedback", style="Nav.TButton", command=lambda: self.show_view("feedback"))
+        self.set_nav_button_state(self.nav_feedback_button, "feedback", False)
         self.nav_feedback_button.pack(fill="x", pady=self.px(2))
         self.add_tooltip(self.nav_feedback_button, self.nav_hint("feedback"))
         self.bind_nav_wheel(self.nav_feedback_button)
         self.nav_settings_button = ttk.Button(pinned, text="Settings", style="Nav.TButton", command=lambda: self.show_view("settings"))
+        self.set_nav_button_state(self.nav_settings_button, "settings", False)
         self.nav_settings_button.pack(fill="x", pady=self.px(2))
         self.add_tooltip(self.nav_settings_button, self.nav_hint("settings"))
         self.bind_nav_wheel(pinned)
@@ -3359,6 +3465,21 @@ class MemoryPalApp(tk.Tk):
         self.ensure_nav_item_visible(getattr(self, "current_view", "dashboard"))
         self.after_idle(lambda: self.ensure_nav_item_visible(getattr(self, "current_view", "dashboard")))
 
+    def nav_icon_size(self):
+        return max(16, self.px(20))
+
+    def set_nav_button_state(self, button, key, selected):
+        """Selected/unselected look for a rail button, icon included."""
+        size = self.nav_icon_size()
+        bright = self.line_icon(key, size, COLORS["white"])
+        quiet = self.line_icon(key, size, COLORS["rail_text"])
+        options = {"style": "ActiveNav.TButton" if selected else "Nav.TButton"}
+        if bright is not None and quiet is not None:
+            # Hovering brightens the icon along with the label.
+            options["image"] = (bright,) if selected else (quiet, "active", bright)
+            options["compound"] = "left"
+        button.configure(**options)
+
     def refresh_nav_selection(self, current=None):
         if not hasattr(self, "nav_buttons"):
             return
@@ -3371,7 +3492,7 @@ class MemoryPalApp(tk.Tk):
         for key, button in buttons.items():
             if not button.winfo_exists():
                 continue
-            button.configure(style="ActiveNav.TButton" if key == current else "Nav.TButton")
+            self.set_nav_button_state(button, key, key == current)
 
     def active_profile_number(self):
         profiles = list_profiles()
@@ -5495,7 +5616,13 @@ class MemoryPalApp(tk.Tk):
                 command=lambda view=key: self.show_view(view),
             )
             tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
-            tk.Frame(tile, bg=color, width=self.px(32), height=self.px(3)).pack(anchor="w", pady=(0, self.px(10)))
+            badge_size = self.px(36)
+            badge = tk.Canvas(tile, width=badge_size, height=badge_size, bg=COLORS["surface"], highlightthickness=0)
+            badge.pack(anchor="w", pady=(0, self.px(10)))
+            self.draw_antialiased_shape(badge, badge_size, badge_size, self.blend_hex(COLORS["surface"], color, 0.18), radius=self.px(10))
+            icon = self.line_icon(key, self.px(20), color)
+            if icon is not None:
+                badge.create_image(badge_size // 2, badge_size // 2, image=icon, anchor="center")
             tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
             tk.Label(tile, text=self.nav_hint(key), bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(500), justify="left", anchor="w").pack(fill="x", pady=(self.px(5), 0))
             note = self.hub_page_note(key)
@@ -5507,6 +5634,27 @@ class MemoryPalApp(tk.Tk):
             # Packed to the bottom so the buttons in a row line up even when
             # one tile's description runs to an extra line.
             ttk.Button(tile, text="Open", style="TButton", command=lambda view=key: self.show_view(view)).pack(side="bottom", anchor="w", pady=(self.px(14), 0))
+
+        # Rows share the visible height (up to a comfortable cap), so four
+        # tiles fill the page instead of sitting in its top half above an
+        # empty band. Hubs with more tiles than fit simply scroll.
+        rows = max(1, (len(pages) + 1) // 2)
+        gutter = self.px(12)
+        cap = self.px(250)
+
+        def fit_rows(_event=None):
+            try:
+                if not tiles.winfo_exists():
+                    return
+                spare = page.viewport.winfo_height() - intro.winfo_height() - self.px(14) - self.px(18)
+            except tk.TclError:
+                return
+            height = max(0, min(cap, int(spare / rows) - gutter))
+            for row in range(rows):
+                tiles.rowconfigure(row, minsize=height + gutter)
+
+        page.viewport.bind("<Configure>", fit_rows, add="+")
+        self.after_idle(fit_rows)
 
     def view_training(self):
         page = ScrollFrame(self.view_host)
