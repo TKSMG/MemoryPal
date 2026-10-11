@@ -86,23 +86,23 @@ Focus: keyboard focus is always visible as a solid amber rounded ring (WCAG 2.4.
 
 Navigation rail:
 
-- Items are compact so all pages fit on a normal laptop screen. The rail falls back to paging only on short windows or very large text.
-- The active page is a calm filled pill, not a bright block.
-- The line above each page title names the area it belongs to: Today, Study, Create, Practice, or Progress.
+- The rail holds five destinations, the same as the phone's tabs: Today, Study, Create, Practice and Progress. Feedback and Settings are pinned at the bottom. It still falls back to paging on very short windows or very large text.
+- The active destination is a calm filled pill, not a bright block. Pages inside a destination (Review inside Study, Puzzles inside Practice) light up their destination.
+- The line above each page title names the destination it belongs to.
 
 Destructive actions: never put them next to everyday actions. Reset all data lives in Settings. Delete card lives inside the card editor, behind a confirmation. Import shows how many cards a backup has and keeps a copy of the current data before replacing it.
 
-### Next step: fewer top-level pages
+### Five destinations (v72)
 
-The rail holds 17 pages. Duolingo has 5 tabs and Khan Academy about 4. The pages fit now, but scanning 17 labels is still slow, especially for older users. The recommended next structure groups pages into five destinations, each a hub page like Memory Gym already is:
+The rail used to hold 17 pages. Duolingo has 5 tabs and Khan Academy about 4, and scanning 17 labels was slow, especially for older users. The pages are now grouped into five destinations (`HUBS` and `HUB_PAGES` in `MemoryPalDesktop.py`):
 
-- **Today**: Dashboard, Study Plan.
-- **Study**: Review, Focus queue, Quiz, Repetition. Test Lab stays the place answers happen, but it is entered from these, not from the rail.
-- **Create**: Capture, Decks, Library, Cue Lab.
-- **Practice**: Memory Gym, Associations, Puzzles. Everyday Memory comes first for the everyday and caregiver personas.
+- **Today**: Dashboard, which also leads to the Study Plan.
+- **Study**: a hub page with Review, Focus, Quiz, Repetition and Test Lab.
+- **Create**: a hub page with Capture, Decks, Library and Cue Lab.
+- **Practice**: a hub page with Memory Gym, Everyday Memory, Associations and Puzzles.
 - **Progress**: Stats.
 
-Feedback moves into Settings or the help menu once testing ends. Every page stays reachable through Ctrl+K and Back.
+Hub pages show one tile per page, with a live count where it helps ("4 cards due now"). The tiles follow the profile's page order, so Everyday Memory comes first for the everyday and caregiver personas. Settings → Page Order now sets that order inside each destination. Every page stays reachable through Ctrl+K and Back. Feedback moves into Settings or the help menu once testing ends.
 
 ## Platform Conventions
 
@@ -172,7 +172,7 @@ Accounts are optional and never block studying: the apps work fully offline, and
 
 ## Mobile Feel
 
-The mobile version (`mobile/`, React Native + Expo) doesn't copy the desktop layout. It has five bottom tabs (Today, Study, Create, Practice, Progress), one main action per screen, large targets, and native share sheets and file pickers. This is the five-hub structure proposed above for the desktop, tried first where space forces it.
+The mobile version (`mobile/`, React Native + Expo) doesn't copy the desktop layout. It has five bottom tabs (Today, Study, Create, Practice, Progress), one main action per screen, large targets, and native share sheets and file pickers. The desktop rail now uses the same five destinations.
 
 Why React Native + Expo rather than Kivy or Flutter: the controls are real native ones, so TalkBack and VoiceOver work. For this audience that is non-negotiable, and Kivy has no screen-reader support. It runs on an actual phone straight away through Expo Go, needing no Mac or Android SDK, and one TypeScript codebase also gives a web build and a straightforward path to cloud sync.
 
