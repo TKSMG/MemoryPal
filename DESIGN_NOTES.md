@@ -104,6 +104,15 @@ The rail holds 17 pages. Duolingo has 5 tabs and Khan Academy about 4. The pages
 
 Feedback moves into Settings or the help menu once testing ends. Every page stays reachable through Ctrl+K and Back.
 
+## Platform Conventions
+
+Each build should feel native where it runs, checked against Apple's Human Interface Guidelines (audit of 2026-10-11):
+
+- **Mac:** a real menu bar (About, Settings… ⌘,, Edit, View, Go, Window, Help). Shortcuts use Command, and on-screen hints are written the Mac way (⌘K, ⌘Z, ⌘[ for Back). Text uses the system font instead of Segoe UI. Dialogs keep the native frame, so close is top-left. Tk only displays menu shortcuts, so every shortcut shown in a menu must also be bound.
+- **Windows:** the custom title bar and borderless dialogs stay. Shortcuts are written Ctrl+K.
+- **iPhone and iPad:** screens stop growing at a 720pt reading width and centre, so iPad lines stay readable. Sheets have Cancel or Done in the bar. Text follows Apple's styles (Large Title 34, Title 2 22, Headline 17 semibold, Body 17, Footnote 13), with sentence-case labels rather than spaced capitals. Buttons and cards shrink slightly the moment they're pressed.
+- **Reduce motion** means a cross-fade, not no transition: people still see that the screen changed.
+
 ## Navigation And Motion
 
 People should never feel lost: every page is reachable from the rail, from Ctrl+K, and by going Back. Big changes (theme, text size, rebuilding the shell) happen out of sight and appear in one frame; popups appear already finished instead of fading.

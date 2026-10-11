@@ -47,27 +47,30 @@ export default function Welcome() {
       <Txt variant="muted">Three quick questions so the app fits you. You can change any of this later in Settings.</Txt>
 
       <Txt variant="h2">1. Who will be using MemoryPal?</Txt>
-      {PERSONAS.map((item) => {
-        const selected = chosen === item.key;
-        return (
-          <Card
-            key={item.key}
-            onPress={() => choose(item.key)}
-            accessibilityLabel={`${item.title}. ${item.body}`}
-            accessibilityHint={selected ? 'Selected' : 'Choose this'}
-            style={selected ? { borderColor: theme.colors.primary, borderWidth: 2 } : undefined}
-          >
-            <Row>
-              <Ionicons name={ICONS[item.key]} size={28} color={selected ? theme.colors.link : theme.colors.muted} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Txt variant="h3">{item.title}</Txt>
-                <Txt variant="muted">{item.body}</Txt>
-              </View>
-              {selected ? <Ionicons name="checkmark-circle" size={26} color={theme.colors.link} /> : null}
-            </Row>
-          </Card>
-        );
-      })}
+      <View accessibilityRole="radiogroup" accessibilityLabel="Who will be using MemoryPal?" style={{ gap: 16 }}>
+        {PERSONAS.map((item) => {
+          const selected = chosen === item.key;
+          return (
+            <Card
+              key={item.key}
+              onPress={() => choose(item.key)}
+              accessibilityLabel={`${item.title}. ${item.body}`}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, checked: selected }}
+              style={selected ? { borderColor: theme.colors.primary, borderWidth: 2 } : undefined}
+            >
+              <Row>
+                <Ionicons name={ICONS[item.key]} size={28} color={selected ? theme.colors.link : theme.colors.muted} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt variant="h3">{item.title}</Txt>
+                  <Txt variant="muted">{item.body}</Txt>
+                </View>
+                {selected ? <Ionicons name="checkmark-circle" size={26} color={theme.colors.link} /> : null}
+              </Row>
+            </Card>
+          );
+        })}
+      </View>
 
       <Txt variant="h2">2. How big should the text be?</Txt>
       <Card>

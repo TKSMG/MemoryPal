@@ -78,6 +78,26 @@ from memorypal.store import MemoryStore, default_accessibility, load_items, norm
 
 APP_ROOT = Path(__file__).resolve().parent
 
+# Mac people press Command where Windows people press Control, and the Mac
+# writes shortcuts as symbols (⌘K) rather than words (Ctrl+K).
+IS_MAC = sys.platform == "darwin"
+MOD = "Command" if IS_MAC else "Control"
+
+
+def shortcut(key):
+    """How a Command/Control shortcut is written on this platform: ⌘K or Ctrl+K."""
+    return f"\u2318{key}" if IS_MAC else f"Ctrl+{key}"
+
+
+BACK_SHORTCUT = "\u2318[" if IS_MAC else "Alt + Left"
+
+
+def platform_text(text):
+    """Swap the Windows shortcut names in shared copy for the Mac's."""
+    if not IS_MAC:
+        return text
+    return re.sub(r"Ctrl ?\+ ?([A-Za-z0-9])", lambda match: shortcut(match.group(1).upper()), text)
+
 
 def bundled_resource_path(*parts):
     """Find a source or packaged resource without generating it at startup."""
@@ -896,7 +916,7 @@ class Tooltip:
             pady=7,
             justify="left",
             wraplength=280,
-            font=("Segoe UI", 10),
+            font=self.widget._root().font("Segoe UI", 10) if hasattr(self.widget._root(), "font") else ("Segoe UI", 10),
         )
         label.pack()
 
@@ -985,6 +1005,8 @@ class MemoryPalApp(tk.Tk):
         self.keep_flat_buttons_still()
         self._shell()
         self.protocol("WM_DELETE_WINDOW", self.destroy)
+        if IS_MAC:
+            self.install_mac_menus()
         self.bind("<Map>", self.restore_window_chrome, add="+")
         self.bind("<F11>", lambda _event: self.toggle_true_fullscreen())
         for sequence in ("<Control-Command-f>", "<Command-Control-f>"):
@@ -994,10 +1016,14 @@ class MemoryPalApp(tk.Tk):
                 pass
         self.bind("<Escape>", lambda _event: self.exit_fullscreen_or_focus())
         self.bind("<Alt-Left>", lambda _event: self.go_back())
-        for sequence in ("<Control-k>", "<Control-K>"):
+        if IS_MAC:
+            # ⌘[ is Back in Finder, Safari and every Mac app with history.
+            self.bind("<Command-bracketleft>", lambda _event: self.go_back())
+        for sequence in (f"<{MOD}-k>", f"<{MOD}-K>"):
             self.bind(sequence, self.open_page_finder)
             # Entry/Text use Ctrl+K to delete to the end of the line; open the
             # finder there too instead of silently erasing what was typed.
+            # (On a Mac, ⌘K leaves Control-K's line delete alone.)
             for widget_class in ("Entry", "TEntry", "Text"):
                 self.bind_class(widget_class, sequence, self.open_page_finder)
         self.bind("<Configure>", self.handle_window_configure, add="+")
@@ -1012,6 +1038,61 @@ class MemoryPalApp(tk.Tk):
         self.reveal_window(self)
         self.after(120, lambda: setattr(self, "_taskbar_ready", self.ensure_taskbar_presence()))
         self._ui_ready = True
+
+    def install_mac_menus(self):
+        """Give the Mac the menu bar every Mac app has.
+
+        Tk only shows menu shortcuts; it doesn't run them (the keys go to the
+        bindings in __init__ and to Tk's own text bindings), so each shortcut
+        listed here must also be bound. About, Settings… (⌘,) and Quit (⌘Q)
+        are the system's own items in the app menu, hooked up through Tk's
+        tk::mac commands. A menu named "window" becomes the system's Window
+        menu, which brings Minimize (⌘M), Zoom and the window list with it.
+        """
+        try:
+            self.createcommand("tkAboutDialog", lambda: self.tk.call("tk::mac::standardAboutPanel"))
+            self.createcommand("tk::mac::ShowPreferences", lambda *_args: self.show_view("settings"))
+            self.createcommand("tk::mac::Quit", self.destroy)
+        except tk.TclError:
+            pass
+
+        def send(event_name):
+            widget = self.focus_get()
+            if widget is not None:
+                widget.event_generate(event_name)
+
+        menubar = tk.Menu(self)
+        edit = tk.Menu(menubar, tearoff=False)
+        edit.add_command(label="Undo", accelerator="Command-Z", command=lambda: send("<<Undo>>"))
+        edit.add_command(label="Redo", accelerator="Shift-Command-Z", command=lambda: send("<<Redo>>"))
+        edit.add_separator()
+        edit.add_command(label="Cut", accelerator="Command-X", command=lambda: send("<<Cut>>"))
+        edit.add_command(label="Copy", accelerator="Command-C", command=lambda: send("<<Copy>>"))
+        edit.add_command(label="Paste", accelerator="Command-V", command=lambda: send("<<Paste>>"))
+        edit.add_command(label="Select All", accelerator="Command-A", command=lambda: send("<<SelectAll>>"))
+        menubar.add_cascade(label="Edit", menu=edit)
+
+        view = tk.Menu(menubar, tearoff=False)
+        view.add_command(label="Switch Light / Dark", command=self.toggle_theme)
+        view.add_separator()
+        view.add_command(label="Toggle Full Screen", accelerator="Control-Command-F", command=self.toggle_true_fullscreen)
+        menubar.add_cascade(label="View", menu=view)
+
+        go = tk.Menu(menubar, tearoff=False)
+        go.add_command(label="Back", accelerator="Command-[", command=self.go_back)
+        go.add_command(label="Go to Page\u2026", accelerator="Command-K", command=self.open_page_finder)
+        go.add_separator()
+        for key, label in (("dashboard", "Dashboard"), ("review", "Review"), ("capture", "Capture"), ("library", "Library"), ("stats", "Stats")):
+            go.add_command(label=label, command=lambda key=key: self.show_view(key))
+        menubar.add_cascade(label="Go", menu=go)
+
+        menubar.add_cascade(label="Window", menu=tk.Menu(menubar, name="window", tearoff=False))
+
+        help_menu = tk.Menu(menubar, name="help", tearoff=False)
+        help_menu.add_command(label="Take the Guided Tour", command=self.start_tour)
+        help_menu.add_command(label="Send Feedback\u2026", command=lambda: self.show_view("feedback"))
+        menubar.add_cascade(label="Help", menu=help_menu)
+        self.configure(menu=menubar)
 
     def capture_normal_geometry(self):
         if not self.is_fullscreen and not self.is_focus_window:
@@ -2336,7 +2417,30 @@ class MemoryPalApp(tk.Tk):
         return max(1, int(round(value * self.ui_scale)))
 
     def font(self, family, size):
-        return (family, max(8, int(round(size * self.font_scale))))
+        size = max(8, int(round(size * self.font_scale)))
+        if family in ("Segoe UI", "Segoe UI Semibold"):
+            system = self.system_ui_family()
+            if system:
+                # Off Windows, ask for the system's own UI font (San Francisco
+                # on a Mac) instead of letting Tk swap Segoe for a lookalike,
+                # which also dropped the Semibold weight from every heading.
+                return (system, size, "bold") if family.endswith("Semibold") else (system, size)
+        return (family, size)
+
+    def system_ui_family(self):
+        """The platform UI font to use instead of Segoe UI, or None to keep Segoe."""
+        cached = getattr(self, "_system_ui_family", False)
+        if cached is not False:
+            return cached
+        family = None
+        if self.available_font("Segoe UI", fallback="") != "Segoe UI":
+            try:
+                # Read before _styles points TkDefaultFont at the body font.
+                family = tkfont.nametofont("TkDefaultFont", root=self).actual("family") or None
+            except (tk.TclError, TypeError):
+                family = None
+        self._system_ui_family = family
+        return family
 
     def available_font(self, *families, fallback="Segoe UI Symbol"):
         if self._font_families is None:
@@ -2858,7 +2962,7 @@ class MemoryPalApp(tk.Tk):
         if show_minimize:
             chrome_button("\u2212", self.minimize_app, hint="Minimize")
         if show_fullscreen:
-            self.chrome_fullscreen_button = chrome_button("\u2750" if self.is_focus_window else "\u25a1", self.toggle_focus_window, hint="Toggle borderless focus. Press F11 on Windows/Linux or Control-Command-F on macOS for true fullscreen.")
+            self.chrome_fullscreen_button = chrome_button("\u2750" if self.is_focus_window else "\u25a1", self.toggle_focus_window, hint="Toggle borderless focus. Press " + ("Control-Command-F" if IS_MAC else "F11") + " for true fullscreen.")
         close = chrome_button("\u00d7", close_command, COLORS["danger"], COLORS["white"], "Close")
         return bar
 
@@ -3366,9 +3470,9 @@ class MemoryPalApp(tk.Tk):
         goal_chip = tk.Label(status_row, text=f"{today}/{self.store.daily_goal} today", bg=COLORS["good_bg"] if today >= self.store.daily_goal else COLORS["alt"], fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         goal_chip.pack(side="left", padx=(0, self.px(10)))
         self.goal_chip = goal_chip
-        back_button = self.header_icon_button(action_strip, "back", self.go_back, "Back to the previous page (Alt + Left).")
+        back_button = self.header_icon_button(action_strip, "back", self.go_back, f"Back to the previous page ({BACK_SHORTCUT}).")
         back_button.pack(side="left", padx=(0, self.px(8)))
-        find_button = self.header_icon_button(action_strip, "search", self.open_page_finder, "Go to any page or action (Ctrl + K).")
+        find_button = self.header_icon_button(action_strip, "search", self.open_page_finder, f"Go to any page or action ({shortcut('K')}).")
         find_button.pack(side="left", padx=(0, self.px(8)))
         help_button = self.header_icon_button(action_strip, "help", self.start_tour, "Show me around: a short guided tour of the pages you use most.")
         help_button.pack(side="left", padx=(0, self.px(8)))
@@ -3718,7 +3822,7 @@ class MemoryPalApp(tk.Tk):
             ("Make a study plan", "Choose your time and goal and get a step-by-step path.", lambda: self.show_view("plan")),
             ("Take the guided tour", "A short walk through the pages you use most.", self.start_tour),
             ("Switch light / dark", "Change the app's appearance.", self.toggle_theme),
-            ("Go back", "Return to the page you were on before (Alt + Left).", self.go_back),
+            ("Go back", f"Return to the page you were on before ({BACK_SHORTCUT}).", self.go_back),
         ]
         return entries
 
@@ -3734,7 +3838,7 @@ class MemoryPalApp(tk.Tk):
             pass
 
     def open_page_finder(self, _event=None):
-        """Ctrl+K: type part of a page or action name and press Enter."""
+        """Ctrl+K (Command-K on a Mac): type part of a page or action name and press Enter."""
         self.close_dropdown()
         if getattr(self, "_finder", None) is not None:
             self.close_page_finder()
@@ -3863,7 +3967,7 @@ class MemoryPalApp(tk.Tk):
     def open_profile_manager(self):
         top = tk.Toplevel(self)
         top.withdraw()
-        top.overrideredirect(True)
+        self.make_dialog_frame(top)
         top.title("Profiles")
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
@@ -3873,7 +3977,8 @@ class MemoryPalApp(tk.Tk):
 
         shell = tk.Frame(top, bg=COLORS["bg"])
         shell.pack(fill="both", expand=True)
-        self.render_window_chrome(shell, "Profiles", top.destroy, window=top, show_minimize=False, show_fullscreen=False)
+        if not self.use_native_window_chrome:
+            self.render_window_chrome(shell, "Profiles", top.destroy, window=top, show_minimize=False, show_fullscreen=False)
 
         wrap = tk.Frame(shell, bg=COLORS["bg"], padx=self.px(20), pady=self.px(20))
         wrap.pack(fill="both", expand=True)
@@ -3963,7 +4068,7 @@ class MemoryPalApp(tk.Tk):
     def clear_rating_hotkeys(self):
         if not self._hotkeys_bound:
             return
-        for seq in ("1", "2", "3", "4", "<Control-z>", "<Control-Z>"):
+        for seq in ("1", "2", "3", "4", f"<{MOD}-z>", f"<{MOD}-Z>"):
             try:
                 self.unbind(f"<Key-{seq}>" if len(seq) == 1 else seq)
             except tk.TclError:
@@ -3976,8 +4081,8 @@ class MemoryPalApp(tk.Tk):
         for seq, quality in mapping.items():
             self.bind(f"<Key-{seq}>", lambda _event, value=quality: handler(value))
         if undo_handler:
-            self.bind("<Control-z>", lambda _event: undo_handler())
-            self.bind("<Control-Z>", lambda _event: undo_handler())
+            self.bind(f"<{MOD}-z>", lambda _event: undo_handler())
+            self.bind(f"<{MOD}-Z>", lambda _event: undo_handler())
         self._hotkeys_bound = True
 
     def toast_message(self, text):
@@ -3991,20 +4096,31 @@ class MemoryPalApp(tk.Tk):
                 pass
         self._toast_after = self.after(self.pace(2600), self.toast.place_forget)
 
+    def make_dialog_frame(self, top):
+        """Give a titled popup the platform's frame.
+
+        On Windows the app draws its own title bar, so popups are borderless
+        and draw the same bar. A Mac keeps the native frame, with the close
+        button top-left where Mac people look for it, like the main window.
+        """
+        if not self.use_native_window_chrome:
+            top.overrideredirect(True)
+
     def dialog_window(self, title, body="", parent=None, width=480):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
         # confirmations do not fall back to old stock Tk dialog boxes.
         owner = parent or self
         top = tk.Toplevel(owner)
         top.withdraw()
-        top.overrideredirect(True)
+        self.make_dialog_frame(top)
         top.title(title)
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
         self.own_window(top, owner)
         top.resizable(False, False)
         top.configure(bg=COLORS["surface"])
-        self.render_window_chrome(top, title, top.destroy, window=top, show_minimize=False, show_fullscreen=False)
+        if not self.use_native_window_chrome:
+            self.render_window_chrome(top, title, top.destroy, window=top, show_minimize=False, show_fullscreen=False)
         shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(22), pady=self.px(18))
         shell.pack(fill="both", expand=True)
         if body:
@@ -4150,7 +4266,7 @@ class MemoryPalApp(tk.Tk):
             actions.columnconfigure(column, weight=weight)
         self.present_dialog(top)
         top.bind("<Escape>", lambda _event: top.destroy())
-        top.bind("<Control-Return>", lambda _event: save())
+        top.bind(f"<{MOD}-Return>", lambda _event: save())
         fields["front"].focus_set()
         top.wait_window()
 
@@ -4796,9 +4912,9 @@ class MemoryPalApp(tk.Tk):
         box.bind("<Double-Button-1>", lambda event: self._overlay_select_unit(box, event, "word"))
         box.bind("<Triple-Button-1>", lambda event: self._overlay_select_unit(box, event, "line"))
         box.bind("<Button-3>", lambda _event: self._copy_overlay(box, whole_if_empty=True))
-        for sequence in ("<Control-c>", "<Control-C>", "<Control-Insert>"):
+        for sequence in (("<Command-c>", "<Command-C>") if IS_MAC else ("<Control-c>", "<Control-C>", "<Control-Insert>")):
             box.bind(sequence, lambda _event: (self._copy_overlay(box), "break")[1])
-        for sequence in ("<Control-a>", "<Control-A>"):
+        for sequence in (f"<{MOD}-a>", f"<{MOD}-A>"):
             box.bind(sequence, lambda _event: (box.tag_add("sel", "1.0", "end-1c"), "break")[1])
         box.bind("<Escape>", lambda _event: self.clear_text_selection())
         self._select_overlay = box
@@ -5110,7 +5226,7 @@ class MemoryPalApp(tk.Tk):
         preview = tk.Label(comfort, text="This is how easy the text will be to read.", bg=COLORS["surface"], fg=COLORS["ink"], anchor="w")
 
         def show_preview(*_args):
-            preview.configure(font=("Segoe UI", sizes.get(text_size.get(), 12)))
+            preview.configure(font=self.font("Segoe UI", sizes.get(text_size.get(), 12)))
 
         def size_chosen(_value):
             state["size_touched"] = True
@@ -5211,6 +5327,7 @@ class MemoryPalApp(tk.Tk):
         card.place(relx=1.0, rely=1.0, anchor="se", x=-self.px(52), y=-self.px(34), width=self.px(460))
         tk.Label(card, text=f"Guided tour  \u2022  step {index + 1} of {len(steps)}", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x")
         tk.Label(card, text=title, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+        body = platform_text(body)
         text = tk.Label(card, text=body, bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(410))
         text.pack(fill="x", pady=(self.px(6), self.px(14)))
         buttons = [("Back", lambda: self.move_tour(-1), "TButton")] if index else []
@@ -5819,7 +5936,7 @@ class MemoryPalApp(tk.Tk):
         head = tk.Frame(parent, bg=COLORS["bg"])
         head.pack(fill="x", padx=(0, 8), pady=(self.px(4), self.px(10)))
         tk.Label(head, text="Study modes", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(side="left")
-        tk.Label(head, text=f"{subtitle}  \u2022  Ctrl+K jumps to any page", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0), pady=(self.px(4), 0))
+        tk.Label(head, text=f"{subtitle}  \u2022  {shortcut('K')} jumps to any page", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0), pady=(self.px(4), 0))
         panels = self.panel_row(parent, len(modes))
         for panel, (icon, title, body, action, color) in zip(panels, modes):
             card = self.hover_card(panel, normal=COLORS["surface"], hover=color, command=action)
@@ -6860,12 +6977,12 @@ class MemoryPalApp(tk.Tk):
             for child in chunk_panel.winfo_children():
                 child.destroy()
             if not chunks:
-                tk.Label(chunk_panel, text="Add a bit or split a pasted list to build your study set.", bg=COLORS["surface"], fg=COLORS["muted"], font=("Segoe UI", 12), wraplength=520, justify="left").pack(anchor="w")
+                tk.Label(chunk_panel, text="Add a bit or split a pasted list to build your study set.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=520, justify="left").pack(anchor="w")
             for index, chunk in enumerate(chunks, 1):
                 row = tk.Frame(chunk_panel, bg=COLORS["alt"], padx=14, pady=12)
                 row.pack(fill="x", pady=(0, 8))
-                tk.Label(row, text=f"{index}.", bg=COLORS["alt"], fg=COLORS["primary"], font=("Segoe UI Semibold", 12)).pack(side="left", anchor="n", padx=(0, 8))
-                tk.Label(row, text=chunk, bg=COLORS["alt"], fg=COLORS["ink"], wraplength=520, justify="left", font=("Segoe UI", 12)).pack(side="left", fill="x", expand=True)
+                tk.Label(row, text=f"{index}.", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 12)).pack(side="left", anchor="n", padx=(0, 8))
+                tk.Label(row, text=chunk, bg=COLORS["alt"], fg=COLORS["ink"], wraplength=520, justify="left", font=self.font("Segoe UI", 12)).pack(side="left", fill="x", expand=True)
             count_label.configure(text=f"{len(chunks)} study bit{'s' if len(chunks) != 1 else ''} added")
             self.fit_wrap_tree(chunk_panel)
 
@@ -7350,7 +7467,7 @@ class MemoryPalApp(tk.Tk):
                 self.toast_message("Nothing to undo yet.")
 
         if self.testing_context == "review":
-            ttk.Label(panel, text="Rate your recall  \u2022  keyboard shortcuts 1-4  \u2022  Ctrl+Z to undo", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(10), self.px(4)))
+            ttk.Label(panel, text=f"Rate your recall  \u2022  keyboard shortcuts 1-4  \u2022  {shortcut('Z')} to undo", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(10), self.px(4)))
             rating = ttk.Frame(panel, style="Card.TFrame")
             rating.pack(fill="x")
             for index, (label, quality, key) in enumerate([("Again", 1, "1"), ("Review", 3, "2"), ("Good", 4, "3"), ("Easy", 5, "4")]):
@@ -7363,7 +7480,7 @@ class MemoryPalApp(tk.Tk):
             skip_button = ttk.Button(secondary, text="Skip for today", command=skip_for_today)
             skip_button.grid(row=0, column=0, sticky="ew", padx=(0, self.px(8)))
             self.add_tooltip(skip_button, "Bury this card until tomorrow without affecting its stats \u2014 doesn't count as a miss.")
-            undo_button = ttk.Button(secondary, text="Undo last rating (Ctrl+Z)", command=undo_last_rating, state=("normal" if self.store.last_action else "disabled"))
+            undo_button = ttk.Button(secondary, text=f"Undo last rating ({shortcut('Z')})", command=undo_last_rating, state=("normal" if self.store.last_action else "disabled"))
             undo_button.grid(row=0, column=1, sticky="ew")
             self.add_tooltip(undo_button, "Misclick? Roll back the last card you rated.")
             secondary.columnconfigure(0, weight=1)
