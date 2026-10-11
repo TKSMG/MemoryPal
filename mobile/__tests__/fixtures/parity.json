@@ -665,6 +665,110 @@
     "seconds": 900,
     "message": "Too many tries. Please wait about 15 minutes before trying again."
    }
+  ],
+  "ages": [
+   {
+    "month": 10,
+    "year": 2013,
+    "message": "MemoryPal accounts are for people 13 and older. You can keep using everything on this device without an account; your cards stay saved here.",
+    "under": true
+   },
+   {
+    "month": 11,
+    "year": 2013,
+    "message": "MemoryPal accounts are for people 13 and older. You can keep using everything on this device without an account; your cards stay saved here.",
+    "under": true
+   },
+   {
+    "month": 9,
+    "year": 2013,
+    "message": "",
+    "under": false
+   },
+   {
+    "month": 10,
+    "year": 2012,
+    "message": "",
+    "under": false
+   },
+   {
+    "month": 12,
+    "year": 2012,
+    "message": "",
+    "under": false
+   },
+   {
+    "month": 1,
+    "year": 2014,
+    "message": "MemoryPal accounts are for people 13 and older. You can keep using everything on this device without an account; your cards stay saved here.",
+    "under": true
+   },
+   {
+    "month": 6,
+    "year": 1950,
+    "message": "",
+    "under": false
+   },
+   {
+    "month": 13,
+    "year": 2000,
+    "message": "Enter the month (1-12) and the year you were born.",
+    "under": false
+   },
+   {
+    "month": 0,
+    "year": 2000,
+    "message": "Enter the month (1-12) and the year you were born.",
+    "under": false
+   },
+   {
+    "month": "",
+    "year": 2000,
+    "message": "Enter the month (1-12) and the year you were born.",
+    "under": false
+   },
+   {
+    "month": "x",
+    "year": "2000",
+    "message": "Enter the month (1-12) and the year you were born.",
+    "under": false
+   },
+   {
+    "month": " 3 ",
+    "year": " 2001 ",
+    "message": "",
+    "under": false
+   },
+   {
+    "month": "+3",
+    "year": "2001",
+    "message": "",
+    "under": false
+   },
+   {
+    "month": 5,
+    "year": 2027,
+    "message": "Enter the month (1-12) and the year you were born.",
+    "under": false
+   },
+   {
+    "month": 5,
+    "year": 1890,
+    "message": "Enter the month (1-12) and the year you were born.",
+    "under": false
+   },
+   {
+    "month": "1_0",
+    "year": "2000",
+    "message": "Enter the month (1-12) and the year you were born.",
+    "under": false
+   },
+   {
+    "month": "3.5",
+    "year": "2000",
+    "message": "Enter the month (1-12) and the year you were born.",
+    "under": false
+   }
   ]
  },
  "sync_plans": [
@@ -135312,5 +135416,5 @@
    ]
   ]
  },
- "today_check": "2026-10-10"
+ "today_check": "2026-10-11"
 }

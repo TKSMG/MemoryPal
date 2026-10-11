@@ -8,13 +8,17 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, View } from 'react-native';
 
-import { checkPassword, CloudError, looksLikeEmail, needsSecondStep, Session } from '../cloud/client';
+import { checkPassword, CloudError, consentRecord, legalLinks, looksLikeEmail, needsSecondStep, Session } from '../cloud/client';
 import { leakedMessage, pwnedCount } from '../cloud/pwned';
-import { AttemptLimiter, MIN_PASSWORD, passwordProblems, passwordStrength, STRENGTH_LABELS, waitMessage } from '../core/security';
+import { readSecret, writeSecret } from '../cloud/secrets';
+import { accountAgeCheck, AGE_RETRY_SECONDS, AttemptLimiter, MIN_PASSWORD, passwordProblems, passwordStrength, STRENGTH_LABELS, UNDER_AGE_MESSAGE, waitMessage } from '../core/security';
 import { useSync } from '../state/AppState';
-import { Button, Card, Field, Pills, ProgressBar, Row, Screen, Txt } from '../ui/components';
+import { Button, Card, Field, Pills, ProgressBar, Row, Screen, ToggleRow, Txt } from '../ui/components';
 import { confirm, notify } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
+
+// Remembers a refused age check on this device for a day (see security.ts).
+const AGE_GATE_KEY = 'memorypal.ageRefusedUntil';
 
 type Mode = 'signin' | 'create' | 'code' | 'reset' | 'reset-code' | 'second-step';
 
@@ -68,6 +72,10 @@ export default function Account() {
   const [info, setInfo] = useState('');
   const [pending, setPending] = useState<Pending | null>(null);
   const [setup, setSetup] = useState<Setup | null>(null);
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const links = legalLinks();
 
   const run = async (work: () => Promise<void>) => {
     if (busy) return;
@@ -122,11 +130,19 @@ export default function Account() {
   });
 
   const create = () => run(async () => {
+    // The age check runs on the device before anything is sent, and the birth
+    // month and year are never stored or uploaded.
+    if (Date.now() < Number((await readSecret(AGE_GATE_KEY)) ?? 0)) throw new CloudError(UNDER_AGE_MESSAGE, 'under_age');
+    const today = new Date();
+    const [problem, underAge] = accountAgeCheck(birthMonth, birthYear, today.getFullYear(), today.getMonth() + 1);
+    if (underAge) await writeSecret(AGE_GATE_KEY, String(Date.now() + AGE_RETRY_SECONDS * 1000));
+    if (problem) throw new CloudError(problem, underAge ? 'under_age' : 'age_format');
     requireEmail();
     if (password !== again) throw new CloudError("The two passwords don't match.");
+    if (!agreed) throw new CloudError('To create an account, turn on the switch to agree to the Terms of Use and Privacy Policy.');
     checkPassword(password, email);
     await checkNotLeaked(password);
-    const session = await client.signUp(email, password);
+    const session = await client.signUp(email, password, consentRecord());
     if (session) await sync.signedIn(session);
     else go('code', `We sent a 6-digit code to ${email.trim()}. It can take a minute; check the spam folder too.`);
   });
@@ -286,9 +302,16 @@ export default function Account() {
       <Card>
         <Txt variant="h2">{title}</Txt>
         {mode === 'signin' ? <Txt variant="muted">Use the same account on every device to keep your cards in step.</Txt> : null}
-        {mode === 'create' ? <Txt variant="muted">Use an email you can check: we’ll send a 6-digit code to confirm it.</Txt> : null}
+        {mode === 'create' ? <Txt variant="muted">Use an email you can check: we’ll send a 6-digit code to confirm it. You don’t need an account to use MemoryPal; it only keeps your cards in step across devices.</Txt> : null}
         {mode === 'second-step' ? <Txt variant="muted">Open your authenticator app and type the 6-digit code it shows for MemoryPal.</Txt> : null}
         {info ? <Txt variant="body" color={c.link}>{info}</Txt> : null}
+
+        {mode === 'create' ? (
+          <>
+            <Field label="Month you were born (1-12)" value={birthMonth} onChangeText={setBirthMonth} keyboardType="number-pad" maxLength={2} />
+            <Field label="Year you were born" value={birthYear} onChangeText={setBirthYear} keyboardType="number-pad" maxLength={4} />
+          </>
+        ) : null}
 
         {mode === 'signin' || mode === 'create' || mode === 'reset' ? (
           <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" />
@@ -313,6 +336,15 @@ export default function Account() {
         ) : null}
         {choosing ? (
           <Field label="Password again" value={again} onChangeText={setAgain} secureTextEntry autoComplete="new-password" textContentType="newPassword" />
+        ) : null}
+        {mode === 'create' ? (
+          <>
+            <ToggleRow label="I agree to the Terms of Use and Privacy Policy" value={agreed} onChange={setAgreed} />
+            <Row wrap>
+              {links.terms ? <Button kind="ghost" compact label="Read the Terms of Use" onPress={() => Linking.openURL(links.terms).catch(() => undefined)} /> : null}
+              {links.privacy ? <Button kind="ghost" compact label="Read the Privacy Policy" onPress={() => Linking.openURL(links.privacy).catch(() => undefined)} /> : null}
+            </Row>
+          </>
         ) : null}
 
         {errorBox}
