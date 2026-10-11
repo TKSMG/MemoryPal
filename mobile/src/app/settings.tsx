@@ -115,8 +115,18 @@ export default function Settings() {
         <Txt variant="muted">{theme.plain('Cards stay on this phone. Backups use the same file as the MemoryPal desktop app, so you can move cards between them.', 'Your cards stay on this phone. A backup file keeps a copy safe.')}</Txt>
         <Button kind="primary" label="Save a backup" icon="share-outline" onPress={doExport} />
         <Button label="Load a backup" icon="folder-open-outline" onPress={doImport} />
-        {!a.caregiver_mode ? <Button kind="danger" label="Delete everything and start over" icon="trash-outline" onPress={doReset} /> : null}
       </Card>
+
+      {/* Kept apart from everyday actions so it is never pressed by mistake. */}
+      {!a.caregiver_mode ? (
+        <>
+          <SectionTitle>Start over</SectionTitle>
+          <Card>
+            <Txt variant="muted">Deletes every card and all progress on this phone. Save a backup first if you might want them back.</Txt>
+            <Button kind="danger" label="Delete everything and start over" icon="trash-outline" onPress={doReset} />
+          </Card>
+        </>
+      ) : null}
 
       <Txt variant="small" center>{`MemoryPal ${Constants.expoConfig?.version ?? ''} · ${store.cards.length} cards`}</Txt>
     </Screen>
