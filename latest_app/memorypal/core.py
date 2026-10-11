@@ -1,4 +1,5 @@
 import ctypes
+import os
 import random
 import re
 import sys
@@ -27,6 +28,18 @@ def enable_dpi_awareness():
             pass
 
 
+def powershell_exe():
+    """Full path to Windows PowerShell.
+
+    A bare "powershell" is looked up in the app's own folder and the current
+    folder before System32, so a stray powershell.exe placed next to a
+    download could run instead of the real one.
+    """
+    system_root = os.environ.get("SystemRoot") or os.environ.get("windir") or r"C:\Windows"
+    path = Path(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    return str(path) if path.exists() else "powershell"
+
+
 def uid():
     return str(uuid4())
 
@@ -47,17 +60,33 @@ def normalize_space(value):
     return re.sub(r"\s+", " ", value or "").strip()
 
 
+# A typed line break: a literal "\n", or "/n" standing on its own (so words
+# such as "and/nor" or "salt/nitrogen" are left alone).
+TYPED_NEWLINE = re.compile(r"\\n|(?<![A-Za-z0-9])/n(?![A-Za-z0-9])")
+# A list marker at the start of a line: "-", "*", "•", or "1." / "2)" (up to
+# three digits, so a year such as "1945 ..." is kept as part of the text).
+LIST_MARKER = re.compile(r"^\s*(?:[-*\u2022]+|\d{1,3}[.)])\s+")
+
+
+def strip_list_marker(line):
+    return LIST_MARKER.sub("", line, count=1).strip()
+
+
 def split_study_bits(raw):
     # Pasted notes are usually messy, so this accepts common separators before
     # falling back to sentences or comma-separated fragments.
-    raw = (raw or "").replace("\\n", "\n").replace("/n", "\n")
-    raw = re.sub(r"\s+(?=\d+[.)]\s+)", "\n", raw)
+    raw = TYPED_NEWLINE.sub("\n", raw or "")
+    if re.search(r"(?:^|\s)1[.)]\s", raw) and re.search(r"\s2[.)]\s", raw):
+        # An inline numbered list ("1. foo 2. bar") becomes one item per line.
+        raw = re.sub(r"\s+(?=\d{1,3}[.)]\s+)", "\n", raw)
     raw = re.sub(r"\s*[|;]\s*", "\n", raw)
-    lines = [re.sub(r"^[-*\d.)\s]+", "", line).strip() for line in raw.splitlines()]
+    lines = [strip_list_marker(line) for line in raw.splitlines()]
     lines = [line for line in lines if line]
     if len(lines) >= 2:
         return lines
-    sentences = [part.strip() for part in re.split(r"[.!?]+", raw) if part.strip()]
+    # Split on sentence ends only: a full stop followed by a space or the end,
+    # so "3.14" and "v2.0" stay whole.
+    sentences = [part.strip() for part in re.split(r"[.!?]+(?=\s|$)", raw) if part.strip()]
     if len(sentences) > 1:
         return sentences
     comma_bits = [part.strip() for part in raw.split(",") if part.strip()]
@@ -66,11 +95,18 @@ def split_study_bits(raw):
 
 def parse_prompt_answer_lines(raw):
     items = []
-    for index, line in enumerate((raw or "").replace("\\n", "\n").replace("/n", "\n").splitlines(), 1):
+    for index, line in enumerate(TYPED_NEWLINE.sub("\n", raw or "").splitlines(), 1):
+        if "\t" in line.strip():
+            # Tab-separated term/definition, as Quizlet and spreadsheets export.
+            prompt, answer = line.strip().split("\t", 1)
+            prompt, answer = normalize_space(prompt), normalize_space(answer)
+            if answer:
+                items.append({"prompt": prompt or f"Study bit {index}", "answer": answer})
+            continue
         line = normalize_space(line)
         if not line:
             continue
-        line = re.sub(r"^[-*\d.)\s]+", "", line).strip()
+        line = strip_list_marker(line)
         prompt, answer = "", line
         for delimiter in ("=>", "::", " - "):
             if delimiter in line:
@@ -118,6 +154,9 @@ def rtf_to_text(data):
     return "\n".join(line.strip() for line in text.splitlines()).strip()
 
 
+MAX_DOCUMENT_BYTES = 64 * 1024 * 1024
+
+
 def extract_document_text(path):
     # Keep document import local and dependency-light. DOCX and RTF are parsed
     # directly; PDFs use pypdf/PyPDF2 when installed and otherwise the
@@ -130,6 +169,10 @@ def extract_document_text(path):
         return rtf_to_text(read_text_file(source))
     if suffix == ".docx":
         with zipfile.ZipFile(source) as archive:
+            # A tiny crafted .docx can claim gigabytes when unpacked; refuse
+            # anything far beyond a real document instead of freezing.
+            if archive.getinfo("word/document.xml").file_size > MAX_DOCUMENT_BYTES:
+                raise RuntimeError("This document is too large to read. Split it into smaller files or paste the key points.")
             xml = archive.read("word/document.xml")
         root = ET.fromstring(xml)
         w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -178,11 +221,21 @@ STOP_WORDS = {
 
 
 def text_tokens(value):
-    tokens = []
-    for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]{2,}", value or ""):
-        token = token.lower()
-        if token in STOP_WORDS:
+    return [stem for stem, _word in token_words(value)]
+
+
+def token_words(value):
+    """(stem, word as written in lower case) for each scorable word.
+
+    Scoring compares stems ("increas"), but hints shown to people must use
+    the real word ("increasing").
+    """
+    pairs = []
+    for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]{2,}", value or ""):
+        word = word.lower()
+        if word in STOP_WORDS:
             continue
+        token = word
         for suffix in ("ingly", "edly", "ing", "ed", "es"):
             if token.endswith(suffix) and len(token) > len(suffix) + 3:
                 token = token[: -len(suffix)]
@@ -190,8 +243,8 @@ def text_tokens(value):
         else:
             if token.endswith("s") and not token.endswith(("ss", "us", "is")) and len(token) > 4:
                 token = token[:-1]
-        tokens.append(token)
-    return tokens
+        pairs.append((token, word))
+    return pairs
 
 
 def comparable_text(value):
@@ -199,10 +252,23 @@ def comparable_text(value):
     return normalize_space(re.sub(r"[^a-z0-9\s]", " ", (value or "").lower()))
 
 
+NUMBER_RE = re.compile(r"\d+(?:[.,:]\d+)*")
+NEGATIONS = {"not", "no", "never", "none", "neither", "nor", "cannot", "can't", "don't", "doesn't", "isn't", "aren't", "wasn't", "weren't", "won't", "without"}
+
+
+def negation_count(tokens):
+    return sum(1 for token in tokens if token in NEGATIONS or token.endswith("n't"))
+
+
 def tokens_match(expected_token, response_token):
-    """Equal, a clear abbreviation ("info"/"information"), or a small typo."""
+    """Equal, a clear abbreviation ("info"/"information"), or a small typo.
+
+    Numbers must match exactly: 1945 and 1954 are different answers, not a typo.
+    """
     if expected_token == response_token:
         return True
+    if any(char.isdigit() for char in expected_token + response_token):
+        return False
     shorter, longer = sorted((expected_token, response_token), key=len)
     if len(shorter) >= 4 and longer.startswith(shorter):
         return True
@@ -255,7 +321,22 @@ def answer_assessment(response, expected, context=""):
         else:
             score = round(100 * (0.28 * sequence + 0.52 * coverage + 0.20 * weighted))
         score = min(100, score)
-        missing = [word for word, _count in expected_counts.most_common(6) if word not in matched_words]
+        written = {}
+        for stem, word in token_words(expected_text):
+            written.setdefault(stem, word)
+        missing = [written.get(word, word) for word, _count in expected_counts.most_common(6) if word not in matched_words]
+        if (negation_count(expected_tokens) % 2) != (negation_count(response_tokens) % 2):
+            # "is reversible" for "is not reversible" shares almost every word
+            # but means the opposite; never let it pass as close enough.
+            score = min(score, 41)
+            missing = missing or ["the answer says the opposite (check for \"not\")"]
+    given_numbers = {number.replace(",", "") for number in NUMBER_RE.findall(response)}
+    wrong_numbers = [number for number in NUMBER_RE.findall(expected_text) if number.replace(",", "") not in given_numbers]
+    if wrong_numbers and score < 100:
+        # Dates, amounts and doses are usually the point of the card: a
+        # sentence that is right apart from the number is not "close enough".
+        score = min(score, 41)
+        missing = wrong_numbers + [word for word in missing if word not in wrong_numbers]
 
     if score >= 82:
         quality, label, reps, bucket = 5, "Strong match", 1, "Easy"

@@ -82,6 +82,7 @@ This keeps the app practical when the learner does not know where to start.
 
 Plans can also cover several days or weeks. The multi-day planner looks ahead at which cards will actually be due on each day.
 
+- Day 1 faces everything already due. Later days count only the cards that newly come due, because each day's review clears the earlier backlog. Before v70 the backlog was counted again on every day, so every day of a plan looked heavy.
 - New material is learned on day 1, then revisited on expanding review days (2, 4, 7, 14, 21, 30), with short maintenance sessions in between.
 - Exam prep moves from long-term review, to exam practice, to a final cram phase.
 - The last day before a test is a light confidence pass followed by rest, because sleep helps recall more than a late-night cram.
@@ -211,6 +212,13 @@ Exact wording is not required. The check looks for whether the important ideas a
 This helps when a correct answer can be written in different words.
 
 Smart Check also highlights a suggested review bucket, making the result easier to understand quickly.
+
+Two kinds of answer look close in wording but are wrong, so Smart Check never calls them "close enough":
+
+- A wrong number. "The war ended in 1954" against "1945" shares every word but the one that matters. Dates, doses, and amounts are usually the point of the card, so a missing or different number is marked as partial at best, and the right number is shown.
+- A flipped meaning. "Reversible" against "not reversible" means the opposite. When one answer has a "not", "never", or "no" that the other lacks, the score is capped.
+
+Numbers have to match exactly; small typos are only forgiven in words. "1,000" and "1000" count as the same number.
 
 ## Repetition Path
 
@@ -432,21 +440,31 @@ Short hints are helpful for new learners, older adults, and anyone returning aft
 
 Good hints explain the action, not the whole app.
 
-## Focus Navigation
+## Steady Navigation
 
-The navigation rail can collapse when the learner wants more space for the current task.
+The navigation rail stays put. It used to collapse, but a page that shifted sideways felt unstable during study, so it was fixed in v61. Focus mode or fullscreen gives more room instead.
 
-Collapsed navigation keeps short labels and hover hints, so the app can stay understandable without taking up the full left side.
+Every page fits in the rail on a normal laptop screen. On a short window or with very large text, the rail pages through the list instead.
 
-The page order can also be changed in Settings.
+The page order can be changed in Settings. A student might want Decks, Study Plan, and Test Lab near the top, while an older adult or caregiver might want Everyday Memory, Capture, Puzzles, and Review first.
 
-This matters because a student might want Decks, Study Plan, and Test Lab near the top, while an older adult or caregiver might want Memory Gym, Capture, Puzzles, and Review first.
+Ctrl+K finds any page or common action, and Back (Alt+Left) returns to the previous page, so nobody has to hunt.
 
-Settings works best as a stable pinned navigation item instead of appearing in several places at once.
+## Fixing A Card
 
-Collapsing the rail should not reset the page. Learners may be halfway through a prompt, answer, or plan when they decide they need more space.
+A card that keeps being missed is usually a badly written card, not a bad memory. Every card in Library has an Edit button. It changes the question, answer, deck, or memory hook without losing the card's review schedule. The editor can also start the card over as new ("Learn again") or delete it.
 
-The expanded collapse control should sit centered in the rail so the sidebar feels intentional instead of slightly off-balance.
+Good fixes:
+
+- Split a card that asks for two things into two cards.
+- Make the question more specific, so only one answer fits.
+- Add a memory hook (a picture, a rhyme, or a story) for the part that keeps slipping.
+
+## Importing Cards
+
+Lines of question and answer can be pasted into Capture, separated by `::`, `=>`, ` - `, or a tab. Tab-separated lines are what Quizlet and spreadsheets export, so a Quizlet set can be copied straight in.
+
+Years and numbers at the start of a line are kept ("1945 ..." stays "1945 ..."). Only real list markers such as "1." or "-" are removed. Decimals such as "3.14" are not split into separate sentences.
 
 ## Mobile Practice
 
@@ -552,6 +570,37 @@ Good caregiver prompts are simple and practical:
 - What should happen next?
 
 Prompts should stay calm, respectful, and not overwhelming.
+
+## Still Missing (Roadmap)
+
+A comparison with Anki, Quizlet, Khan Academy, Duolingo, and NeuroNation, ordered by how much each would help the three groups MemoryPal is for.
+
+For everyone:
+
+1. **Reminders.** A daily nudge at a chosen time, using a Windows notification or the Windows tray. Streak apps work because they remind; without one, the habit depends on remembering to open a memory app.
+2. **Fewer top-level pages.** Five hubs instead of 17 rail items (see DESIGN_NOTES "Next step").
+3. **Bulk card actions in Library.** Select several cards to move deck, delete, or reset.
+4. **Session summary.** After a review run: how many cards were reviewed, which were missed, and what comes back tomorrow. Duolingo's end-of-lesson screen is the model.
+
+For students:
+
+5. **Cloze (fill-in-the-blank) cards** made from a sentence, e.g. "The {{mitochondria}} is the powerhouse of the cell". This is the most-used card type in Anki for textbook material.
+6. **Image occlusion.** Hide labels on a diagram and recall them; good for anatomy, maps, and diagrams.
+7. **Exam date on a deck,** so the planner automatically counts down to it.
+8. **Reverse cards** (answer to question) for vocabulary.
+
+For older adults and caregivers:
+
+9. **Medication and appointment reminders** that are reminders, not quiz cards, with a big "Done" button.
+10. **Photo-first "Who is this?" practice** built from a folder of family photos.
+11. **Caregiver summary.** A simple weekly page showing what was practised and what was hard, which can be printed or shared.
+12. **A large-button kiosk mode** that shows only Everyday Memory, with the rail hidden and a caregiver PIN to leave it.
+
+For accessibility:
+
+13. **Speech-to-text answers** using the Windows voice typing that is already built in (Win+H). It can already be used in any answer box today; a hint near the answer box would tell people.
+14. **Dyslexia-friendly options:** a different font, wider letter spacing, and a line-focus guide.
+15. **Screen-reader labels.** Tk exposes very little to Windows Narrator, so a future mobile or web version should be built on a toolkit with real accessibility support.
 
 ## Short Summary
 

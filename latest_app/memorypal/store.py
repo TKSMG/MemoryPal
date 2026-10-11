@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import time
 from dataclasses import asdict
 from datetime import date, timedelta
@@ -12,8 +13,16 @@ from .models import Card, Capture, FeedbackEntry, sample_cards
 def safe_int(value, default):
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
+
+
+MAX_DAILY_GOAL = 500
+
+
+def clamp_goal(value):
+    """A daily goal of 0 or less made every day count as 'goal met'."""
+    return max(1, min(MAX_DAILY_GOAL, safe_int(value, 15)))
 
 
 def load_items(raw_items, factory):
@@ -104,19 +113,68 @@ def normalize_accessibility(raw):
     return prefs
 
 
-def read_payload(path):
+class UnreadableDataFile(ValueError):
+    """The data file exists but is not valid MemoryPal JSON."""
+
+
+def read_payload(path, strict=False):
+    """The saved payload, or an empty one if the file is missing.
+
+    With strict=True a file that exists but cannot be parsed raises
+    UnreadableDataFile instead of looking empty, so callers never overwrite
+    a damaged file (which may still be recoverable) with a blank profile.
+    """
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        return raw if isinstance(raw, dict) else default_payload()
-    except (OSError, json.JSONDecodeError):
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return default_payload()
+    except (OSError, UnicodeDecodeError):
+        if strict:
+            raise UnreadableDataFile(f"{path.name} could not be read")
+        return default_payload()
+    try:
+        raw = json.loads(text)
+    except json.JSONDecodeError:
+        raw = None
+    if isinstance(raw, dict):
+        return raw
+    if strict:
+        raise UnreadableDataFile(f"{path.name} is not valid MemoryPal data")
+    return default_payload()
 
 
-def atomic_write_json(path, payload):
+def backup_path(path):
+    return path.with_name(path.name + ".bak")
+
+
+def atomic_write_json(path, payload, keep_backup=False):
+    """Write JSON so a crash or power cut leaves either the old or the new file.
+
+    With keep_backup the previous file is kept as `<name>.bak`, which load()
+    falls back to if the main file is ever damaged.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    temp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, indent=2))
+        handle.flush()
+        os.fsync(handle.fileno())
+    if keep_backup and path.exists():
+        try:
+            shutil.copy2(path, backup_path(path))
+        except OSError:
+            pass
     os.replace(temp_path, path)
+
+
+def set_aside_damaged_file(path):
+    """Copy a damaged data file aside (never delete it) and return the copy's path."""
+    target = path.with_name(f"{path.stem}.damaged-{time.strftime('%Y%m%d-%H%M%S')}{path.suffix}")
+    try:
+        shutil.copy2(path, target)
+    except OSError:
+        return None
+    return target
 
 
 class DataFileLock:
@@ -190,6 +248,8 @@ class MemoryStore:
         self._loaded_cards = {}
         self._loaded_captures = {}
         self._loaded_feedback = {}
+        # Called after every save (the desktop schedules a cloud sync).
+        self.save_listeners = []
         self.load()
 
     def set_profile_paths(self):
@@ -201,33 +261,45 @@ class MemoryStore:
         self.set_profile_paths()
         paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
         self.attachment_dir.mkdir(parents=True, exist_ok=True)
-        if not self.data_file.exists():
+        self.recovered_from = None
+        if not self.data_file.exists() and not backup_path(self.data_file).exists():
             self.cards = sample_cards()
             self.save(merge_existing=False)
             return
+        # A crash between saves can leave only the backup behind.
+        source = self.data_file if self.data_file.exists() else backup_path(self.data_file)
         try:
-            raw = read_payload(self.data_file)
-            self.cards = load_items(raw.get("cards", []), Card.from_dict)
-            self.captures = load_items(raw.get("captures", []), Capture.from_dict)
-            self.practiced = safe_int(raw.get("practiced", 0), 0)
-            self.activity = dict(raw.get("activity", {}))
-            self.daily_goal = safe_int(raw.get("daily_goal", 15), 15)
-            self.nav_order = list(raw.get("nav_order", []))
-            self.accessibility = normalize_accessibility(raw.get("accessibility", {}))
-            self.feedback = load_items(raw.get("feedback", []), FeedbackEntry.from_dict)
-            self.onboarding = normalize_onboarding(raw.get("onboarding"))
-            self.study_plan = normalize_study_plan(raw.get("study_plan"))
-            self._file_stamp = self.file_stamp()
-        except (OSError, json.JSONDecodeError, ValueError):
-            self.cards = sample_cards()
-            self.captures = []
-            self.practiced = 0
-            self.activity = {}
-            self.daily_goal = 15
-            self.nav_order = []
-            self.accessibility = default_accessibility()
-            self.feedback = []
+            raw = read_payload(source, strict=True)
+        except UnreadableDataFile:
+            # Keep a copy of the damaged file for recovery, then fall back to
+            # the last good save instead of quietly starting from nothing
+            # (which the next save would have written over the damaged file).
+            self.recovered_from = set_aside_damaged_file(source) or source
+            raw = read_payload(backup_path(self.data_file))
+        self.apply_raw(raw)
+        self._file_stamp = self.file_stamp()
         self.remember_loaded_state()
+        if self.recovered_from is not None:
+            self.save(merge_existing=False)
+
+    def apply_raw(self, raw):
+        """Fill the store from a saved payload, tolerating damaged fields."""
+        def as_dict(value):
+            return dict(value) if isinstance(value, dict) else {}
+
+        def as_list(value):
+            return list(value) if isinstance(value, list) else []
+
+        self.cards = load_items(as_list(raw.get("cards")), Card.from_dict)
+        self.captures = load_items(as_list(raw.get("captures")), Capture.from_dict)
+        self.practiced = max(0, safe_int(raw.get("practiced", 0), 0))
+        self.activity = {str(day): safe_int(count, 0) for day, count in as_dict(raw.get("activity")).items() if safe_int(count, 0) > 0}
+        self.daily_goal = clamp_goal(raw.get("daily_goal", 15))
+        self.nav_order = [str(key) for key in as_list(raw.get("nav_order"))]
+        self.accessibility = normalize_accessibility(raw.get("accessibility", {}))
+        self.feedback = load_items(as_list(raw.get("feedback")), FeedbackEntry.from_dict)
+        self.onboarding = normalize_onboarding(raw.get("onboarding"))
+        self.study_plan = normalize_study_plan(raw.get("study_plan"))
 
     def remember_loaded_state(self, payload=None):
         self._loaded_practiced = self.practiced
@@ -297,9 +369,14 @@ class MemoryStore:
                 seen.add(item_id)
         for item in existing_items or []:
             item_id = item.get("id") if isinstance(item, dict) else None
-            if item_id and item_id not in seen:
-                merged.append(item)
-                seen.add(item_id)
+            if not item_id or item_id in seen:
+                continue
+            if item_id in loaded_items:
+                # This window loaded the item and has since deleted it; the
+                # other window's copy must not bring it back.
+                continue
+            merged.append(item)
+            seen.add(item_id)
         return merged
 
     def merge_activity(self, existing_activity):
@@ -360,12 +437,17 @@ class MemoryStore:
                 items.append(fresh)
         return items
 
+    def replace_with(self, payload):
+        """Take a synced payload (keeping the card objects the UI holds) and save it."""
+        self.apply_saved_payload(payload)
+        self.save()
+
     def apply_saved_payload(self, payload):
         self.cards = self.rebind_items(self.cards, payload.get("cards", []), Card.from_dict)
         self.captures = self.rebind_items(self.captures, payload.get("captures", []), Capture.from_dict)
         self.practiced = safe_int(payload.get("practiced", 0), 0)
         self.activity = dict(payload.get("activity", {}))
-        self.daily_goal = safe_int(payload.get("daily_goal", 15), 15)
+        self.daily_goal = clamp_goal(payload.get("daily_goal", 15))
         self.nav_order = list(payload.get("nav_order", []))
         self.accessibility = normalize_accessibility(payload.get("accessibility", {}))
         self.feedback = load_items(payload.get("feedback", []), FeedbackEntry.from_dict)
@@ -389,13 +471,24 @@ class MemoryStore:
             # Only merge when another window has written since our last
             # load/save; otherwise the file is exactly what we last wrote.
             external = merge_existing and self.file_stamp() != self._file_stamp
-            payload = self.merge_payload(read_payload(self.data_file), local) if external else local
-            atomic_write_json(self.data_file, payload)
+            if external:
+                try:
+                    existing = read_payload(self.data_file, strict=True)
+                except UnreadableDataFile:
+                    # Another window left a damaged file: keep a copy, write ours.
+                    set_aside_damaged_file(self.data_file)
+                    existing = None
+                payload = self.merge_payload(existing, local)
+            else:
+                payload = local
+            atomic_write_json(self.data_file, payload, keep_backup=True)
             self._file_stamp = self.file_stamp()
         if external:
             self.apply_saved_payload(payload)
         else:
             self.remember_loaded_state(payload)
+        for listener in list(self.save_listeners):
+            listener()
 
     def set_study_plan(self, settings):
         """Make these plan choices the profile's plan, starting today."""
@@ -499,7 +592,7 @@ class MemoryStore:
         summary = {}
         for deck in self.decks():
             cards = [card for card in self.cards if (card.deck or "General") == deck]
-            due = len([card for card in cards if card.next_review <= today_iso()])
+            due = len([card for card in cards if card.next_review <= today_iso() and card.buried_until <= today_iso()])
             weak = len([card for card in cards if card.lapses > 0 or card.last_score < 64 or card.repetitions == 0])
             mastered = len([card for card in cards if card.last_score >= 82])
             summary[deck] = {
@@ -510,10 +603,17 @@ class MemoryStore:
             }
         return summary
 
-    def due_cards(self, deck=None, on=None):
-        """Cards due by `on` (an ISO date; today by default), optionally one deck."""
+    def due_cards(self, deck=None, on=None, since=None):
+        """Cards due by `on` (an ISO date; today by default), optionally one deck.
+
+        With `since`, only cards that first come due after that date count,
+        which is what a future day of a plan will really face once the
+        earlier days' reviews are done.
+        """
         on = on or today_iso()
         cards = [card for card in self.cards if card.next_review <= on and card.buried_until <= on]
+        if since:
+            cards = [card for card in cards if card.next_review > since]
         if deck:
             cards = [card for card in cards if (card.deck or "General") == deck]
         return cards
@@ -550,6 +650,39 @@ class MemoryStore:
         self.cards[:0] = reversed(cards)
         self.save()
 
+    EDITABLE_CARD_FIELDS = ("deck", "front", "back", "pathway", "association")
+
+    def update_card(self, card, **fields):
+        """Edit a card's words or deck. Its review schedule is left alone."""
+        for name, value in fields.items():
+            if name in self.EDITABLE_CARD_FIELDS:
+                value = str(value or "").strip()
+                setattr(card, name, (value or "General") if name == "deck" else value)
+        self.save()
+
+    def delete_cards(self, ids):
+        """Remove cards by id with one save. Returns how many were removed."""
+        ids = set(ids)
+        before = len(self.cards)
+        self.cards = [card for card in self.cards if card.id not in ids]
+        if self.last_action and self.last_action.get("card_id") in ids:
+            self.last_action = None
+        removed = before - len(self.cards)
+        if removed:
+            self.save()
+        return removed
+
+    def reset_progress(self, ids):
+        """Make these cards new again, keeping their words and cues."""
+        ids = set(ids)
+        fresh = Card()
+        for card in self.cards:
+            if card.id in ids:
+                for name in ("interval", "repetitions", "ease", "lapses", "last_score", "last_result", "buried_until"):
+                    setattr(card, name, getattr(fresh, name))
+                card.next_review = today_iso()
+        self.save()
+
     def add_capture(self, capture):
         self.captures.insert(0, capture)
         self.save()
@@ -584,6 +717,8 @@ class MemoryStore:
                 # letting them all come due at once (deterministic per card).
                 spread = max(1, round(interval * 0.05))
                 interval += (sum(map(ord, card.id)) + card.repetitions) % (2 * spread + 1) - spread
+                # The spread must never undo the growth a success earned.
+                interval = max(interval, card.interval + 1)
         return max(1, min(self.MAX_INTERVAL, interval))
 
     def schedule(self, card, quality, assessment=None):

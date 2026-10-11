@@ -19,7 +19,11 @@ This version is a Python/Tkinter desktop app. It is meant to show the working co
 - Design notes: `DESIGN_NOTES.md`
 - Memory techniques notes: `notes/MemoryPal_Memory_Techniques.md`
 - Python project config: `pyproject.toml`
-- Mobile prototype: `mobile_app/MemoryPalMobile.py`
+- Mobile app (React Native + Expo): `mobile/` (see `mobile/README.md`)
+- Accounts and cloud sync: `latest_app/memorypal/cloud.py`, `sync.py`, `security.py`, the database schema in `supabase/schema.sql`, and set-up steps in `CLOUD_SYNC_SETUP.md`
+- Desktop/mobile parity fixtures: `tools/parity/make_fixtures.py`
+- Rendering check (tearing and flashes): `tools/render_check/render_probe.py`
+- Old Kivy mobile prototype (superseded): `mobile_app/MemoryPalMobile.py`
 - Development versions: `development_versions/`
 - Version journal: `development_versions/VERSION_JOURNAL.md`
 - Program outline: `development_versions/MemoryPal_Project_Outline.py`
@@ -135,6 +139,46 @@ On a Mac, run:
 The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped app bundle under `release/`. The GitHub workflow builds separate Intel and Apple Silicon artifacts so testers can download the right package from the Actions run. These beta Mac builds are ad-hoc signed at most, so formal Apple Developer ID signing and notarization should be added before public distribution outside a small testing group.
 
 ## Current Features
+
+- Accounts and cloud sync (desktop and phone), once a Supabase project is set up (`CLOUD_SYNC_SETUP.md`):
+  - Email + password accounts, confirmed with a 6-digit email code; forgotten passwords are reset the same way.
+  - Cards, reviews, streaks and settings sync automatically between computers and phones, merging changes made on both rather than overwriting.
+  - Optional two-step sign-in with an authenticator app.
+  - Password strength meter, refusal of common and breached passwords, and a growing wait after repeated wrong passwords or codes.
+  - Sign-in tokens kept in Windows DPAPI, the iOS Keychain or the Android Keystore. Delete account removes the account and its cloud copy.
+  - Without a project, both apps keep working fully offline as before.
+- New phone app (`mobile/`, React Native + Expo) for iPhone and Android:
+  - Five simple tabs: Today, Study, Create, Practice, Progress.
+  - Review with Smart Check, plain-language results, undo, skip-for-today, and an end-of-session summary.
+  - Multiple-choice quiz, adaptive memory puzzles, and memory-technique generators.
+  - Study plans, charts and badges, everyday-memory cards, and read aloud.
+  - Large-text and high-contrast modes, and full screen-reader labels.
+  - Backups use the desktop's file format, so cards move between the two.
+- The phone app's study logic is checked against the desktop's by parity tests on hundreds of cases.
+- The navigation rail spreads the pages evenly over its height instead of bunching them at the top, and Settings is pinned at the bottom under a divider.
+- Smart Check hints show real words ("increasing") instead of word stems ("increas").
+
+- Page switches, scrolling, fullscreen, focus mode, resizing, theme and text-size changes, and startup each appear as one finished frame, with no tearing, white flashes, or elements painting in one by one. Scrolling shows only fully drawn frames. `tools/render_check/render_probe.py` measures this by recording the window at screen rate.
+- Rounded controls use opaque, pre-blended tiles, keeping startup at about 1.5s and page switches fast.
+
+- New logo: a lowercase "m" drawn as one line of two arches, with an amber recall dot, on a flat blue tile. It replaces the gradient, sparkle, and bead design.
+- Page titles, headings, and stat numbers now show at their designed sizes. A global font setting had been drawing them all as body text.
+- Rounded buttons, dropdowns, choice pills, and text fields across the app. Text fields always show an edge, so it's clear where to type.
+- All text and button colours meet WCAG AA contrast in light and dark mode. Bright dark-mode buttons use dark text instead of white.
+- Keyboard focus is always visible as a solid amber ring.
+- The navigation rail shows every page on a normal laptop screen instead of six at a time. The active page is a calm filled pill, and each page title names its area (Today, Study, Create, Practice, Progress).
+- Cards can be edited, reset to new ("Learn again"), or deleted from Library. Library shows 60 cards at a time with Show more, so large collections stay fast.
+- Import asks before replacing a profile, shows how many cards the backup holds, and saves a copy of the current data first. Reset all data lives only in Settings.
+- Every save keeps a `.bak` of the previous file. A damaged data file is set aside and the last good save is loaded, instead of opening as an empty profile.
+- A card deleted in one window is no longer brought back by a second open window.
+- Profile names that would share a data folder (for example "My Profile" and "my-profile") are refused.
+- Smart Check no longer accepts a wrong number ("1954" for "1945") or a flipped meaning ("reversible" for "not reversible") as close enough.
+- Pasted notes keep leading years and decimals ("1945 …", "3.14"). Tab-separated Quizlet or spreadsheet lines import as cards.
+- Multi-day plans no longer count today's backlog again on every later day.
+- Successful reviews always grow the interval; load-spreading can no longer shrink it.
+- Peg lists read naturally ("a bundle of sticks").
+- Document import refuses decompression bombs and oversized files instead of freezing.
+- PowerShell is always run from its full system path.
 
 - Feedback can be sent to the MemoryPal team straight from the Feedback Log: Send Feedback Now posts the waiting notes through FormSubmit (no mail account needed), Email Feedback opens the tester's own mail app or Gmail with the report filled in, and Save Feedback File writes a text report to attach. Notes are marked as sent so they are not sent twice. Reports include the notes plus Windows version, text size, and theme, never the profile name or study cards, and nothing is sent unless the person presses a button.
 - Dragging the custom resize edges shows a Windows-style outline of the new size; the window resizes once when the mouse is released.
@@ -281,6 +325,16 @@ latest_app/memorypal/
 latest_app/MemoryPalDesktop.py
 ```
 
-## Mobile Version Note
+## Mobile Version
 
-The `mobile_app/` folder now contains a Kivy prototype for Android and iOS planning. It keeps the core card, review, repetition, and resources flow touch-friendly, with simple app-styled feedback for empty prompts and saved cards. A finished mobile app still needs native phone APIs for microphone recording, camera/video recording, file picking, permissions, storage, and large touch controls. The desktop Tkinter interface should guide the feature set, but the mobile UI should be redesigned for touch.
+The phone app lives in `mobile/` and is built with React Native and Expo. To try it, install Expo Go on a phone, then run:
+
+```powershell
+cd mobile
+npm install
+npx expo start
+```
+
+Scan the QR code to open it. `mobile/README.md` covers tests, structure, and the parity checks that keep it in step with the desktop logic.
+
+The older `mobile_app/` folder contains the first Kivy prototype, kept as history. It keeps the core card, review, repetition, and resources flow touch-friendly, with simple app-styled feedback for empty prompts and saved cards. A finished mobile app still needs native phone APIs for microphone recording, camera/video recording, file picking, permissions, storage, and large touch controls. The desktop Tkinter interface should guide the feature set, but the mobile UI should be redesigned for touch.

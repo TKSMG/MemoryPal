@@ -28,10 +28,10 @@ class ReportTests(unittest.TestCase):
     def test_email_links_are_addressed_and_encoded(self):
         subject, body = feedback.compose_report(entries(), feedback.system_details())
         mail = feedback.mailto_url(subject, body)
-        self.assertTrue(mail.startswith("mailto:memorypal09@gmail.com?"))
+        self.assertTrue(mail.startswith(f"mailto:{feedback.FEEDBACK_EMAIL}?"))
         self.assertEqual(unquote(mail.split("body=")[1]), body)
         gmail = parse_qs(urlparse(feedback.gmail_url(subject, body)).query)
-        self.assertEqual(gmail["to"], ["memorypal09@gmail.com"])
+        self.assertEqual(gmail["to"], [feedback.FEEDBACK_EMAIL])
         self.assertEqual(gmail["body"], [body])
 
     def test_long_reports_are_shortened_for_links_and_point_to_the_file(self):
@@ -41,12 +41,13 @@ class ReportTests(unittest.TestCase):
         self.assertIn("MemoryPal-feedback.txt", short)
         self.assertEqual(feedback.link_body("short", "x.txt"), "short")
 
-    def test_saved_file_has_address_subject_and_body(self):
+    def test_saved_file_has_subject_and_body_but_no_address(self):
         subject, body = feedback.compose_report(entries(), feedback.system_details())
         with tempfile.TemporaryDirectory() as folder:
             path = feedback.save_report(Path(folder) / "report.txt", subject, body)
             text = path.read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("To: memorypal09@gmail.com\nSubject: MemoryPal feedback"))
+        self.assertTrue(text.startswith("Subject: MemoryPal feedback"))
+        self.assertNotIn(feedback.FEEDBACK_EMAIL, text)
         self.assertIn("Note 0", text)
 
 
@@ -84,7 +85,7 @@ class SendTests(unittest.TestCase):
         self.assertTrue(result.ok)
         request = seen["request"]
         self.assertEqual(request.get_method(), "POST")
-        self.assertIn(feedback.FEEDBACK_EMAIL, request.full_url)
+        self.assertEqual(request.full_url, feedback.SEND_URL)
         payload = json.loads(request.data)
         self.assertIn("Note 1", payload["message"])
         self.assertEqual(payload["email"], "tester@example.com")

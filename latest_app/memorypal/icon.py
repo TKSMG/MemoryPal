@@ -51,28 +51,39 @@ def dot_alpha(px, py, cx, cy, radius, softness=0.16):
 
 # Logo geometry, as fractions of the icon size. assets/memorypal-logo.svg
 # uses the same numbers on a 1024 grid, so the SVG and every rendered size
-# match. The mark is a connected "memory path" M: one unbroken stroke with
-# three recall nodes where the path turns.
-LOGO_RADIUS = 0.225
-LOGO_PATH = ((0.265, 0.730), (0.265, 0.330), (0.500, 0.600), (0.735, 0.330), (0.735, 0.730))
-LOGO_STROKE = 0.108
-LOGO_NODES = (
-    (0.265, 0.330, "#3ee6b4"),  # first idea (mint)
-    (0.500, 0.600, "#ffc24b"),  # the link that makes it stick (amber)
-    (0.735, 0.330, "#3ee6b4"),  # recalled idea (mint)
-)
-LOGO_NODE_RADIUS = 0.079
-LOGO_CORE_RADIUS = 0.037
-LOGO_SPARK = (0.815, 0.185, 0.050)  # small four-point spark, top right
+# match. The mark is a lowercase "m" drawn as one unbroken line of two
+# arches (one idea leading to the next), with an amber dot for the idea you
+# just recalled. Flat colour, no gloss or sparkle, so it stays calm and reads
+# cleanly from 16px to 1024px.
+LOGO_RADIUS = 0.225                      # tile corner radius
+LOGO_LEGS = (0.270, 0.500, 0.730)        # x of the three upright strokes
+LOGO_ARCH_Y = 0.430                      # y where the arches meet the legs
+LOGO_BOTTOM = 0.710                      # y where the legs end (round caps)
+LOGO_STROKE = 0.115
+LOGO_DOT = (0.775, 0.235, 0.066)         # amber recall dot: x, y, radius
 LOGO_COLORS = {
-    "top_left": "#4fb3ff",
-    "middle": "#4a6cf7",
-    "bottom_right": "#6b3fe0",
-    "highlight": "#ffffff",
-    "shadow": "#1a1450",
+    "top": "#3d64f2",
+    "bottom": "#2a40c4",
     "mark": "#ffffff",
-    "spark": "#fff4c7",
+    "dot": "#ffb020",
 }
+
+
+def arch_distance(px, py, cx, cy, radius):
+    """Distance to the upper half of a circle (an arch)."""
+    if py <= cy:
+        return abs(math.hypot(px - cx, py - cy) - radius)
+    return min(math.hypot(px - (cx - radius), py - cy), math.hypot(px - (cx + radius), py - cy))
+
+
+def logo_mark_distance(px, py, canvas):
+    """Signed distance (in pixels) from a point to the white "m" stroke."""
+    x = [value * canvas for value in LOGO_LEGS]
+    arch_y, bottom = LOGO_ARCH_Y * canvas, LOGO_BOTTOM * canvas
+    radius = (x[1] - x[0]) / 2
+    legs = min(segment_distance(px, py, leg, arch_y, leg, bottom) for leg in x)
+    arches = min(arch_distance(px, py, x[0] + radius, arch_y, radius), arch_distance(px, py, x[1] + radius, arch_y, radius))
+    return min(legs, arches) - canvas * LOGO_STROKE / 2
 
 
 def segment_distance(px, py, x1, y1, x2, y2):
@@ -95,74 +106,37 @@ def rounded_square_distance(x, y, size, radius):
     return outside + min(max(qx, qy), 0) - radius
 
 
-def spark_distance(px, py, cx, cy, reach):
-    """Distance to a four-point star (a thin diamond cross)."""
-    dx, dy = abs(px - cx), abs(py - cy)
-    # Two slim diamonds: long along one axis, narrow along the other.
-    first = (dx / (reach * 0.26) + dy / reach) - 1
-    second = (dx / reach + dy / (reach * 0.26)) - 1
-    return min(first, second) * reach * 0.26
-
-
 @lru_cache(maxsize=24)
 def render_icon_pixels(size, scale=None):
     """Draw the MemoryPal logo as RGBA rows (pure Python, no Pillow needed).
 
-    Tiny sizes (taskbar, title bar) drop the node cores and spark so the M
-    stays crisp instead of turning into coloured noise.
+    The mark is two strokes and a dot on a flat tile, so it needs no
+    simplified small-size variant: it stays crisp down to 16px.
     """
     scale = scale or (4 if size <= 64 else 3 if size <= 128 else 2)
     canvas = size * scale
     edge = max(1.0, scale * 1.0)
-    detailed = size > 32
-    top_left = rgba(LOGO_COLORS["top_left"])
-    middle = rgba(LOGO_COLORS["middle"])
-    bottom_right = rgba(LOGO_COLORS["bottom_right"])
-    highlight = rgba(LOGO_COLORS["highlight"])
-    shadow = rgba(LOGO_COLORS["shadow"])
+    top = rgba(LOGO_COLORS["top"])
+    bottom = rgba(LOGO_COLORS["bottom"])
     mark = rgba(LOGO_COLORS["mark"])
-    spark_color = rgba(LOGO_COLORS["spark"])
+    dot_color = rgba(LOGO_COLORS["dot"])
     radius = canvas * LOGO_RADIUS
-    path = [(x * canvas, y * canvas) for x, y in LOGO_PATH]
-    half_stroke = canvas * LOGO_STROKE / 2
-    nodes = [(x * canvas, y * canvas, rgba(color)) for x, y, color in LOGO_NODES]
-    node_radius = canvas * LOGO_NODE_RADIUS
-    core_radius = canvas * LOGO_CORE_RADIUS
-    shadow_dy = canvas * 0.022
-    shadow_blur = canvas * 0.045
-    spark = (LOGO_SPARK[0] * canvas, LOGO_SPARK[1] * canvas, LOGO_SPARK[2] * canvas)
-
-    def mark_distance(x, y):
-        stroke = min(segment_distance(x, y, *path[i], *path[i + 1]) for i in range(len(path) - 1)) - half_stroke
-        dots = min(math.hypot(x - nx, y - ny) for nx, ny, _c in nodes) - node_radius
-        return min(stroke, dots)
+    dot_x, dot_y, dot_r = (value * canvas for value in LOGO_DOT)
 
     pixels = []
     for y in range(canvas):
         row = []
         py = y + 0.5
+        # A gentle top-to-bottom shade keeps the flat tile from looking dull.
+        base = blend(top, bottom, py / canvas)
         for x in range(canvas):
             px = x + 0.5
             shape = coverage(rounded_square_distance(px, py, canvas, radius), edge)
             if shape <= 0:
                 row.append([0, 0, 0, 0])
                 continue
-            # Diagonal three-stop gradient, top-left to bottom-right.
-            t = (px + py) / (2 * canvas)
-            color = blend(top_left, middle, t / 0.5) if t < 0.5 else blend(middle, bottom_right, (t - 0.5) / 0.5)
-            # Soft light from the top-left corner.
-            glow = max(0.0, 1 - math.hypot(px - canvas * 0.18, py - canvas * 0.10) / (canvas * 0.75))
-            color = blend(color, highlight, glow * glow * 0.22)
-            # Soft shadow under the mark so it lifts off the background.
-            shade = mark_distance(px, py - shadow_dy)
-            color = blend(color, shadow, max(0.0, min(1.0, 1 - shade / shadow_blur)) * 0.30 if shade > 0 else 0.30)
-            if detailed:
-                sx, sy, reach = spark
-                color = blend(color, spark_color, coverage(spark_distance(px, py, sx, sy, reach), edge) * 0.95)
-            color = blend(color, mark, coverage(mark_distance(px, py), edge))
-            if detailed:
-                for nx, ny, core in nodes:
-                    color = blend(color, core, coverage(math.hypot(px - nx, py - ny) - core_radius, edge))
+            color = blend(base, mark, coverage(logo_mark_distance(px, py, canvas), edge))
+            color = blend(color, dot_color, coverage(math.hypot(px - dot_x, py - dot_y) - dot_r, edge))
             color[3] = clamp_color(255 * shape)
             row.append(color)
         pixels.append(row)
@@ -190,7 +164,7 @@ def render_icon_pixels(size, scale=None):
 
 
 MASTER_SIZE = 256
-MASTER_CACHE_VERSION = 2  # bump whenever the logo artwork changes
+MASTER_CACHE_VERSION = 3  # bump whenever the logo artwork changes
 
 
 def master_cache_path():
@@ -227,8 +201,8 @@ def icon_pixels(size):
     """RGBA rows for the logo at any size up to 256, area-averaged from the master."""
     size = max(1, int(size))
     if size <= 32:
-        # Tiny sizes are drawn directly with the simplified mark (no node
-        # cores or spark), which stays crisp where a shrunk copy would blur.
+        # Tiny sizes are drawn directly, which stays crisp where a shrunk
+        # copy of the master would blur.
         return [list(map(list, row)) for row in render_icon_pixels(size)]
     raw = master_pixels()
     master = MASTER_SIZE

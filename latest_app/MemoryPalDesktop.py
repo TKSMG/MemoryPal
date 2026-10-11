@@ -45,28 +45,10 @@ from memorypal.core import (
     mnemonic_sentence,
     normalize_space,
     parse_prompt_answer_lines,
+    salient_keywords,
     split_study_bits,
     today_iso,
 )
-try:
-    from memorypal.core import salient_keywords
-except ImportError:
-    def salient_keywords(text, count=5):
-        """Local fallback: top recurring words in text, used as a partial hint.
-
-        Kept here (rather than assumed importable) because this file may be
-        distributed on its own without a matching memorypal/core.py.
-        """
-        words = re.findall(r"[A-Za-z]{4,}", text or "")
-        stopwords = {"this", "that", "with", "from", "have", "were", "which", "their", "about", "would", "there", "these", "those"}
-        counts = {}
-        for word in words:
-            lower = word.lower()
-            if lower in stopwords:
-                continue
-            counts[lower] = counts.get(lower, 0) + 1
-        ranked = sorted(counts, key=lambda w: (-counts[w], words.index(next(x for x in words if x.lower() == w))))
-        return [w.capitalize() for w in ranked[:count]]
 from memorypal.icon import ensure_icon_file, icon_pixels
 from memorypal.models import Card, Capture, FeedbackEntry, sample_cards
 from memorypal.paths import (
@@ -78,7 +60,7 @@ from memorypal.paths import (
     rename_profile,
     switch_active_profile_paths,
 )
-from memorypal import onboarding, progress, techniques
+from memorypal import cloud, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
 from memorypal.speech import Speaker
@@ -156,12 +138,13 @@ def flush_pending_paint(widget):
         return 0
 
 
-def show_screen_cover(width, height):
-    """Put a pixel-identical, topmost snapshot of the screen over everything.
+def show_screen_cover(width, height, left=0, top=0):
+    """Put a pixel-identical, topmost snapshot of part of the screen over it.
 
     The captured bitmap is handed straight to a layered popup window
     (UpdateLayeredWindow), so it appears atomically with no Tk image
-    conversion. The window never takes focus or shows in the taskbar.
+    conversion. The window never takes focus, ignores the mouse (clicks and
+    drags go to the app underneath), and doesn't show in the taskbar.
     Returns a handle for remove_screen_cover, or None if unavailable.
     """
     if not sys.platform.startswith("win"):
@@ -185,13 +168,13 @@ def show_screen_cover(width, height):
         previous = gdi32.SelectObject(memory_dc, bitmap)
         hwnd = None
         try:
-            gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, 0, 0, 0x00CC0020)  # SRCCOPY
-            # WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WS_POPUP
-            hwnd = user32.CreateWindowExW(0x00080000 | 0x00000008 | 0x00000080 | 0x08000000, "STATIC", None,
-                                          0x80000000, 0, 0, width, height, None, None, None, None)
+            gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, left, top, 0x00CC0020)  # SRCCOPY
+            # WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WS_POPUP
+            hwnd = user32.CreateWindowExW(0x00080000 | 0x00000020 | 0x00000008 | 0x00000080 | 0x08000000, "STATIC", None,
+                                          0x80000000, left, top, width, height, None, None, None, None)
             if not hwnd:
                 return None
-            origin, size = wintypes.POINT(0, 0), wintypes.SIZE(width, height)
+            origin, size = wintypes.POINT(left, top), wintypes.SIZE(width, height)
             blend = BlendFunction(0, 0, 255, 0)
             if not user32.UpdateLayeredWindow(hwnd, screen_dc, ctypes.byref(origin), ctypes.byref(size), memory_dc,
                                               ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4):  # ULW_OPAQUE
@@ -476,13 +459,25 @@ class ScrollFrame(ttk.Frame):
             self.after(1, lambda: self._present(move))
             return
         self._presenting = True
+        cover = None
         try:
+            # Even painted straight away, Windows composited frames where the
+            # cards had moved but their text wasn't drawn yet (tearing). A
+            # snapshot of just the scrolling area hides each step until it
+            # is fully drawn, then the new position appears in one frame.
+            root = self.winfo_toplevel()
+            if not getattr(root, "use_native_window_chrome", True) and not getattr(root, "_hidden_active", False):
+                width, height = self.viewport.winfo_width(), self.viewport.winfo_height()
+                if width > 1 and height > 1:
+                    cover = show_screen_cover(width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty())
             move()
             self._sync_scrollbars()
             self.viewport.update_idletasks()
             flush_pending_paint(self.viewport)
         finally:
             self._presenting = False
+            if cover is not None:
+                remove_screen_cover(cover)
 
     def _scrollbar_yview(self, *args):
         self._scrollbar_view("y", args)
@@ -569,16 +564,14 @@ class ScrollFrame(ttk.Frame):
 
     def _scroll_pages(self, direction):
         try:
-            self.viewport.yview_scroll(direction, "pages")
-            self._sync_scrollbars()
+            self._present(lambda: self.viewport.yview_scroll(direction, "pages"))
         except tk.TclError:
             pass
         return "break"
 
     def _scroll_to(self, position):
         try:
-            self.viewport.yview_moveto(max(0.0, min(1.0, float(position))))
-            self._sync_scrollbars()
+            self._present(lambda: self.viewport.yview_moveto(max(0.0, min(1.0, float(position)))))
         except tk.TclError:
             pass
         return "break"
@@ -713,6 +706,7 @@ class MemoryPalApp(tk.Tk):
         self.theme = "dark"
         self.rail_width_units = getattr(self, "rail_width_units", 276)
         self.store = MemoryStore()
+        self.init_cloud()
         self.accessibility = normalize_accessibility(self.store.accessibility)
         self.apply_accessibility_preferences()
         self.current_view = "dashboard"
@@ -2074,7 +2068,15 @@ class MemoryPalApp(tk.Tk):
         return button
 
     def show_focus_outline(self):
+        # Keyboard users must always see where focus is (WCAG 2.4.7), so the
+        # ring is always on; the setting and high contrast make it thicker.
+        return True
+
+    def strong_focus_outline(self):
         return bool(self.accessibility.get("focus_outline") or self.accessibility.get("high_contrast"))
+
+    def focus_thickness(self):
+        return max(2, self.px(3 if self.strong_focus_outline() else 2))
 
     def focus_color(self):
         return COLORS.get("focus", "#f5b301")
@@ -2136,7 +2138,19 @@ class MemoryPalApp(tk.Tk):
     def _styles(self):
         self.style = ttk.Style(self)
         self.style.theme_use("clam")
-        self.option_add("*Font", self.font("Segoe UI", 12))
+        # A blanket "*Font" option gives every ttk widget its own -font, and a
+        # widget font beats the style font: every Title, H2 and Stat label
+        # was drawn as 12pt body text. Set the default only for classic Tk
+        # widgets (and ttk inputs, which take their font per widget), and let
+        # the named default fonts cover everything else.
+        body = self.font("Segoe UI", 12)
+        for widget_class in ("Label", "Button", "Entry", "Text", "Listbox", "Checkbutton", "Radiobutton", "Menubutton", "Menu", "Message", "Spinbox", "TEntry", "TCombobox", "TSpinbox"):
+            self.option_add(f"*{widget_class}.Font", body)
+        for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont"):
+            try:
+                tkfont.nametofont(name, root=self).configure(family=body[0], size=body[1])
+            except (tk.TclError, TypeError):
+                pass
         self.style.configure("Root.TFrame", background=COLORS["bg"])
         self.style.configure("Rail.TFrame", background=COLORS["rail"])
         self.style.configure("Page.TFrame", background=COLORS["bg"])
@@ -2185,29 +2199,305 @@ class MemoryPalApp(tk.Tk):
             )
         self.style.configure("Rail.Vertical.TScrollbar", gripcount=0, width=self.px(13), arrowsize=self.px(11), background=COLORS["muted"], darkcolor=COLORS["rail"], lightcolor=COLORS["rail"], troughcolor=COLORS["rail"], bordercolor=COLORS["rail"], arrowcolor=COLORS["muted"], relief="flat")
         self.style.configure("Horizontal.TProgressbar", troughcolor=COLORS["alt"], background=COLORS["primary"], bordercolor=COLORS["alt"], lightcolor=COLORS["primary"], darkcolor=COLORS["primary"])
-        self.style.configure("TButton", padding=self.pad(18, 12), background=COLORS["surface_soft"], foreground=COLORS["ink"], borderwidth=0, relief="flat", focuscolor=COLORS["surface_soft"], font=self.font("Segoe UI Semibold", 11))
-        self.style.map("TButton", background=[("active", COLORS["alt"]), ("pressed", self.tint(COLORS["alt"], -14))], foreground=[("active", COLORS["primary"])])
-        self.style.configure("Primary.TButton", padding=self.pad(18, 12), background=COLORS["primary"], foreground=COLORS["white"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 12))
-        self.style.map("Primary.TButton", background=[("active", COLORS["primary_dark"]), ("pressed", self.tint(COLORS["primary_dark"], -14))])
-        self.style.configure("TMenubutton", padding=self.pad(18, 12), background=COLORS["surface_soft"], foreground=COLORS["ink"], borderwidth=0, bordercolor=COLORS["surface_soft"], lightcolor=COLORS["surface_soft"], darkcolor=COLORS["surface_soft"], arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI Semibold", 11))
-        self.style.map("TMenubutton", background=[("active", COLORS["alt"]), ("pressed", self.tint(COLORS["alt"], -14))], foreground=[("active", COLORS["primary"])])
-        self.style.configure("Select.TMenubutton", padding=self.pad(16, 11), background=COLORS["input"], foreground=COLORS["ink"], borderwidth=0, bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 11))
-        self.style.map("Select.TMenubutton", background=[("active", COLORS["alt"])])
-        self.style.configure("Danger.TButton", padding=self.pad(18, 12), background=COLORS["danger"], foreground=COLORS["white"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
-        self.style.configure("Again.TButton", padding=self.pad(18, 12), background=COLORS["again_bg"], foreground=COLORS["again_fg"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
-        self.style.configure("Review.TButton", padding=self.pad(18, 12), background=COLORS["review_bg"], foreground=COLORS["review_fg"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
-        self.style.configure("Good.TButton", padding=self.pad(18, 12), background=COLORS["good_bg"], foreground=COLORS["good_fg"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
-        self.style.configure("Easy.TButton", padding=self.pad(18, 12), background=COLORS["easy_bg"], foreground=COLORS["easy_fg"], borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
-        self.style.configure("Nav.TButton", padding=self.pad(20, 15), background=COLORS["rail"], foreground="#d7def0", anchor="w", borderwidth=0, relief="flat", focuscolor=COLORS["rail"], font=self.font("Segoe UI", 12))
-        self.style.map("Nav.TButton", background=[("active", COLORS["rail_hover"])], foreground=[("active", COLORS["white"])])
-        self.style.configure("ActiveNav.TButton", padding=self.pad(20, 15), background=COLORS["primary"], foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", focuscolor=COLORS["primary"], font=self.font("Segoe UI Semibold", 12))
+        semibold = self.font("Segoe UI Semibold", 11)
+        self.style.configure("TButton", padding=self.pad(18, 11), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
+        self.style.map("TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
+        self.style.configure("Primary.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 12))
+        self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["primary_dark"]))])
+        self.style.configure("TMenubutton", padding=self.pad(18, 11), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
+        self.style.map("TMenubutton", foreground=[("active", COLORS["primary"])])
+        self.style.configure("Select.TMenubutton", padding=self.pad(16, 10), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 11))
+        self.style.configure("Danger.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["danger"]), borderwidth=0, relief="flat", font=semibold)
+        # Segmented choices (Study Plan time, quiz modes): one pill per option.
+        self.style.configure("Pill.TButton", padding=self.pad(14, 8), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
+        self.style.map("Pill.TButton", foreground=[("active", COLORS["primary"])])
+        self.style.configure("PillOn.TButton", padding=self.pad(14, 8), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
+        self.style.map("PillOn.TButton", foreground=[("active", self.on_color(COLORS["primary_dark"]))])
+        for name, fg in (("Again", "again_fg"), ("Review", "review_fg"), ("Good", "good_fg"), ("Easy", "easy_fg")):
+            self.style.configure(f"{name}.TButton", padding=self.pad(18, 11), foreground=COLORS[fg], borderwidth=0, relief="flat", font=semibold)
+            self.style.map(f"{name}.TButton", foreground=[("active", COLORS[fg])])
+        # Compact rail items so every page fits without paging on a normal
+        # laptop screen; the active page is a calm filled pill, not a bright
+        # block (white on the old bright blue was only 2.3:1).
+        self.style.configure("Nav.TButton", padding=self.pad(14, 3), foreground=COLORS["rail_text"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI", 11))
+        self.style.map("Nav.TButton", foreground=[("disabled", self.tint(COLORS["rail_muted"], -50)), ("active", COLORS["white"])])
+        self.style.configure("ActiveNav.TButton", padding=self.pad(14, 3), foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.map("ActiveNav.TButton", foreground=[("active", COLORS["white"])])
 
-        if self.show_focus_outline():
-            # A bright ring on the focused button so keyboard (Tab) users can
-            # always see where they are; by default the ring matched the
-            # button colour and was invisible.
-            for name in ("TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton"):
-                self.style.configure(name, focuscolor=self.focus_color(), focusthickness=max(2, self.px(3)))
+        # Keyboard focus is always visible (a ring inside the button).
+        for name in ("TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton"):
+            self.style.configure(name, focuscolor=self.focus_color(), focusthickness=self.focus_thickness())
+        self.install_rounded_controls()
+
+    # ------------------------------------------------------------------
+    # Rounded controls
+    # ------------------------------------------------------------------
+    def control_palettes(self):
+        """(normal, hover, pressed) fills for each rounded button style."""
+        soft, alt = COLORS["surface_soft"], COLORS["alt"]
+        rating = lambda key: (COLORS[key], self.tint(COLORS[key], -12), self.tint(COLORS[key], -22))
+        return {
+            "TButton": ("TButton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
+            "Primary.TButton": ("TButton", (COLORS["primary"], COLORS["primary_dark"], self.tint(COLORS["primary_dark"], -14)), COLORS["surface"]),
+            "Danger.TButton": ("TButton", (COLORS["danger"], self.tint(COLORS["danger"], -18), self.tint(COLORS["danger"], -30)), COLORS["surface"]),
+            "Again.TButton": ("TButton", rating("again_bg"), COLORS["surface"]),
+            "Review.TButton": ("TButton", rating("review_bg"), COLORS["surface"]),
+            "Good.TButton": ("TButton", rating("good_bg"), COLORS["surface"]),
+            "Easy.TButton": ("TButton", rating("easy_bg"), COLORS["surface"]),
+            "Nav.TButton": ("TButton", (COLORS["rail"], COLORS["rail_hover"], COLORS["rail_hover"], COLORS["rail"]), COLORS["rail"]),
+            "ActiveNav.TButton": ("TButton", (COLORS["rail_active"],) * 3 + (COLORS["rail"],), COLORS["rail"]),
+            "TMenubutton": ("TMenubutton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
+            "Select.TMenubutton": ("TMenubutton", (COLORS["input"], alt, alt), COLORS["surface"]),
+            "Pill.TButton": ("TButton", (COLORS["input"], self.tint(COLORS["input"], -10 if self.theme == "light" else 16), self.tint(COLORS["input"], -20 if self.theme == "light" else 26)), COLORS["surface"]),
+            "PillOn.TButton": ("TButton", (COLORS["primary"], COLORS["primary_dark"], self.tint(COLORS["primary_dark"], -14)), COLORS["surface"]),
+        }
+
+    def rounded_tile(self, fill, bg, ring=None, ring_width=0):
+        """A small antialiased rounded square, stretched by ttk as a 9-slice.
+
+        The tile is fully opaque: its corners are blended onto `bg`, the
+        surface the control sits on. Tk on Windows draws photos with
+        transparency by reading the screen back on every redraw, which made
+        pages with many buttons take seconds to build and paint in pieces.
+        """
+        radius = self.px(9)
+        size = radius * 2 + 4
+        key = ("tile", size, fill, bg, ring, ring_width)
+        photo = self._tile_cache.get(key)
+        if photo is not None:
+            return photo
+        fill_rgb = self.hex_to_rgb(fill) or (128, 128, 128)
+        bg_rgb = self.hex_to_rgb(bg) or fill_rgb
+        ring_rgb = self.hex_to_rgb(ring) if ring else None
+        half = size / 2
+
+        def distance(px, py, inset):
+            r = max(0.0, radius - inset)
+            reach = half - inset - r
+            qx, qy = abs(px - half) - reach, abs(py - half) - reach
+            return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - r
+
+        pixels = bytearray()
+        for y in range(size):
+            for x in range(size):
+                px, py = x + 0.5, y + 0.5
+                cover = max(0.0, min(1.0, 0.5 - distance(px, py, 0)))
+                color = fill_rgb
+                if ring_rgb and ring_width:
+                    inner = max(0.0, min(1.0, 0.5 - distance(px, py, ring_width)))
+                    color = tuple(ring_rgb[i] + (fill_rgb[i] - ring_rgb[i]) * inner for i in range(3))
+                pixels.extend(int(round(bg_rgb[i] + (color[i] - bg_rgb[i]) * cover)) for i in range(3))
+                pixels.append(255)
+        data = base64.b64encode(self.png_rgba(size, size, bytes(pixels))).decode("ascii")
+        small = tk.PhotoImage(master=self, data=data, format="png")
+        photo = self.widen_tile(small, radius, fill)
+        self._tile_cache[key] = photo
+        return photo
+
+    def widen_tile(self, small, radius, fill):
+        """Grow a corner tile to a large 9-slice tile, using Tk's own copy.
+
+        ttk fills a stretched image element by repeating its middle, so a
+        tile with a 4px middle needed thousands of draw calls for one wide
+        button. A large middle needs a handful. Edges are a 1px strip of the
+        small tile repeated along the side.
+        """
+        s, r = small.width(), radius
+        width, height = 2 * r + 256, 2 * r + 96
+        big = tk.PhotoImage(master=self, width=width, height=height)
+        call = lambda *args: self.tk.call(big.name, "copy", small.name, *args)
+        big.put(fill, to=(0, 0, width, height))
+        for (fx, fy), (tx, ty) in (((0, 0), (0, 0)), ((s - r, 0), (width - r, 0)), ((0, s - r), (0, height - r)), ((s - r, s - r), (width - r, height - r))):
+            call("-from", fx, fy, fx + r, fy + r, "-to", tx, ty)
+        call("-from", r, 0, r + 1, r, "-to", r, 0, width - r, r)
+        call("-from", r, s - r, r + 1, s, "-to", r, height - r, width - r, height)
+        call("-from", 0, r, r, r + 1, "-to", 0, r, r, height - r)
+        call("-from", s - r, r, s, r + 1, "-to", width - r, r, width, height - r)
+        big._memorypal_source = small  # keep the small tile alive with it
+        return big
+
+    def rounded_element(self, normal, hover=None, pressed=None, disabled=None, focus=None, focus_hover=None):
+        """A ttk image element (cached by its tiles) with per-state tiles.
+
+        Keyboard focus is a solid ring drawn into the tile (clam's own focus
+        indicator is a faint dotted box that is easy to miss).
+        """
+        key = (str(normal), str(hover), str(pressed), str(disabled), str(focus), str(focus_hover))
+        name = self._rounded_elements.get(key)
+        if name:
+            return name
+        name = f"mp{len(self._rounded_elements) + 1}x{self._style_generation}.surface"
+        states = []
+        if disabled:
+            states.append(("disabled", disabled))
+        if pressed:
+            states.append(("pressed", pressed))
+        if focus_hover:
+            states.append(("focus", "active", focus_hover))
+        if focus:
+            states.append(("focus", focus))
+        if hover:
+            states.append(("active", hover))
+        # The border is the 9-slice corner size (it must leave a middle strip
+        # to stretch). An image element also uses its border as the inner
+        # padding unless told otherwise, which made every button ~30px taller.
+        # width/height set the element's minimum size; without them it asks
+        # for the full (large) tile size and every button grows to match.
+        border = self.px(9)
+        self.style.element_create(name, "image", normal, *states, border=border, padding=0, width=2 * border + 2, height=2 * border + 2, sticky="nsew")
+        self._rounded_elements[key] = name
+        return name
+
+    def round_style(self, style, widget_class, fills, bg):
+        """Give `style` rounded tiles in these (normal, hover, pressed[, disabled])
+        fills, with corners baked onto the surface colour `bg`."""
+        if widget_class == "TEntry":
+            self.round_entry_style(style, bg)
+            return
+        normal, hover, pressed = fills[:3]
+        # Disabled controls fade into their surface; the nav rail is disabled
+        # during first-run setup and must stay rail-coloured, not light boxes.
+        disabled = fills[3] if len(fills) > 3 else self.tint(COLORS["surface_soft"], 4 if self.theme == "dark" else -4)
+        ring, width = self.focus_color(), self.focus_thickness()
+        element = self.rounded_element(
+            self.rounded_tile(normal, bg), self.rounded_tile(hover, bg), self.rounded_tile(pressed, bg),
+            disabled=self.rounded_tile(disabled, bg),
+            focus=self.rounded_tile(normal, bg, ring=ring, ring_width=width),
+            focus_hover=self.rounded_tile(hover, bg, ring=ring, ring_width=width),
+        )
+        self.style.layout(style, [(element, {"sticky": "nsew", "children": self.inner_layout(widget_class)})])
+        self.set_corner_background(style, bg)
+
+    def round_entry_style(self, style, bg):
+        line = COLORS["soft_line"] if self.theme == "light" else COLORS["line"]
+        thin = max(1, self.px(1))
+        element = self.rounded_element(
+            self.rounded_tile(COLORS["input"], bg, ring=line, ring_width=thin),
+            hover=self.rounded_tile(COLORS["input"], bg, ring=COLORS["muted"], ring_width=thin),
+            focus=self.rounded_tile(COLORS["input"], bg, ring=COLORS["primary"], ring_width=max(2, self.px(2))),
+        )
+        self.style.layout(style, [(element, {"sticky": "nsew", "children": self.inner_layout("TEntry")})])
+        self.set_corner_background(style, bg)
+
+    def set_corner_background(self, style, color):
+        """Keep the style background equal to the surface in every state.
+
+        clam maps a button's background to near-white when hovered or
+        pressed; with the tiles' corners baked onto the surface colour, any
+        other background could only show as a fleck at the edges.
+        """
+        self.style.configure(style, background=color)
+        self.style.map(style, background=[("disabled", color), ("pressed", color), ("active", color)])
+
+    def inner_layout(self, widget_class):
+        """What clam draws inside a control's border, minus its dotted focus box
+        (the rounded tile draws a solid focus ring instead)."""
+        layout = self._clam_layouts[widget_class]
+        children = layout[0][1].get("children", []) if layout else []
+        if len(children) == 1 and children[0][0].endswith(".focus"):
+            children = children[0][1].get("children", [])
+        return children
+
+    def install_rounded_controls(self):
+        if not hasattr(self, "_tile_cache"):
+            self._tile_cache = {}
+            self._style_generation = 0
+            # Captured before any restyling: the rounded layouts replace only
+            # the outer border element of these.
+            self._clam_layouts = {name: self.style.layout(name) for name in ("TButton", "TMenubutton", "TEntry")}
+            for widget_class in ("TButton", "TMenubutton", "TEntry"):
+                self.bind_class(widget_class, "<Map>", self.fit_control_corners, add="+")
+        # Element names can't be deleted, so a theme change starts a new
+        # generation of names; tiles are cached by colour and reused.
+        self._style_generation += 1
+        self._rounded_elements = {}
+        self._corner_styles = {}
+        self._accent_styles = {}
+        # style -> (widget class, fills, default surface)
+        self._round_specs = dict(self.control_palettes())
+        self._round_specs["TEntry"] = ("TEntry", (), COLORS["surface"])
+        try:
+            for style, (widget_class, fills, bg) in self._round_specs.items():
+                self.round_style(style, widget_class, fills, bg)
+        except (tk.TclError, IndexError, KeyError):
+            self._round_specs = {}  # an unusual Tk: keep the flat controls
+
+    def accent_button_style(self, color):
+        """A rounded filled button style for any accent colour (green, violet...)."""
+        if color == COLORS["primary"]:
+            return "Primary.TButton"
+        if color == COLORS["danger"]:
+            return "Danger.TButton"
+        style = self._accent_styles.get(color)
+        if style:
+            return style
+        style = f"A{color.lstrip('#')}.Primary.TButton"
+        hover = self.tint(color, -18)
+        self.style.configure(style, foreground=self.on_color(color))
+        self.style.map(style, foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(hover))])
+        fills = (color, hover, self.tint(color, -30))
+        try:
+            self.round_style(style, "TButton", fills, COLORS["surface"])
+            self._round_specs[style] = ("TButton", fills, COLORS["surface"])
+        except tk.TclError:
+            self.style.configure(style, background=color)
+        self._accent_styles[color] = style
+        return style
+
+    def surface_behind(self, widget):
+        """The colour a control sits on (its nearest ancestor's background)."""
+        parent = widget.master
+        while parent is not None:
+            try:
+                if isinstance(parent, ttk.Widget):
+                    style = str(parent.cget("style")) or parent.winfo_class()
+                    color = self.style.lookup(style, "background")
+                else:
+                    color = parent.cget("bg")
+                if color:
+                    red, green, blue = (value // 257 for value in self.winfo_rgb(color))
+                    return f"#{red:02x}{green:02x}{blue:02x}"
+            except tk.TclError:
+                pass
+            parent = parent.master
+        return COLORS["bg"]
+
+    def fit_control_corners(self, event):
+        """Give a rounded control tiles baked onto the surface it actually sits on."""
+        widget = event.widget
+        try:
+            style = str(widget.cget("style")) or widget.winfo_class()
+        except (tk.TclError, AttributeError):
+            return
+        base = style.split(".", 1)[1] if style.startswith("on") and "." in style else style
+        spec = getattr(self, "_round_specs", {}).get(base)
+        if not spec:
+            return
+        widget_class, fills, default_bg = spec
+        behind = self.surface_behind(widget)
+        # A soft secondary button on a tinted card of almost the same colour
+        # vanishes (e.g. surface_soft on alt); lift it to the card colour.
+        # (Only the soft secondary styles; nav items match the rail on purpose.)
+        liftable = base in ("TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton")
+        blends_in = liftable and self.contrast(fills[0], behind) < 1.12
+        if behind == default_bg.lower() and not blends_in:
+            if base != style:
+                widget.configure(style=base)
+            return
+        derived = f"on{behind.lstrip('#')}.{base}"
+        if derived not in self._corner_styles:
+            if blends_in:
+                lifted = COLORS["surface"] if self.contrast(COLORS["surface"], behind) >= 1.12 else COLORS["bg"]
+                step = -10 if self.theme == "light" else 12
+                fills = (lifted, self.tint(lifted, step), self.tint(lifted, 2 * step))
+            try:
+                self.round_style(derived, widget_class, fills, behind)
+            except tk.TclError:
+                self.set_corner_background(derived, behind)
+            self._corner_styles[derived] = True
+        if derived != style:
+            widget.configure(style=derived)
+
     def draw_chrome_icon(self, canvas, size):
         canvas.delete("all")
         if self.draw_memorypal_logo(canvas, size):
@@ -2220,13 +2510,18 @@ class MemoryPalApp(tk.Tk):
             canvas.create_oval(size - radius * 2, 1, size - 1, radius * 2, fill=COLORS["primary"], outline="")
             canvas.create_oval(1, size - radius * 2, radius * 2, size - 1, fill=COLORS["primary"], outline="")
             canvas.create_oval(size - radius * 2, size - radius * 2, size - 1, size - 1, fill=COLORS["primary"], outline="")
-        canvas.create_line(size * 0.25, size * 0.72, size * 0.25, size * 0.32, fill=COLORS["white"], width=max(2, self.px(2)), capstyle="round")
-        canvas.create_line(size * 0.25, size * 0.32, size * 0.50, size * 0.62, fill=COLORS["white"], width=max(2, self.px(2)), capstyle="round")
-        canvas.create_line(size * 0.50, size * 0.62, size * 0.75, size * 0.32, fill=COLORS["white"], width=max(2, self.px(2)), capstyle="round")
-        canvas.create_line(size * 0.75, size * 0.32, size * 0.75, size * 0.72, fill=COLORS["white"], width=max(2, self.px(2)), capstyle="round")
-        dot = max(2, self.px(2))
-        for x, y in ((0.25, 0.32), (0.50, 0.62), (0.75, 0.32)):
-            canvas.create_oval(size * x - dot, size * y - dot, size * x + dot, size * y + dot, fill=COLORS["white"], outline="")
+        # The same lowercase "m" of two arches and amber dot as icon.py.
+        ink = self.on_color(COLORS["primary"])
+        stroke = max(2, int(size * 0.11))
+        legs = [size * value for value in (0.27, 0.50, 0.73)]
+        arch_y, bottom = size * 0.43, size * 0.71
+        half = (legs[1] - legs[0]) / 2
+        for leg in legs:
+            canvas.create_line(leg, arch_y, leg, bottom, fill=ink, width=stroke, capstyle="round")
+        for left in legs[:2]:
+            canvas.create_arc(left, arch_y - half, left + 2 * half, arch_y + half, start=0, extent=180, style="arc", outline=ink, width=stroke)
+        dot = size * 0.066
+        canvas.create_oval(size * 0.775 - dot, size * 0.235 - dot, size * 0.775 + dot, size * 0.235 + dot, fill="#ffb020", outline="")
 
     def render_window_chrome(self, parent, title, close_command, window=None, show_minimize=True, show_fullscreen=True):
         window = window or self
@@ -2324,11 +2619,25 @@ class MemoryPalApp(tk.Tk):
             up_h = self.nav_up_button.winfo_reqheight() + self.px(8)
         except (AttributeError, tk.TclError):
             footer_h, up_h = self.px(90), self.px(46)
+        item_step = max(getattr(self, "_nav_item_step", 0) or self.px(46), 1)
+        total = len(getattr(self, "nav_items_cache", None) or self.ordered_nav_items())
+        # Show every page when they fit (the usual case); only fall back to
+        # Previous/Next paging on short windows or very large text. The old
+        # cap of eight hid more than half of the pages behind "Next pages".
+        if int((height - self.nav_pinned_height() - 2 * self.nav_top_padding()) // item_step) >= total:
+            return total
         top_h = max(self.nav_top_padding(False), self.nav_top_padding(True) + up_h)
-        reserved = footer_h + top_h + self.px(6)
-        item_step = max(getattr(self, "_nav_item_step", 0) or self.px(58), 1)
+        reserved = footer_h + top_h + self.px(6) + self.nav_pinned_height()
         count = int((height - reserved) // item_step)
-        return max(3, min(8, count))
+        return max(3, min(total, count))
+
+    def nav_pinned_height(self):
+        """Height taken by the pinned Settings item and the footer's padding."""
+        pinned = getattr(self, "nav_pinned", None)
+        try:
+            return pinned.winfo_reqheight() + self.px(6) + self.px(18) if pinned is not None and pinned.winfo_exists() else self.px(16)
+        except tk.TclError:
+            return self.px(16)
 
     def nav_top_padding(self, has_previous=False):
         # Minimum gap above/below the item list; the spacers in
@@ -2408,12 +2717,25 @@ class MemoryPalApp(tk.Tk):
         above = first > 0
         below = end < len(items)
 
-        # Equal expanding spacers above and below keep the visible page of
-        # items vertically centred between the brand and the footer controls.
+        # The list starts right under the brand. When everything fits, the
+        # spare height is shared out as even spacing between items (up to a
+        # comfortable maximum) so the pages fill the rail instead of bunching
+        # at the top above an empty gap; Settings sits pinned at the bottom.
         top_padding = self.nav_top_padding(has_previous=above)
         spacer = tk.Frame(host, bg=COLORS["rail"], height=top_padding)
-        spacer.pack(fill="both", expand=True)
+        spacer.pack(fill="x")
         self.bind_nav_wheel(spacer)
+
+        gap = self.px(1)
+        base_step = getattr(self, "_nav_item_step", 0)
+        if not (above or below) and base_step and end > first:
+            try:
+                room = self.nav_list_host.winfo_height() - self.nav_pinned_height() - 2 * top_padding
+            except (AttributeError, tk.TclError):
+                room = 0
+            spare = room - (end - first) * base_step
+            gap += int(clamp(spare / max(1, end - first), 0, self.px(14)) // 2)
+        self._nav_spacing_state = (getattr(self.nav_list_host, "winfo_height", lambda: 0)(), gap)
 
         for key, label, _short in items[first:end]:
             button = ttk.Button(
@@ -2422,7 +2744,7 @@ class MemoryPalApp(tk.Tk):
                 style="Nav.TButton",
                 command=lambda view=key: self.show_view(view),
             )
-            button.pack(fill="x", padx=self.px(20), pady=self.px(6))
+            button.pack(fill="x", padx=self.px(14), pady=gap)
             self.bind_nav_wheel(button)
             self.add_tooltip(button, self.nav_hint(key))
             self.nav_buttons[key] = button
@@ -2432,12 +2754,17 @@ class MemoryPalApp(tk.Tk):
         self.bind_nav_wheel(bottom_spacer)
 
         if hasattr(self, "nav_range_label") and self.nav_range_label.winfo_exists():
-            self.nav_range_label.configure(text=f"{first + 1}-{end} of {len(items)}")
+            paged = above or below
+            self.nav_range_label.configure(text=f"{first + 1}-{end} of {len(items)}" if paged else "")
+            if paged and not self.nav_range_label.winfo_manager():
+                self.nav_range_label.pack(anchor="center", pady=(self.px(6), 0))
+            elif not paged:
+                self.nav_range_label.pack_forget()
         if hasattr(self, "nav_up_button") and self.nav_up_button.winfo_exists():
             if above:
                 if not self.nav_up_button.winfo_manager():
-                    self.nav_up_button.pack(fill="x", padx=self.px(20), pady=(0, self.px(8)), before=self.nav_list_frame)
-                self.nav_up_button.configure(fg=COLORS["muted"], cursor="hand2")
+                    self.nav_up_button.pack(fill="x", padx=self.px(14), pady=(0, self.px(8)), before=self.nav_list_frame)
+                self.nav_up_button.configure(fg=COLORS["rail_muted"], cursor="hand2")
             else:
                 self.nav_up_button.pack_forget()
         if hasattr(self, "nav_down_button") and self.nav_down_button.winfo_exists():
@@ -2445,8 +2772,8 @@ class MemoryPalApp(tk.Tk):
                 if not self.nav_down_button.winfo_manager():
                     self.nav_down_button.pack(fill="x", pady=(0, self.px(2)), before=self.nav_range_label)
                 self.nav_down_button.configure(
-                    text="\u2193 Next pages",
-                    fg=COLORS["muted"],
+                    text="\u2193 More pages",
+                    fg=COLORS["rail_muted"],
                     cursor="hand2",
                 )
             else:
@@ -2457,7 +2784,7 @@ class MemoryPalApp(tk.Tk):
         if self.nav_buttons:
             # Record the actual button height (plus its pady) for capacity
             # math; re-check once if the earlier estimate was off.
-            step = next(iter(self.nav_buttons.values())).winfo_reqheight() + 2 * self.px(6)
+            step = next(iter(self.nav_buttons.values())).winfo_reqheight() + 2 * self.px(1)
             if step != getattr(self, "_nav_item_step", None):
                 self._nav_item_step = step
                 self.after_idle(self.refresh_nav_capacity)
@@ -2467,7 +2794,12 @@ class MemoryPalApp(tk.Tk):
             return
         visible = self.nav_visible_count()
         top_padding = self.nav_top_padding(has_previous=getattr(self, "nav_first_index", 0) > 0)
-        if visible != getattr(self, "nav_visible_items", None) or top_padding != getattr(self, "nav_top_padding_value", None):
+        try:
+            height = self.nav_list_host.winfo_height()
+        except (AttributeError, tk.TclError):
+            height = 0
+        spacing_stale = height != getattr(self, "_nav_spacing_state", (None,))[0]
+        if spacing_stale or visible != getattr(self, "nav_visible_items", None) or top_padding != getattr(self, "nav_top_padding_value", None):
             self.render_nav_page()
 
     def render_navigation_rail(self, rail_width=None, preserve_cover=None):
@@ -2481,10 +2813,10 @@ class MemoryPalApp(tk.Tk):
         self.layout_app_body()
         self.rail.pack_propagate(False)
         brand = ttk.Frame(self.rail, style="Rail.TFrame")
-        brand.pack(fill="x", padx=self.px(22), pady=self.pad(30, 24))
-        mark_size = self.px(54)
+        brand.pack(fill="x", padx=self.px(20), pady=self.pad(16, 6))
+        mark_size = self.px(44)
         mark = tk.Canvas(brand, width=mark_size, height=mark_size, bg=COLORS["rail"], highlightthickness=0)
-        mark.pack(side="left", padx=(0, self.px(14)))
+        mark.pack(side="left", padx=(0, self.px(12)))
         if not self.draw_memorypal_logo(mark, mark_size):
             self.draw_chrome_icon(mark, mark_size)
         label_box = ttk.Frame(brand, style="Rail.TFrame")
@@ -2506,7 +2838,7 @@ class MemoryPalApp(tk.Tk):
             nav_host,
             text="\u2191 Previous pages",
             bg=control_bg,
-            fg=COLORS["muted"],
+            fg=COLORS["rail_muted"],
             padx=self.px(12),
             pady=self.px(8),
             cursor="hand2",
@@ -2523,13 +2855,23 @@ class MemoryPalApp(tk.Tk):
         # Pack the footer from the bottom ahead of the list so the "Next pages"
         # control keeps its space instead of being squeezed off the rail.
         footer = tk.Frame(nav_host, bg=COLORS["rail"], highlightthickness=0)
-        footer.pack(side="bottom", fill="x", padx=self.px(20), pady=(self.px(8), self.px(18)), before=self.nav_list_frame)
+        footer.pack(side="bottom", fill="x", padx=self.px(14), pady=(self.px(4), self.px(14)), before=self.nav_list_frame)
         self.nav_footer = footer
+        # Settings is pinned to the bottom of the rail, below a divider, so the
+        # rail has a clear top (pages) and bottom (personal settings).
+        pinned = tk.Frame(footer, bg=COLORS["rail"], highlightthickness=0)
+        pinned.pack(side="bottom", fill="x", pady=(self.px(6), 0))
+        tk.Frame(pinned, bg=self.tint(COLORS["rail"], 26), height=max(1, self.px(1))).pack(fill="x", padx=self.px(4), pady=(0, self.px(8)))
+        self.nav_settings_button = ttk.Button(pinned, text="Settings", style="Nav.TButton", command=lambda: self.show_view("settings"))
+        self.nav_settings_button.pack(fill="x")
+        self.add_tooltip(self.nav_settings_button, self.nav_hint("settings"))
+        self.bind_nav_wheel(pinned)
+        self.nav_pinned = pinned
         self.nav_down_button = tk.Label(
             footer,
-            text="\u2193 Next pages",
+            text="\u2193 More pages",
             bg=control_bg,
-            fg=COLORS["muted"],
+            fg=COLORS["rail_muted"],
             padx=self.px(12),
             pady=self.px(8),
             cursor="hand2",
@@ -2541,10 +2883,9 @@ class MemoryPalApp(tk.Tk):
             footer,
             text="",
             bg=COLORS["rail"],
-            fg=COLORS["muted"],
+            fg=COLORS["rail_muted"],
             font=self.font("Segoe UI", 10),
         )
-        self.nav_range_label.pack(anchor="center", pady=(self.px(6), 0))
         self.bind_nav_wheel(self.nav_range_label)
 
         nav_host.bind("<Configure>", self.refresh_nav_capacity, add="+")
@@ -2554,7 +2895,11 @@ class MemoryPalApp(tk.Tk):
     def refresh_nav_selection(self):
         if not hasattr(self, "nav_buttons"):
             return
-        for key, button in self.nav_buttons.items():
+        buttons = dict(self.nav_buttons)
+        settings_button = getattr(self, "nav_settings_button", None)
+        if settings_button is not None:
+            buttons["settings"] = settings_button
+        for key, button in buttons.items():
             if not button.winfo_exists():
                 continue
             button.configure(style="ActiveNav.TButton" if key == self.current_view else "Nav.TButton")
@@ -2662,7 +3007,9 @@ class MemoryPalApp(tk.Tk):
     def profile_avatar_button(self, parent):
         size = self.px(42)
         profile_number = str(min(self.active_profile_number(), 99))
-        profile_label = f"P{profile_number}"
+        # Initials read as "this is me" at a glance; "P1" read as a code.
+        words = [word for word in re.split(r"[\s_-]+", active_profile_name()) if word]
+        profile_label = ("".join(word[0] for word in words[:2]) or profile_number).upper()
         button = tk.Canvas(
             parent,
             width=size,
@@ -2742,8 +3089,6 @@ class MemoryPalApp(tk.Tk):
         goal_chip = tk.Label(status_row, text=f"{today}/{self.store.daily_goal} today", bg=COLORS["good_bg"] if today >= self.store.daily_goal else COLORS["alt"], fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         goal_chip.pack(side="left", padx=(0, self.px(10)))
         self.goal_chip = goal_chip
-        local_chip = tk.Label(status_row, text="Local save", bg=COLORS["alt"], fg=COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
-        local_chip.pack(side="left", padx=(0, self.px(10)))
         back_button = self.header_icon_button(action_strip, "back", self.go_back, "Back to the previous page (Alt + Left).")
         back_button.pack(side="left", padx=(0, self.px(8)))
         find_button = self.header_icon_button(action_strip, "search", self.open_page_finder, "Go to any page or action (Ctrl + K).")
@@ -2845,16 +3190,32 @@ class MemoryPalApp(tk.Tk):
         }.get(key, "")
 
     def show_view(self, view, transition=False):
+        """Switch pages under a snapshot of the screen, swapped in one frame.
+
+        Building the new page underneath the old one isn't enough on Windows:
+        parts of the new page showed through, and newly uncovered widgets
+        painted one by one, which read as elements flashing in. The same
+        snapshot swap used for theme and fullscreen changes hides all of it.
+        """
+        if getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False):
+            self._show_view_now(view)
+            return
+        self.run_hidden_change(lambda: self._show_view_now(view))
+
+    def _show_view_now(self, view):
+        # The small line above each title names the part of the app the page
+        # belongs to (Today, Study, Create, Practice, Progress), so people can
+        # tell where they are without reading the rail.
         titles = {
-            "dashboard": ("Today", "Dashboard"), "training": ("Practice paths", "Memory Gym"),
-            "elder": ("Support mode", "Everyday Memory"), "decks": ("Library", "Decks"),
-            "plan": ("Plan ahead", "Study Plan"), "stats": ("Progress", "Stats & Streaks"),
-            "focus": ("Study plan", "Focus Session"), "capture": ("MemoryPal", "Capture Material"),
-            "review": ("MemoryPal", "Spaced Review"), "testing": ("Testing", "Test Lab"),
-            "quiz": ("MemoryPal", "Quick Quiz"), "shuffle": ("MemoryPal", "Repetition Path"),
-            "tools": ("MemoryPal", "Associations"), "cuelab": ("MemoryPal", "Cue Lab"),
-            "games": ("MemoryPal", "Puzzles"), "library": ("MemoryPal", "Library"),
-            "feedback": ("Testing", "Feedback Log"), "settings": ("Personalize", "Settings"),
+            "dashboard": ("Today", "Dashboard"), "training": ("Practice", "Memory Gym"),
+            "elder": ("Everyday support", "Everyday Memory"), "decks": ("Create", "Decks"),
+            "plan": ("Today", "Study Plan"), "stats": ("Progress", "Stats & Streaks"),
+            "focus": ("Study", "Focus Session"), "capture": ("Create", "Capture Material"),
+            "review": ("Study", "Spaced Review"), "testing": ("Study", "Test Lab"),
+            "quiz": ("Study", "Quick Quiz"), "shuffle": ("Study", "Repetition Path"),
+            "tools": ("Practice", "Associations"), "cuelab": ("Create", "Cue Lab"),
+            "games": ("Practice", "Puzzles"), "library": ("Create", "Library"),
+            "feedback": ("Help us improve", "Feedback Log"), "settings": ("Personalize", "Settings"),
             "welcome": ("Welcome", "Let's set things up"),
         }
         self.speaker.stop()
@@ -2875,8 +3236,7 @@ class MemoryPalApp(tk.Tk):
         self.current_view = view
         if hasattr(self, "nav_list_frame"):
             self.ensure_nav_item_visible(view)
-        for key, button in self.nav_buttons.items():
-            button.configure(style="ActiveNav.TButton" if key == view else "Nav.TButton")
+        self.refresh_nav_selection()
 
         # Build the new page underneath the current one instead of blanking
         # the content area: the old page stays on screen (and the rail and
@@ -2980,7 +3340,7 @@ class MemoryPalApp(tk.Tk):
         entry = ttk.Entry(box, textvariable=query, font=self.font("Segoe UI", 13))
         entry.pack(fill="x")
         listbox = tk.Listbox(
-            box, height=9, bg=COLORS["surface_soft"], fg=COLORS["ink"], selectbackground=COLORS["primary"], selectforeground=COLORS["white"],
+            box, height=9, bg=COLORS["surface_soft"], fg=COLORS["ink"], selectbackground=COLORS["primary"], selectforeground=self.on_color(COLORS["primary"]),
             relief="flat", bd=0, highlightthickness=0, activestyle="none", font=self.font("Segoe UI", 12), exportselection=False, cursor="hand2",
         )
         listbox.pack(fill="both", expand=True, pady=(self.px(10), self.px(6)))
@@ -3077,6 +3437,7 @@ class MemoryPalApp(tk.Tk):
         self.save_current_draft()
         switch_active_profile_paths(name)
         self.store = MemoryStore()
+        self.init_cloud()  # each profile has its own account link
         self.accessibility = normalize_accessibility(self.store.accessibility)
         self.apply_accessibility_preferences()
         self.deck_filter = None
@@ -3122,7 +3483,7 @@ class MemoryPalApp(tk.Tk):
                 button_area = tk.Frame(row, bg=COLORS["surface"])
                 button_area.pack(side="right")
                 if name != active:
-                    switch_btn = tk.Button(button_area, text="Switch", relief="flat", bd=0, cursor="hand2", bg=COLORS["primary"], fg=COLORS["white"], font=self.font("Segoe UI Semibold", 10), padx=self.px(12), pady=self.px(6), command=lambda n=name: (top.destroy(), self.switch_profile(n)))
+                    switch_btn = tk.Button(button_area, text="Switch", relief="flat", bd=0, cursor="hand2", bg=COLORS["primary"], fg=self.on_color(COLORS["primary"]), font=self.font("Segoe UI Semibold", 10), padx=self.px(12), pady=self.px(6), command=lambda n=name: (top.destroy(), self.switch_profile(n)))
                     switch_btn.pack(side="left", padx=(0, 6))
                 rename_btn = tk.Button(button_area, text="Rename", relief="flat", bd=0, cursor="hand2", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), padx=self.px(12), pady=self.px(6), command=lambda n=name: do_rename(n))
                 rename_btn.pack(side="left", padx=(0, 6))
@@ -3173,7 +3534,7 @@ class MemoryPalApp(tk.Tk):
             self.switch_profile(normalize_profile_name(new_name))
 
         render_list()
-        new_button = tk.Button(wrap, text="+ New profile", relief="flat", bd=0, cursor="hand2", bg=COLORS["green"], fg=COLORS["white"], font=self.font("Segoe UI Semibold", 11), padx=self.px(16), pady=self.px(10), command=do_create)
+        new_button = tk.Button(wrap, text="+ New profile", relief="flat", bd=0, cursor="hand2", bg=COLORS["green"], fg=self.on_color(COLORS["green"]), font=self.font("Segoe UI Semibold", 11), padx=self.px(16), pady=self.px(10), command=do_create)
         new_button.pack(fill="x", pady=(12, 0))
         close_button = tk.Button(wrap, text="Close", relief="flat", bd=0, cursor="hand2", bg=COLORS["surface_soft"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 11), padx=self.px(16), pady=self.px(10), command=top.destroy)
         close_button.pack(fill="x", pady=(8, 0))
@@ -3309,6 +3670,77 @@ class MemoryPalApp(tk.Tk):
         top.wait_window()
         return result["value"]
 
+    def open_card_editor(self, card, on_done=None):
+        """Edit a card's words, deck and memory hook, or delete it.
+
+        Fixing a confusing card is the main cure for a card that keeps being
+        missed (a "leech"), so this is reachable from every card in Library.
+        """
+        top, content, actions = self.dialog_window("Edit card", "Change the words on this card. Its review schedule stays the same.", width=620)
+        fields = {}
+
+        def field(label, name, value, lines=1):
+            tk.Label(content, text=label, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(8), self.px(4)))
+            if lines == 1:
+                widget = ttk.Entry(content)
+                widget.insert(0, value or "")
+            else:
+                widget = self.text_box(content, height=lines, font_size=11)
+                widget.insert("1.0", value or "")
+            widget.pack(fill="x")
+            fields[name] = widget
+
+        field("Deck", "deck", card.deck)
+        field("Question or prompt", "front", card.front, lines=2)
+        field("Answer (leave empty for a self-check card)", "back", card.back, lines=3)
+        field("Memory hook (optional)", "association", card.association, lines=2)
+        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["danger"], font=self.font("Segoe UI", 10), anchor="w")
+        error.pack(fill="x", pady=(self.px(6), 0))
+
+        def value(name):
+            widget = fields[name]
+            return widget.get().strip() if isinstance(widget, ttk.Entry) else widget.get("1.0", "end").strip()
+
+        def save():
+            if not value("front"):
+                error.configure(text="A card needs a question or prompt.")
+                return
+            self.store.update_card(card, **{name: value(name) for name in fields})
+            top.destroy()
+            self.toast_message("Card saved.")
+            if on_done:
+                on_done()
+
+        def delete():
+            if not self.dialog_confirm("Delete this card?", f"“{card.front[:80]}” and its review history will be removed. This can't be undone.", "Delete card", parent=top, destructive=True):
+                return
+            self.store.delete_cards([card.id])
+            top.destroy()
+            self.toast_message("Card deleted.")
+            if on_done:
+                on_done()
+
+        def start_over():
+            self.store.reset_progress([card.id])
+            top.destroy()
+            self.toast_message("This card is new again and due today.")
+            if on_done:
+                on_done()
+
+        ttk.Button(actions, text="Delete", style="Danger.TButton", command=delete).grid(row=0, column=0, sticky="ew", padx=(0, self.px(8)))
+        reset = ttk.Button(actions, text="Learn again", command=start_over)
+        reset.grid(row=0, column=1, sticky="ew", padx=(0, self.px(8)))
+        self.add_tooltip(reset, "Reset this card's progress so it comes back as a new card today.")
+        ttk.Button(actions, text="Cancel", command=top.destroy).grid(row=0, column=2, sticky="ew", padx=(0, self.px(8)))
+        self.solid_button(actions, "Save", save).grid(row=0, column=3, sticky="ew")
+        for column, weight in enumerate((1, 1, 1, 2)):
+            actions.columnconfigure(column, weight=weight)
+        self.present_dialog(top)
+        top.bind("<Escape>", lambda _event: top.destroy())
+        top.bind("<Control-Return>", lambda _event: save())
+        fields["front"].focus_set()
+        top.wait_window()
+
     def dialog_integer(self, title, body, initial=10, minvalue=1, maxvalue=120, parent=None):
         result = {"value": None}
         top, content, actions = self.dialog_window(title, body, parent=parent)
@@ -3348,7 +3780,10 @@ class MemoryPalApp(tk.Tk):
         return ttk.Frame(parent, style=style, padding=self.px(padding))
 
     def text_box(self, parent, height=4, font_size=12):
-        box = tk.Text(parent, height=height, wrap="word", bg=COLORS["input"], fg=COLORS["ink"], bd=0, relief="flat", highlightthickness=1, highlightbackground=COLORS["input"], highlightcolor=COLORS["primary"], padx=self.px(12), pady=self.px(12), font=self.font("Segoe UI", font_size), insertbackground=COLORS["primary"])
+        # A visible edge: in the light theme the box is white on a white card,
+        # so with an input-coloured border there was nothing to show where to type.
+        edge = COLORS["soft_line"] if self.theme == "light" else COLORS["line"]
+        box = tk.Text(parent, height=height, wrap="word", bg=COLORS["input"], fg=COLORS["ink"], bd=0, relief="flat", highlightthickness=max(1, self.px(1)), highlightbackground=edge, highlightcolor=COLORS["primary"], padx=self.px(12), pady=self.px(12), font=self.font("Segoe UI", font_size), insertbackground=COLORS["primary"])
         return box
 
     def answer_area(self, parent, title="Your answer", hint="Type what you remember, then check or reveal.", height=4):
@@ -3388,11 +3823,11 @@ class MemoryPalApp(tk.Tk):
         self.testing_context = context
         self.show_view("testing")
 
-    def solid_button(self, parent, text, command, color=COLORS["primary"]):
-        button = tk.Button(parent, text=text, command=command, bg=color, fg=COLORS["white"], activebackground=color, activeforeground=COLORS["white"], relief="flat", bd=0, cursor="hand2", font=self.font("Segoe UI Semibold", 11), padx=self.px(20), pady=self.px(11))
+    def solid_button(self, parent, text, command, color=None):
+        """A filled, rounded call-to-action in any accent colour."""
+        button = ttk.Button(parent, text=text, command=command, style=self.accent_button_style(color or COLORS["primary"]), cursor="hand2")
+        button.bind("<Return>", lambda _event: button.invoke(), add="+")
         self.add_tooltip(button, self.action_hint(text))
-        button.bind("<Enter>", lambda _event: button.configure(bg=self.tint(color, -18), activebackground=self.tint(color, -18)), add="+")
-        button.bind("<Leave>", lambda _event: button.configure(bg=color, activebackground=color), add="+")
         return button
 
     def tint(self, hex_color, amount):
@@ -3403,41 +3838,31 @@ class MemoryPalApp(tk.Tk):
         shifted = [max(0, min(255, value + amount)) for value in values]
         return "#" + "".join(f"{value:02x}" for value in shifted)
 
-    def button_palette(self, style_name):
-        palettes = {
-            "Primary.TButton": (COLORS["primary"], COLORS["white"], COLORS["primary_dark"], COLORS["white"]),
-            "Danger.TButton": (COLORS["danger"], COLORS["white"], self.tint(COLORS["danger"], -18), COLORS["white"]),
-            "Again.TButton": (COLORS["again_bg"], COLORS["again_fg"], self.tint(COLORS["again_bg"], -14), COLORS["again_fg"]),
-            "Review.TButton": (COLORS["review_bg"], COLORS["review_fg"], self.tint(COLORS["review_bg"], -14), COLORS["review_fg"]),
-            "Good.TButton": (COLORS["good_bg"], COLORS["good_fg"], self.tint(COLORS["good_bg"], -14), COLORS["good_fg"]),
-            "Easy.TButton": (COLORS["easy_bg"], COLORS["easy_fg"], self.tint(COLORS["easy_bg"], -14), COLORS["easy_fg"]),
-        }
-        return palettes.get(style_name, (COLORS["surface_soft"], COLORS["ink"], COLORS["alt"], COLORS["primary"]))
+    @staticmethod
+    def luminance(hex_color):
+        raw = str(hex_color).lstrip("#")
+        if len(raw) != 6:
+            return 0.0
+        channels = [int(raw[index:index + 2], 16) / 255 for index in (0, 2, 4)]
+        channels = [value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4 for value in channels]
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+    def contrast(self, first, second):
+        high, low = sorted((self.luminance(first), self.luminance(second)), reverse=True)
+        return (high + 0.05) / (low + 0.05)
+
+    def on_color(self, fill):
+        """Text colour for a filled button or chip: white when it reads clearly
+        (WCAG AA, 4.5:1), otherwise dark ink. Bright dark-theme accents such as
+        #65afff fail with white (2.3:1), so they get dark text instead."""
+        if self.contrast(COLORS["white"], fill) >= 4.5:
+            return COLORS["white"]
+        dark = COLORS.get("on_light", "#0b1020")
+        return dark if self.contrast(dark, fill) > self.contrast(COLORS["white"], fill) else COLORS["white"]
 
     def row_button(self, parent, label, command, style_name):
-        bg, fg, hover_bg, hover_fg = self.button_palette(style_name)
-        button = tk.Button(
-            parent,
-            text=label,
-            command=command,
-            bg=bg,
-            fg=fg,
-            activebackground=hover_bg,
-            activeforeground=hover_fg,
-            relief="flat",
-            bd=0,
-            highlightthickness=0,
-            cursor="hand2",
-            font=self.font("Segoe UI Semibold", 12 if style_name == "Primary.TButton" else 11),
-            padx=self.px(18),
-            pady=self.px(12),
-        )
-        button.bind("<Enter>", lambda _event: button.configure(bg=hover_bg, fg=hover_fg), add="+")
-        button.bind("<Leave>", lambda _event: button.configure(bg=bg, fg=fg), add="+")
+        button = ttk.Button(parent, text=label, command=command, style=style_name, cursor="hand2")
         button.bind("<Return>", lambda _event: button.invoke(), add="+")
-        if self.show_focus_outline():
-            # Same colour as the button until it has keyboard focus.
-            button.configure(highlightthickness=max(2, self.px(3)), highlightcolor=self.focus_color(), highlightbackground=bg)
         self.add_tooltip(button, self.action_hint(label))
         return button
 
@@ -3575,7 +4000,7 @@ class MemoryPalApp(tk.Tk):
             bg=COLORS["surface_soft"],
             fg=COLORS["ink"],
             selectbackground=COLORS["primary"],
-            selectforeground=COLORS["white"],
+            selectforeground=self.on_color(COLORS["primary"]),
             relief="flat",
             bd=0,
             highlightthickness=0,
@@ -3644,6 +4069,11 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             pass
 
+    def set_control_style(self, widget, style):
+        """Switch a rounded control's style and refit its corners to its surface."""
+        widget.configure(style=style)
+        self.fit_control_corners(type("MapEvent", (), {"widget": widget})())
+
     def pill_group(self, parent, variable, options, on_change=None, max_columns=None, bg=None):
         bg = bg or COLORS["surface"]
         row = tk.Frame(parent, bg=bg)
@@ -3651,13 +4081,7 @@ class MemoryPalApp(tk.Tk):
 
         def refresh():
             for value, btn in buttons.items():
-                selected = value == variable.get()
-                btn.configure(
-                    bg=COLORS["primary"] if selected else COLORS["input"],
-                    fg=COLORS["white"] if selected else COLORS["ink"],
-                    activebackground=COLORS["primary_dark"] if selected else COLORS["alt"],
-                    activeforeground=COLORS["white"] if selected else COLORS["ink"],
-                )
+                self.set_control_style(btn, "PillOn.TButton" if value == variable.get() else "Pill.TButton")
 
         def choose(value):
             variable.set(value)
@@ -3667,11 +4091,7 @@ class MemoryPalApp(tk.Tk):
 
         columns = max_columns or len(options) or 1
         for index, option in enumerate(options):
-            btn = tk.Button(
-                row, text=option, relief="flat", bd=0, cursor="hand2",
-                font=self.font("Segoe UI Semibold", 11), padx=self.px(16), pady=self.px(9),
-                highlightthickness=0, command=lambda value=option: choose(value),
-            )
+            btn = ttk.Button(row, text=option, style="Pill.TButton", cursor="hand2", command=lambda value=option: choose(value))
             grid_row, grid_col = divmod(index, columns)
             btn.grid(row=grid_row, column=grid_col, sticky="ew", padx=(0 if grid_col == 0 else self.px(6), 0), pady=(0 if grid_row == 0 else self.px(6), 0))
             row.columnconfigure(grid_col, weight=1)
@@ -3746,8 +4166,8 @@ class MemoryPalApp(tk.Tk):
             pad = max(1, self.px(2))
             if variable.get():
                 box.create_rectangle(pad, pad, size - pad, size - pad, fill=COLORS["primary"], outline=COLORS["primary"], width=0)
-                box.create_line(size * 0.27, size * 0.53, size * 0.43, size * 0.71, fill=COLORS["white"], width=max(2, self.px(2)), capstyle="round")
-                box.create_line(size * 0.43, size * 0.71, size * 0.76, size * 0.30, fill=COLORS["white"], width=max(2, self.px(2)), capstyle="round")
+                box.create_line(size * 0.27, size * 0.53, size * 0.43, size * 0.71, fill=self.on_color(COLORS["primary"]), width=max(2, self.px(2)), capstyle="round")
+                box.create_line(size * 0.43, size * 0.71, size * 0.76, size * 0.30, fill=self.on_color(COLORS["primary"]), width=max(2, self.px(2)), capstyle="round")
             else:
                 box.create_rectangle(pad, pad, size - pad, size - pad, fill=COLORS["input"], outline=COLORS["line"], width=max(1, self.px(1)))
 
@@ -3893,7 +4313,7 @@ class MemoryPalApp(tk.Tk):
         box = tk.Text(
             label.master, font=look["font"], fg=look["fg"], bg=look["bg"], bd=0, highlightthickness=0,
             padx=0, pady=0, wrap="none", cursor="xterm", insertwidth=0,
-            selectbackground=COLORS["primary"], selectforeground=COLORS["white"], inactiveselectbackground=COLORS["primary"],
+            selectbackground=COLORS["primary"], selectforeground=self.on_color(COLORS["primary"]), inactiveselectbackground=COLORS["primary"],
             exportselection=True, takefocus=0, undo=False,
         )
         box.owner = label
@@ -4151,6 +4571,9 @@ class MemoryPalApp(tk.Tk):
             "Mini Story": "Auto-generate an ordered memory story from your ideas.",
             "Export": "Save your MemoryPal data as a JSON backup.",
             "Import": "Load a MemoryPal JSON backup.",
+            "Export backup": "Save this profile's cards and progress as a file you can keep or move to another computer.",
+            "Import backup": "Replace this profile with a saved backup file. You'll be asked first, and a copy of the current data is kept.",
+            "Add cards": "Type questions and answers, paste notes, or import a document to make new cards.",
             "Reset": "Clear local data and restore sample cards.",
             "Open": "Open this section.",
             "Start Due Review": "Move due cards into Test Lab.",
@@ -4204,7 +4627,7 @@ class MemoryPalApp(tk.Tk):
         return round(mastered / total * 100), mastered, learning
 
     def render_status_chip(self, parent, text, color, fg=None):
-        chip = tk.Label(parent, text=text, bg=color, fg=fg or COLORS["white"], font=self.font("Segoe UI Semibold", 10), padx=self.px(12), pady=self.px(6))
+        chip = tk.Label(parent, text=text, bg=color, fg=fg or self.on_color(color), font=self.font("Segoe UI Semibold", 10), padx=self.px(12), pady=self.px(6))
         chip.pack(side="left", padx=(0, self.px(8)))
         return chip
 
@@ -4727,7 +5150,7 @@ class MemoryPalApp(tk.Tk):
                 span = width * value / total
                 canvas.create_rectangle(x, 0, x + span, h, fill=color, outline="")
                 if span > self.px(34):
-                    canvas.create_text(x + span / 2, h / 2, text=str(value), fill=COLORS["white"], font=self.font("Segoe UI Semibold", 10))
+                    canvas.create_text(x + span / 2, h / 2, text=str(value), fill=self.on_color(color), font=self.font("Segoe UI Semibold", 10))
                 x += span
 
         return self.chart_canvas(parent, height, draw, bg)
@@ -4885,7 +5308,7 @@ class MemoryPalApp(tk.Tk):
             text="\u2713" if done else str(index + 1),
             width=3,
             bg=COLORS["green"] if done else COLORS["surface"],
-            fg=COLORS["white"] if done else COLORS["primary"],
+            fg=self.on_color(COLORS["green"]) if done else COLORS["primary"],
             font=self.font("Segoe UI Semibold", 12),
             cursor="hand2",
             pady=self.px(4),
@@ -5360,7 +5783,7 @@ class MemoryPalApp(tk.Tk):
                 row.pack(fill="x", pady=(0, 10))
                 head = tk.Frame(row, bg=COLORS["surface"])
                 head.pack(fill="x")
-                tk.Label(head, text=f"{index}", bg=COLORS["primary"], fg=COLORS["white"], font=self.font("Segoe UI Semibold", 12), width=3).pack(side="left", padx=(0, 12))
+                tk.Label(head, text=f"{index}", bg=COLORS["primary"], fg=self.on_color(COLORS["primary"]), font=self.font("Segoe UI Semibold", 12), width=3).pack(side="left", padx=(0, 12))
                 title_box = tk.Frame(head, bg=COLORS["surface"])
                 title_box.pack(side="left", fill="x", expand=True)
                 tk.Label(title_box, text=step["title"], bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14)).pack(anchor="w")
@@ -5633,7 +6056,7 @@ class MemoryPalApp(tk.Tk):
                 status.configure(text="Microphone unavailable", fg=COLORS["danger"])
                 note.configure(text=f"{message} Check Settings > Privacy & security > Microphone, or import an audio file instead.")
                 return
-            start_button.configure(text="Stop and save", command=finish, bg=COLORS["danger"], activebackground=COLORS["danger"])
+            start_button.configure(text="Stop and save", command=finish, style="Danger.TButton")
             note.configure(text="Speak now. Press Stop and save when you're done.")
             tick()
 
@@ -5647,7 +6070,7 @@ class MemoryPalApp(tk.Tk):
             if not ok:
                 status.configure(text="Nothing was saved", fg=COLORS["danger"])
                 note.configure(text=message)
-                start_button.configure(text="Try again", command=start, bg=COLORS["primary"], activebackground=COLORS["primary"])
+                start_button.configure(text="Try again", command=start, style="Primary.TButton")
                 return
             state["saved"] = target
             top.destroy()
@@ -7488,7 +7911,7 @@ class MemoryPalApp(tk.Tk):
         outcome = {}
         idle_label = str(button.cget("text"))
         try:
-            button.configure(text="Sending\u2026", state="disabled", cursor="watch", disabledforeground=COLORS["white"])
+            button.configure(text="Sending\u2026", state="disabled", cursor="watch")
         except tk.TclError:
             pass
 
@@ -7504,7 +7927,7 @@ class MemoryPalApp(tk.Tk):
             elif result.status == "offline":
                 self.dialog_alert("Couldn't reach the internet", "Your notes are saved. Try again when you're online, or save them as a file to send later.", "error")
             elif result.status == "activation":
-                self.dialog_alert("Almost ready", f"Sending from the app has to be switched on once from {feedback_report.FEEDBACK_EMAIL} (a confirmation email was just sent there). Your notes are saved; send them again once that's done, or use Email or Save meanwhile.", "info")
+                self.dialog_alert("Almost ready", "Sending from the app has to be switched on once by the MemoryPal team. Your notes are saved; try again a little later, or use Email it meanwhile.", "info")
             else:
                 self.dialog_alert("Couldn't send the feedback", f"{result.detail} Your notes are saved; try Email or Save instead.".strip(), "error")
             if self.current_view == "feedback":
@@ -7552,7 +7975,7 @@ class MemoryPalApp(tk.Tk):
         elif opened:
             self.toast_message("Your email is ready. Check it, then press Send.")
         else:
-            self.dialog_alert("Couldn't open email", f"Save the feedback as a file instead and send it to {feedback_report.FEEDBACK_EMAIL}.", "error")
+            self.dialog_alert("Couldn't open email", "No email app or browser could be opened. Use Send Feedback Now instead; it doesn't need an email app.", "error")
         self.show_view("feedback")
 
     def save_feedback_file(self, collect):
@@ -7578,7 +8001,7 @@ class MemoryPalApp(tk.Tk):
         except OSError as exc:
             self.dialog_alert("Couldn't save the file", str(exc), "error")
             return
-        if self.dialog_confirm("Feedback saved", f"Saved as {saved.name}. Attach it to an email to {feedback_report.FEEDBACK_EMAIL}. Thank you!", "Show the File"):
+        if self.dialog_confirm("Feedback saved", f"Saved as {saved.name}. To send it, use Email it and attach the file. Thank you!", "Show the File"):
             self.reveal_file(saved)
         self.show_view("feedback")
 
@@ -7708,7 +8131,7 @@ class MemoryPalApp(tk.Tk):
         stack = self.accessibility_multiplier() > 1.1
         for index, (icon, title, body, label, action, color) in enumerate((
             ("\u2709", "Email it", "Opens your email app (or Gmail in your browser) with everything filled in. Check it, then press Send.", "Email Feedback", lambda: self.email_feedback(notes_to_send), COLORS["violet"]),
-            ("\U0001F4BE", "Save it as a file", f"Saves a text file you can attach to an email and send to {feedback_report.FEEDBACK_EMAIL} yourself.", "Save Feedback File", lambda: self.save_feedback_file(notes_to_send), COLORS["green"]),
+            ("\U0001F4BE", "Save it as a file", "Saves your notes as a text file to keep, or to attach when you use Email it.", "Save Feedback File", lambda: self.save_feedback_file(notes_to_send), COLORS["green"]),
         )):
             option = tk.Frame(options, bg=COLORS["alt"], padx=self.px(18), pady=self.px(16))
             if stack:
@@ -7721,12 +8144,11 @@ class MemoryPalApp(tk.Tk):
             self.solid_button(option, label, action, color).pack(fill="x")
         if stack:
             options.columnconfigure(0, weight=1)
-        address = tk.Frame(send, bg=COLORS["surface"])
-        address.pack(fill="x", pady=(self.px(14), 0))
-        tk.Label(address, text="Send to:", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11)).pack(side="left")
-        tk.Label(address, text=feedback_report.FEEDBACK_EMAIL, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11)).pack(side="left", padx=(self.px(6), self.px(12)))
-        ttk.Button(address, text="Copy Address", command=lambda: (self.clipboard_clear(), self.clipboard_append(feedback_report.FEEDBACK_EMAIL), self.toast_message("Email address copied."))).pack(side="left")
-        gmail = tk.Label(address, text="Use Gmail in the browser instead", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10, ), cursor="hand2")
+        # The team's address is never shown on the page: Send goes through the
+        # form service and Email fills the address in the person's mail app.
+        links = tk.Frame(send, bg=COLORS["surface"])
+        links.pack(fill="x", pady=(self.px(14), 0))
+        gmail = tk.Label(links, text="Use Gmail in the browser instead", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
         gmail.pack(side="right")
         gmail.bind("<Button-1>", lambda _event: self.email_feedback(notes_to_send, prefer_gmail=True))
         tk.Label(send, text="Included: your saved notes, plus your Windows version, text size and theme to help fix problems. Never your study cards or profile name.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(self.px(10), 0))
@@ -7751,6 +8173,505 @@ class MemoryPalApp(tk.Tk):
             "reply_to": reply_var.get().strip(),
         })
 
+    # ------------------------------------------------------------------
+    # Accounts and cloud sync
+    # ------------------------------------------------------------------
+    SYNC_AFTER_CHANGE_MS = 20_000
+    SYNC_EVERY_MS = 10 * 60_000
+    REFRESH_AFTER_SYNC = ("dashboard", "library", "decks", "stats", "settings", "elder", "plan", "focus", "review")
+
+    def init_cloud(self):
+        """Link the active profile to its account (if any) and keep it in sync."""
+        old = getattr(self, "_sync_timer", None)
+        if old:
+            try:
+                self.after_cancel(old)
+            except tk.TclError:
+                pass
+        self._sync_timer = None
+        self._syncing = False
+        self._applying_sync = False
+        if not hasattr(self, "sign_in_limiter"):
+            # Slows repeated wrong passwords or codes on this computer; the
+            # server's own rate limits are the real protection.
+            self.sign_in_limiter = security.AttemptLimiter()
+        self.sync_status = ""
+        self.account = cloud.Account(self.store.data_file.parent)
+        self.store.save_listeners.append(self._changed_since_sync)
+        if cloud.configured() and self.account.signed_in:
+            self.schedule_sync(3000)
+
+    def _changed_since_sync(self):
+        if not self._applying_sync and cloud.configured() and self.account.signed_in:
+            self.schedule_sync(self.SYNC_AFTER_CHANGE_MS)
+
+    def schedule_sync(self, delay_ms):
+        if self._sync_timer:
+            try:
+                self.after_cancel(self._sync_timer)
+            except tk.TclError:
+                pass
+        self._sync_timer = self.after(delay_ms, self.sync_now)
+
+    def run_in_background(self, work, done, on_ui_requests=False):
+        """Run `work` on a worker thread and call `done(result, error)` back on the UI thread.
+
+        Tk isn't thread-safe, so the worker never touches widgets: when
+        `on_ui_requests` is set, it gets a function that runs a callable on
+        the UI thread (via a queue this thread polls) and waits for it.
+        """
+        import queue
+
+        requests = queue.Queue()
+        outcome = {}
+
+        def on_ui(fn):
+            box, ready = {}, threading.Event()
+            requests.put((fn, box, ready))
+            ready.wait()
+            if "error" in box:
+                raise box["error"]
+            return box.get("value")
+
+        def run():
+            try:
+                outcome["value"] = work(on_ui) if on_ui_requests else work()
+            except Exception as error:  # reported to the UI thread below
+                outcome["error"] = error
+
+        thread = threading.Thread(target=run, daemon=True)
+
+        def poll():
+            while not requests.empty():
+                fn, box, ready = requests.get()
+                try:
+                    box["value"] = fn()
+                except Exception as error:
+                    box["error"] = error
+                ready.set()
+            if thread.is_alive():
+                self.after(40, poll)
+            else:
+                done(outcome.get("value"), outcome.get("error"))
+
+        thread.start()
+        self.after(40, poll)
+
+    def sync_now(self, manual=False):
+        self._sync_timer = None
+        if self._syncing or not cloud.configured() or not self.account.signed_in:
+            return
+        self._syncing = True
+        self.sync_status = "Syncing…"
+        self.refresh_account_card()
+        account = self.account
+
+        def read_payload():
+            self.save_current_draft()
+            return self.store.payload()
+
+        def write_payload(payload):
+            self._applying_sync = True
+            try:
+                self.store.replace_with(payload)
+            finally:
+                self._applying_sync = False
+
+        def finished(result, error):
+            self._syncing = False
+            if account is not self.account:
+                return  # the profile changed while syncing
+            if error is None:
+                self.sync_status = ""
+                if result and result.get("applied") and self.current_view in self.REFRESH_AFTER_SYNC:
+                    self.show_view(self.current_view)
+                else:
+                    self.refresh_header_status()
+                    self.refresh_account_card()
+                if manual:
+                    self.toast_message("Everything is in sync.")
+            else:
+                message = error.message if isinstance(error, cloud.CloudError) else f"Sync stopped: {error}"
+                self.sync_status = message
+                self.refresh_account_card()
+                if manual or (isinstance(error, cloud.CloudError) and error.code == "signed_out"):
+                    self.dialog_alert("Couldn't sync", message, "error")
+            if account.signed_in:
+                self.schedule_sync(self.SYNC_EVERY_MS)
+
+        self.run_in_background(lambda on_ui: account.sync(read_payload, write_payload, on_ui), finished, on_ui_requests=True)
+
+    def refresh_account_card(self):
+        label = getattr(self, "_account_status_label", None)
+        if label is not None and label.winfo_exists():
+            label.configure(text=self.account_status_text())
+
+    def account_status_text(self):
+        if not cloud.configured():
+            return "Sync isn't set up in this copy of MemoryPal yet."
+        if not self.account.signed_in:
+            return "Keep your cards, progress and settings on all your devices: this computer, your phone, and more."
+        if self.sync_status:
+            return f"Signed in as {self.account.email}. {self.sync_status}"
+        last = self.account.state.last_synced
+        return f"Signed in as {self.account.email}. " + (f"Last synced {last}." if last else "Not synced yet.")
+
+    def render_account_card(self, parent):
+        card = self.card(parent, "Card.TFrame", 22)
+        card.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(card, text="Account & sync", style="H2.TLabel").pack(anchor="w")
+        self._account_status_label = ttk.Label(card, text=self.account_status_text(), style="CardMuted.TLabel", wraplength=self.px(1040))
+        self.fit_wrap(self._account_status_label, pady=(4, 12))
+        if not cloud.configured():
+            return
+        if self.account.signed_in:
+            self.button_row(card, [
+                ("Sync now", lambda: self.sync_now(manual=True), "Primary.TButton"),
+                ("Two-step sign-in", self.open_two_step_manager, "TButton"),
+                ("Sign out", self.sign_out_account, "TButton"),
+                ("Delete account", self.delete_cloud_account, "TButton"),
+            ])
+        else:
+            self.button_row(card, [
+                ("Create account", lambda: self.open_account_dialog("create"), "Primary.TButton"),
+                ("Sign in", lambda: self.open_account_dialog("sign_in"), "TButton"),
+            ])
+
+    def account_signed_in(self, session, message):
+        """Remember a new session, sync straight away, and refresh Settings."""
+        self.account.remember(session)
+        self.toast_message(message)
+        if self.current_view == "settings":
+            self.show_view("settings")
+        self.sync_now()
+
+    def password_hint(self, password_field, email=None, email_field=None):
+        """A live strength line for a password box: (values) -> (text, colour)."""
+        def hint(values):
+            password = values.get(password_field, "")
+            if not password:
+                return f"At least {security.MIN_PASSWORD} characters. Three or four unrelated words make a strong, memorable password.", COLORS["muted"]
+            address = email if email is not None else values.get(email_field, "")
+            score = security.password_strength(password, address)
+            problems = security.password_problems(password, address)
+            colour = (COLORS["danger"], COLORS["danger"], COLORS["orange"], COLORS["green"], COLORS["green"])[score]
+            text = f"Strength: {security.STRENGTH_LABELS[score]}."
+            return (f"{text} {problems[0]}" if problems else text), colour
+        return hint
+
+    def check_not_leaked(self, password):
+        """Refuse passwords known from data breaches (only a hash prefix is sent)."""
+        seen = security.pwned_count(password)
+        if seen:
+            raise cloud.CloudError(f"This password has appeared in data breaches {seen:,} times, so attackers try it first. Please choose a different one.", "pwned_password")
+
+    def cloud_dialog(self, title, body, fields, submit_label, work, on_success, extra_links=(), hint=None, extra_widgets=None):
+        """A small form dialog whose network call runs in the background.
+
+        fields: [(name, label, secret)]. work(values) runs on a worker thread;
+        on_success(result, values) runs on the UI thread after the dialog closes.
+        hint(values) -> (text, colour) updates a line under the fields as people type.
+        """
+        top, content, actions = self.dialog_window(title, body, width=520)
+        if extra_widgets:
+            extra_widgets(content)
+        entries = {}
+        for name, label, secret in fields:
+            tk.Label(content, text=label, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(8), self.px(4)))
+            entry = ttk.Entry(content, show="•" if secret else "")
+            entry.pack(fill="x")
+            entries[name] = entry
+        if hint is not None:
+            hint_label = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(470))
+            hint_label.pack(fill="x", pady=(self.px(6), 0))
+
+            def update_hint(_event=None):
+                text, colour = hint({name: entry.get() for name, entry in entries.items()})
+                hint_label.configure(text=text, fg=colour)
+
+            for entry in entries.values():
+                entry.bind("<KeyRelease>", update_hint, add="+")
+            update_hint()
+        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["danger"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(470))
+        error.pack(fill="x", pady=(self.px(8), 0))
+        for text, action in extra_links:
+            link = tk.Label(content, text=text, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2", anchor="w")
+            link.pack(fill="x", pady=(self.px(6), 0))
+            link.bind("<Button-1>", lambda _event, act=action: (top.destroy(), act()))
+        busy = {"on": False}
+
+        def submit():
+            if busy["on"]:
+                return
+            values = {name: entry.get() for name, entry in entries.items()}
+            busy["on"] = True
+            error.configure(text="Working…", fg=COLORS["muted"])
+            go.configure(state="disabled")
+
+            def done(result, failure):
+                busy["on"] = False
+                if not top.winfo_exists():
+                    return
+                go.configure(state="normal")
+                if failure is not None:
+                    error.configure(text=failure.message if isinstance(failure, cloud.CloudError) else str(failure), fg=COLORS["danger"])
+                    return
+                top.destroy()
+                on_success(result, values)
+
+            self.run_in_background(lambda: work(values), done)
+
+        ttk.Button(actions, text="Cancel", command=top.destroy).grid(row=0, column=0, sticky="ew", padx=(0, self.px(8)))
+        go = self.solid_button(actions, submit_label, submit)
+        go.grid(row=0, column=1, sticky="ew")
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=2)
+        self.present_dialog(top)
+        top.bind("<Return>", lambda _event: submit())
+        top.bind("<Escape>", lambda _event: top.destroy())
+        next(iter(entries.values())).focus_set()
+
+    def open_account_dialog(self, mode):
+        client = self.account.client
+        if mode == "create":
+            def create(values):
+                email, password = values["email"].strip(), values["password"]
+                if not cloud.looks_like_email(email):
+                    raise cloud.CloudError("That doesn't look like an email address.")
+                if password != values["again"]:
+                    raise cloud.CloudError("The two passwords don't match.")
+                cloud.check_password(password, email)
+                self.check_not_leaked(password)
+                return client.sign_up(email, password), email
+
+            def created(result, _values):
+                session, email = result
+                if session:
+                    self.account_signed_in(session, "Account created. Your cards are syncing.")
+                else:
+                    self.open_code_dialog(email)
+
+            self.cloud_dialog(
+                "Create your MemoryPal account",
+                "Use an email you can check: we'll send a 6-digit code to confirm it.",
+                [("email", "Email", False), ("password", "Password", True), ("again", "Password again", True)],
+                "Create account", create, created,
+                extra_links=[("Already have an account? Sign in", lambda: self.open_account_dialog("sign_in"))],
+                hint=self.password_hint("password", email_field="email"),
+            )
+            return
+
+        def sign_in(values):
+            email = values["email"].strip()
+            wait = self.sign_in_limiter.wait_seconds(email)
+            if wait:
+                raise cloud.CloudError(security.wait_message(wait), "local_rate_limit")
+            try:
+                session = client.sign_in(email, values["password"])
+            except cloud.CloudError as error:
+                if error.code == "email_not_confirmed":
+                    client.resend_confirmation(email)
+                elif error.code in ("invalid_credentials", "invalid_grant"):
+                    self.sign_in_limiter.failed(email)
+                raise
+            self.sign_in_limiter.succeeded(email)
+            return session
+
+        def signed_in(session, _values):
+            if session.needs_second_step:
+                self.open_second_step_dialog(session, lambda full: self.account_signed_in(full, "Signed in. Your cards are syncing."))
+            else:
+                self.account_signed_in(session, "Signed in. Your cards are syncing.")
+
+        self.cloud_dialog(
+            "Sign in to MemoryPal",
+            "Sign in with the same account on every device to keep your cards in step.",
+            [("email", "Email", False), ("password", "Password", True)],
+            "Sign in", sign_in, signed_in,
+            extra_links=[("Forgot your password?", self.open_reset_dialog), ("New here? Create an account", lambda: self.open_account_dialog("create"))],
+        )
+
+    def open_second_step_dialog(self, session, on_done):
+        """Ask for the authenticator code after the password (two-step sign-in)."""
+        client = self.account.client
+        key = f"{session.email}#authenticator"
+
+        def check(values):
+            wait = self.sign_in_limiter.wait_seconds(key)
+            if wait:
+                raise cloud.CloudError(security.wait_message(wait), "local_rate_limit")
+            try:
+                full = client.verify_authenticator(session, session.factors[0]["id"], values["code"])
+            except cloud.CloudError:
+                self.sign_in_limiter.failed(key)
+                raise
+            self.sign_in_limiter.succeeded(key)
+            return full
+
+        self.cloud_dialog(
+            "Two-step sign-in",
+            "Open your authenticator app and type the 6-digit code it shows for MemoryPal.",
+            [("code", "Authenticator code", False)],
+            "Continue", check, lambda full, _values: on_done(full),
+        )
+
+    def open_code_dialog(self, email):
+        client = self.account.client
+        key = f"{email}#confirm"
+
+        def resend():
+            self.run_in_background(lambda: client.resend_confirmation(email), lambda _r, error: self.toast_message(error.message if error else "A new code is on its way.") or self.open_code_dialog(email))
+
+        def confirm(values):
+            wait = self.sign_in_limiter.wait_seconds(key)
+            if wait:
+                raise cloud.CloudError(security.wait_message(wait), "local_rate_limit")
+            try:
+                return client.verify_code(email, values["code"], "signup")
+            except cloud.CloudError:
+                self.sign_in_limiter.failed(key)
+                raise
+
+        self.cloud_dialog(
+            "Check your email",
+            f"We sent a 6-digit code to {email}. Type it here to finish creating your account. (It can take a minute; check the spam folder too.)",
+            [("code", "6-digit code", False)],
+            "Confirm", confirm,
+            lambda session, _values: self.account_signed_in(session, "Email confirmed. Your cards are syncing."),
+            extra_links=[("Send a new code", resend)],
+        )
+
+    def open_reset_dialog(self):
+        client = self.account.client
+
+        def ask(values):
+            email = values["email"].strip()
+            if not cloud.looks_like_email(email):
+                raise cloud.CloudError("That doesn't look like an email address.")
+            client.request_password_reset(email)
+            return email
+
+        def reset_with_code(email):
+            key = f"{email}#reset"
+
+            def verify(values):
+                if values["password"] != values["again"]:
+                    raise cloud.CloudError("The two passwords don't match.")
+                cloud.check_password(values["password"], email)
+                self.check_not_leaked(values["password"])
+                wait = self.sign_in_limiter.wait_seconds(key)
+                if wait:
+                    raise cloud.CloudError(security.wait_message(wait), "local_rate_limit")
+                try:
+                    session = client.verify_code(email, values["code"], "recovery")
+                except cloud.CloudError:
+                    self.sign_in_limiter.failed(key)
+                    raise
+                if not session.needs_second_step:
+                    client.set_password(session, values["password"])
+                return session, values["password"]
+
+            def verified(result, _values):
+                session, password = result
+                if not session.needs_second_step:
+                    self.account_signed_in(session, "Password changed. You're signed in.")
+                    return
+
+                # Two-step accounts confirm the authenticator before the password changes.
+                def finish(full):
+                    self.run_in_background(
+                        lambda: client.set_password(full, password),
+                        lambda _r, error: self.dialog_alert("Couldn't change the password", error.message, "error") if error else self.account_signed_in(full, "Password changed. You're signed in."),
+                    )
+
+                self.open_second_step_dialog(session, finish)
+
+            self.cloud_dialog(
+                "Choose a new password",
+                f"If {email} has a MemoryPal account, a 6-digit code is on its way there.",
+                [("code", "6-digit code", False), ("password", "New password", True), ("again", "New password again", True)],
+                "Save new password", verify, verified,
+                hint=self.password_hint("password", email=email),
+            )
+
+        self.cloud_dialog("Reset your password", "Enter your account's email and we'll send a code to choose a new password.", [("email", "Email", False)], "Send code", ask, lambda email, _values: reset_with_code(email))
+
+    def open_two_step_manager(self):
+        """Turn two-step sign-in (an authenticator app) on or off."""
+        account = self.account
+        client = account.client
+
+        def loaded(result, error):
+            if error is not None:
+                self.dialog_alert("Couldn't check two-step sign-in", getattr(error, "message", str(error)), "error")
+                return
+            session, factors = result
+            if factors:
+                if self.dialog_confirm(
+                    "Turn off two-step sign-in?",
+                    "Signing in will need only your password again. Your account is safer with two-step sign-in on.",
+                    "Turn off", destructive=True,
+                ):
+                    self.run_in_background(
+                        lambda: client.remove_authenticator(session, factors[0]["id"]),
+                        lambda _r, failure: self.dialog_alert("Couldn't turn it off", failure.message, "error") if failure else self.toast_message("Two-step sign-in is off."),
+                    )
+                return
+            self.run_in_background(lambda: client.enroll_authenticator(session), lambda setup, failure: self.dialog_alert("Couldn't start set-up", failure.message, "error") if failure else self.show_authenticator_setup(session, setup))
+
+        self.run_in_background(lambda: (lambda session: (session, client.factors(session)))(account.active_session()), loaded)
+
+    def show_authenticator_setup(self, session, setup):
+        client = self.account.client
+        secret = " ".join(setup["secret"][i:i + 4] for i in range(0, len(setup["secret"]), 4))
+
+        def show_key(content):
+            box = tk.Frame(content, bg=COLORS["alt"], padx=self.px(14), pady=self.px(12))
+            box.pack(fill="x", pady=(0, self.px(6)))
+            tk.Label(box, text="Setup key", bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x")
+            tk.Label(box, text=secret, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Consolas", 15), anchor="w").pack(fill="x", pady=(self.px(4), self.px(8)))
+            ttk.Button(box, text="Copy key", command=lambda: (self.clipboard_clear(), self.clipboard_append(setup["secret"]), self.toast_message("Key copied."))).pack(anchor="w")
+
+        def verify(values):
+            return client.verify_authenticator(session, setup["factor_id"], values["code"])
+
+        def done(full, _values):
+            self.account.remember(full)
+            self.toast_message("Two-step sign-in is on. You'll need your authenticator code on new devices.")
+
+        self.cloud_dialog(
+            "Set up two-step sign-in",
+            "1. Open an authenticator app (Microsoft Authenticator, Google Authenticator, 1Password...).\n2. Add an account and choose \"enter a setup key\" (time-based).\n3. Type the key below, then enter the 6-digit code the app shows.",
+            [("code", "Code from the app", False)],
+            "Turn on", verify, done,
+            extra_widgets=show_key,
+        )
+
+    def sign_out_account(self):
+        if not self.dialog_confirm("Sign out?", "Your cards stay on this computer; they just stop syncing until you sign in again.", "Sign out"):
+            return
+        account = self.account
+        self.run_in_background(account.sign_out, lambda _r, _e: (self.toast_message("Signed out."), self.show_view("settings") if self.current_view == "settings" else None))
+
+    def delete_cloud_account(self):
+        if not self.dialog_confirm(
+            "Delete your account?",
+            "This permanently deletes your MemoryPal account and the cloud copy of your cards on every device. The cards on this computer stay here. This can't be undone.",
+            "Delete account", destructive=True,
+        ):
+            return
+        account = self.account
+
+        def done(_result, error):
+            if error is not None:
+                self.dialog_alert("Couldn't delete the account", getattr(error, "message", str(error)), "error")
+                return
+            self.toast_message("Your account and its cloud copy were deleted.")
+            if self.current_view == "settings":
+                self.show_view("settings")
+
+        self.run_in_background(account.delete_account, done)
+
     def view_settings(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
@@ -7766,6 +8687,8 @@ class MemoryPalApp(tk.Tk):
         tk.Frame(hero, bg=COLORS["violet"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
         tk.Label(hero, text="Make MemoryPal yours", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
         self.fit_wrap(tk.Label(hero, text="Adjust the way the app looks, how it opens, where data is kept, and which profile is active.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left"), pady=(6, 0))
+
+        self.render_account_card(page.inner)
 
         grid = ttk.Frame(page.inner, style="Page.TFrame")
         grid.pack(fill="x", padx=(0, 8), pady=(0, 16))
@@ -7790,8 +8713,8 @@ class MemoryPalApp(tk.Tk):
         self.fit_wrap(ttk.Label(window_card, text="F11 uses true fullscreen. The titlebar square uses borderless focus mode.", style="AltMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         state_row = tk.Frame(window_card, bg=COLORS["alt"])
         state_row.pack(fill="x", pady=(0, 12))
-        self.render_status_chip(state_row, "True fullscreen on" if self.is_fullscreen else "True fullscreen off", COLORS["green"] if self.is_fullscreen else COLORS["surface"], COLORS["white"] if self.is_fullscreen else COLORS["muted"])
-        self.render_status_chip(state_row, "Focus window on" if self.is_focus_window else "Focus window off", COLORS["primary"] if self.is_focus_window else COLORS["surface"], COLORS["white"] if self.is_focus_window else COLORS["muted"])
+        self.render_status_chip(state_row, "True fullscreen on" if self.is_fullscreen else "True fullscreen off", COLORS["green"] if self.is_fullscreen else COLORS["surface"], self.on_color(COLORS["green"]) if self.is_fullscreen else COLORS["muted"])
+        self.render_status_chip(state_row, "Focus window on" if self.is_focus_window else "Focus window off", COLORS["primary"] if self.is_focus_window else COLORS["surface"], self.on_color(COLORS["primary"]) if self.is_focus_window else COLORS["muted"])
         self.button_row(
             window_card,
             [
@@ -7810,7 +8733,7 @@ class MemoryPalApp(tk.Tk):
         study_card = self.card(grid, "WarmCard.TFrame", 22)
         study_card.grid(row=1, column=1, sticky="nsew")
         ttk.Label(study_card, text="Study Defaults", style="WarmH2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(study_card, text=f"Daily goal: {self.store.daily_goal} cards. Due now: {due}. Cards and captures stay local unless exported.", style="WarmCard.TLabel", wraplength=self.px(500)), pady=(4, 12))
+        self.fit_wrap(ttk.Label(study_card, text=f"Daily goal: {self.store.daily_goal} cards. Due now: {due}. Cards stay on this computer unless you sync them with an account or export them.", style="WarmCard.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(study_card, [("Start Due Review", lambda: self.show_view("review"), "Primary.TButton"), ("Open in Test Lab", lambda: self.open_testing(return_view="settings", context="study"), "TButton")], "WarmCard.TFrame")
 
         accessibility_card = self.card(grid, "AltCard.TFrame", 22)
@@ -7879,7 +8802,7 @@ class MemoryPalApp(tk.Tk):
             bg=COLORS["input"],
             fg=COLORS["ink"],
             selectbackground=COLORS["primary"],
-            selectforeground=COLORS["white"],
+            selectforeground=self.on_color(COLORS["primary"]),
             relief="flat",
             bd=0,
             highlightthickness=0,
@@ -7983,7 +8906,9 @@ class MemoryPalApp(tk.Tk):
         ttk.Button(top, text="Apply", command=lambda: render()).grid(row=0, column=2, sticky="ew")
         top.columnconfigure(0, weight=3)
         top.columnconfigure(1, weight=1)
-        self.button_row(tools, [("Add Samples", lambda: self.store.add_cards(sample_cards()) or self.show_view("library"), "Primary.TButton"), ("Import", self.import_data, "TButton"), ("Export", self.export_data, "TButton")] + ([] if self.accessibility.get("caregiver_mode") else [("Reset", self.reset_data, "Danger.TButton")]), "Page.TFrame")
+        # Everyday actions only; resetting everything lives in Settings, behind
+        # a confirmation, rather than as a big red button beside "Add cards".
+        self.button_row(tools, [("Add cards", lambda: self.show_view("capture"), "Primary.TButton"), ("Import backup", self.import_data, "TButton"), ("Export backup", self.export_data, "TButton")], "Page.TFrame")
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
 
@@ -7991,12 +8916,22 @@ class MemoryPalApp(tk.Tk):
             query = normalize_space(search_var.get()).lower()
             return not query or query in text.lower()
 
+        # Building a widget block per card freezes Tk with thousands of cards,
+        # so the list shows a page at a time with a "Show more" button.
+        page_size = 60
+        limit = {"count": page_size}
+
+        def show_more():
+            limit["count"] += page_size
+            render()
+
         @self.smooth
         def render():
             for child in page.inner.winfo_children():
                 child.destroy()
             mode = filter_var.get()
             shown = 0
+            hidden = 0
             if mode in ("All", "Captures"):
                 for capture in self.store.captures:
                     chunks = capture.chunks or split_study_bits(capture.notes)
@@ -8024,19 +8959,33 @@ class MemoryPalApp(tk.Tk):
                     searchable = " ".join([card.deck, card.front, card.back, card.pathway, card.association])
                     if not matches(searchable):
                         continue
+                    if shown >= limit["count"]:
+                        hidden += 1
+                        continue
                     item = self.card(page.inner)
                     item.pack(fill="x", padx=(0, 8), pady=(0, 10))
                     status_line = f"{card.deck} | Next: {card.next_review} | {card.last_result} {card.last_score}%"
                     if card.buried_until > today_iso():
                         status_line += f"  \u2022  Buried until {card.buried_until}"
-                    ttk.Label(item, text=status_line, style="CardMuted.TLabel").pack(anchor="w")
+                    head = ttk.Frame(item, style="Card.TFrame")
+                    head.pack(fill="x")
+                    edit = ttk.Button(head, text="Edit", command=lambda c=card: self.open_card_editor(c, render))
+                    edit.pack(side="right")
+                    self.add_tooltip(edit, "Change the words, deck or memory hook, or delete this card.")
+                    ttk.Label(head, text=status_line, style="CardMuted.TLabel").pack(side="left", anchor="w")
                     if self.store.is_leech(card):
-                        tk.Label(item, text=f"\u26a0 Leech \u2014 missed {card.lapses}x, consider rewriting this card", bg=COLORS["again_bg"], fg=COLORS["again_fg"], font=self.font("Segoe UI Semibold", 10), padx=self.px(8), pady=self.px(3)).pack(anchor="w", pady=(4, 0))
+                        tk.Label(item, text=f"\u26a0 Missed {card.lapses} times \u2014 try rewriting it (Edit) or adding a memory hook", bg=COLORS["again_bg"], fg=COLORS["again_fg"], font=self.font("Segoe UI Semibold", 10), padx=self.px(8), pady=self.px(3)).pack(anchor="w", pady=(4, 0))
                     ttk.Label(item, text=card.front, style="H2.TLabel", wraplength=1060).pack(anchor="w", pady=(6, 5))
                     ttk.Label(item, text=card.back, style="Card.TLabel", wraplength=1080).pack(anchor="w")
-                    ttk.Label(item, text=f"Path: {card.pathway or 'Not set'}", style="CardMuted.TLabel").pack(anchor="w", pady=(8, 0))
+                    if card.association:
+                        ttk.Label(item, text=f"Memory hook: {card.association}", style="CardMuted.TLabel", wraplength=1080).pack(anchor="w", pady=(8, 0))
                     self.render_media_controls(item, card)
                     shown += 1
+            if hidden:
+                more = ttk.Frame(page.inner, style="Page.TFrame")
+                more.pack(fill="x", pady=(4, 12))
+                ttk.Label(more, text=f"Showing {shown} of {shown + hidden}. Search to narrow the list.", style="Muted.TLabel").pack(side="left")
+                ttk.Button(more, text=f"Show {min(page_size, hidden)} more", command=show_more).pack(side="right")
             if shown == 0:
                 ttk.Label(page.inner, text="No matching material.", style="Muted.TLabel").pack(anchor="w")
 
@@ -8061,14 +9010,23 @@ class MemoryPalApp(tk.Tk):
             return
         try:
             raw = json.loads(Path(path).read_text(encoding="utf-8"))
-            self.store.cards = load_items(raw.get("cards", []), Card.from_dict)
-            self.store.captures = load_items(raw.get("captures", []), Capture.from_dict)
-            self.store.practiced = safe_int(raw.get("practiced", 0), 0)
-            self.store.activity = dict(raw.get("activity", {}))
-            self.store.daily_goal = safe_int(raw.get("daily_goal", 15), 15)
-            self.store.nav_order = list(raw.get("nav_order", []))
-            self.store.accessibility = normalize_accessibility(raw.get("accessibility", {}))
-            self.store.feedback = load_items(raw.get("feedback", []), FeedbackEntry.from_dict)
+            if not isinstance(raw, dict) or not isinstance(raw.get("cards", []), list):
+                raise ValueError("This file isn't a MemoryPal backup.")
+            count = len(raw.get("cards", []))
+            if not self.dialog_confirm(
+                "Replace this profile's data?",
+                f"The backup has {count} card{'s' if count != 1 else ''}. Importing replaces everything in “{active_profile_name()}”. "
+                "A copy of what's there now is saved first, next to your data, in case you want it back.",
+                "Replace with backup",
+                destructive=True,
+            ):
+                return
+            import shutil
+            safety = self.store.data_file.with_name(f"memorypal-data.before-import-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json")
+            self.store.save()
+            shutil.copy2(self.store.data_file, safety)
+            self.store.apply_raw(raw)
+            self.store.onboarding = {"done": True, "persona": self.store.onboarding.get("persona", "")}
             self.store.save(merge_existing=False)
             self.accessibility = normalize_accessibility(self.store.accessibility)
             self.apply_accessibility_preferences()

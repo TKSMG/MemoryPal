@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 
-from .core import normalize_space
+from .core import normalize_space, powershell_exe
 
 WINDOWS_SCRIPT = (
     "[Console]::InputEncoding = [Text.Encoding]::UTF8; "
@@ -27,7 +27,7 @@ class Speaker:
 
     def command(self, slow=False):
         if sys.platform.startswith("win"):
-            return ["powershell", "-NoProfile", "-NonInteractive", "-Command", WINDOWS_SCRIPT.format(rate=-3 if slow else -1)]
+            return [powershell_exe(), "-NoProfile", "-NonInteractive", "-Command", WINDOWS_SCRIPT.format(rate=-3 if slow else -1)]
         if sys.platform == "darwin":
             return ["say", "-r", "150" if slow else "180"]
         espeak = shutil.which("espeak-ng") or shutil.which("espeak")

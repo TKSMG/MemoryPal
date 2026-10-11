@@ -277,3 +277,44 @@ This version made MemoryPal quicker to move around and more rewarding to come ba
 ## v69 Beta - In-App Feedback, Resize Outline, And Smoothness
 
 This version made it easy for testers to get feedback back to the team and polished how the app feels. The Feedback Log can now send notes straight from the app, open them in the tester's email app or Gmail, or save them as a file, and it remembers which notes were already sent. Reports include only the notes and basic system details, never profile names or cards. Resizing now shows a Windows-style outline while dragging, in-page updates swap in finished in one frame, popups take keyboard focus properly and give it back when closed, flat buttons stop shifting their text when pressed, and text in labels can be selected and copied. Several small bugs were fixed along the way. This build is packaged as tester release 0.45.0.
+
+## v70 Beta - Design System, Data Safety, And A New Logo
+
+This version came from a full review against Khan Academy, Duolingo, and NeuroNation, aimed at making MemoryPal look professional rather than improvised.
+
+Design:
+
+- A global font setting had been drawing every title and heading at body size; removing it brought back the real type hierarchy.
+- Buttons, choice pills, dropdowns, and text fields became one rounded set with a solid keyboard focus ring.
+- Every colour pair was brought up to WCAG AA contrast.
+- The navigation rail now shows all pages instead of six.
+- The logo was redrawn as a flat lowercase "m" of two arches with an amber recall dot.
+
+Features and data safety:
+
+- Cards can finally be edited, reset, or deleted.
+- Import confirms before replacing anything and keeps a copy of the old data.
+- Saves keep a backup, so a damaged file no longer opens as an empty profile.
+- A card deleted in one window can't be revived by another window.
+- Profile names that would share a folder are refused.
+
+Smarter study engine:
+
+- Smart Check stopped accepting wrong numbers or flipped meanings.
+- Multi-day plans stopped counting the backlog every day.
+- Successful reviews always grow the interval.
+- Pasted notes keep their years and decimals.
+
+Security: document import got limits against decompression bombs, and PowerShell runs by its full path.
+
+Rendering, measured with a new frame-recording check:
+
+- Page switches, every scroll step, fullscreen, resizing, and theme changes now appear as single finished frames, with no tearing or white flashes.
+- Rounded controls use opaque tiles, keeping the app as fast as before they were added.
+- The navigation rail spaces its pages evenly and pins Settings at the bottom.
+
+This version also starts the phone app: a React Native + Expo port in `mobile/` with five tabs, full review, quizzes, puzzles, plans, progress, and backups in the desktop's file format. Parity tests check its study logic against the desktop's.
+
+Accounts and cloud sync arrive on both apps through Supabase: email codes, automatic field-by-field merging between devices, optional two-step sign-in, password strength and breach checks, and a growing wait after repeated wrong tries. Sign-in tokens stay in DPAPI or the phone's Keychain/Keystore, all access rules are enforced by the database, and `CLOUD_SYNC_SETUP.md` explains the project set-up.
+
+The release number is unchanged until the next tester build.

@@ -64,12 +64,16 @@ def review_detail(due_count, share_minutes):
     return f"{plural(due_count, 'card')} due, about {needed} min."
 
 
-def build_study_plan(store, minutes, deck_choice, habits, goal, on=None):
-    """Build one session's steps. `on` projects due cards for a future ISO date."""
+def build_study_plan(store, minutes, deck_choice, habits, goal, on=None, since=None):
+    """Build one session's steps.
+
+    `on` projects due cards for a future ISO date; `since` counts only cards
+    that come due after that date (the earlier days of a plan clear the rest).
+    """
     minutes = max(MIN_STEP_MINUTES, int(minutes))
     habits = set(habits or ())
     deck = None if deck_choice in ("All decks", "New material") else deck_choice
-    due = store.due_cards(deck, on=on)
+    due = store.due_cards(deck, on=on, since=since)
     weak = [card for card in store.weak_cards() if not deck or (card.deck or "General") == deck]
     fresh = [card for card in store.cards if card.repetitions == 0 and card.lapses == 0 and (not deck or (card.deck or "General") == deck)]
     breaks = "breaks" in habits and minutes >= 2 * FOCUS_BLOCK_MINUTES - 5
@@ -197,11 +201,15 @@ def build_multi_day_plan(store, total_days, deck_choice, habits, goal, start=Non
             # The day before a test: a light confidence pass, then rest.
             kind, phase_goal, minutes = "light", "cram", 20
 
-        due = len(store.due_cards(None if day_deck_choice in ("All decks", "New material") else day_deck_choice, on=on))
+        # Day 1 faces everything already due; later days only what newly
+        # comes due, since each day's review clears the earlier backlog.
+        # (Counting the backlog again on every day made each day look heavy.)
+        since = None if day_number == 1 else (today + timedelta(days=day_number - 2)).isoformat()
+        due = len(store.due_cards(None if day_deck_choice in ("All decks", "New material") else day_deck_choice, on=on, since=since))
         if kind in ("study", "review"):
             # Make room for a heavy review day instead of a fixed block.
             minutes = max(minutes, min(90, round(due * MINUTES_PER_CARD) + 15))
-        steps = build_study_plan(store, minutes, day_deck_choice, habits, phase_goal, on=on)
+        steps = build_study_plan(store, minutes, day_deck_choice, habits, phase_goal, on=on, since=since)
         if kind == "light":
             steps[-1]["blurb"] += " Then stop for the day — sleep does more for recall than a late-night cram."
         days.append({"day": day_number, "date": on, "kind": kind, "due": due, "minutes": minutes, "steps": steps})

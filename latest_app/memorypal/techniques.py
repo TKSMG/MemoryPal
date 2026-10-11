@@ -9,8 +9,11 @@ import re
 
 EMPTY = "Add ideas first."
 
-PEGS = [("one", "sun"), ("two", "shoe"), ("three", "tree"), ("four", "door"), ("five", "hive"),
-        ("six", "sticks"), ("seven", "heaven"), ("eight", "gate"), ("nine", "line"), ("ten", "hen")]
+# (number, rhyme, the picture to hang the idea on). The picture is written
+# out so every line reads naturally ("a bundle of sticks", not "a sticks").
+PEGS = [("one", "sun", "sun"), ("two", "shoe", "shoe"), ("three", "tree", "tree"), ("four", "door", "door"),
+        ("five", "hive", "hive"), ("six", "sticks", "bundle of sticks"), ("seven", "heaven", "cloud in heaven"),
+        ("eight", "gate", "gate"), ("nine", "line", "washing line"), ("ten", "hen", "hen")]
 # Second and later rounds reuse the rhymes with a distinct, vivid twist.
 PEG_ROUNDS = ["", "giant golden ", "tiny frozen ", "noisy rainbow "]
 
@@ -40,8 +43,14 @@ ACROSTIC_WORDS = {
 
 
 def parse_ideas(raw):
-    raw = (raw or "").replace("/n", "\n")
+    # "/" already separates ideas; a typed "\n" or a stand-alone "/n" is a
+    # line break. (Replacing every "/n" ate the n of "salt/nitrogen".)
+    raw = re.sub(r"\\n|(?<![A-Za-z0-9])/n(?![A-Za-z0-9])", "\n", raw or "")
     return [item.strip() for item in re.split(r"[,\n;|/]+", raw) if item.strip()]
+
+
+def with_article(phrase):
+    return ("an " if phrase[:1].lower() in "aeiou" else "a ") + phrase
 
 
 def acronym(items):
@@ -79,9 +88,9 @@ def peg_list(items):
     lines = []
     for index, item in enumerate(items):
         lap, position = divmod(index, len(PEGS))
-        number_word, peg = PEGS[position]
+        number_word, rhyme, picture = PEGS[position]
         twist = PEG_ROUNDS[lap] if lap < len(PEG_ROUNDS) else f"round-{lap + 1} "
-        lines.append(f"{index + 1}. {number_word.title()} rhymes with {peg}: imagine {item} stuck to a {twist}{peg}.")
+        lines.append(f"{index + 1}. {number_word.title()} rhymes with {rhyme}: imagine {item} stuck to {with_article(twist + picture)}.")
     tip = "\n\nSay the number, hear the rhyme, see the picture."
     if len(items) > len(PEGS):
         tip += " Past ten, the same rhymes return with a twist (golden, frozen) so each peg stays unique."
