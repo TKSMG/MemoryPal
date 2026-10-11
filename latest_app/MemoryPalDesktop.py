@@ -138,13 +138,20 @@ def flush_pending_paint(widget):
         return 0
 
 
-def show_screen_cover(width, height, left=0, top=0):
+def show_screen_cover(width, height, left=0, top=0, source=None):
     """Put a pixel-identical, topmost snapshot of part of the screen over it.
 
     The captured bitmap is handed straight to a layered popup window
     (UpdateLayeredWindow), so it appears atomically with no Tk image
     conversion. The window never takes focus, ignores the mouse (clicks and
     drags go to the app underneath), and doesn't show in the taskbar.
+
+    With `source` (a widget at left/top), its pixels are copied from its own
+    window instead of the screen, which reads memory rather than the
+    composed screen (about 1ms instead of 10-50ms). That copy doesn't
+    include windows overlapping the app, so the snapshot is slotted into the
+    z-order directly above the app's top-level window, below anything
+    already above it (dialogs, tooltips, other programs).
     Returns a handle for remove_screen_cover, or None if unavailable.
     """
     if not sys.platform.startswith("win"):
@@ -162,16 +169,23 @@ def show_screen_cover(width, height, left=0, top=0):
         user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
                                            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                            wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+        source_hwnd = source.winfo_id() if source is not None else 0
+        app_hwnd = user32.GetAncestor(source_hwnd, 2) if source_hwnd else 0  # GA_ROOT
+        topmost = not app_hwnd or bool(user32.GetWindowLongW(app_hwnd, -20) & 0x00000008)  # GWL_EXSTYLE, WS_EX_TOPMOST
         screen_dc = user32.GetDC(0)
+        source_dc = user32.GetDC(source_hwnd) if source_hwnd else screen_dc
         memory_dc = gdi32.CreateCompatibleDC(screen_dc)
         bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
         previous = gdi32.SelectObject(memory_dc, bitmap)
         hwnd = None
         try:
-            gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, left, top, 0x00CC0020)  # SRCCOPY
-            # WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WS_POPUP
-            hwnd = user32.CreateWindowExW(0x00080000 | 0x00000020 | 0x00000008 | 0x00000080 | 0x08000000, "STATIC", None,
-                                          0x80000000, left, top, width, height, None, None, None, None)
+            if source_hwnd:
+                gdi32.BitBlt(memory_dc, 0, 0, width, height, source_dc, 0, 0, 0x00CC0020)  # SRCCOPY
+            else:
+                gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, left, top, 0x00CC0020)
+            # WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE (+ WS_EX_TOPMOST), WS_POPUP
+            ex_style = 0x00080000 | 0x00000020 | 0x00000080 | 0x08000000 | (0x00000008 if topmost else 0)
+            hwnd = user32.CreateWindowExW(ex_style, "STATIC", None, 0x80000000, left, top, width, height, None, None, None, None)
             if not hwnd:
                 return None
             origin, size = wintypes.POINT(left, top), wintypes.SIZE(width, height)
@@ -180,6 +194,16 @@ def show_screen_cover(width, height, left=0, top=0):
                                               ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4):  # ULW_OPAQUE
                 user32.DestroyWindow(hwnd)
                 return None
+            insert_after = 0  # HWND_TOP of the cover's band
+            if app_hwnd:
+                above = user32.GetWindow(app_hwnd, 3)  # GW_HWNDPREV: the window right above the app
+                # A topmost window above a normal app marks the top of the
+                # normal band, where HWND_TOP already lands.
+                if above and topmost == bool(user32.GetWindowLongW(above, -20) & 0x00000008):
+                    insert_after = above
+            # Slot it in (SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE), then show
+            # it where it is; SWP_SHOWWINDOW here left layered windows hidden.
+            user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
             user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE
             ctypes.windll.dwmapi.DwmFlush()  # make sure it is on screen before anything changes
             return hwnd
@@ -187,8 +211,10 @@ def show_screen_cover(width, height, left=0, top=0):
             gdi32.SelectObject(memory_dc, previous)
             gdi32.DeleteObject(bitmap)
             gdi32.DeleteDC(memory_dc)
+            if source_hwnd:
+                user32.ReleaseDC(source_hwnd, source_dc)
             user32.ReleaseDC(0, screen_dc)
-    except (AttributeError, OSError):
+    except (AttributeError, OSError, tk.TclError):
         return None
 
 
@@ -233,6 +259,8 @@ class ScrollFrame(ttk.Frame):
         self._pending_drag = {}
         self._drag_after = None
         self._wheel_pending = {}
+        self._wheel_targets = {}
+        self._glide_last = {}
         self._wheel_after = None
         self._presenting = False
 
@@ -399,9 +427,23 @@ class ScrollFrame(ttk.Frame):
         # repainting for each one outruns the embedded widgets and tears.
         # Sum the distance and apply it on a timer. Timers still fire while
         # input events stream in; idle callbacks (and Tk's repaints) don't.
-        self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
+        root = self.winfo_toplevel()
+        if getattr(root, "accessibility", {}).get("reduce_motion"):
+            self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
+            if self._wheel_after is None and not self._destroyed:
+                self._wheel_after = self.after(1, self._flush_wheel)
+            return
+        # Otherwise glide: each notch moves the target, and every frame covers
+        # part of the remaining distance, so a notch eases in over a few
+        # frames instead of jumping, and a fast spin becomes one smooth glide.
+        position = self._scroll_position(axis)
+        if position is None:
+            return
+        current, maximum = position
+        base = self._wheel_targets.get(axis, current)
+        self._wheel_targets[axis] = max(0.0, min(maximum, base + pixels))
         if self._wheel_after is None and not self._destroyed:
-            self._wheel_after = self.after(1, self._flush_wheel)
+            self._wheel_after = self.after(1, self._glide_wheel)
 
     def _flush_wheel(self):
         self._wheel_after = None
@@ -411,6 +453,54 @@ class ScrollFrame(ttk.Frame):
         for axis, pixels in pending.items():
             if pixels:
                 self._scroll_pixels(pixels, axis=axis)
+
+    def _scroll_position(self, axis):
+        """(current offset, largest offset) in pixels, or None if unknown."""
+        try:
+            region = self.viewport.cget("scrollregion").split()
+            if len(region) < 4:
+                return None
+            total = float(region[3] if axis == "y" else region[2])
+            visible = float(self.viewport.winfo_height() if axis == "y" else self.viewport.winfo_width())
+            first, _last = self.viewport.yview() if axis == "y" else self.viewport.xview()
+            return first * total, max(0.0, total - visible)
+        except (tk.TclError, ValueError, TypeError):
+            return None
+
+    def _glide_wheel(self):
+        self._wheel_after = None
+        if self._destroyed:
+            return
+        for axis, target in list(self._wheel_targets.items()):
+            position = self._scroll_position(axis)
+            if position is None:
+                self._wheel_targets.pop(axis, None)
+                continue
+            current, _maximum = position
+            remaining = target - current
+            stalled = abs(current - self._glide_last.get(axis, current + 99)) < 0.5
+            self._glide_last[axis] = current
+            # The last few pixels aren't visible as motion, so finish in one
+            # step rather than spending whole repaints on them.
+            if abs(remaining) <= 6 or stalled:
+                step = 0 if stalled else remaining
+                self._wheel_targets.pop(axis, None)
+                self._glide_last.pop(axis, None)
+            else:
+                # Half the remaining distance per frame (at least a couple of
+                # pixels) gives an ease-out that settles in about 6 frames.
+                step = remaining * 0.5
+                if abs(step) < 2:
+                    step = 2 if remaining > 0 else -2
+            if step:
+                self._scroll_pixels(step, axis=axis)
+        if self._wheel_targets and not self._destroyed:
+            self._wheel_after = self.after(1, self._glide_wheel)
+
+    def _stop_glide(self):
+        """A scrollbar drag, page key or jump takes over from a wheel glide."""
+        self._wheel_targets.clear()
+        self._glide_last.clear()
 
     def _wheel_units(self, event, axis="y"):
         number = getattr(event, "num", None)
@@ -469,7 +559,7 @@ class ScrollFrame(ttk.Frame):
             if not getattr(root, "use_native_window_chrome", True) and not getattr(root, "_hidden_active", False):
                 width, height = self.viewport.winfo_width(), self.viewport.winfo_height()
                 if width > 1 and height > 1:
-                    cover = show_screen_cover(width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty())
+                    cover = show_screen_cover(width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty(), source=self.viewport)
             move()
             self._sync_scrollbars()
             self.viewport.update_idletasks()
@@ -494,6 +584,7 @@ class ScrollFrame(ttk.Frame):
         # still fires during a continuous drag (idle callbacks, including
         # Tk's own repaints, are starved until the mouse stops). Arrow/trough clicks are
         # relative steps and apply immediately.
+        self._stop_glide()
         if args and args[0] == "moveto":
             self._pending_drag[axis] = args
             if self._drag_after is None and not self._destroyed:
@@ -563,6 +654,7 @@ class ScrollFrame(ttk.Frame):
             self._scroll_pixels(dx, "x")
 
     def _scroll_pages(self, direction):
+        self._stop_glide()
         try:
             self._present(lambda: self.viewport.yview_scroll(direction, "pages"))
         except tk.TclError:
@@ -570,6 +662,7 @@ class ScrollFrame(ttk.Frame):
         return "break"
 
     def _scroll_to(self, position):
+        self._stop_glide()
         try:
             self._present(lambda: self.viewport.yview_moveto(max(0.0, min(1.0, float(position)))))
         except tk.TclError:
@@ -946,7 +1039,8 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             viewable = False
         if viewable and not self.use_native_window_chrome:
-            cover = show_screen_cover(self.winfo_screenwidth(), self.winfo_screenheight())
+            # Only the app window changes here (no resize), so copy just it.
+            cover = show_screen_cover(self.winfo_width(), self.winfo_height(), self.winfo_rootx(), self.winfo_rooty(), source=self)
             if cover is None:
                 frozen = self.set_redraw_frozen(True)
         if cover is None and not frozen:
@@ -2602,34 +2696,48 @@ class MemoryPalApp(tk.Tk):
         host = getattr(self, "nav_list_host", None)
         if not host or not host.winfo_exists():
             return 7
-        try:
-            height = max(1, host.winfo_height())
-        except tk.TclError:
-            return 7
-        # Measure the real Previous/Next controls, range label and nav button
-        # height rather than guessing, so the last item is never clipped
-        # behind the footer. Both controls are always reserved so the count
-        # doesn't change (and reshuffle the list) when one appears.
-        try:
-            footer_h = (
-                self.nav_down_button.winfo_reqheight() + self.px(2)
-                + self.nav_range_label.winfo_reqheight() + self.px(6)
-                + self.px(26)
-            )
-            up_h = self.nav_up_button.winfo_reqheight() + self.px(8)
-        except (AttributeError, tk.TclError):
-            footer_h, up_h = self.px(90), self.px(46)
         item_step = max(getattr(self, "_nav_item_step", 0) or self.px(46), 1)
         total = len(getattr(self, "nav_items_cache", None) or self.ordered_nav_items())
         # Show every page when they fit (the usual case); only fall back to
-        # Previous/Next paging on short windows or very large text. The old
-        # cap of eight hid more than half of the pages behind "Next pages".
-        if int((height - self.nav_pinned_height() - 2 * self.nav_top_padding()) // item_step) >= total:
+        # Previous/Next paging on short windows or very large text.
+        if self.nav_list_room(False, False) // item_step >= total:
             return total
-        top_h = max(self.nav_top_padding(False), self.nav_top_padding(True) + up_h)
-        reserved = footer_h + top_h + self.px(6) + self.nav_pinned_height()
-        count = int((height - reserved) // item_step)
+        # Both controls are always reserved so the count doesn't change (and
+        # reshuffle the list) when one appears.
+        count = self.nav_list_room(True, True) // item_step
         return max(3, min(total, count))
+
+    def nav_list_room(self, previous, more):
+        """Height left for page items once the list's surroundings are placed.
+
+        Measured from the real Previous/More controls, range label and pinned
+        Settings rather than guessed, so the last item is never clipped and
+        the spare space can be centred exactly."""
+        try:
+            height = self.nav_list_host.winfo_height()
+            used = self.px(6) + self.nav_pinned_height()  # list's top pady, Settings block
+            if previous:
+                used += self.nav_up_button.winfo_reqheight() + self.px(8)
+            if previous or more:
+                used += self.nav_range_label.winfo_reqheight() + self.px(6)
+            if more:
+                used += self.nav_down_button.winfo_reqheight() + self.px(2)
+        except (AttributeError, tk.TclError):
+            return 0
+        top, bottom = self.nav_edge_padding(previous, more)
+        return max(0, int(height - used - top - bottom))
+
+    def nav_edge_padding(self, previous, more):
+        """Minimum spacer heights above and below the page list.
+
+        The fixed padding already above the list (the list's own pady, plus
+        the Previous control's) differs from the padding below it (the
+        footer's, plus the pinned block's or range label's), so the spacers
+        make up the difference and the visible gaps come out equal."""
+        above = self.px(6) + (self.px(8) if previous else 0)
+        below = self.px(4) + (0 if more else self.px(6))
+        base = self.nav_top_padding()
+        return base + max(0, below - above), base + max(0, above - below)
 
     def nav_pinned_height(self):
         """Height taken by the pinned Settings item and the footer's padding."""
@@ -2717,24 +2825,22 @@ class MemoryPalApp(tk.Tk):
         above = first > 0
         below = end < len(items)
 
-        # The list starts right under the brand. When everything fits, the
-        # spare height is shared out as even spacing between items (up to a
-        # comfortable maximum) so the pages fill the rail instead of bunching
-        # at the top above an empty gap; Settings sits pinned at the bottom.
+        # Spare height is shared out as even spacing between items (up to a
+        # comfortable maximum) so the pages fill the rail; whatever is left
+        # goes equally above and below (both spacers expand), so the list is
+        # centred between the brand or Previous control and the More control
+        # or Settings at every scale.
         top_padding = self.nav_top_padding(has_previous=above)
-        spacer = tk.Frame(host, bg=COLORS["rail"], height=top_padding)
-        spacer.pack(fill="x")
+        top_edge, bottom_edge = self.nav_edge_padding(above, below)
+        spacer = tk.Frame(host, bg=COLORS["rail"], height=top_edge)
+        spacer.pack(fill="both", expand=True)
         self.bind_nav_wheel(spacer)
 
         gap = self.px(1)
         base_step = getattr(self, "_nav_item_step", 0)
-        if not (above or below) and base_step and end > first:
-            try:
-                room = self.nav_list_host.winfo_height() - self.nav_pinned_height() - 2 * top_padding
-            except (AttributeError, tk.TclError):
-                room = 0
-            spare = room - (end - first) * base_step
-            gap += int(clamp(spare / max(1, end - first), 0, self.px(14)) // 2)
+        if base_step and end > first:
+            spare = self.nav_list_room(above, below) - (end - first) * base_step
+            gap += int(clamp(spare / (end - first), 0, self.px(14)) // 2)
         self._nav_spacing_state = (getattr(self.nav_list_host, "winfo_height", lambda: 0)(), gap)
 
         for key, label, _short in items[first:end]:
@@ -2749,7 +2855,7 @@ class MemoryPalApp(tk.Tk):
             self.add_tooltip(button, self.nav_hint(key))
             self.nav_buttons[key] = button
 
-        bottom_spacer = tk.Frame(host, bg=COLORS["rail"], height=top_padding)
+        bottom_spacer = tk.Frame(host, bg=COLORS["rail"], height=bottom_edge)
         bottom_spacer.pack(fill="both", expand=True)
         self.bind_nav_wheel(bottom_spacer)
 
@@ -5933,7 +6039,10 @@ class MemoryPalApp(tk.Tk):
             self.current_review = card
             self.open_testing(card, "focus", "review")
 
-        sections = [("Due now", due), ("Needs focus", weak[:8]), ("Fresh cards", new_cards[:8])]
+        # A preview of each queue, not the whole thing: listing every due card
+        # built hundreds of rows and made the page slow to open and scroll.
+        # Start Due Review still works through all of them.
+        sections = [("Due now", due[:12]), ("Needs focus", weak[:8]), ("Fresh cards", new_cards[:8])]
         for title, cards in sections:
             section = self.card(page.inner)
             section.pack(fill="x", padx=(0, 8), pady=(0, 10))
@@ -5952,6 +6061,9 @@ class MemoryPalApp(tk.Tk):
                 practice_button.grid(row=0, column=1, sticky="e", padx=(10, 0))
                 self.add_tooltip(practice_button, self.action_hint("Practice"))
                 row.columnconfigure(0, weight=1)
+            if title == "Due now" and len(due) > len(cards):
+                more = len(due) - len(cards)
+                ttk.Label(section, text=f"And {more} more due. Start Due Review goes through all of them.", style="CardMuted.TLabel").pack(anchor="w", pady=(10, 0))
 
     MEDIA_NAMES = {"text_file": "note or document", "image": "image", "audio": "audio clip", "video": "video"}
     MEDIA_SUFFIXES = {"text_file": media.TEXT_TYPES, "image": media.IMAGE_TYPES, "audio": media.AUDIO_TYPES, "video": media.VIDEO_TYPES}
@@ -8917,8 +9029,9 @@ class MemoryPalApp(tk.Tk):
             return not query or query in text.lower()
 
         # Building a widget block per card freezes Tk with thousands of cards,
-        # so the list shows a page at a time with a "Show more" button.
-        page_size = 60
+        # so the list shows a page at a time with a "Show more" button. Tk's
+        # layout time grows with the page, so pages stay short.
+        page_size = 20
         limit = {"count": page_size}
 
         def show_more():
