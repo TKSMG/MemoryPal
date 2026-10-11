@@ -23,10 +23,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -36,15 +36,19 @@ jobs:
         run: |
           python -c "import tkinter as tk; print(f'Tkinter is available: Tk {tk.TkVersion}')"
 
+      - name: Run unit tests
+        run: python -m unittest discover -s latest_app/tests
+
       - name: Build MemoryPal macOS package
         run: |
           chmod +x build_macos.sh
           MEMORYPAL_MAC_ARTIFACT_SUFFIX="${{ matrix.artifact_suffix }}" ./build_macos.sh
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: MemoryPal-${{ matrix.artifact_suffix }}
+          retention-days: 30
           path: |
             release/MemoryPal-${{ matrix.artifact_suffix }}.dmg
             release/MemoryPal-${{ matrix.artifact_suffix }}-app.zip
