@@ -37,6 +37,53 @@ FILETYPES = {
     "video": [("Video", " ".join(f"*{ext}" for ext in VIDEO_TYPES))],
 }
 
+# Opening one of these runs it, so they are never attached or opened.
+PROGRAM_TYPES = frozenset((
+    ".exe", ".com", ".bat", ".cmd", ".scr", ".pif", ".msi", ".msp", ".msc", ".cpl", ".dll", ".sys",
+    ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".jar", ".reg",
+    ".lnk", ".url", ".scf", ".application", ".appref-ms", ".gadget", ".inf", ".sh", ".command", ".app",
+))
+
+
+def is_program(path):
+    return Path(str(path or "")).suffix.lower() in PROGRAM_TYPES
+
+
+def attachment_file(path, folder):
+    """The attachment `path` names, but only as a file inside `folder`; else None.
+
+    Attachment paths travel inside backups and synced cards, so one could
+    point anywhere: at a program (opening it would run it) or at a network
+    share (just checking that it exists sends Windows sign-in details to
+    that server). MemoryPal copies every attachment into the profile's
+    attachments folder, so only files there are used. A path from another
+    place (another computer, a renamed profile) is matched by file name
+    inside the folder, without ever touching the original location.
+    """
+    text = str(path or "").strip()
+    if not text or folder is None:
+        return None
+    name = text.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    if not name or name in (".", ".."):
+        return None
+    try:
+        root = Path(folder).resolve()
+        candidate = Path(text)
+        # Decide from the text alone first: no file system access for a path
+        # outside the folder (or a UNC / device path).
+        inside = (
+            not text.startswith(("\\\\", "//"))
+            and candidate.is_absolute()
+            and Path(os.path.normpath(os.path.abspath(candidate))).is_relative_to(root)
+        )
+        target = candidate if inside else root / name
+        resolved = target.resolve()
+        if not resolved.is_relative_to(root) or is_program(resolved) or not resolved.is_file():
+            return None
+        return resolved
+    except (OSError, ValueError):
+        return None
+
 
 def run_powershell(script, timeout=60, stdin_text=None):
     """Run a PowerShell script (passed on stdin-free -Command) and return (ok, stdout)."""
