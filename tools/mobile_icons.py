@@ -36,12 +36,12 @@ def png(path, size, rows):
     print("wrote", path.relative_to(ROOT))
 
 
-def render(size, tile=True, rounded=False, mark_scale=1.0, mark="#ffffff", dot=True, supersample=2):
+def render(size, tile=True, rounded=False, mark_scale=1.0, mark="#ffffff", dot=True, dot_color=None, supersample=2):
     """The logo with options: square or rounded tile (or none), and the mark scaled about the centre."""
     canvas = size * supersample
     edge = float(supersample)
     top, bottom = icon.rgba(icon.LOGO_COLORS["top"]), icon.rgba(icon.LOGO_COLORS["bottom"])
-    mark_rgba, dot_rgba = icon.rgba(mark), icon.rgba(icon.LOGO_COLORS["dot"])
+    mark_rgba, dot_rgba = icon.rgba(mark), icon.rgba(dot_color or icon.LOGO_COLORS["dot"])
     dot_x, dot_y, dot_r = icon.LOGO_DOT
     centre = canvas / 2
     rows = []
@@ -89,7 +89,8 @@ def main():
     # Android shows the middle ~66% of a foreground layer; keep the mark inside it.
     png(OUT / "android-icon-foreground.png", 1024, render(1024, tile=False, mark_scale=0.72))
     png(OUT / "android-icon-background.png", 1024, render(1024, tile=True, rounded=False, mark_scale=0.0001, dot=False))
-    png(OUT / "android-icon-monochrome.png", 1024, render(1024, tile=False, mark_scale=0.72, mark="#ffffff", dot=True))
+    # Themed icons use only the alpha channel, so the dot is white like the rest of the mark.
+    png(OUT / "android-icon-monochrome.png", 1024, render(1024, tile=False, mark_scale=0.72, mark="#ffffff", dot=True, dot_color="#ffffff"))
     png(OUT / "splash-icon.png", 512, render(512, tile=True, rounded=True))
     png(OUT / "favicon.png", 48, render(48, tile=True, rounded=True, supersample=4))
 

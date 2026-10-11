@@ -56,8 +56,8 @@ It runs these steps in order and stops at the first failure:
 Before a new tester round, bump the version in three places so testers and Windows can tell builds apart:
 
 ```text
-pyproject.toml                  version = "0.45.0"
-installer\inno\MemoryPal.iss    #define MyAppVersion "0.45.0"
+pyproject.toml                  version = "0.46.0"
+installer\inno\MemoryPal.iss    #define MyAppVersion "0.46.0"
 build_nuitka_windows.cmd        --product-version / --file-version
 ```
 
@@ -70,8 +70,9 @@ The logo is drawn in code in `latest_app\memorypal\icon.py`; the `LOGO_*` consta
 1. Increase `MASTER_CACHE_VERSION` in `icon.py` so installed copies redraw their cached logo.
 2. Run `python latest_app\memorypal\icon.py` to rewrite `assets\memorypal.ico` and `assets\memorypal-logo-preview.png` (takes a minute or two; it is pure Python).
 3. Update `assets\memorypal-logo.svg` to match.
+4. Run `python tools\mobile_icons.py` to redraw the phone app's icons in `mobile\assets\`.
 
-The build scripts, installer, and macOS `.icns` all read these files, so nothing else needs changing.
+The build scripts, installer, and macOS `.icns` all read the `assets\` files, so nothing else needs changing.
 
 ## Run The Tests
 
@@ -256,8 +257,14 @@ The Codex workspace can compile the source, but the bundled Python environment m
 
 If the script says no usable desktop Python was found, install Python 3.11 or newer from python.org, keep Tcl/Tk selected, and enable the PATH option during setup. Then run the build command again from a normal Command Prompt or PowerShell window opened inside the project folder.
 
-## Mobile Direction
+## Accounts And Sync
 
-The `mobile_app/` folder contains a Kivy prototype for Android and iOS. It is not a finished App Store or Play Store app yet, but it gives the mobile version a real starting point with touch-friendly screens and the same MemoryPal workflow.
+Accounts and cloud sync stay off until a Supabase project is set up. Follow `CLOUD_SYNC_SETUP.md`, then put the project URL and publishable key into `latest_app\memorypal\cloud_config.py` (desktop) and `mobile\app.json` under `expo.extra` (phone) before building. Never put the secret / service_role key in either file. Builds made with the fields empty run fully offline.
 
-Android packaging should be done with Buildozer on Linux or WSL. iOS packaging should be done on macOS with Kivy-iOS and Xcode.
+## Mobile App
+
+The phone app is the React Native + Expo project in `mobile/`. `mobile/README.md` covers running it with Expo Go, the tests, and the parity checks against the desktop logic.
+
+Its icons are drawn from the same logo code as the desktop. After a logo change, run `python tools\mobile_icons.py` to rewrite `mobile\assets\`. The app name, bundle identifiers (`app.memorypal.mobile`), icons and splash screen are set in `mobile\app.json`.
+
+The older Kivy prototype in `mobile_app/` is kept as history only and is not built any more.
