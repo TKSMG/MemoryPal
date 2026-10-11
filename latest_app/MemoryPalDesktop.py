@@ -259,6 +259,8 @@ class ScrollFrame(ttk.Frame):
         self._pending_drag = {}
         self._drag_after = None
         self._wheel_pending = {}
+        self._wheel_targets = {}
+        self._glide_last = {}
         self._wheel_after = None
         self._presenting = False
 
@@ -425,9 +427,23 @@ class ScrollFrame(ttk.Frame):
         # repainting for each one outruns the embedded widgets and tears.
         # Sum the distance and apply it on a timer. Timers still fire while
         # input events stream in; idle callbacks (and Tk's repaints) don't.
-        self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
+        root = self.winfo_toplevel()
+        if getattr(root, "accessibility", {}).get("reduce_motion"):
+            self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
+            if self._wheel_after is None and not self._destroyed:
+                self._wheel_after = self.after(1, self._flush_wheel)
+            return
+        # Otherwise glide: each notch moves the target, and every frame covers
+        # part of the remaining distance, so a notch eases in over a few
+        # frames instead of jumping, and a fast spin becomes one smooth glide.
+        position = self._scroll_position(axis)
+        if position is None:
+            return
+        current, maximum = position
+        base = self._wheel_targets.get(axis, current)
+        self._wheel_targets[axis] = max(0.0, min(maximum, base + pixels))
         if self._wheel_after is None and not self._destroyed:
-            self._wheel_after = self.after(1, self._flush_wheel)
+            self._wheel_after = self.after(1, self._glide_wheel)
 
     def _flush_wheel(self):
         self._wheel_after = None
@@ -437,6 +453,54 @@ class ScrollFrame(ttk.Frame):
         for axis, pixels in pending.items():
             if pixels:
                 self._scroll_pixels(pixels, axis=axis)
+
+    def _scroll_position(self, axis):
+        """(current offset, largest offset) in pixels, or None if unknown."""
+        try:
+            region = self.viewport.cget("scrollregion").split()
+            if len(region) < 4:
+                return None
+            total = float(region[3] if axis == "y" else region[2])
+            visible = float(self.viewport.winfo_height() if axis == "y" else self.viewport.winfo_width())
+            first, _last = self.viewport.yview() if axis == "y" else self.viewport.xview()
+            return first * total, max(0.0, total - visible)
+        except (tk.TclError, ValueError, TypeError):
+            return None
+
+    def _glide_wheel(self):
+        self._wheel_after = None
+        if self._destroyed:
+            return
+        for axis, target in list(self._wheel_targets.items()):
+            position = self._scroll_position(axis)
+            if position is None:
+                self._wheel_targets.pop(axis, None)
+                continue
+            current, _maximum = position
+            remaining = target - current
+            stalled = abs(current - self._glide_last.get(axis, current + 99)) < 0.5
+            self._glide_last[axis] = current
+            # The last few pixels aren't visible as motion, so finish in one
+            # step rather than spending whole repaints on them.
+            if abs(remaining) <= 6 or stalled:
+                step = 0 if stalled else remaining
+                self._wheel_targets.pop(axis, None)
+                self._glide_last.pop(axis, None)
+            else:
+                # Half the remaining distance per frame (at least a couple of
+                # pixels) gives an ease-out that settles in about 6 frames.
+                step = remaining * 0.5
+                if abs(step) < 2:
+                    step = 2 if remaining > 0 else -2
+            if step:
+                self._scroll_pixels(step, axis=axis)
+        if self._wheel_targets and not self._destroyed:
+            self._wheel_after = self.after(1, self._glide_wheel)
+
+    def _stop_glide(self):
+        """A scrollbar drag, page key or jump takes over from a wheel glide."""
+        self._wheel_targets.clear()
+        self._glide_last.clear()
 
     def _wheel_units(self, event, axis="y"):
         number = getattr(event, "num", None)
@@ -520,6 +584,7 @@ class ScrollFrame(ttk.Frame):
         # still fires during a continuous drag (idle callbacks, including
         # Tk's own repaints, are starved until the mouse stops). Arrow/trough clicks are
         # relative steps and apply immediately.
+        self._stop_glide()
         if args and args[0] == "moveto":
             self._pending_drag[axis] = args
             if self._drag_after is None and not self._destroyed:
@@ -589,6 +654,7 @@ class ScrollFrame(ttk.Frame):
             self._scroll_pixels(dx, "x")
 
     def _scroll_pages(self, direction):
+        self._stop_glide()
         try:
             self._present(lambda: self.viewport.yview_scroll(direction, "pages"))
         except tk.TclError:
@@ -596,6 +662,7 @@ class ScrollFrame(ttk.Frame):
         return "break"
 
     def _scroll_to(self, position):
+        self._stop_glide()
         try:
             self._present(lambda: self.viewport.yview_moveto(max(0.0, min(1.0, float(position)))))
         except tk.TclError:
@@ -5972,7 +6039,10 @@ class MemoryPalApp(tk.Tk):
             self.current_review = card
             self.open_testing(card, "focus", "review")
 
-        sections = [("Due now", due), ("Needs focus", weak[:8]), ("Fresh cards", new_cards[:8])]
+        # A preview of each queue, not the whole thing: listing every due card
+        # built hundreds of rows and made the page slow to open and scroll.
+        # Start Due Review still works through all of them.
+        sections = [("Due now", due[:12]), ("Needs focus", weak[:8]), ("Fresh cards", new_cards[:8])]
         for title, cards in sections:
             section = self.card(page.inner)
             section.pack(fill="x", padx=(0, 8), pady=(0, 10))
@@ -5991,6 +6061,9 @@ class MemoryPalApp(tk.Tk):
                 practice_button.grid(row=0, column=1, sticky="e", padx=(10, 0))
                 self.add_tooltip(practice_button, self.action_hint("Practice"))
                 row.columnconfigure(0, weight=1)
+            if title == "Due now" and len(due) > len(cards):
+                more = len(due) - len(cards)
+                ttk.Label(section, text=f"And {more} more due. Start Due Review goes through all of them.", style="CardMuted.TLabel").pack(anchor="w", pady=(10, 0))
 
     MEDIA_NAMES = {"text_file": "note or document", "image": "image", "audio": "audio clip", "video": "video"}
     MEDIA_SUFFIXES = {"text_file": media.TEXT_TYPES, "image": media.IMAGE_TYPES, "audio": media.AUDIO_TYPES, "video": media.VIDEO_TYPES}
@@ -8956,8 +9029,9 @@ class MemoryPalApp(tk.Tk):
             return not query or query in text.lower()
 
         # Building a widget block per card freezes Tk with thousands of cards,
-        # so the list shows a page at a time with a "Show more" button.
-        page_size = 60
+        # so the list shows a page at a time with a "Show more" button. Tk's
+        # layout time grows with the page, so pages stay short.
+        page_size = 20
         limit = {"count": page_size}
 
         def show_more():
