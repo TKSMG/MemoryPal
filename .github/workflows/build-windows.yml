@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -26,6 +26,9 @@ jobs:
 
       - name: Check Tkinter
         run: python -c "import tkinter as tk; root=tk.Tk(); root.withdraw(); root.destroy(); print('Tkinter is available')"
+
+      - name: Run unit tests
+        run: python -m unittest discover -s latest_app/tests
 
       - name: Build MemoryPal
         shell: cmd
@@ -39,9 +42,10 @@ jobs:
         run: build_installer_windows.cmd
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: MemoryPal-Windows
+          retention-days: 30
           path: |
             release/MemoryPal/**
             release/MemoryPalSetup.exe
