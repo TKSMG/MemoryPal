@@ -33,7 +33,8 @@ jobs:
           cache-dependency-path: requirements-build.txt
 
       - name: Check Tkinter
-        run: python -c "import tkinter as tk; print(f'Tkinter is available: Tk {tk.TkVersion}')"
+        run: |
+          python -c "import tkinter as tk; print(f'Tkinter is available: Tk {tk.TkVersion}')"
 
       - name: Build MemoryPal macOS package
         run: |
