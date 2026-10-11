@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 os.environ.setdefault("MEMORYPAL_DATA_DIR", tempfile.mkdtemp(prefix="memorypal-tests-"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -105,8 +106,9 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "offline")
 
     def test_not_configured(self):
-        with self.assertRaises(cloud.CloudError) as caught:
-            cloud.CloudClient("", "").sign_in(EMAIL, PASSWORD)
+        # A build without a project: cloud_config.py ships the real one now.
+        with mock.patch.object(cloud, "config", return_value=("", "")), self.assertRaises(cloud.CloudError) as caught:
+            cloud.CloudClient().sign_in(EMAIL, PASSWORD)
         self.assertEqual(caught.exception.code, "not_configured")
 
     def test_delete_account_removes_cloud_data(self):

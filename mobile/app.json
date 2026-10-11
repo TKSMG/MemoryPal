@@ -11,8 +11,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "supabaseUrl": "",
-      "supabasePublishableKey": "",
+      "supabaseUrl": "https://wgfaryxbwritolayuydh.supabase.co",
+      "supabasePublishableKey": "sb_publishable_2dZ7rq2PQ9oCMG7bMMWhUQ_am1Zh1E6",
       "termsUrl": "",
       "privacyUrl": ""
     },
