@@ -9,8 +9,8 @@ MEMORYPAL_SUPABASE_URL / MEMORYPAL_SUPABASE_KEY environment variables
 override them for testing.
 """
 
-SUPABASE_URL = ""          # e.g. "https://abcdefghijklmnop.supabase.co"
-SUPABASE_PUBLISHABLE_KEY = ""  # e.g. "sb_publishable_..."
+SUPABASE_URL = "https://wgfaryxbwritolayuydh.supabase.co"
+SUPABASE_PUBLISHABLE_KEY = "sb_publishable_2dZ7rq2PQ9oCMG7bMMWhUQ_am1Zh1E6"
 
 # The published Terms of Use and Privacy Policy (drafts: TERMS_OF_USE.md and
 # PRIVACY_POLICY.md). Account sign-up links to them; app stores require the
