@@ -7,6 +7,7 @@ import re
 import struct
 import sys
 import threading
+import time
 import tkinter as tk
 import tkinter.font as tkfont
 import zlib
@@ -224,6 +225,52 @@ def show_screen_cover(width, height, left=0, top=0, source=None):
         return None
 
 
+def refresh_screen_cover(cover, width, height, source):
+    """Show a fresh copy of `source` in an existing cover, in one frame.
+
+    Used while scrolling: one cover stays up for the whole scroll and each
+    step swaps its picture, instead of a cover being made and removed for
+    every step (each of those waited for the screen twice, which halved the
+    frame rate). Waits for the next screen refresh, which paces the steps.
+    Returns False if the picture couldn't be swapped.
+    """
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class BlendFunction(ctypes.Structure):
+            _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte),
+                        ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
+
+        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+        source_hwnd = source.winfo_id()
+        screen_dc = user32.GetDC(0)
+        source_dc = user32.GetDC(source_hwnd)
+        memory_dc = gdi32.CreateCompatibleDC(screen_dc)
+        bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
+        previous = gdi32.SelectObject(memory_dc, bitmap)
+        try:
+            gdi32.BitBlt(memory_dc, 0, 0, width, height, source_dc, 0, 0, 0x00CC0020)  # SRCCOPY
+            size = wintypes.SIZE(width, height)
+            blend = BlendFunction(0, 0, 255, 0)
+            # No position: the cover stays where it is, only its picture changes.
+            done = user32.UpdateLayeredWindow(cover, screen_dc, None, ctypes.byref(size), memory_dc,
+                                              ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4)  # ULW_OPAQUE
+            if done:
+                ctypes.windll.dwmapi.DwmFlush()
+            return bool(done)
+        finally:
+            gdi32.SelectObject(memory_dc, previous)
+            gdi32.DeleteObject(bitmap)
+            gdi32.DeleteDC(memory_dc)
+            user32.ReleaseDC(source_hwnd, source_dc)
+            user32.ReleaseDC(0, screen_dc)
+    except (AttributeError, OSError, tk.TclError):
+        return False
+
+
 def remove_screen_cover(cover):
     try:
         import ctypes
@@ -269,6 +316,9 @@ class ScrollFrame(ttk.Frame):
         self._glide_last = {}
         self._wheel_after = None
         self._presenting = False
+        self._live_cover = None  # (window, geometry) of the snapshot kept up while scrolling
+        self._live_cover_after = None
+        self._glide_time = None
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
@@ -477,6 +527,11 @@ class ScrollFrame(ttk.Frame):
         self._wheel_after = None
         if self._destroyed:
             return
+        now = time.perf_counter()
+        # Milliseconds since the last step (one 60Hz frame for the first),
+        # capped so a stall doesn't turn into a jump.
+        elapsed = 16.7 if self._glide_time is None else min(50.0, max(1.0, (now - self._glide_time) * 1000))
+        self._glide_time = now
         for axis, target in list(self._wheel_targets.items()):
             position = self._scroll_position(axis)
             if position is None:
@@ -493,20 +548,28 @@ class ScrollFrame(ttk.Frame):
                 self._wheel_targets.pop(axis, None)
                 self._glide_last.pop(axis, None)
             else:
-                # Half the remaining distance per frame (at least a couple of
-                # pixels) gives an ease-out that settles in about 6 frames.
-                step = remaining * 0.5
+                # Half the remaining distance per 60Hz frame's worth of time
+                # (at least a couple of pixels) gives an ease-out that settles
+                # in about 100ms. Measuring time rather than counting frames
+                # keeps the glide the same length at 60Hz or 144Hz, and lets
+                # faster screens show more of its steps.
+                step = remaining * (1 - 0.5 ** (elapsed / 16.7))
                 if abs(step) < 2:
                     step = 2 if remaining > 0 else -2
             if step:
                 self._scroll_pixels(step, axis=axis)
         if self._wheel_targets and not self._destroyed:
-            self._wheel_after = self.after(1, self._glide_wheel)
+            # Each step waits for the screen while a cover is up, which paces
+            # the glide; without one, don't spin faster than ~120 steps a second.
+            self._wheel_after = self.after(1 if self._live_cover is not None else 8, self._glide_wheel)
+        else:
+            self._glide_time = None
 
     def _stop_glide(self):
         """A scrollbar drag, page key or jump takes over from a wheel glide."""
         self._wheel_targets.clear()
         self._glide_last.clear()
+        self._glide_time = None
 
     def _wheel_units(self, event, axis="y"):
         number = getattr(event, "num", None)
@@ -561,19 +624,51 @@ class ScrollFrame(ttk.Frame):
             # cards had moved but their text wasn't drawn yet (tearing). A
             # snapshot of just the scrolling area hides each step until it
             # is fully drawn, then the new position appears in one frame.
+            # The snapshot stays up while scrolling continues; each step only
+            # swaps its picture (see refresh_screen_cover).
             root = self.winfo_toplevel()
+            geometry = None
             if not getattr(root, "use_native_window_chrome", True) and not getattr(root, "_hidden_active", False):
                 width, height = self.viewport.winfo_width(), self.viewport.winfo_height()
                 if width > 1 and height > 1:
-                    cover = show_screen_cover(width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty(), source=self.viewport)
+                    geometry = (width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty())
+            live = self._live_cover
+            if live is not None and live[1] != geometry:
+                self._release_live_cover()
+                live = None
+            if live is None and geometry is not None:
+                cover = show_screen_cover(*geometry, source=self.viewport)
             move()
             self._sync_scrollbars()
             self.viewport.update_idletasks()
             flush_pending_paint(self.viewport)
+            if live is not None:
+                if not refresh_screen_cover(live[0], geometry[0], geometry[1], self.viewport):
+                    self._release_live_cover()
+            elif cover is not None:
+                if refresh_screen_cover(cover, geometry[0], geometry[1], self.viewport):
+                    self._live_cover, cover = (cover, geometry), None
         finally:
             self._presenting = False
             if cover is not None:
                 remove_screen_cover(cover)
+            if self._live_cover is not None:
+                # Taken down once scrolling has paused; by then the window
+                # underneath shows exactly the same picture.
+                if self._live_cover_after is not None:
+                    self.after_cancel(self._live_cover_after)
+                self._live_cover_after = self.after(90, self._release_live_cover)
+
+    def _release_live_cover(self):
+        if self._live_cover_after is not None:
+            try:
+                self.after_cancel(self._live_cover_after)
+            except tk.TclError:
+                pass
+            self._live_cover_after = None
+        live, self._live_cover = self._live_cover, None
+        if live is not None:
+            remove_screen_cover(live[0])
 
     def _scrollbar_yview(self, *args):
         self._scrollbar_view("y", args)
@@ -704,6 +799,7 @@ class ScrollFrame(ttk.Frame):
 
     def destroy(self):
         self._destroyed = True
+        self._release_live_cover()
         try:
             if self._region_after is not None:
                 self.after_cancel(self._region_after)
@@ -2377,17 +2473,24 @@ class MemoryPalApp(tk.Tk):
             qx, qy = abs(px - half) - reach, abs(py - half) - reach
             return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - r
 
-        pixels = bytearray()
-        for y in range(size):
-            for x in range(size):
+        # The tile is symmetric about both centre lines, so work out one
+        # quarter and mirror it (a quarter of the per-pixel maths).
+        quarter = (size + 1) // 2
+        rows = []
+        for y in range(quarter):
+            row = []
+            for x in range(quarter):
                 px, py = x + 0.5, y + 0.5
                 cover = max(0.0, min(1.0, 0.5 - distance(px, py, 0)))
                 color = fill_rgb
                 if ring_rgb and ring_width:
                     inner = max(0.0, min(1.0, 0.5 - distance(px, py, ring_width)))
                     color = tuple(ring_rgb[i] + (fill_rgb[i] - ring_rgb[i]) * inner for i in range(3))
-                pixels.extend(int(round(bg_rgb[i] + (color[i] - bg_rgb[i]) * cover)) for i in range(3))
-                pixels.append(255)
+                row.append(bytes((*(int(round(bg_rgb[i] + (color[i] - bg_rgb[i]) * cover)) for i in range(3)), 255)))
+            row += row[: size - quarter][::-1]
+            rows.append(b"".join(row))
+        rows += rows[: size - quarter][::-1]
+        pixels = b"".join(rows)
         data = base64.b64encode(self.png_rgba(size, size, bytes(pixels))).decode("ascii")
         small = tk.PhotoImage(master=self, data=data, format="png")
         photo = self.widen_tile(small, radius, fill)
@@ -2521,6 +2624,8 @@ class MemoryPalApp(tk.Tk):
                 self.round_style(style, widget_class, fills, bg)
         except (tk.TclError, IndexError, KeyError):
             self._round_specs = {}  # an unusual Tk: keep the flat controls
+            return
+        self.warm_corner_styles()
 
     def accent_button_style(self, color):
         """A rounded filled button style for any accent colour (green, violet...)."""
@@ -2573,17 +2678,20 @@ class MemoryPalApp(tk.Tk):
         spec = getattr(self, "_round_specs", {}).get(base)
         if not spec:
             return
+        derived = self.corner_style(base, spec, self.surface_behind(widget))
+        if derived != style:
+            widget.configure(style=derived)
+
+    def corner_style(self, base, spec, behind):
+        """The style for a `base` control sitting on `behind`, made on first use."""
         widget_class, fills, default_bg = spec
-        behind = self.surface_behind(widget)
         # A soft secondary button on a tinted card of almost the same colour
         # vanishes (e.g. surface_soft on alt); lift it to the card colour.
         # (Only the soft secondary styles; nav items match the rail on purpose.)
         liftable = base in ("TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton")
         blends_in = liftable and self.contrast(fills[0], behind) < 1.12
         if behind == default_bg.lower() and not blends_in:
-            if base != style:
-                widget.configure(style=base)
-            return
+            return base
         derived = f"on{behind.lstrip('#')}.{base}"
         if derived not in self._corner_styles:
             if blends_in:
@@ -2595,8 +2703,32 @@ class MemoryPalApp(tk.Tk):
             except tk.TclError:
                 self.set_corner_background(derived, behind)
             self._corner_styles[derived] = True
-        if derived != style:
-            widget.configure(style=derived)
+        return derived
+
+    def warm_corner_styles(self):
+        """Make the common control-on-card styles while the app is idle.
+
+        Each one needs a few antialiased tiles worked out in Python, which
+        the first visit to a page used to pay for (about half of opening
+        Library the first time). One style per timer tick keeps it out of
+        the way of clicks and typing.
+        """
+        generation = self._style_generation
+        surfaces = [COLORS[name].lower() for name in ("alt", "bg", "surface", "warm") if name in COLORS]
+        bases = ("TButton", "Primary.TButton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton", "TEntry")
+        queue = [(base, behind) for behind in surfaces for base in bases if base in self._round_specs]
+
+        def step():
+            if generation != self._style_generation or not queue:
+                return
+            base, behind = queue.pop(0)
+            try:
+                self.corner_style(base, self._round_specs[base], behind)
+            except (tk.TclError, KeyError):
+                pass
+            self.after(15, step)
+
+        self.after(1200, step)
 
     def draw_chrome_icon(self, canvas, size):
         canvas.delete("all")
@@ -3004,9 +3136,10 @@ class MemoryPalApp(tk.Tk):
         self.ensure_nav_item_visible(getattr(self, "current_view", "dashboard"))
         self.after_idle(lambda: self.ensure_nav_item_visible(getattr(self, "current_view", "dashboard")))
 
-    def refresh_nav_selection(self):
+    def refresh_nav_selection(self, current=None):
         if not hasattr(self, "nav_buttons"):
             return
+        current = current or self.current_view
         buttons = dict(self.nav_buttons)
         settings_button = getattr(self, "nav_settings_button", None)
         if settings_button is not None:
@@ -3014,7 +3147,7 @@ class MemoryPalApp(tk.Tk):
         for key, button in buttons.items():
             if not button.winfo_exists():
                 continue
-            button.configure(style="ActiveNav.TButton" if key == self.current_view else "Nav.TButton")
+            button.configure(style="ActiveNav.TButton" if key == current else "Nav.TButton")
 
     def active_profile_number(self):
         profiles = list_profiles()
@@ -3301,24 +3434,9 @@ class MemoryPalApp(tk.Tk):
             "settings": "Personalize appearance, profiles, storage, backups, and focus behavior.",
         }.get(key, "")
 
-    def show_view(self, view, transition=False):
-        """Switch pages under a snapshot of the screen, swapped in one frame.
-
-        Building the new page underneath the old one isn't enough on Windows:
-        parts of the new page showed through, and newly uncovered widgets
-        painted one by one, which read as elements flashing in. The same
-        snapshot swap used for theme and fullscreen changes hides all of it.
-        """
-        if getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False):
-            self._show_view_now(view)
-            return
-        self.run_hidden_change(lambda: self._show_view_now(view))
-
-    def _show_view_now(self, view):
-        # The small line above each title names the part of the app the page
-        # belongs to (Today, Study, Create, Practice, Progress), so people can
-        # tell where they are without reading the rail.
-        titles = {
+    def page_titles(self):
+        """(section, title) shown above each page."""
+        return {
             "dashboard": ("Today", "Dashboard"), "training": ("Practice", "Memory Gym"),
             "elder": ("Everyday support", "Everyday Memory"), "decks": ("Create", "Decks"),
             "plan": ("Today", "Study Plan"), "stats": ("Progress", "Stats & Streaks"),
@@ -3330,6 +3448,131 @@ class MemoryPalApp(tk.Tk):
             "feedback": ("Help us improve", "Feedback Log"), "settings": ("Personalize", "Settings"),
             "welcome": ("Welcome", "Let's set things up"),
         }
+
+    def show_view(self, view, transition=False):
+        """Switch pages under a snapshot of the screen, swapped in one frame.
+
+        Building the new page underneath the old one isn't enough on Windows:
+        parts of the new page showed through, and newly uncovered widgets
+        painted one by one, which read as elements flashing in. The same
+        snapshot swap used for theme and fullscreen changes hides all of it.
+        """
+        if getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False):
+            self._show_view_now(view)
+            return
+        skeleton = self.show_page_skeleton(view) if self.wants_skeleton(view) else None
+
+        def change():
+            try:
+                self._show_view_now(view)
+            finally:
+                if skeleton is not None and skeleton.winfo_exists():
+                    skeleton.destroy()
+
+        started = time.perf_counter()
+        self.run_hidden_change(change)
+        self.__dict__.setdefault("_view_build_ms", {})[view] = (time.perf_counter() - started) * 1000
+
+    # Pages that take long enough to build that a click should show
+    # something straight away; after the first visit the measured time decides.
+    SKELETON_PAGES = {"library": "list", "decks": "list", "stats": "grid", "settings": "list", "dashboard": "grid"}
+    SKELETON_AFTER_MS = 90
+
+    def wants_skeleton(self, view):
+        if view == getattr(self, "current_view", None) or view == "welcome":
+            return False
+        if not hasattr(self, "content") or getattr(self, "tour", None):
+            return False
+        measured = getattr(self, "_view_build_ms", {}).get(view)
+        if measured is None:
+            return view in self.SKELETON_PAGES
+        return measured >= self.SKELETON_AFTER_MS
+
+    def show_page_skeleton(self, view):
+        """Paint a placeholder of the page's layout at once, before building it.
+
+        The page itself still takes a moment to build; the skeleton is on
+        screen during that time so a click answers immediately instead of
+        the old page sitting still. The real page then replaces it in one
+        frame (the build runs under run_hidden_change).
+        """
+        try:
+            width, height = self.content.winfo_width(), self.content.winfo_height()
+            if width < 40 or height < 40:
+                return None
+            canvas = tk.Canvas(self.content, bg=COLORS["bg"], highlightthickness=0, bd=0, takefocus=0)
+            canvas.place(x=0, y=0, relwidth=1, relheight=1)
+            self.tk.call("raise", canvas._w)  # Canvas.lift() raises canvas items, not the widget
+            self.draw_page_skeleton(canvas, self.SKELETON_PAGES.get(view, "grid"), width, height)
+            section, title = self.page_titles().get(view, ("", ""))
+            self.eyebrow.configure(text=section)
+            self.title_label.configure(text=title)
+            self.refresh_nav_selection(view)
+            self.update_idletasks()
+            flush_pending_paint(self)
+            return canvas
+        except (tk.TclError, AttributeError):
+            return None
+
+    def draw_page_skeleton(self, canvas, kind, width, height):
+        card = COLORS["surface"]
+        bar = self.tint(card, -7 if self.theme == "light" else 9)
+        radius, gap = self.px(14), self.px(16)
+        pad = self.px(22)
+
+        def block(x1, y1, x2, y2, fill, r=radius):
+            r = max(1, min(r, (x2 - x1) // 2, (y2 - y1) // 2))
+            points = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2,
+                      x2 - r, y2, x1 + r, y2, x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
+            canvas.create_polygon(points, smooth=True, fill=fill, outline="")
+
+        def lines(x1, y1, x2, count=2):
+            span = x2 - x1
+            for index, share in enumerate((0.42, 0.78, 0.6)[:count]):
+                top = y1 + index * self.px(22)
+                block(x1, top, x1 + int(span * share), top + self.px(10), bar, self.px(5))
+
+        right = width - self.px(8)
+        y = 0
+        if kind == "list":
+            # A search/filter row, a row of buttons, then the list of cards.
+            control = self.px(40)
+            block(0, y, int(right * 0.6), y + control, card, self.px(9))
+            block(int(right * 0.6) + gap, y, right, y + control, card, self.px(9))
+            y += control + self.px(12)
+            third = (right - 2 * gap) // 3
+            for index in range(3):
+                x = index * (third + gap)
+                block(x, y, x + third, y + control, card, self.px(9))
+            y += control + gap
+            row = self.px(104)
+            while y < height:
+                block(0, y, right, y + row, card)
+                lines(pad, y + pad, right - pad, 3)
+                y += row + gap
+        else:
+            tiles = 4 if width > self.px(900) else 2
+            tile_w = (right - gap * (tiles - 1)) // tiles
+            tile_h = self.px(112)
+            for index in range(tiles):
+                x = index * (tile_w + gap)
+                block(x, y, x + tile_w, y + tile_h, card)
+                lines(x + pad, y + pad, x + tile_w - pad, 2)
+            y += tile_h + gap
+            half = (right - gap) // 2
+            big = max(self.px(160), (height - y - gap) // 2)
+            while y < height:
+                block(0, y, half, y + big, card)
+                lines(pad, y + pad, half - pad, 3)
+                block(half + gap, y, right, y + big, card)
+                lines(half + gap + pad, y + pad, right - pad, 3)
+                y += big + gap
+
+    def _show_view_now(self, view):
+        # The small line above each title names the part of the app the page
+        # belongs to (Today, Study, Create, Practice, Progress), so people can
+        # tell where they are without reading the rail.
+        titles = self.page_titles()
         self.speaker.stop()
         self.audio_player.stop()
         self.clear_text_selection()
