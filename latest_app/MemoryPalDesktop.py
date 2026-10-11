@@ -130,6 +130,25 @@ def set_window_redraw(widget, enabled):
         return False
 
 
+def set_fine_timers(enabled):
+    """Ask Windows for 1ms timer resolution while an animation runs.
+
+    Windows wakes timers on a ~15.6ms tick by default, so Tk's after(8)
+    really waited 16 or 31ms and a scroll glide stepped at an uneven 30-60fps.
+    Calls must be paired; returns True if the resolution was changed.
+    """
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+
+        winmm = ctypes.windll.winmm
+        (winmm.timeBeginPeriod if enabled else winmm.timeEndPeriod)(1)
+        return True
+    except (AttributeError, OSError):
+        return False
+
+
 def flush_pending_paint(widget):
     """Draw queued Expose events now instead of on a later event-loop pass."""
     try:
@@ -290,6 +309,8 @@ class ScrollFrame(ttk.Frame):
     changed the measured scroll region, which in turn moved the content again.
     """
 
+    FRAME_MS = 1000 / 60  # wheel glide pacing: one step per 60Hz frame
+
     def __init__(self, parent, horizontal=False, min_width=0, bottom_padding=None):
         super().__init__(parent)
         self.horizontal = horizontal
@@ -319,6 +340,7 @@ class ScrollFrame(ttk.Frame):
         self._live_cover = None  # (window, geometry) of the snapshot kept up while scrolling
         self._live_cover_after = None
         self._glide_time = None
+        self._fine_timers = False
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
@@ -559,17 +581,26 @@ class ScrollFrame(ttk.Frame):
             if step:
                 self._scroll_pixels(step, axis=axis)
         if self._wheel_targets and not self._destroyed:
-            # Each step waits for the screen while a cover is up, which paces
-            # the glide; without one, don't spin faster than ~120 steps a second.
-            self._wheel_after = self.after(1 if self._live_cover is not None else 8, self._glide_wheel)
+            if not self._fine_timers:
+                self._fine_timers = set_fine_timers(True)
+            # One step per 60Hz frame, timed from when this frame started so
+            # the work done in it doesn't stretch the gap to the next one.
+            spent = (time.perf_counter() - now) * 1000
+            self._wheel_after = self.after(max(1, round(self.FRAME_MS - spent)), self._glide_wheel)
         else:
-            self._glide_time = None
+            self._end_glide_timing()
+
+    def _end_glide_timing(self):
+        self._glide_time = None
+        if self._fine_timers:
+            set_fine_timers(False)
+            self._fine_timers = False
 
     def _stop_glide(self):
         """A scrollbar drag, page key or jump takes over from a wheel glide."""
         self._wheel_targets.clear()
         self._glide_last.clear()
-        self._glide_time = None
+        self._end_glide_timing()
 
     def _wheel_units(self, event, axis="y"):
         number = getattr(event, "num", None)
@@ -800,6 +831,7 @@ class ScrollFrame(ttk.Frame):
     def destroy(self):
         self._destroyed = True
         self._release_live_cover()
+        self._end_glide_timing()
         try:
             if self._region_after is not None:
                 self.after_cancel(self._region_after)
@@ -3450,43 +3482,52 @@ class MemoryPalApp(tk.Tk):
         }
 
     def show_view(self, view, transition=False):
-        """Switch pages under a snapshot of the screen, swapped in one frame.
+        """Switch pages behind a skeleton of the new page.
 
-        Building the new page underneath the old one isn't enough on Windows:
-        parts of the new page showed through, and newly uncovered widgets
-        painted one by one, which read as elements flashing in. The same
-        snapshot swap used for theme and fullscreen changes hides all of it.
+        The placeholder goes up at once, the real page is built out of sight
+        beneath it, and it comes off with painting paused, so the finished page
+        appears in one pass. Re-showing the current page is an in-place
+        update and still uses the snapshot swap.
         """
         if getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False):
             self._show_view_now(view)
             return
         skeleton = self.show_page_skeleton(view) if self.wants_skeleton(view) else None
-
-        def change():
+        if skeleton is None:
+            # Re-showing the same page (or the welcome page): an in-place
+            # update, built under the snapshot like other in-page changes.
+            self.run_hidden_change(lambda: self._show_view_now(view))
+            return
+        # A real page change: the skeleton is already on screen, so the page
+        # is built underneath it (out of sight) with no snapshot, then the
+        # skeleton comes off with painting paused, so the finished page is
+        # drawn in one pass rather than widget by widget.
+        try:
+            self._show_view_now(view)
+        finally:
+            frozen = self.set_redraw_frozen(True)
             try:
-                self._show_view_now(view)
-            finally:
-                if skeleton is not None and skeleton.winfo_exists():
+                if skeleton.winfo_exists():
                     skeleton.destroy()
+                self.settle_layout()
+            finally:
+                if frozen:
+                    self.set_redraw_frozen(False)
+                flush_pending_paint(self)
 
-        started = time.perf_counter()
-        self.run_hidden_change(change)
-        self.__dict__.setdefault("_view_build_ms", {})[view] = (time.perf_counter() - started) * 1000
-
-    # Pages that take long enough to build that a click should show
-    # something straight away; after the first visit the measured time decides.
-    SKELETON_PAGES = {"library": "list", "decks": "list", "stats": "grid", "settings": "list", "dashboard": "grid"}
-    SKELETON_AFTER_MS = 90
+    # The placeholder layout each page shows while it is built (default "grid").
+    SKELETON_PAGES = {
+        "library": "list", "decks": "list", "settings": "list", "feedback": "list", "capture": "list",
+        "stats": "grid", "dashboard": "grid", "training": "grid", "games": "grid", "elder": "grid", "tools": "grid",
+        "focus": "study", "review": "study", "quiz": "study", "testing": "study", "shuffle": "study",
+        "cuelab": "study", "plan": "study",
+    }
 
     def wants_skeleton(self, view):
+        """Every page change shows a skeleton, so all of them look and feel the same."""
         if view == getattr(self, "current_view", None) or view == "welcome":
             return False
-        if not hasattr(self, "content") or getattr(self, "tour", None):
-            return False
-        measured = getattr(self, "_view_build_ms", {}).get(view)
-        if measured is None:
-            return view in self.SKELETON_PAGES
-        return measured >= self.SKELETON_AFTER_MS
+        return hasattr(self, "content") and not getattr(self, "tour", None)
 
     def show_page_skeleton(self, view):
         """Paint a placeholder of the page's layout at once, before building it.
@@ -3550,6 +3591,23 @@ class MemoryPalApp(tk.Tk):
                 block(0, y, right, y + row, card)
                 lines(pad, y + pad, right - pad, 3)
                 y += row + gap
+        elif kind == "study":
+            # One large working card (the question or the session), a row of
+            # buttons under it, then a smaller card.
+            big = max(self.px(200), int(height * 0.48))
+            block(0, y, right, y + big, card)
+            lines(pad, y + pad, right - pad, 3)
+            y += big + gap
+            control = self.px(40)
+            quarter = (right - 3 * gap) // 4
+            for index in range(4):
+                x = index * (quarter + gap)
+                block(x, y, x + quarter, y + control, card, self.px(9))
+            y += control + gap
+            while y < height:
+                block(0, y, right, y + self.px(140), card)
+                lines(pad, y + pad, right - pad, 2)
+                y += self.px(140) + gap
         else:
             tiles = 4 if width > self.px(900) else 2
             tile_w = (right - gap * (tiles - 1)) // tiles
@@ -4507,7 +4565,9 @@ class MemoryPalApp(tk.Tk):
 
     def check_toggle(self, parent, variable, text, on_change=None, bg=None, wraplength=520, fit=False):
         bg = bg or COLORS["surface"]
-        row = tk.Frame(parent, bg=bg, cursor="hand2")
+        # Reachable with Tab and ticked with Space, with a visible focus ring.
+        row = tk.Frame(parent, bg=bg, cursor="hand2", takefocus=1, highlightthickness=max(1, self.px(2)),
+                       highlightbackground=bg, highlightcolor=self.focus_color())
         size = self.px(19)
         box = tk.Canvas(row, width=size, height=size, highlightthickness=0, bg=bg, cursor="hand2")
         box.pack(side="left", padx=(0, self.px(9)))
@@ -4534,6 +4594,7 @@ class MemoryPalApp(tk.Tk):
 
         for widget in (row, box, label):
             widget.bind("<Button-1>", toggle)
+        row.bind("<space>", toggle)
         draw()
         return row
 
@@ -8843,11 +8904,9 @@ class MemoryPalApp(tk.Tk):
                 agreed = tk.BooleanVar(value=False)
                 row = tk.Frame(content, bg=COLORS["surface"])
                 row.pack(fill="x", pady=(self.px(12), 0))
-                tk.Checkbutton(
-                    row, text="I agree to the Terms of Use and Privacy Policy", variable=agreed,
-                    bg=COLORS["surface"], fg=COLORS["ink"], activebackground=COLORS["surface"], activeforeground=COLORS["ink"],
-                    selectcolor=COLORS["surface"], font=self.font("Segoe UI", 10), anchor="w", highlightthickness=0, takefocus=1,
-                ).pack(anchor="w")
+                # The app's own tick box: Tk's native one drew a white-edged
+                # square that didn't match the theme.
+                self.check_toggle(row, agreed, "I agree to the Terms of Use and Privacy Policy", wraplength=560).pack(anchor="w", fill="x")
                 links = tk.Frame(row, bg=COLORS["surface"])
                 links.pack(anchor="w", padx=(self.px(24), 0))
                 for label, url in (("Read the Terms of Use", cloud_config.TERMS_URL), ("Read the Privacy Policy", cloud_config.PRIVACY_URL)):
