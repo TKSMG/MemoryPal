@@ -2602,34 +2602,48 @@ class MemoryPalApp(tk.Tk):
         host = getattr(self, "nav_list_host", None)
         if not host or not host.winfo_exists():
             return 7
-        try:
-            height = max(1, host.winfo_height())
-        except tk.TclError:
-            return 7
-        # Measure the real Previous/Next controls, range label and nav button
-        # height rather than guessing, so the last item is never clipped
-        # behind the footer. Both controls are always reserved so the count
-        # doesn't change (and reshuffle the list) when one appears.
-        try:
-            footer_h = (
-                self.nav_down_button.winfo_reqheight() + self.px(2)
-                + self.nav_range_label.winfo_reqheight() + self.px(6)
-                + self.px(26)
-            )
-            up_h = self.nav_up_button.winfo_reqheight() + self.px(8)
-        except (AttributeError, tk.TclError):
-            footer_h, up_h = self.px(90), self.px(46)
         item_step = max(getattr(self, "_nav_item_step", 0) or self.px(46), 1)
         total = len(getattr(self, "nav_items_cache", None) or self.ordered_nav_items())
         # Show every page when they fit (the usual case); only fall back to
-        # Previous/Next paging on short windows or very large text. The old
-        # cap of eight hid more than half of the pages behind "Next pages".
-        if int((height - self.nav_pinned_height() - 2 * self.nav_top_padding()) // item_step) >= total:
+        # Previous/Next paging on short windows or very large text.
+        if self.nav_list_room(False, False) // item_step >= total:
             return total
-        top_h = max(self.nav_top_padding(False), self.nav_top_padding(True) + up_h)
-        reserved = footer_h + top_h + self.px(6) + self.nav_pinned_height()
-        count = int((height - reserved) // item_step)
+        # Both controls are always reserved so the count doesn't change (and
+        # reshuffle the list) when one appears.
+        count = self.nav_list_room(True, True) // item_step
         return max(3, min(total, count))
+
+    def nav_list_room(self, previous, more):
+        """Height left for page items once the list's surroundings are placed.
+
+        Measured from the real Previous/More controls, range label and pinned
+        Settings rather than guessed, so the last item is never clipped and
+        the spare space can be centred exactly."""
+        try:
+            height = self.nav_list_host.winfo_height()
+            used = self.px(6) + self.nav_pinned_height()  # list's top pady, Settings block
+            if previous:
+                used += self.nav_up_button.winfo_reqheight() + self.px(8)
+            if previous or more:
+                used += self.nav_range_label.winfo_reqheight() + self.px(6)
+            if more:
+                used += self.nav_down_button.winfo_reqheight() + self.px(2)
+        except (AttributeError, tk.TclError):
+            return 0
+        top, bottom = self.nav_edge_padding(previous, more)
+        return max(0, int(height - used - top - bottom))
+
+    def nav_edge_padding(self, previous, more):
+        """Minimum spacer heights above and below the page list.
+
+        The fixed padding already above the list (the list's own pady, plus
+        the Previous control's) differs from the padding below it (the
+        footer's, plus the pinned block's or range label's), so the spacers
+        make up the difference and the visible gaps come out equal."""
+        above = self.px(6) + (self.px(8) if previous else 0)
+        below = self.px(4) + (0 if more else self.px(6))
+        base = self.nav_top_padding()
+        return base + max(0, below - above), base + max(0, above - below)
 
     def nav_pinned_height(self):
         """Height taken by the pinned Settings item and the footer's padding."""
@@ -2717,24 +2731,22 @@ class MemoryPalApp(tk.Tk):
         above = first > 0
         below = end < len(items)
 
-        # The list starts right under the brand. When everything fits, the
-        # spare height is shared out as even spacing between items (up to a
-        # comfortable maximum) so the pages fill the rail instead of bunching
-        # at the top above an empty gap; Settings sits pinned at the bottom.
+        # Spare height is shared out as even spacing between items (up to a
+        # comfortable maximum) so the pages fill the rail; whatever is left
+        # goes equally above and below (both spacers expand), so the list is
+        # centred between the brand or Previous control and the More control
+        # or Settings at every scale.
         top_padding = self.nav_top_padding(has_previous=above)
-        spacer = tk.Frame(host, bg=COLORS["rail"], height=top_padding)
-        spacer.pack(fill="x")
+        top_edge, bottom_edge = self.nav_edge_padding(above, below)
+        spacer = tk.Frame(host, bg=COLORS["rail"], height=top_edge)
+        spacer.pack(fill="both", expand=True)
         self.bind_nav_wheel(spacer)
 
         gap = self.px(1)
         base_step = getattr(self, "_nav_item_step", 0)
-        if not (above or below) and base_step and end > first:
-            try:
-                room = self.nav_list_host.winfo_height() - self.nav_pinned_height() - 2 * top_padding
-            except (AttributeError, tk.TclError):
-                room = 0
-            spare = room - (end - first) * base_step
-            gap += int(clamp(spare / max(1, end - first), 0, self.px(14)) // 2)
+        if base_step and end > first:
+            spare = self.nav_list_room(above, below) - (end - first) * base_step
+            gap += int(clamp(spare / (end - first), 0, self.px(14)) // 2)
         self._nav_spacing_state = (getattr(self.nav_list_host, "winfo_height", lambda: 0)(), gap)
 
         for key, label, _short in items[first:end]:
@@ -2749,7 +2761,7 @@ class MemoryPalApp(tk.Tk):
             self.add_tooltip(button, self.nav_hint(key))
             self.nav_buttons[key] = button
 
-        bottom_spacer = tk.Frame(host, bg=COLORS["rail"], height=top_padding)
+        bottom_spacer = tk.Frame(host, bg=COLORS["rail"], height=bottom_edge)
         bottom_spacer.pack(fill="both", expand=True)
         self.bind_nav_wheel(bottom_spacer)
 
