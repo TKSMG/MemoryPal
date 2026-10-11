@@ -325,7 +325,13 @@ def security_cases():
         wait = limiter.wait_seconds("pat@example.com ")
         steps.append({"action": action, "advance": advance, "wait": wait, "message": security.wait_message(wait) if wait else ""})
     waits = [{"seconds": seconds, "message": security.wait_message(seconds)} for seconds in (5, 30, 89, 90, 150, 210, 900)]
-    return {"passwords": passwords, "limiter": steps, "waits": waits}
+    # Birthdays around the 13th, on both sides of the current month, plus bad input.
+    ages = []
+    for month, year in [(10, 2013), (11, 2013), (9, 2013), (10, 2012), (12, 2012), (1, 2014), (6, 1950), (13, 2000),
+                        (0, 2000), ("", 2000), ("x", "2000"), (" 3 ", " 2001 "), ("+3", "2001"), (5, 2027), (5, 1890), ("1_0", "2000"), ("3.5", "2000")]:
+        message, under = security.account_age_check(month, year, 2026, 10)
+        ages.append({"month": month, "year": year, "message": message, "under": under})
+    return {"passwords": passwords, "limiter": steps, "waits": waits, "ages": ages}
 
 
 def main():

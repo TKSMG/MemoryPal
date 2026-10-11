@@ -160,3 +160,38 @@ def wait_message(seconds):
     if seconds >= 90:
         return f"Too many tries. Please wait about {round(seconds / 60)} minutes before trying again."
     return f"Too many tries. Please wait {seconds} seconds before trying again."
+
+
+# Accounts (and so any personal data leaving the device) are for people 13
+# and older, as children's privacy laws expect (COPPA in the US). Everything
+# else in MemoryPal works without an account, for any age.
+MIN_ACCOUNT_AGE = 13
+# A refused age check holds on that device for a day, so the answer can't
+# simply be changed and sent again.
+AGE_RETRY_SECONDS = 24 * 60 * 60
+# Bump when the Terms or Privacy Policy change; stored with each new account.
+TERMS_VERSION = "2026-10-12"
+AGE_FORMAT_MESSAGE = "Enter the month (1-12) and the year you were born."
+UNDER_AGE_MESSAGE = (
+    f"MemoryPal accounts are for people {MIN_ACCOUNT_AGE} and older. You can keep using "
+    "everything on this device without an account; your cards stay saved here."
+)
+
+
+def account_age_check(month, year, today_year, today_month):
+    """("", False) when old enough for an account, else (message, under_age).
+
+    Only the month and year are asked, and nothing is kept. When the birth
+    month is the current month the birthday is treated as not reached yet,
+    so the check never lets someone through a year early.
+    """
+    month, year = str(month).strip(), str(year).strip()
+    if not re.fullmatch(r"[+-]?[0-9]+", month) or not re.fullmatch(r"[+-]?[0-9]+", year):
+        return AGE_FORMAT_MESSAGE, False
+    month, year = int(month), int(year)
+    if not 1 <= month <= 12 or not today_year - 120 <= year <= today_year:
+        return AGE_FORMAT_MESSAGE, False
+    age = today_year - year - (1 if today_month <= month else 0)
+    if age < MIN_ACCOUNT_AGE:
+        return UNDER_AGE_MESSAGE, True
+    return "", False

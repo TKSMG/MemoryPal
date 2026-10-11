@@ -71,6 +71,8 @@ FRIENDLY = {
     "insufficient_aal": "Finish two-step sign-in first: enter the code from your authenticator app.",
     "mfa_factor_not_found": "Two-step sign-in isn't set up for this account any more.",
     "too_many_enrolled_mfa_factors": "Two-step sign-in is already set up. Turn it off first to set it up again.",
+    # The per-person storage allowance in schema.sql (sync_records_quota).
+    "P0001": "Your cloud copy is full. Delete cards or notes you no longer need, then sync again.",
     # Row Level Security refused the request (for two-step accounts: no second step yet).
     "42501": "MemoryPal couldn't reach your cloud data. Sign out and sign in again (with your authenticator code if you use one).",
 }
@@ -179,10 +181,17 @@ class CloudClient:
         return CloudError(text or f"The MemoryPal cloud answered with an error ({exc.code}).", code or str(exc.code))
 
     # ----------------------------------------------------------------- auth
-    def sign_up(self, email, password):
-        """Create an account. Returns a Session, or None when the email must be confirmed first."""
+    def sign_up(self, email, password, consent=None):
+        """Create an account. Returns a Session, or None when the email must be confirmed first.
+
+        `consent` (see consent_record) is kept with the account as a record
+        that the person confirmed their age and accepted the Terms.
+        """
         check_password(password, email)
-        data = self.request("POST", "/auth/v1/signup", {"email": email.strip(), "password": password}) or {}
+        body = {"email": email.strip(), "password": password}
+        if consent:
+            body["data"] = dict(consent)
+        data = self.request("POST", "/auth/v1/signup", body) or {}
         return Session.from_auth(data) if data.get("access_token") else None
 
     def verify_code(self, email, code, kind="signup"):
@@ -270,6 +279,38 @@ class CloudClient:
             )
 
 
+def consent_record(now=None):
+    """What a new account keeps about consent: no birth date, just the outcome."""
+    moment = time.gmtime(now if now is not None else time.time())
+    return {
+        "age_confirmed": f"{security.MIN_ACCOUNT_AGE}+",
+        "terms_version": security.TERMS_VERSION,
+        "terms_accepted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", moment),
+    }
+
+
+class AgeGate:
+    """Remembers, on this device, that an age check refused an account (for a day)."""
+
+    def __init__(self, folder, clock=time.time):
+        self.path = Path(folder) / "age-check.json"
+        self.clock = clock
+
+    def blocked(self):
+        try:
+            until = float(json.loads(self.path.read_text(encoding="utf-8")).get("refused_until", 0))
+        except (OSError, ValueError, AttributeError, TypeError):
+            return False
+        return self.clock() < until
+
+    def refuse(self):
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps({"refused_until": self.clock() + security.AGE_RETRY_SECONDS}), encoding="utf-8")
+        except OSError:
+            pass
+
+
 def check_password(password, email=""):
     """Refuse weak passwords before they reach the server (which checks again)."""
     problems = security.password_problems(password, email)
@@ -322,7 +363,15 @@ class TokenStore:
             blob = b"PLAIN1" + base64.b64encode(raw)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.path.with_name(self.path.name + ".tmp")
-        temp.write_bytes(blob)
+        try:
+            temp.unlink()
+        except OSError:
+            pass
+        # Owner-only from the moment it exists (matters off Windows, where
+        # there is no DPAPI and the file itself is the protection).
+        handle = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0), 0o600)
+        with os.fdopen(handle, "wb") as file:
+            file.write(blob)
         os.replace(temp, self.path)
 
     def load(self):

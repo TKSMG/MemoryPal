@@ -8,7 +8,7 @@ import { newCard } from '../src/core/models';
 import { buildMultiDayPlan, buildStudyPlan, PlanStep } from '../src/core/planning';
 import { achievements, bestStreak, dueForecast, levelInfo, maturityBreakdown, ratingMix } from '../src/core/progress';
 import { sequenceRatio } from '../src/core/py';
-import { AttemptLimiter, characterClasses, passwordProblems, passwordStrength, predictable, waitMessage } from '../src/core/security';
+import { AttemptLimiter, accountAgeCheck, characterClasses, passwordProblems, passwordStrength, predictable, waitMessage } from '../src/core/security';
 import { answerAssessment } from '../src/core/smartCheck';
 import { MemoryStore } from '../src/core/store';
 import { payloadFromRecords, planSync, recordsFromPayload, Records, Remote } from '../src/core/sync';
@@ -116,6 +116,13 @@ describe('parity with the desktop logic', () => {
       expect({ i, wait, message: wait ? waitMessage(wait) : '' }).toEqual({ i, wait: step.wait, message: step.message });
     }
     for (const item of fixtures.security.waits) expect(waitMessage(item.seconds)).toBe(item.message);
+  });
+
+  test('the account age check agrees', () => {
+    for (const item of fixtures.security.ages) {
+      const [message, under] = accountAgeCheck(item.month, item.year, 2026, 10);
+      expect({ ...item, message, under }).toEqual(item);
+    }
   });
 
   test('profile data converts to sync records and back the same way', () => {
