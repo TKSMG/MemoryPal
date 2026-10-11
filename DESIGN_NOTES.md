@@ -90,6 +90,8 @@ Navigation rail:
 - The list starts just under the logo with one fixed rhythm between items, like a Mac sidebar; spare height collects below it, not around it.
 - The active destination is a calm filled pill, not a bright block. Pages inside a destination (Review inside Study, Puzzles inside Practice) light up their destination.
 - The line above each page title names the destination it belongs to.
+- Every rail row has a line icon (`LINE_ICONS`, drawn on a 24-unit grid with one stroke weight, like SF Symbols) and rows are 44px tall, the size of a comfortable click target. Icons are drawn in code, so there is no image file to ship and they follow the theme colours.
+- Hub tiles carry the same icons in a tinted square. When a hub has four or fewer tiles, the rows share the visible height (up to a cap) so the tiles fill the page instead of leaving an empty band below.
 
 Destructive actions: never put them next to everyday actions. Reset all data lives in Settings. Delete card lives inside the card editor, behind a confirmation. Import shows how many cards a backup has and keeps a copy of the current data before replacing it.
 
