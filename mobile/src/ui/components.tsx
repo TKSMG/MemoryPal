@@ -23,14 +23,17 @@ export type IconName = keyof typeof Ionicons.glyphMap;
 // ---------------------------------------------------------------- text
 type Variant = 'title' | 'h2' | 'h3' | 'body' | 'muted' | 'label' | 'small' | 'big';
 
+// Apple's text styles: Large Title 34, Title 2 22, Headline 17 semibold,
+// Body 17, Subheadline 15, Footnote 13. Body keeps a roomier 24pt line for
+// longer reading.
 const SIZES: Record<Variant, [number, TextStyle['fontWeight'], number]> = {
-  title: [30, '700', 36],
+  title: [34, '700', 41],
   big: [40, '700', 46],
-  h2: [21, '700', 27],
-  h3: [18, '600', 24],
+  h2: [22, '700', 28],
+  h3: [17, '600', 22],
   body: [17, '400', 24],
-  muted: [15, '400', 21],
-  label: [13, '700', 18],
+  muted: [15, '400', 20],
+  label: [13, '600', 18],
   small: [13, '400', 18],
 };
 
@@ -44,7 +47,6 @@ export function Txt({ variant = 'body', color, style, children, center, ...rest 
       accessibilityRole={rest.accessibilityRole ?? (variant === 'title' || variant === 'h2' ? 'header' : undefined)}
       style={[
         { color: tone, fontSize: theme.font(size), lineHeight: theme.font(line), fontWeight: weight },
-        variant === 'label' && { letterSpacing: 0.6, textTransform: 'uppercase' },
         center && { textAlign: 'center' },
         style,
       ]}
@@ -56,6 +58,9 @@ export function Txt({ variant = 'body', color, style, children, center, ...rest 
 }
 
 // -------------------------------------------------------------- screen
+/** Lines stay readable on iPad and in landscape: content stops growing here and centres. */
+const READABLE_WIDTH = 720;
+
 export function Screen({ title, eyebrow, right, children, scroll = true, padded = true }: { title?: string; eyebrow?: string; right?: ReactNode; children: ReactNode; scroll?: boolean; padded?: boolean }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -71,16 +76,18 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
   const pad = padded ? { paddingHorizontal: 20 } : null;
   if (!scroll) {
     return (
-      <View style={[{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: insets.top + 12 }, pad]}>
-        {header}
-        {children}
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+        <View style={[styles.readable, { flex: 1, paddingTop: insets.top + 12 }, pad]}>
+          {header}
+          {children}
+        </View>
       </View>
     );
   }
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      contentContainerStyle={[{ paddingTop: insets.top + 12, paddingBottom: 40, gap: 16 }, pad]}
+      contentContainerStyle={[styles.readable, { paddingTop: insets.top + 12, paddingBottom: 40, gap: 16 }, pad]}
       keyboardShouldPersistTaps="handled"
     >
       {header}
@@ -90,7 +97,7 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
 }
 
 // ---------------------------------------------------------------- card
-export function Card({ children, tone = 'default', style, onPress, accessibilityLabel, accessibilityHint }: { children: ReactNode; tone?: 'default' | 'alt' | 'warm' | 'primary'; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string }) {
+export function Card({ children, tone = 'default', style, onPress, accessibilityLabel, accessibilityHint, accessibilityRole = 'button', accessibilityState }: { children: ReactNode; tone?: 'default' | 'alt' | 'warm' | 'primary'; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; accessibilityRole?: 'button' | 'radio'; accessibilityState?: { selected?: boolean; checked?: boolean } }) {
   const theme = useTheme();
   const background = { default: theme.colors.surface, alt: theme.colors.alt, warm: theme.colors.warm, primary: theme.colors.primary }[tone];
   const base: StyleProp<ViewStyle> = [styles.card, { backgroundColor: background, borderColor: tone === 'default' ? theme.colors.line : 'transparent' }, style];
@@ -98,10 +105,11 @@ export function Card({ children, tone = 'default', style, onPress, accessibility
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
+      accessibilityRole={accessibilityRole}
+      accessibilityState={accessibilityState}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
-      style={({ pressed }) => [base, pressed && { opacity: 0.85 }]}
+      style={({ pressed }) => [base, pressed && { opacity: 0.85 }, pressed && !theme.reduceMotion && styles.pressedCard]}
     >
       {children}
     </Pressable>
@@ -145,6 +153,8 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
         styles.button,
         { backgroundColor: pressed ? pressedBg : bg, minHeight: compact ? 44 : 52, opacity: disabled ? 0.45 : 1 },
         kind === 'secondary' && { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.line },
+        // A press answers the moment the finger lands, not on release.
+        pressed && !disabled && !theme.reduceMotion && styles.pressedButton,
         style,
       ]}
     >
@@ -313,6 +323,9 @@ export function Icon({ name, size = 22, color }: { name: IconName; size?: number
 }
 
 const styles = StyleSheet.create({
+  readable: { width: '100%', maxWidth: READABLE_WIDTH, alignSelf: 'center' },
+  pressedCard: { transform: [{ scale: 0.98 }] },
+  pressedButton: { transform: [{ scale: 0.97 }] },
   header: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginBottom: 4 },
   card: { borderRadius: 18, padding: 18, gap: 10, borderWidth: StyleSheet.hairlineWidth },
   button: { borderRadius: 14, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
