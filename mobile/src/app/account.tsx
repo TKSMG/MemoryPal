@@ -98,8 +98,8 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
   // On the first-launch page, signing in moves straight on to the setup
   // questions (or to Today when the account already brought them along).
   useEffect(() => {
-    if (intro && account.signedIn) router.replace(onboarded ? '/' : '/welcome');
-  }, [intro, account.signedIn, onboarded]);
+    if (intro && account.signedIn && !sync.syncing) router.replace(onboarded ? '/' : '/welcome');
+  }, [intro, account.signedIn, sync.syncing, onboarded]);
 
   const continueWithout = () => {
     sync.markPrompted();

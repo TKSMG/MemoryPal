@@ -116,6 +116,9 @@ export function Card({ children, tone = 'default', style, onPress, accessibility
   return (
     <Pressable
       onPress={onPress}
+      // A short delay keeps the pressed look off cards a finger only lands
+      // on to start scrolling.
+      unstable_pressDelay={80}
       accessibilityRole={accessibilityRole}
       accessibilityState={accessibilityState}
       accessibilityLabel={accessibilityLabel}
