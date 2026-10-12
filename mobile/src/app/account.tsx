@@ -1,18 +1,18 @@
 /**
- * Account & sync: sign in, create an account (confirmed with a 6-digit email
- * code), reset a forgotten password with a code, two-step sign-in with an
+ * Account & sync: sign in, create an account (confirmed with a code from the
+ * email), reset a forgotten password with a code, two-step sign-in with an
  * authenticator app, and sync status. Mirrors the desktop's account dialogs.
  */
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Linking, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Linking, View } from 'react-native';
 
 import { checkPassword, CloudError, consentRecord, legalLinks, looksLikeEmail, needsSecondStep, Session } from '../cloud/client';
 import { leakedMessage, pwnedCount } from '../cloud/pwned';
 import { readSecret, writeSecret } from '../cloud/secrets';
 import { accountAgeCheck, AGE_RETRY_SECONDS, AttemptLimiter, MIN_PASSWORD, passwordProblems, passwordStrength, STRENGTH_LABELS, UNDER_AGE_MESSAGE, waitMessage } from '../core/security';
-import { useSync } from '../state/AppState';
+import { useStore, useSync } from '../state/AppState';
 import { Button, Card, Field, Pills, ProgressBar, Row, Screen, ToggleRow, Txt } from '../ui/components';
 import { confirm, notify } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
@@ -56,8 +56,25 @@ async function checkNotLeaked(password: string) {
   if (seen) throw new CloudError(leakedMessage(seen), 'pwned_password');
 }
 
+/** One line on where sync stands. */
+function syncStatus(syncing: boolean, error: string, auto: boolean, last: string): string {
+  if (syncing) return 'Syncing…';
+  if (error) return error;
+  const when = last ? ` Last synced ${last}.` : ' Not synced yet.';
+  return auto ? `Syncs automatically.${when}` : `Automatic sync is off.${when}`;
+}
+
 export default function Account() {
+  return <AccountScreen />;
+}
+
+/**
+ * The account screen. With `intro` it is the first page a new install shows:
+ * sign in or create an account, or go on without one, then the setup questions.
+ */
+export function AccountScreen({ intro = false }: { intro?: boolean }) {
   const sync = useSync();
+  const store = useStore();
   const theme = useTheme();
   const c = theme.colors;
   const account = sync.account;
@@ -76,6 +93,18 @@ export default function Account() {
   const [birthYear, setBirthYear] = useState('');
   const [agreed, setAgreed] = useState(false);
   const links = legalLinks();
+  const onboarded = store.onboarding.done;
+
+  // On the first-launch page, signing in moves straight on to the setup
+  // questions (or to Today when the account already brought them along).
+  useEffect(() => {
+    if (intro && account.signedIn) router.replace(onboarded ? '/' : '/welcome');
+  }, [intro, account.signedIn, onboarded]);
+
+  const continueWithout = () => {
+    sync.markPrompted();
+    router.replace(onboarded ? '/' : '/welcome');
+  };
 
   const run = async (work: () => Promise<void>) => {
     if (busy) return;
@@ -122,7 +151,7 @@ export default function Account() {
     } catch (failure) {
       if (failure instanceof CloudError && failure.code === 'email_not_confirmed') {
         await client.resendConfirmation(email);
-        go('code', `We sent a new 6-digit code to ${email.trim()}.`);
+        go('code', `We sent a new code to ${email.trim()}.`);
         return;
       }
       throw failure;
@@ -144,7 +173,7 @@ export default function Account() {
     await checkNotLeaked(password);
     const session = await client.signUp(email, password, consentRecord());
     if (session) await sync.signedIn(session);
-    else go('code', `We sent a 6-digit code to ${email.trim()}. It can take a minute; check the spam folder too.`);
+    else go('code', `We sent a code to ${email.trim()}. It can take a minute; check the spam folder too.`);
   });
 
   const confirmCode = () => run(async () => {
@@ -154,7 +183,7 @@ export default function Account() {
   const sendReset = () => run(async () => {
     requireEmail();
     await client.requestPasswordReset(email);
-    go('reset-code', `If ${email.trim()} has a MemoryPal account, a 6-digit code is on its way there.`);
+    go('reset-code', `If ${email.trim()} has a MemoryPal account, a code is on its way there.`);
   });
 
   const finishReset = () => run(async () => {
@@ -265,12 +294,20 @@ export default function Account() {
           <Txt variant="label">Signed in</Txt>
           <Txt variant="h2">{account.email}</Txt>
           <View accessibilityLiveRegion="polite">
-            <Txt variant="muted">{sync.syncing ? 'Syncing…' : sync.error ? sync.error : last ? `Last synced ${last}.` : 'Not synced yet.'}</Txt>
+            <Txt variant="muted">{syncStatus(sync.syncing, sync.error, sync.auto, last)}</Txt>
           </View>
-          <Button kind="primary" label={sync.syncing ? 'Syncing…' : 'Sync now'} icon="sync" disabled={sync.syncing} onPress={async () => {
+          <Button label={sync.syncing ? 'Syncing…' : 'Sync now'} icon="sync" disabled={sync.syncing} onPress={async () => {
             const problem = await sync.syncNow();
             if (problem) notify("Couldn't sync", problem);
           }} />
+        </Card>
+        <Card>
+          <ToggleRow
+            label="Sync automatically"
+            description="A few seconds after each change, when you open MemoryPal, and every few minutes. Turn off to sync only when you tap Sync now."
+            value={sync.auto}
+            onChange={(value) => sync.setAuto(value)}
+          />
         </Card>
         <Card>
           <Txt variant="body">Sign in with this account on your computer and other devices: cards, reviews, streaks and settings stay in step automatically.</Txt>
@@ -296,13 +333,20 @@ export default function Account() {
 
   return (
     <Screen>
+      {intro ? (
+        <View style={{ alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 8 }}>
+          <Image source={require('../../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 18 }} accessibilityIgnoresInvertColors accessible={false} />
+          <Txt variant="title" center>MemoryPal</Txt>
+          <Txt variant="muted" center>Sign in to keep your cards, progress and settings on all your devices.</Txt>
+        </View>
+      ) : null}
       {mode === 'signin' || mode === 'create' ? (
         <Pills<Mode> label="Account" value={mode} onChange={(value) => go(value)} options={[{ value: 'signin', label: 'Sign in' }, { value: 'create', label: 'Create account' }]} />
       ) : null}
       <Card>
         <Txt variant="h2">{title}</Txt>
         {mode === 'signin' ? <Txt variant="muted">Use the same account on every device to keep your cards in step.</Txt> : null}
-        {mode === 'create' ? <Txt variant="muted">Use an email you can check: we’ll send a 6-digit code to confirm it. You don’t need an account to use MemoryPal; it only keeps your cards in step across devices.</Txt> : null}
+        {mode === 'create' ? <Txt variant="muted">Use an email you can check: we’ll email you a code to confirm it. You don’t need an account to use MemoryPal; it only keeps your cards in step across devices.</Txt> : null}
         {mode === 'second-step' ? <Txt variant="muted">Open your authenticator app and type the 6-digit code it shows for MemoryPal.</Txt> : null}
         {info ? <Txt variant="body" color={c.link}>{info}</Txt> : null}
 
@@ -317,7 +361,7 @@ export default function Account() {
           <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" />
         ) : null}
         {mode === 'code' || mode === 'reset-code' || mode === 'second-step' ? (
-          <Field label={mode === 'second-step' ? 'Authenticator code' : '6-digit code'} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={8} />
+          <Field label={mode === 'second-step' ? 'Authenticator code' : 'Code from the email'} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={10} />
         ) : null}
         {mode === 'signin' || choosing ? (
           <Field label={mode === 'reset-code' ? 'New password' : 'Password'} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} textContentType={mode === 'signin' ? 'password' : 'newPassword'} />
@@ -361,7 +405,11 @@ export default function Account() {
         {mode === 'code' ? <Button kind="ghost" compact label="Send a new code" onPress={() => run(async () => { await client.resendConfirmation(email); setInfo('A new code is on its way.'); })} /> : null}
         {mode !== 'signin' && mode !== 'create' ? <Button kind="ghost" compact label="Back to sign in" onPress={() => { setPending(null); go('signin'); }} /> : null}
       </Row>
-      <Button kind="ghost" label="Not now" onPress={() => router.back()} />
+      {intro ? (
+        <Button kind="ghost" label="Continue without an account" hint="Your cards stay on this phone. You can sign in later from Settings." onPress={continueWithout} />
+      ) : (
+        <Button kind="ghost" label="Not now" onPress={() => router.back()} />
+      )}
     </Screen>
   );
 }

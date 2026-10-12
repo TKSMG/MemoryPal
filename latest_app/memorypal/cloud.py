@@ -1,6 +1,6 @@
 """Accounts and sync with the MemoryPal cloud (Supabase), using only the standard library.
 
-- CloudClient talks to Supabase Auth (email + password, 6-digit email codes
+- CloudClient talks to Supabase Auth (email + password, emailed codes
   for confirming an account and resetting a password, so no web page or
   domain is needed) and to the sync_records table (supabase/schema.sql).
 - TokenStore keeps the sign-in (never the password) in the profile folder,
@@ -54,7 +54,7 @@ class CloudError(Exception):
 FRIENDLY = {
     "invalid_credentials": "That email and password don't match. Check them, or reset your password.",
     "invalid_grant": "That email and password don't match. Check them, or reset your password.",
-    "email_not_confirmed": "Confirm your email first: enter the 6-digit code we sent you.",
+    "email_not_confirmed": "Confirm your email first: enter the code we emailed you.",
     "user_already_exists": "There's already an account with this email. Sign in instead.",
     "email_exists": "There's already an account with this email. Sign in instead.",
     "weak_password": f"Choose a stronger password: at least {MIN_PASSWORD} characters with letters and at least one number.",
@@ -404,6 +404,8 @@ class SyncState:
         self.cursor = None
         self.base = {}
         self.last_synced = ""
+        self.auto_sync = True  # sync on its own after changes and every few minutes
+        self.account_prompted = False  # the first-launch sign-in page was answered
         self.load()
 
     def load(self):
@@ -418,11 +420,16 @@ class SyncState:
         self.cursor = raw.get("cursor") or None
         self.base = raw.get("base") if isinstance(raw.get("base"), dict) else {}
         self.last_synced = str(raw.get("last_synced") or "")
+        self.auto_sync = raw.get("auto_sync") is not False
+        self.account_prompted = bool(raw.get("account_prompted"))
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.path.with_name(self.path.name + ".tmp")
-        temp.write_text(json.dumps({"device_id": self.device_id, "user_id": self.user_id, "cursor": self.cursor, "base": self.base, "last_synced": self.last_synced}), encoding="utf-8")
+        temp.write_text(json.dumps({
+            "device_id": self.device_id, "user_id": self.user_id, "cursor": self.cursor, "base": self.base,
+            "last_synced": self.last_synced, "auto_sync": self.auto_sync, "account_prompted": self.account_prompted,
+        }), encoding="utf-8")
         os.replace(temp, self.path)
 
     def start_over(self):

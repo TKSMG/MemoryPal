@@ -339,3 +339,15 @@ v76 is the pre-release review:
 - Privacy Policy and Terms links are in Settings on both apps.
 
 This build is packaged as release 0.47.0, the first with installers for Windows, macOS, Android and iOS built together by the Release Installers workflow.
+
+## v77 Beta - Sign-In First, Automatic Sync, And A Top Tab Bar On The Desktop
+
+From testing the 0.47.0 Android build:
+
+- Both apps now open on sign-in for a new install (sign in, create an account, or continue without one), then the setup questions, then Today. The page shows once per device.
+- Sync is automatic once signed in: a few seconds after a change, when the app is opened or brought back, and every five minutes. A "Sync automatically" switch in Account & sync turns it off, and "Sync now" is always there. The phone's Today header and the desktop's page header show whether everything is synced.
+- Email codes are called "the code from the email" instead of "6-digit code", since the length is a Supabase setting.
+- Phone: the tab bar keeps its labels at the system tab size (so "Progress" no longer cuts off with larger text), sits clear of Android's gesture bar and buttons, and shows labels beside icons on tablets. Side margins follow the screen width, and big titles grow less with the in-app text size so they fit on small phones.
+- Desktop: the side rail is replaced by a tab bar across the top with the same five sections as the phone. Feedback sits on the right; on narrow windows the tabs drop to icons.
+
+This build is packaged as release 0.48.0.

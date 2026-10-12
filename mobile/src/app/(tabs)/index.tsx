@@ -7,8 +7,8 @@ import { now } from '../../core/dates';
 import { persona } from '../../core/personas';
 import { planForToday } from '../../core/planning';
 import { levelInfo, nextAchievement } from '../../core/progress';
-import { useStore } from '../../state/AppState';
-import { Button, Card, IconButton, ProgressBar, Row, Screen, SectionTitle, Txt } from '../../ui/components';
+import { useStore, useSync } from '../../state/AppState';
+import { Button, Card, IconButton, IconName, ProgressBar, Row, Screen, SectionTitle, Txt } from '../../ui/components';
 import { MODES, openStep } from '../../ui/routes';
 import { useTheme } from '../../ui/theme';
 
@@ -17,8 +17,24 @@ function greeting(): string {
   return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 }
 
+type SyncInfo = ReturnType<typeof useSync>;
+
+/** The account button doubles as a quiet sync status light. */
+function syncIcon(sync: SyncInfo): IconName {
+  if (!sync.account.signedIn) return 'person-circle-outline';
+  if (sync.syncing) return 'sync-outline';
+  return sync.error ? 'cloud-offline-outline' : 'cloud-done-outline';
+}
+
+function syncLabel(sync: SyncInfo): string {
+  if (!sync.account.signedIn) return 'Account: sign in to sync';
+  if (sync.syncing) return 'Account & sync: syncing';
+  return sync.error ? `Account & sync: ${sync.error}` : 'Account & sync: up to date';
+}
+
 export default function Today() {
   const store = useStore();
+  const sync = useSync();
   const theme = useTheme();
   const c = theme.colors;
   const due = store.dueCards();
@@ -48,7 +64,16 @@ export default function Today() {
   }
 
   return (
-    <Screen eyebrow={greeting()} title="Today" right={<IconButton icon="settings-outline" label="Settings" onPress={() => router.push('/settings')} />}>
+    <Screen
+      eyebrow={greeting()}
+      title="Today"
+      right={
+        <Row gap={10}>
+          {sync.configured ? <IconButton icon={syncIcon(sync)} label={syncLabel(sync)} onPress={() => router.push('/account')} /> : null}
+          <IconButton icon="settings-outline" label="Settings" onPress={() => router.push('/settings')} />
+        </Row>
+      }
+    >
       <Card tone="alt" style={{ gap: 12 }}>
         <Txt variant="h2">{hero.title}</Txt>
         <Txt variant="muted">{hero.body}</Txt>
