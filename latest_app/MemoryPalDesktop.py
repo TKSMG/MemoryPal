@@ -356,6 +356,9 @@ class ScrollFrame(ttk.Frame):
     """
 
     FRAME_MS = 1000 / 60  # wheel glide pacing until the screen's own rate is known
+    # When any page last got wheel or trackpad input; background work waits
+    # for scrolling to stop so it never costs a frame mid-glide.
+    last_wheel_time = 0.0
 
     def __init__(self, parent, horizontal=False, min_width=0, bottom_padding=None):
         super().__init__(parent)
@@ -546,6 +549,13 @@ class ScrollFrame(ttk.Frame):
             if units:
                 self._queue_wheel(units * self._wheel_step_px, axis="x")
             return "break"
+        delta = float(getattr(event, "delta", 0) or 0)
+        if delta and getattr(event, "num", None) not in (4, 5) and delta % 120:
+            # A precision touchpad sends small deltas many times a second.
+            # Move by each one straight away; rounding them to whole wheel
+            # notches made slow two-finger scrolling go still, still, jump.
+            self._queue_wheel(-delta / 120.0 * self._wheel_step_px, axis="y")
+            return "break"
         units = self._wheel_units(event, "y")
         if units:
             self._queue_wheel(units * self._wheel_step_px, axis="y")
@@ -569,6 +579,7 @@ class ScrollFrame(ttk.Frame):
         if not delta or abs(delta) >= 120:
             return False
         axis = "x" if self.horizontal and getattr(event, "state", 0) & 0x0001 else "y"
+        ScrollFrame.last_wheel_time = time.perf_counter()
         self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) - delta * self._wheel_step_px / 7
         if self._wheel_after is None and not self._destroyed:
             self._wheel_after = self.after(1, self._flush_wheel)
@@ -579,6 +590,7 @@ class ScrollFrame(ttk.Frame):
         # repainting for each one outruns the embedded widgets and tears.
         # Sum the distance and apply it on a timer. Timers still fire while
         # input events stream in; idle callbacks (and Tk's repaints) don't.
+        ScrollFrame.last_wheel_time = time.perf_counter()
         root = self.winfo_toplevel()
         if getattr(root, "accessibility", {}).get("reduce_motion"):
             self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
@@ -647,12 +659,13 @@ class ScrollFrame(ttk.Frame):
                 self._wheel_targets.pop(axis, None)
                 self._glide_last.pop(axis, None)
             else:
-                # Half the remaining distance per 60Hz frame's worth of time
-                # (at least a couple of pixels) gives an ease-out that settles
-                # in about 100ms. Measuring time rather than counting frames
-                # keeps the glide the same length at 60Hz or 144Hz, and lets
-                # faster screens show more of its steps.
-                step = remaining * (1 - 0.5 ** (elapsed / 16.7))
+                # About a quarter of the remaining distance per 60Hz frame's
+                # worth of time (at least a couple of pixels) gives an ease-out
+                # that settles a notch in about 130ms. Halving it each frame
+                # made a steady spin pulse fast-slow-fast as every notch
+                # restarted the curve. Measuring time rather than counting
+                # frames keeps the glide the same length at 60Hz or 144Hz.
+                step = remaining * (1 - 0.72 ** (elapsed / 16.7))
                 if abs(step) < 2:
                     step = 2 if remaining > 0 else -2
             if step:
@@ -894,12 +907,12 @@ class ScrollFrame(ttk.Frame):
 
     def scroll_to_offsets(self, x=None, y=None, sync=True):
         try:
-            if x is not None:
-                m = self.max_x_offset()
-                self.viewport.xview_moveto(0 if m <= 0 else max(0, min(1, float(x) / m)))
-            if y is not None:
-                m = self.max_y_offset()
-                self.viewport.yview_moveto(0 if m <= 0 else max(0, min(1, float(y) / m)))
+            # xview/yview_moveto take a fraction of the whole scroll region.
+            region = self.viewport.cget("scrollregion").split()
+            if x is not None and len(region) >= 4 and float(region[2]) > 0:
+                self.viewport.xview_moveto(max(0.0, min(float(x), self.max_x_offset())) / float(region[2]))
+            if y is not None and len(region) >= 4 and float(region[3]) > 0:
+                self.viewport.yview_moveto(max(0.0, min(float(y), self.max_y_offset())) / float(region[3]))
             if sync:
                 self._sync_scrollbars()
         except (tk.TclError, ValueError, TypeError):
@@ -1661,7 +1674,7 @@ class MemoryPalApp(tk.Tk):
         "cuelab": [("seg", 12, 3.5, 13.6, 10.4), ("seg", 13.6, 10.4, 20.5, 12), ("seg", 20.5, 12, 13.6, 13.6), ("seg", 13.6, 13.6, 12, 20.5), ("seg", 12, 20.5, 10.4, 13.6), ("seg", 10.4, 13.6, 3.5, 12), ("seg", 3.5, 12, 10.4, 10.4), ("seg", 10.4, 10.4, 12, 3.5)],
         "training": [("seg", 8.5, 12, 15.5, 12), ("box", 5, 5.5, 8.5, 18.5, 1.4), ("box", 15.5, 5.5, 19, 18.5, 1.4), ("seg", 2.5, 9.5, 2.5, 14.5), ("seg", 21.5, 9.5, 21.5, 14.5)],
         "elder": [("arc", 8.2, 9.5, 4.2, 135, 350), ("arc", 15.8, 9.5, 4.2, 190, 405), ("seg", 5.23, 12.47, 12, 19.5), ("seg", 18.77, 12.47, 12, 19.5)],
-        "tools": [("box", 2.5, 9, 10.5, 15, 3), ("box", 13.5, 9, 21.5, 15, 3), ("seg", 8, 12, 16, 12)],
+        "tools": [("box", 2, 7, 13.5, 17, 5), ("box", 10.5, 7, 22, 17, 5)],
         "games": [("box", 2.5, 7, 21.5, 18, 4.5), ("seg", 7.5, 10, 7.5, 15), ("seg", 5, 12.5, 10, 12.5), ("dot", 15.5, 11, 1.3), ("dot", 18, 14, 1.3)],
         # Header buttons. Drawn here rather than taken from an icon font so they
         # are the same size on every system (the font fallbacks off Windows
@@ -1671,6 +1684,14 @@ class MemoryPalApp(tk.Tk):
         "help": [("circle", 12, 12, 9), ("arc", 12, 9.6, 2.6, 180, 405), ("seg", 13.84, 11.44, 12, 13.2), ("seg", 12, 13.2, 12, 14), ("dot", 12, 16.9, 1.2)],
         "moon": [("arc", 12, 12, 8.5, 7.07, 262.93), ("arc", 16.5, 7.5, 6.8, 54.64, 215.36)],
         "backup": [("seg", 12, 3.5, 12, 14.5), ("seg", 7.5, 10, 12, 14.5), ("seg", 16.5, 10, 12, 14.5), ("seg", 4, 15, 4, 20), ("seg", 4, 20, 20, 20), ("seg", 20, 20, 20, 15)],
+        # Header status chips.
+        "flame": [
+            ("arc", 12, 15, 6, 0, 180), ("seg", 6, 15, 7.4, 10), ("seg", 7.4, 10, 9.6, 12), ("seg", 9.6, 12, 12, 3), ("seg", 18, 15, 16, 9.5), ("seg", 16, 9.5, 12, 3),
+            ("arc", 12, 16.5, 2.4, 0, 180), ("seg", 9.6, 16.5, 12, 12.5), ("seg", 14.4, 16.5, 12, 12.5),
+        ],
+        "cloud": [("arc", 7, 14.5, 4, 90, 262.8), ("arc", 12, 10.5, 5.5, 179.7, 360), ("arc", 17.5, 14.5, 4, 270, 450), ("seg", 7, 18.5, 17.5, 18.5)],
+        "syncing": [("arc", 12, 12, 7.5, 320, 625), ("seg", 13.9, 4.74, 10.6, 2), ("seg", 13.9, 4.74, 10.8, 7.8)],
+        "warning": [("seg", 12, 3.5, 21, 19.5), ("seg", 21, 19.5, 3, 19.5), ("seg", 3, 19.5, 12, 3.5), ("seg", 12, 9.5, 12, 13.5), ("dot", 12, 16.5, 1.2)],
     }
     LINE_ICONS["sun"] = LINE_ICONS["dashboard"]
 
@@ -3124,6 +3145,10 @@ class MemoryPalApp(tk.Tk):
         def step():
             if generation != self._style_generation or not queue:
                 return
+            if time.perf_counter() - ScrollFrame.last_wheel_time < 0.5:
+                # Each style takes about 10ms; wait until scrolling stops.
+                self.after(200, step)
+                return
             base, behind = queue.pop(0)
             try:
                 self.corner_style(base, self._round_specs[base], behind)
@@ -3498,7 +3523,8 @@ class MemoryPalApp(tk.Tk):
         status_row = tk.Frame(top, bg=COLORS["surface"])
         status_row.grid(row=1, column=0, sticky="w", pady=(self.px(14), 0))
         streak = self.store.current_streak()
-        streak_chip = tk.Label(status_row, text=f"\U0001F525 {streak} day{'s' if streak != 1 else ''}", bg=COLORS["warm"], fg=COLORS["warm_text"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
+        streak_chip = tk.Label(status_row, text=f"{streak} day{'s' if streak != 1 else ''}", bg=COLORS["warm"], fg=COLORS["warm_text"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
+        self.set_chip_icon(streak_chip, "flame", COLORS["warm_text"])
         streak_chip.pack(side="left", padx=(0, self.px(10)))
         self.streak_chip = streak_chip
         today = self.store.today_count()
@@ -3546,7 +3572,7 @@ class MemoryPalApp(tk.Tk):
         streak_chip = getattr(self, "streak_chip", None)
         if streak_chip is not None and streak_chip.winfo_exists():
             streak = self.store.current_streak()
-            streak_chip.configure(text=f"\U0001F525 {streak} day{'s' if streak != 1 else ''}")
+            streak_chip.configure(text=f"{streak} day{'s' if streak != 1 else ''}")
         chip = getattr(self, "goal_chip", None)
         if chip is None or not chip.winfo_exists():
             return
@@ -3796,6 +3822,9 @@ class MemoryPalApp(tk.Tk):
         self.route_token += 1
         token = self.route_token
         old_host = getattr(self, "view_host", None)
+        # Rebuilding the page already on screen (a sync brought changes, a
+        # setting changed) keeps its scroll position instead of jumping to the top.
+        keep_scroll = self.page_scroll_offset(old_host) if view == self.current_view else None
         self.current_view = view
         self.refresh_nav_selection()
 
@@ -3837,12 +3866,45 @@ class MemoryPalApp(tk.Tk):
         self.refresh_header_status()
         self.eyebrow.configure(text=titles[view][0])
         self.title_label.configure(text=titles[view][1])
+        if keep_scroll:
+            self.restore_page_scroll(new_host, keep_scroll)
         if old_host is not None and old_host.winfo_exists() and old_host is not new_host:
             old_host.destroy()
         self.update_idletasks()
         self.after_idle(self.layout_app_body)
         if getattr(self, "tour", None):
             self.render_tour_card()
+
+    @staticmethod
+    def page_scrollframe(host):
+        """The main scrolling area of a page, or None."""
+        queue = [host] if host is not None else []
+        while queue:
+            widget = queue.pop(0)
+            if isinstance(widget, ScrollFrame):
+                return widget
+            try:
+                queue.extend(widget.winfo_children())
+            except tk.TclError:
+                pass
+        return None
+
+    def page_scroll_offset(self, host):
+        page = self.page_scrollframe(host)
+        if page is None or not page.winfo_exists():
+            return None
+        position = page._scroll_position("y")
+        return position[0] if position else None
+
+    def restore_page_scroll(self, host, offset):
+        page = self.page_scrollframe(host)
+        if page is None:
+            return
+        try:
+            page.refresh_scrollregion()
+        except tk.TclError:
+            return
+        page.scroll_to_offsets(y=offset)
 
     def go_back(self):
         history = getattr(self, "view_history", [])
@@ -9075,7 +9137,11 @@ class MemoryPalApp(tk.Tk):
                 return  # the profile changed while syncing
             if error is None:
                 self.sync_status = ""
-                if result and result.get("applied") and self.current_view in self.REFRESH_AFTER_SYNC:
+                if self.current_view == "welcome" and self.store.onboarding.get("done"):
+                    # Signed in on a new device during first launch: the
+                    # account already answered the setup questions.
+                    self.show_view("dashboard")
+                elif result and result.get("applied") and self.current_view in self.REFRESH_AFTER_SYNC:
                     self.show_view(self.current_view)
                 else:
                     self.refresh_header_status()
@@ -9086,7 +9152,8 @@ class MemoryPalApp(tk.Tk):
                 message = error.message if isinstance(error, cloud.CloudError) else f"Sync stopped: {error}"
                 self.sync_status = message
                 self.refresh_account_card()
-                if manual or (isinstance(error, cloud.CloudError) and error.code == "signed_out"):
+                if manual or not account.signed_in:
+                    # Signed out by the server (or two-step turned on elsewhere): say so once.
                     self.dialog_alert("Couldn't sync", message, "error")
             changed = self._changed_during_sync and error is None
             if changed and account.signed_in:
@@ -9097,25 +9164,33 @@ class MemoryPalApp(tk.Tk):
         self.run_in_background(lambda on_ui: account.sync(read_payload, write_payload, on_ui), finished, on_ui_requests=True)
 
     def sync_chip_text(self):
+        """(icon, text) for the header sync chip; empty text hides it."""
         if not cloud.configured():
-            return ""
+            return "", ""
         if not self.account.signed_in:
-            return "\u2601  Not signed in"
+            return "cloud", "Not signed in"
         if self._syncing:
-            return "\u21bb  Syncing\u2026"
+            return "syncing", "Syncing\u2026"
         if self.sync_status:
-            return "\u26a0  Not synced"
-        return "\u2601  Synced" if self.account.state.auto_sync else "\u2601  Auto sync off"
+            return "warning", "Not synced"
+        return "cloud", "Synced" if self.account.state.auto_sync else "Auto sync off"
+
+    def set_chip_icon(self, chip, name, color):
+        """Put a line icon before a chip's text, sized to the text beside it."""
+        image = self.line_icon(name, max(14, self.px(17)), color)
+        if image is not None:
+            chip.configure(image=image, compound="left")
 
     def refresh_sync_chip(self):
         chip = getattr(self, "sync_chip", None)
         if chip is None or not chip.winfo_exists():
             return
-        text = self.sync_chip_text()
+        icon, text = self.sync_chip_text()
         if not text:
             chip.pack_forget()
             return
         chip.configure(text=text)
+        self.set_chip_icon(chip, icon, COLORS["muted"])
         if not chip.winfo_manager():
             chip.pack(side="left")
 
@@ -9352,15 +9427,24 @@ class MemoryPalApp(tk.Tk):
                 session = client.sign_in(email, values["password"])
             except cloud.CloudError as error:
                 if error.code == "email_not_confirmed":
-                    client.resend_confirmation(email)
-                elif error.code in ("invalid_credentials", "invalid_grant"):
+                    # Not confirmed yet: send a fresh code and go to the code
+                    # box (this dialog has nowhere to type it). If resending is
+                    # rate-limited, the earlier code still works.
+                    try:
+                        client.resend_confirmation(email)
+                    except cloud.CloudError:
+                        pass
+                    return ("confirm", email)
+                if error.code in ("invalid_credentials", "invalid_grant"):
                     self.sign_in_limiter.failed(email)
                 raise
             self.sign_in_limiter.succeeded(email)
             return session
 
         def signed_in(session, _values):
-            if session.needs_second_step:
+            if isinstance(session, tuple):
+                self.open_code_dialog(session[1])
+            elif session.needs_second_step:
                 self.open_second_step_dialog(session, lambda full: self.account_signed_in(full, "Signed in. Your cards are syncing."))
             else:
                 self.account_signed_in(session, "Signed in. Your cards are syncing.")

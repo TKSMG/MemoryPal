@@ -14,7 +14,7 @@ import { readSecret, writeSecret } from './secrets';
 
 const TOKEN_KEY = 'memorypal-account';
 const OVERLAP_SECONDS = 120;
-const SIGNED_OUT_CODES = ['refresh_token_not_found', 'session_not_found', 'unauthorized', 'invalid_grant'];
+const SIGNED_OUT_CODES = ['refresh_token_not_found', 'refresh_token_already_used', 'session_not_found', 'unauthorized', 'invalid_grant'];
 
 interface SavedSignIn {
   refresh_token: string;
@@ -52,6 +52,8 @@ export class CloudAccount {
   saved: SavedSignIn | null = null;
   state: SyncState;
   private stateStore = keyAdapter('memorypal-sync-state');
+  /** Bumped by forget(), so a refresh that finishes after Sign out can't sign the person back in. */
+  private generation = 0;
 
   constructor(public client = new CloudClient()) {
     this.state = this.loadState();
@@ -90,6 +92,7 @@ export class CloudAccount {
   }
 
   async forget() {
+    this.generation += 1;
     this.session = null;
     this.saved = null;
     await writeSecret(TOKEN_KEY, null);
@@ -99,12 +102,22 @@ export class CloudAccount {
     if (this.session && !expiring(this.session)) return this.session;
     const refresh = this.session?.refreshToken || this.saved?.refresh_token;
     if (!refresh) throw new CloudError('Sign in to sync your cards.', 'signed_out');
+    const generation = this.generation;
+    let fresh: Session;
     try {
-      return await this.remember(await this.client.refresh(refresh));
+      fresh = await this.client.refresh(refresh);
     } catch (error) {
-      if (error instanceof CloudError && SIGNED_OUT_CODES.includes(error.code)) await this.forget();
+      if (error instanceof CloudError && SIGNED_OUT_CODES.includes(error.code) && generation === this.generation) await this.forget();
       throw error;
     }
+    if (generation !== this.generation) throw new CloudError('Sign in to sync your cards.', 'signed_out');
+    if (needsSecondStep(fresh)) {
+      // Two-step sign-in was turned on from another device: this session can't
+      // reach the data and has nowhere to type the code, so sign in again.
+      await this.forget();
+      throw new CloudError(friendly('two_step_now_on'), 'two_step_now_on');
+    }
+    return this.remember(fresh);
   }
 
   async signOut() {

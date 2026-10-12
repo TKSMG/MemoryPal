@@ -63,6 +63,8 @@ const FRIENDLY: Record<string, string> = {
   signup_disabled: "New accounts can't be made right now.",
   refresh_token_not_found: "You've been signed out. Please sign in again.",
   session_not_found: "You've been signed out. Please sign in again.",
+  refresh_token_already_used: "You've been signed out. Please sign in again.",
+  two_step_now_on: 'This account now uses two-step sign-in. Sign in again with your authenticator code.',
   mfa_verification_failed: "That authenticator code isn't right. Check the time on this device and try the newest code.",
   mfa_challenge_expired: 'That took too long. Try again with a fresh code.',
   insufficient_aal: 'Finish two-step sign-in first: enter the code from your authenticator app.',
