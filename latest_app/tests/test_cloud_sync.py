@@ -133,6 +133,41 @@ class AccountTests(unittest.TestCase):
         self.assertIsNone(store.load())
 
 
+class SessionRefreshTests(unittest.TestCase):
+    """How the remembered sign-in reacts to what a refresh brings back."""
+
+    def account(self, refresh):
+        client = mock.Mock()
+        client.refresh.side_effect = refresh
+        account = cloud.Account(tempfile.mkdtemp(), client=client)
+        account.remember(cloud.Session("old-access", "old-refresh", 0, "u1", EMAIL))
+        return account
+
+    def test_reused_refresh_token_signs_out(self):
+        account = self.account(cloud.CloudError("Invalid Refresh Token: Already Used", "refresh_token_already_used"))
+        with self.assertRaises(cloud.CloudError):
+            account.active_session()
+        self.assertFalse(account.signed_in)
+
+    def test_two_step_turned_on_elsewhere_signs_out_with_a_reason(self):
+        account = self.account(lambda _token: cloud.Session("new-access", "new-refresh", 0, "u1", EMAIL, [{"id": "f1"}]))
+        with self.assertRaises(cloud.CloudError) as caught:
+            account.active_session()
+        self.assertEqual(caught.exception.code, "two_step_now_on")
+        self.assertFalse(account.signed_in)
+
+    def test_sign_out_during_a_refresh_stays_signed_out(self):
+        def refresh(_token):
+            account.forget()  # Sign out pressed while the refresh was on its way
+            return cloud.Session("new-access", "new-refresh", 9e12, "u1", EMAIL)
+
+        account = self.account(refresh)
+        with self.assertRaises(cloud.CloudError):
+            account.active_session()
+        self.assertFalse(account.signed_in)
+        self.assertIsNone(account.tokens.load())
+
+
 class TwoStepSignInTests(unittest.TestCase):
     def setUp(self):
         self.server = FakeSupabase(confirm_email=False)

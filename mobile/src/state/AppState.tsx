@@ -172,8 +172,10 @@ export class SyncController {
   async signedIn(session: Session) {
     await this.account.remember(session);
     this.account.setOption({ account_prompted: true });
-    this.changed();
+    // syncNow marks itself as syncing before telling screens, so the
+    // first-launch page waits for the account's data before moving on.
     await this.syncNow();
+    this.changed();
   }
 
   async signOut() {
