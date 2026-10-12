@@ -120,8 +120,8 @@ export default function Quiz() {
               })}
             >
               <Txt variant="body" style={{ flex: 1 }} color={colors ? colors[1] : c.ink}>{choice}</Txt>
-              {state === 'right' ? <Ionicons name="checkmark-circle" size={24} color={c.good[1]} /> : null}
-              {state === 'wrong' ? <Ionicons name="close-circle" size={24} color={c.again[1]} /> : null}
+              {state === 'right' ? <Ionicons name="checkmark-circle" size={theme.icon(24)} color={c.good[1]} /> : null}
+              {state === 'wrong' ? <Ionicons name="close-circle" size={theme.icon(24)} color={c.again[1]} /> : null}
             </Pressable>
           );
         })}

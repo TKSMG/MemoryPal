@@ -351,3 +351,9 @@ From testing the 0.47.0 Android build:
 - Desktop: the side rail is replaced by a tab bar across the top with the same five sections as the phone. Feedback sits on the right; on narrow windows the tabs drop to icons.
 
 This build is packaged as release 0.48.0.
+
+## v78 - Icons to Scale
+
+The desktop header buttons now use the same drawn line icons as the tab bar, about half the button's size on every system, and the tab and hub-tile icons are a little larger. On the phone, icons grow with the in-app text size so they stay in step with their labels.
+
+This build is packaged as release 0.48.1.

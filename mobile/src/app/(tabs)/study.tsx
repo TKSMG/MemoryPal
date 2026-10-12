@@ -27,7 +27,7 @@ export default function Study() {
     <Screen eyebrow="Study" title="Practise">
       <Card tone="alt" style={{ gap: 12 }}>
         <Row>
-          <Ionicons name="calendar-outline" size={28} color={c.link} />
+          <Ionicons name="calendar-outline" size={theme.icon(28)} color={c.link} />
           <View style={{ flex: 1 }}>
             <Txt variant="h2">{due ? `${due} card${due === 1 ? '' : 's'} due` : 'Nothing due right now'}</Txt>
             <Txt variant="muted">
@@ -45,7 +45,7 @@ export default function Study() {
       {options.map((option) => (
         <Card key={option.title} onPress={() => router.push(option.href)} accessibilityLabel={`${option.title}. ${option.body}${option.count !== undefined ? ` ${option.count} cards.` : ''}`}>
           <Row style={{ alignItems: 'flex-start' }}>
-            <Ionicons name={option.icon} size={26} color={c.link} />
+            <Ionicons name={option.icon} size={theme.icon(26)} color={c.link} />
             <View style={{ flex: 1, gap: 2 }}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <Txt variant="h3">{option.title}</Txt>
