@@ -21,6 +21,21 @@ SCHEDULE_FIELDS = ("interval", "repetitions", "ease", "lapses", "last_score", "l
 COUNT_KINDS = ("activity", "practiced")
 
 
+def count_of(data):
+    """A record's review count; anything malformed counts as nothing."""
+    try:
+        return max(0, int((data if isinstance(data, dict) else {}).get("count", 0) or 0))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def whole(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 def kind_of(key):
     return key.split(":", 1)[0]
 
@@ -36,7 +51,7 @@ def other_device_counts(base, device_id):
     for key, data in base.items():
         if kind_of(key) not in COUNT_KINDS or device_of(key) == device_id or not isinstance(data, dict):
             continue
-        count = max(0, int(data.get("count", 0) or 0))
+        count = count_of(data)
         if kind_of(key) == "activity":
             day = str(data.get("day", ""))
             activity[day] = activity.get(day, 0) + count
@@ -57,10 +72,10 @@ def records_from_payload(payload, device_id, base):
     # This device's share is whatever the local totals hold beyond what the
     # other devices reported.
     for day, total in sorted(payload.get("activity", {}).items()):
-        own = int(total or 0) - others_activity.get(day, 0)
+        own = whole(total) - others_activity.get(day, 0)
         if own > 0:
             records[f"activity:{day}:{device_id}"] = {"day": day, "count": own}
-    own_practiced = max(0, int(payload.get("practiced", 0) or 0) - others_practiced)
+    own_practiced = max(0, whole(payload.get("practiced", 0)) - others_practiced)
     records[f"practiced:{device_id}"] = {"count": own_practiced}
     # Other devices' counts, as last synced.
     for key, data in base.items():
@@ -87,11 +102,11 @@ def payload_from_records(payload, records):
             result[name] = settings[name]
     activity, practiced = {}, 0
     for key, data in records.items():
-        if kind_of(key) == "activity":
+        if kind_of(key) == "activity" and isinstance(data, dict):
             day = str(data.get("day", ""))
-            activity[day] = activity.get(day, 0) + max(0, int(data.get("count", 0) or 0))
+            activity[day] = activity.get(day, 0) + count_of(data)
         elif kind_of(key) == "practiced":
-            practiced += max(0, int(data.get("count", 0) or 0))
+            practiced += count_of(data)
     result["activity"] = {day: count for day, count in sorted(activity.items()) if count > 0}
     result["practiced"] = practiced
     return result
@@ -99,7 +114,25 @@ def payload_from_records(payload, records):
 
 def progress(card):
     """How much review a card version carries: more reviews wins a schedule conflict."""
-    return (int(card.get("repetitions", 0) or 0) + int(card.get("lapses", 0) or 0), str(card.get("next_review", "")))
+    return (whole(card.get("repetitions", 0)) + whole(card.get("lapses", 0)), str(card.get("next_review", "")))
+
+
+def schedule_winner_of(base, local, remote):
+    """Whose review schedule to keep when both devices reviewed the same card.
+
+    A miss on either side wins, so a forgotten card comes back soon rather
+    than being pushed weeks out; otherwise the side with more reviews wins.
+    """
+    lapses_before = whole(base.get("lapses", 0))
+    local_missed = whole(local.get("lapses", 0)) > lapses_before
+    remote_missed = whole(remote.get("lapses", 0)) > lapses_before
+    if local_missed != remote_missed:
+        return local if local_missed else remote
+    return local if progress(local) > progress(remote) else remote
+
+
+def unreviewed(key, data):
+    return kind_of(key) == "card" and isinstance(data, dict) and whole(data.get("repetitions", 0)) == 0 and whole(data.get("lapses", 0)) == 0
 
 
 def merge_record(key, base, local, remote):
@@ -117,7 +150,7 @@ def merge_record(key, base, local, remote):
         local.get(name) != remote.get(name) and local.get(name) != base.get(name) and remote.get(name) != base.get(name)
         for name in SCHEDULE_FIELDS
     ):
-        schedule_winner = local if progress(local) > progress(remote) else remote
+        schedule_winner = schedule_winner_of(base, local, remote)
     for name in sorted(set(local) | set(remote)):
         mine, theirs, was = local.get(name), remote.get(name), base.get(name)
         if schedule_winner is not None and name in SCHEDULE_FIELDS:
@@ -158,6 +191,10 @@ def plan_sync(local, base, remote):
         theirs = remote[key] if key in remote else was
         local_changed = mine != was
         remote_changed = key in remote and theirs != was
+        if key in remote and theirs is None and was is None and unreviewed(key, mine):
+            # A card deleted elsewhere that this device never synced or reviewed
+            # (a starter card on a new install) stays deleted.
+            local_changed, remote_changed = False, True
         if remote_changed and local_changed:
             result = merge_record(key, was, mine, theirs)
         elif remote_changed:

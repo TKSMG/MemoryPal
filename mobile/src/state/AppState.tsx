@@ -61,13 +61,20 @@ export class SyncController {
   version = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private applying = false;
+  private changedDuringSync = false;
   private listeners = new Set<() => void>();
 
   constructor(private store: MemoryStore) {
     store.subscribe(() => {
-      if (!this.applying && this.account.signedIn) this.syncSoon(SYNC_AFTER_CHANGE_MS);
+      if (this.applying || !this.account.signedIn) return;
+      // A change made while a sync is on the network goes up right after it.
+      if (this.syncing) this.changedDuringSync = true;
+      else this.syncSoon(SYNC_AFTER_CHANGE_MS);
     });
     this.account.restore().then(() => {
+      // Started fresh because the saved data was damaged: fetch everything back
+      // from the cloud instead of syncing the empty phone as deletions.
+      if (store.loadProblem) this.account.startOver();
       this.changed();
       if (this.account.signedIn) this.syncSoon(1000);
     });
@@ -105,18 +112,25 @@ export class SyncController {
   async syncNow(): Promise<string> {
     if (this.syncing || !this.configured || !this.account.signedIn) return this.error;
     this.syncing = true;
+    this.changedDuringSync = false;
     this.changed();
-    this.applying = true;
     try {
-      await this.account.sync(this.store);
+      await this.account.sync(this.store, (apply) => {
+        this.applying = true;
+        try {
+          apply();
+        } finally {
+          this.applying = false;
+        }
+      });
       this.error = '';
     } catch (error) {
       this.error = error instanceof CloudError ? error.message : `Sync stopped: ${String(error)}`;
     } finally {
-      this.applying = false;
       this.syncing = false;
       this.changed();
     }
+    if (this.changedDuringSync && !this.error) this.syncSoon(SYNC_AFTER_CHANGE_MS);
     return this.error;
   }
 

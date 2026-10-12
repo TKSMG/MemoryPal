@@ -16,6 +16,16 @@ create table if not exists public.sync_records (
   constraint sync_records_size check (data is null or pg_column_size(data) < 262144)
 );
 
+-- Every record is a JSON object (or null once deleted); the apps skip anything else.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'sync_records_data_object') then
+    alter table public.sync_records
+      add constraint sync_records_data_object check (data is null or jsonb_typeof(data) = 'object') not valid;
+  end if;
+end;
+$$;
+
 create index if not exists sync_records_user_updated on public.sync_records (user_id, updated_at);
 
 -- The server's clock decides updated_at, never the device's, so pulling
@@ -123,7 +133,9 @@ create policy "two-step accounts need the second step" on public.sync_records
 
 -- No delete policy: deletions travel as rows with deleted = true, so every
 -- device learns about them. Whole accounts are removed with the function below.
-revoke all on public.sync_records from anon;
+-- Supabase's default grants include DELETE and TRUNCATE (which skips Row Level
+-- Security), so start from nothing and grant only what the apps use.
+revoke all on public.sync_records from anon, authenticated;
 grant select, insert, update on public.sync_records to authenticated;
 
 -- "Delete my account" in the apps (required by the App Store and Google Play
@@ -137,6 +149,10 @@ as $$
 begin
   if auth.uid() is null then
     raise exception 'not signed in';
+  end if;
+  -- An account with an authenticator app can only be deleted after its code.
+  if coalesce(auth.jwt()->>'aal', 'aal1') <> 'aal2' and private.has_verified_second_step() then
+    raise exception 'second step required' using errcode = '42501';
   end if;
   delete from auth.users where id = auth.uid();
 end;

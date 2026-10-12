@@ -318,3 +318,24 @@ This version also starts the phone app: a React Native + Expo port in `mobile/` 
 Accounts and cloud sync arrive on both apps through Supabase: email codes, automatic field-by-field merging between devices, optional two-step sign-in, password strength and breach checks, and a growing wait after repeated wrong tries. Sign-in tokens stay in DPAPI or the phone's Keychain/Keystore, all access rules are enforced by the database, and `CLOUD_SYNC_SETUP.md` explains the project set-up.
 
 This build is packaged as tester release 0.46.0. The installer, the Windows and macOS build scripts, and the tester guide were brought up to date for it, and the phone app's Android themed icon is now a proper one-colour mark.
+
+## v71-v76 Beta - Five Hubs, Apple Design Pass, Sync, And Installers For Every Platform
+
+v71 to v75 brought the Apple design pass (Mac menu bar, Command shortcuts, system font, native dialogs; iPad reading width and iOS sheets on the phone), the five-hub desktop rail with line icons, skeleton page loads, a display-paced wheel glide, and a fix for sync being refused on every account.
+
+v76 is the pre-release review:
+
+- Sync can't be stopped by one damaged cloud record, a huge number or a wrong type; such records are skipped.
+- Loading a backup, starting over, or recovering a damaged data file no longer deletes cards on every synced device. The next sync merges with the cloud as if new.
+- A miss on one device now wins a review conflict, so a forgotten card comes back soon.
+- Starter cards deleted on one device stay deleted when a new device signs in.
+- Undo after a sync no longer lowers the review count.
+- Changes made while a sync is running go up right after it.
+- On the phone, ratings made after a background sync are no longer lost, and Undo after Skip returns to the rated card.
+- Deleting an account with two-step sign-in now needs the second step. The database also refuses non-object records and no longer grants delete rights it never used.
+- Attachments keep only plain file extensions, and the Windows preview quotes every kind of apostrophe.
+- Mac: wheel and trackpad scrolling at normal speed, a text box scrolls without moving the page, recording actions that only work on Windows are hidden, and the app shows its real version.
+- Phone: no extra gap under the navigation bar, forms stay above the keyboard, the phone's own Reduce Motion is followed, dark mode covers the whole window on Android, unused Android permissions are removed, and the card list stays smooth while searching.
+- Privacy Policy and Terms links are in Settings on both apps.
+
+This build is packaged as release 0.47.0, the first with installers for Windows, macOS, Android and iOS built together by the Release Installers workflow.

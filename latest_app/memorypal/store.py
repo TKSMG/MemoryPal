@@ -17,6 +17,14 @@ def safe_int(value, default):
         return default
 
 
+def as_dict(value):
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def as_list(value):
+    return list(value) if isinstance(value, list) else []
+
+
 MAX_DAILY_GOAL = 500
 
 
@@ -32,7 +40,7 @@ def load_items(raw_items, factory):
             continue
         try:
             items.append(factory(raw))
-        except (TypeError, ValueError, AttributeError):
+        except (TypeError, ValueError, AttributeError, OverflowError):
             continue
     return items
 
@@ -284,12 +292,6 @@ class MemoryStore:
 
     def apply_raw(self, raw):
         """Fill the store from a saved payload, tolerating damaged fields."""
-        def as_dict(value):
-            return dict(value) if isinstance(value, dict) else {}
-
-        def as_list(value):
-            return list(value) if isinstance(value, list) else []
-
         self.cards = load_items(as_list(raw.get("cards")), Card.from_dict)
         self.captures = load_items(as_list(raw.get("captures")), Capture.from_dict)
         self.practiced = max(0, safe_int(raw.get("practiced", 0), 0))
@@ -443,14 +445,16 @@ class MemoryStore:
         self.save()
 
     def apply_saved_payload(self, payload):
-        self.cards = self.rebind_items(self.cards, payload.get("cards", []), Card.from_dict)
-        self.captures = self.rebind_items(self.captures, payload.get("captures", []), Capture.from_dict)
-        self.practiced = safe_int(payload.get("practiced", 0), 0)
-        self.activity = dict(payload.get("activity", {}))
+        # Synced payloads come from other devices, so they get the same checks
+        # as a file read from disk.
+        self.cards = self.rebind_items(self.cards, as_list(payload.get("cards")), Card.from_dict)
+        self.captures = self.rebind_items(self.captures, as_list(payload.get("captures")), Capture.from_dict)
+        self.practiced = max(0, safe_int(payload.get("practiced", 0), 0))
+        self.activity = {str(day): safe_int(count, 0) for day, count in as_dict(payload.get("activity")).items() if safe_int(count, 0) > 0}
         self.daily_goal = clamp_goal(payload.get("daily_goal", 15))
-        self.nav_order = list(payload.get("nav_order", []))
+        self.nav_order = [str(key) for key in as_list(payload.get("nav_order"))]
         self.accessibility = normalize_accessibility(payload.get("accessibility", {}))
-        self.feedback = load_items(payload.get("feedback", []), FeedbackEntry.from_dict)
+        self.feedback = load_items(as_list(payload.get("feedback")), FeedbackEntry.from_dict)
         self.onboarding = normalize_onboarding(payload.get("onboarding"))
         self.study_plan = normalize_study_plan(payload.get("study_plan"))
         self.remember_loaded_state()
@@ -753,7 +757,8 @@ class MemoryStore:
             return False
         for key, value in action["snapshot"].items():
             setattr(card, key, value)
-        self.practiced = action["practiced_before"]
+        # Step back by one: a sync since the rating may have added other devices' counts.
+        self.practiced = max(0, self.practiced - 1)
         key = action["activity_key"]
         if self.activity.get(key, 0) > 0:
             self.activity[key] -= 1

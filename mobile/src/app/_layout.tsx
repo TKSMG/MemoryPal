@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Platform, Pressable, Text } from 'react-native';
 
 import { AppStateProvider } from '../state/AppState';
-import { useTheme } from '../ui/theme';
+import { ThemeProvider, useTheme } from '../ui/theme';
 
 /** iOS sheets get a way out in the bar; Android has its back button and arrow. */
 function SheetButton({ label, bold }: { label: string; bold?: boolean }) {
@@ -54,7 +54,9 @@ function RootStack() {
 export default function RootLayout() {
   return (
     <AppStateProvider>
-      <RootStack />
+      <ThemeProvider>
+        <RootStack />
+      </ThemeProvider>
     </AppStateProvider>
   );
 }

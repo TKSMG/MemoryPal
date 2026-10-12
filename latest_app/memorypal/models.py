@@ -12,11 +12,20 @@ def first_text(raw, names, default=""):
     return default
 
 
+MAX_ID_LENGTH = 150  # the cloud refuses record keys over 200 characters
+
+
+def record_id(value):
+    return value if 0 < len(value) <= MAX_ID_LENGTH else uid()
+
+
 def number(value, kind, default):
     try:
-        return kind(value)
-    except (TypeError, ValueError):
+        result = kind(value)
+    except (TypeError, ValueError, OverflowError):
         return default
+    # nan and inf would poison every date sum later on.
+    return result if result == result and result not in (float("inf"), float("-inf")) else default
 
 
 
@@ -50,7 +59,7 @@ class Card:
         defaults = cls()
         text = lambda *names: first_text(raw, names, getattr(defaults, names[0]))
         return cls(
-            id=text("id"),
+            id=record_id(text("id")),
             deck=text("deck") or "General",
             front=text("front"),
             back=text("back"),
@@ -95,7 +104,7 @@ class Capture:
         else:
             chunks = []
         return cls(
-            id=text("id"),
+            id=record_id(text("id")),
             title=text("title") or defaults.title,
             notes=notes,
             chunks=chunks or split_study_bits(notes),
@@ -126,11 +135,11 @@ class FeedbackEntry:
         return cls(
             id=raw.get("id", uid()),
             rating=max(0, min(5, rating)),
-            category=raw.get("category", "General") or "General",
-            page=raw.get("page", "Overall app") or "Overall app",
-            note=raw.get("note", ""),
-            created_at=raw.get("created_at", raw.get("createdAt", now_label())),
-            sent_at=raw.get("sent_at", "") or "",
+            category=str(raw.get("category", "General") or "General"),
+            page=str(raw.get("page", "Overall app") or "Overall app"),
+            note=str(raw.get("note", "") or ""),
+            created_at=str(raw.get("created_at", raw.get("createdAt", now_label()))),
+            sent_at=str(raw.get("sent_at", "") or ""),
         )
 
 
