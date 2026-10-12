@@ -58,6 +58,7 @@ function whenLabel(days: number): string {
 interface Result {
   card: CardModel;
   quality: number;
+  position: number; // where it sat in the queue, for Undo
 }
 
 export default function Review() {
@@ -156,7 +157,7 @@ export default function Review() {
   const rate = (quality: number, bucket: Bucket) => {
     tap(prefs.haptics);
     store.schedule(card, quality, checked && checked.bucket === bucket ? checked : null);
-    setResults((list) => [...list, { card, quality }]);
+    setResults((list) => [...list, { card, quality, position: index }]);
     setIndex((value) => value + 1);
     setAnswer('');
     setRevealed(false);
@@ -165,8 +166,10 @@ export default function Review() {
 
   const undo = () => {
     if (!results.length || !store.undoLast()) return;
+    // Go back to the rated card itself, even if cards were skipped since.
+    const last = results[results.length - 1];
     setResults((list) => list.slice(0, -1));
-    setIndex((value) => Math.max(0, value - 1));
+    setIndex(last.position);
     setRevealed(false);
     setChecked(null);
     setAnswer('');
@@ -209,6 +212,8 @@ export default function Review() {
             multiline
             placeholder="Type what you remember…"
             returnKeyType="done"
+            submitBehavior="blurAndSubmit"
+            onSubmitEditing={reveal}
           />
           <Button kind="primary" label={answer.trim() ? 'Check my answer' : 'Show answer'} icon={answer.trim() ? 'checkmark-done' : 'eye-outline'} onPress={reveal} />
           <Row>

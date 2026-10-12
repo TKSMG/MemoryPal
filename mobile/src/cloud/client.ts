@@ -265,7 +265,12 @@ export class CloudClient {
       const query: Record<string, string | number> = { select: 'key,kind,data,deleted,updated_at', order: 'updated_at.asc,key.asc', limit: PAGE_SIZE, offset };
       if (since) query.updated_at = `gte.${since}`;
       const page = ((await this.request('GET', '/rest/v1/sync_records', { token: session.accessToken, query })) ?? []) as Record<string, unknown>[];
-      for (const row of page) rows.push([String(row.key), row.deleted ? null : ((row.data ?? null) as Data | null), String(row.updated_at ?? '')]);
+      for (const row of page) {
+        const data = row.deleted ? null : row.data;
+        // A malformed row is skipped, never read as a delete.
+        if (!row.deleted && (data === null || typeof data !== 'object' || Array.isArray(data))) continue;
+        rows.push([String(row.key), (data ?? null) as Data | null, String(row.updated_at ?? '')]);
+      }
       if (page.length < PAGE_SIZE) return rows;
     }
   }

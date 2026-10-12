@@ -1,10 +1,11 @@
 /** Create: add cards, see decks, and find, edit or delete any card. */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { memo, useDeferredValue, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { todayIso } from '../../core/dates';
+import type { Card as CardModel } from '../../core/models';
 import { useStore } from '../../state/AppState';
 import { Button, Card, EmptyState, Field, Pills, Row, Screen, SectionTitle, Txt } from '../../ui/components';
 import { useTheme } from '../../ui/theme';
@@ -23,15 +24,20 @@ export default function Create() {
   const summary = store.deckSummary();
   const today = todayIso();
 
-  const weakIds = new Set(store.weakCards().map((card) => card.id));
-  const q = query.trim().toLowerCase();
-  const matches = store.cards.filter((card) => {
-    if (deck && (card.deck || 'General') !== deck) return false;
-    if (filter === 'due' && !(card.next_review <= today && card.buried_until <= today)) return false;
-    if (filter === 'weak' && !weakIds.has(card.id)) return false;
-    if (filter === 'new' && card.repetitions !== 0) return false;
-    return !q || [card.deck, card.front, card.back, card.association].join(' ').toLowerCase().includes(q);
-  });
+  // Typing in Search re-filters on the next idle moment, not on every key,
+  // and nothing is re-filtered unless the cards or the filters changed.
+  const deferredQuery = useDeferredValue(query);
+  const matches = useMemo(() => {
+    const weakIds = new Set(store.weakCards().map((card) => card.id));
+    const q = deferredQuery.trim().toLowerCase();
+    return store.cards.filter((card) => {
+      if (deck && (card.deck || 'General') !== deck) return false;
+      if (filter === 'due' && !(card.next_review <= today && card.buried_until <= today)) return false;
+      if (filter === 'weak' && !weakIds.has(card.id)) return false;
+      if (filter === 'new' && card.repetitions !== 0) return false;
+      return !q || [card.deck, card.front, card.back, card.association].join(' ').toLowerCase().includes(q);
+    });
+  }, [store, store.version, deferredQuery, deck, filter, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tiles: { icon: keyof typeof Ionicons.glyphMap; title: string; mode: string }[] = [
     { icon: 'create-outline', title: 'One card', mode: 'single' },
@@ -98,24 +104,9 @@ export default function Create() {
       {!matches.length ? (
         <EmptyState icon="search-outline" title="No cards match" body={store.cards.length ? 'Try another word, or show all cards.' : 'Add your first card with one of the buttons above.'} />
       ) : (
-        matches.slice(0, limit).map((card) => {
-          const leech = store.isLeech(card);
-          return (
-            <Card key={card.id} onPress={() => router.push(`/card/${card.id}`)} accessibilityLabel={`${card.front}. Answer: ${card.back || 'none'}. Tap to edit.`}>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Txt variant="label">{card.deck}</Txt>
-                <Txt variant="small">{card.repetitions ? `Next ${card.next_review <= today ? 'today' : card.next_review}` : 'New'}</Txt>
-              </Row>
-              <Txt variant="h3">{card.front}</Txt>
-              {card.back ? <Txt variant="muted" numberOfLines={3}>{card.back}</Txt> : null}
-              {leech ? (
-                <View style={{ backgroundColor: c.again[0], borderRadius: 10, padding: 8 }}>
-                  <Txt variant="small" color={c.again[1]}>{`Missed ${card.lapses} times — try rewriting it or adding a memory hook.`}</Txt>
-                </View>
-              ) : null}
-            </Card>
-          );
-        })
+        matches.slice(0, limit).map((card) => (
+          <CardRow key={card.id} card={card} leech={store.isLeech(card)} today={today} version={store.version} />
+        ))
       )}
       {matches.length > limit ? (
         <Button label={`Show ${Math.min(PAGE, matches.length - limit)} more (${matches.length - limit} left)`} onPress={() => setLimit((value) => value + PAGE)} />
@@ -123,3 +114,23 @@ export default function Create() {
     </Screen>
   );
 }
+
+/** One card in the list; skipped on re-render unless that card or the store changed. */
+const CardRow = memo(function CardRow({ card, leech, today }: { card: CardModel; leech: boolean; today: string; version: number }) {
+  const c = useTheme().colors;
+  return (
+    <Card onPress={() => router.push(`/card/${card.id}`)} accessibilityLabel={`${card.front}. Answer: ${card.back || 'none'}. Tap to edit.`}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Txt variant="label">{card.deck}</Txt>
+        <Txt variant="small">{card.repetitions ? `Next ${card.next_review <= today ? 'today' : card.next_review}` : 'New'}</Txt>
+      </Row>
+      <Txt variant="h3">{card.front}</Txt>
+      {card.back ? <Txt variant="muted" numberOfLines={3}>{card.back}</Txt> : null}
+      {leech ? (
+        <View style={{ backgroundColor: c.again[0], borderRadius: 10, padding: 8 }}>
+          <Txt variant="small" color={c.again[1]}>{`Missed ${card.lapses} times — try rewriting it or adding a memory hook.`}</Txt>
+        </View>
+      ) : null}
+    </Card>
+  );
+});

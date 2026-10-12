@@ -537,6 +537,10 @@ class ScrollFrame(ttk.Frame):
     def _wheel(self, event):
         if self._destroyed or self._nearest_scrollframe_under_pointer(event) is not self:
             return None
+        if self._inner_box_scrolls(event.widget):
+            return None  # a text box or list with its own scrollbar scrolls alone
+        if IS_MAC and self._mac_wheel(event):
+            return "break"
         if self.horizontal and getattr(event, "state", 0) & 0x0001:
             units = self._wheel_units(event, "x")
             if units:
@@ -546,6 +550,29 @@ class ScrollFrame(ttk.Frame):
         if units:
             self._queue_wheel(units * self._wheel_step_px, axis="y")
         return "break"
+
+    @staticmethod
+    def _inner_box_scrolls(widget):
+        if not isinstance(widget, (tk.Text, tk.Listbox)):
+            return False
+        try:
+            first, last = widget.yview()
+        except (tk.TclError, ValueError):
+            return False
+        return first > 0.0 or last < 1.0
+
+    def _mac_wheel(self, event):
+        """Mac wheels and trackpads send small deltas (about 1 per notch) many
+        times a second, already eased by macOS, so they move the page directly
+        instead of being counted in Windows' 120-per-notch units."""
+        delta = float(getattr(event, "delta", 0) or 0)
+        if not delta or abs(delta) >= 120:
+            return False
+        axis = "x" if self.horizontal and getattr(event, "state", 0) & 0x0001 else "y"
+        self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) - delta * self._wheel_step_px / 7
+        if self._wheel_after is None and not self._destroyed:
+            self._wheel_after = self.after(1, self._flush_wheel)
+        return True
 
     def _queue_wheel(self, pixels, axis="y"):
         # A fast wheel spin delivers many events per frame; moving and
@@ -3264,6 +3291,14 @@ class MemoryPalApp(tk.Tk):
         delta = getattr(event, "delta", 0)
         if not delta:
             return "break"
+        if IS_MAC and abs(delta) < 120:
+            # A trackpad sends a stream of small deltas: step once per few.
+            self._nav_wheel_sum = getattr(self, "_nav_wheel_sum", 0) + delta
+            if abs(self._nav_wheel_sum) < 3:
+                return "break"
+            delta, self._nav_wheel_sum = self._nav_wheel_sum, 0
+            self.shift_nav_window(-1 if delta > 0 else 1)
+            return "break"
         steps = max(1, min(4, abs(int(delta / 120)) or 1))
         self.shift_nav_window(-steps if delta > 0 else steps)
         return "break"
@@ -3737,9 +3772,9 @@ class MemoryPalApp(tk.Tk):
         self.content.pack(fill="both", expand=True, padx=self.px(36), pady=(0, self.px(18)))
         self.toast_var = tk.StringVar()
         self.toast = tk.Label(self, textvariable=self.toast_var, bg=COLORS["rail"], fg=COLORS["white"], padx=self.px(20), pady=self.px(14), font=self.font("Segoe UI Semibold", 12))
-        right_grip = tk.Frame(self, bg=COLORS["line"], cursor="size_we")
-        bottom_grip = tk.Frame(self, bg=COLORS["line"], cursor="size_ns")
-        corner_grip = tk.Frame(self, bg=COLORS["muted"], cursor="size_nw_se")
+        right_grip = tk.Frame(self, bg=COLORS["line"], cursor="sb_h_double_arrow")
+        bottom_grip = tk.Frame(self, bg=COLORS["line"], cursor="sb_v_double_arrow")
+        corner_grip = tk.Frame(self, bg=COLORS["muted"], cursor="bottom_right_corner")
         self.resize_grips = [right_grip, bottom_grip, corner_grip]
         right_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "e"), add="+")
         bottom_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "s"), add="+")
@@ -6861,10 +6896,11 @@ class MemoryPalApp(tk.Tk):
             self.dialog_alert("Programs can't be attached", f"\"{source.name}\" is a program or script. Attach notes, documents, pictures, audio or video instead.", "error")
             return None
         if source.suffix.lower() not in self.MEDIA_SUFFIXES.get(kind, ()):
-            if not self.dialog_confirm(f"Attach this {name}?", f"\"{source.name}\" doesn't look like a {name} MemoryPal knows. Attach it anyway? It will open in whatever app Windows uses for it.", "Attach anyway"):
+            if not self.dialog_confirm(f"Attach this {name}?", f"\"{source.name}\" doesn't look like a {name} MemoryPal knows. Attach it anyway? It will open in whatever app your computer uses for it.", "Attach anyway"):
                 return None
         self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
-        target = self.store.attachment_dir / f"{uuid4().hex}{source.suffix.lower()}"
+        suffix = source.suffix.lower() if re.fullmatch(r"\.[a-z0-9]{1,10}", source.suffix.lower()) else ""
+        target = self.store.attachment_dir / f"{uuid4().hex}{suffix}"
         try:
             shutil.copy2(source, target)
         except OSError as exc:
@@ -7179,7 +7215,7 @@ class MemoryPalApp(tk.Tk):
             ttk.Label(audio_card, text="Current: " + (Path(card.audio).name if card.audio else "none"), style="CardMuted.TLabel").pack(anchor="w", pady=(4, 10))
             self.button_row(audio_card, [
                 ("Generate Spoken Cue", lambda: self.generate_tts_cue(card, f"{card.front}. {card.back}", render), "Primary.TButton"),
-                ("Record a Voice", lambda: self.record_audio_file(lambda path: self.set_card_media(card, "audio", path, render)), "TButton"),
+                *([] if IS_MAC else [("Record a Voice", lambda: self.record_audio_file(lambda path: self.set_card_media(card, "audio", path, render)), "TButton")]),
                 ("Attach Audio File", lambda: self.attach_file_to_card(card, "audio", render), "TButton"),
             ])
             if card.audio:
@@ -7190,8 +7226,8 @@ class MemoryPalApp(tk.Tk):
             ttk.Label(video_card, text="Video cue", style="H2.TLabel").pack(anchor="w")
             ttk.Label(video_card, text="Current: " + (Path(card.video).name if card.video else "none"), style="CardMuted.TLabel").pack(anchor="w", pady=(4, 10))
             self.button_row(video_card, [
-                ("Record with Camera", lambda: self.record_video_file(lambda path: self.set_card_media(card, "video", path, render)), "Primary.TButton"),
-                ("Attach Video File", lambda: self.attach_file_to_card(card, "video", render), "TButton"),
+                *([] if IS_MAC else [("Record with Camera", lambda: self.record_video_file(lambda path: self.set_card_media(card, "video", path, render)), "Primary.TButton")]),
+                ("Attach Video File", lambda: self.attach_file_to_card(card, "video", render), "Primary.TButton" if IS_MAC else "TButton"),
             ])
 
         render()
@@ -7373,8 +7409,10 @@ class MemoryPalApp(tk.Tk):
         cue_actions = [
             ("NOTE", [("Import note, PDF, Word or RTF", lambda: self.attach_media("text_file", labels, entry)), ("Save current note", lambda: self.record_text_note(labels, entry)), ("Remove note", lambda: self.set_pending_media("text_file", "", labels))]),
             ("IMG", [("Import image", lambda: self.attach_media("image", labels)), ("Remove image", lambda: self.set_pending_media("image", "", labels))]),
-            ("AUD", [("Record audio", lambda: self.record_audio(labels)), ("Import audio", lambda: self.attach_media("audio", labels)), ("Remove audio", lambda: self.set_pending_media("audio", "", labels))]),
-            ("VID", [("Record video (Camera app)", lambda: self.record_video(labels)), ("Import video", lambda: self.attach_media("video", labels)), ("Remove video", lambda: self.set_pending_media("video", "", labels))]),
+            # Recording uses Windows' own recorder and Camera app, so the Mac
+            # offers importing only.
+            ("AUD", ([] if IS_MAC else [("Record audio", lambda: self.record_audio(labels))]) + [("Import audio", lambda: self.attach_media("audio", labels)), ("Remove audio", lambda: self.set_pending_media("audio", "", labels))]),
+            ("VID", ([] if IS_MAC else [("Record video (Camera app)", lambda: self.record_video(labels))]) + [("Import video", lambda: self.attach_media("video", labels)), ("Remove video", lambda: self.set_pending_media("video", "", labels))]),
         ]
         for index, (cue_label, actions) in enumerate(cue_actions):
             menu_button = self.cue_menu_button(cue_bar, cue_label, actions)
@@ -9095,19 +9133,27 @@ class MemoryPalApp(tk.Tk):
         self._sync_timer = None
         self._syncing = False
         self._applying_sync = False
+        self._changed_during_sync = False
         if not hasattr(self, "sign_in_limiter"):
             # Slows repeated wrong passwords or codes on this computer; the
             # server's own rate limits are the real protection.
             self.sign_in_limiter = security.AttemptLimiter()
         self.sync_status = ""
         self.account = cloud.Account(self.store.data_file.parent)
+        if self.store.recovered_from is not None:
+            # Restored from the last good save: merge with the cloud as if new,
+            # so cards newer than that save come back instead of being deleted.
+            self.account.state.start_over()
         self.store.save_listeners.append(self._changed_since_sync)
         if cloud.configured() and self.account.signed_in:
             self.schedule_sync(3000)
 
     def _changed_since_sync(self):
         if not self._applying_sync and cloud.configured() and self.account.signed_in:
-            self.schedule_sync(self.SYNC_AFTER_CHANGE_MS)
+            if self._syncing:
+                self._changed_during_sync = True  # goes up right after this sync
+            else:
+                self.schedule_sync(self.SYNC_AFTER_CHANGE_MS)
 
     def schedule_sync(self, delay_ms):
         if self._sync_timer:
@@ -9163,9 +9209,13 @@ class MemoryPalApp(tk.Tk):
 
     def sync_now(self, manual=False):
         self._sync_timer = None
-        if self._syncing or not cloud.configured() or not self.account.signed_in:
+        if self._syncing:
+            self._changed_during_sync = True
+            return
+        if not cloud.configured() or not self.account.signed_in:
             return
         self._syncing = True
+        self._changed_during_sync = False
         self.sync_status = "Syncing…"
         self.refresh_account_card()
         account = self.account
@@ -9201,7 +9251,8 @@ class MemoryPalApp(tk.Tk):
                 if manual or (isinstance(error, cloud.CloudError) and error.code == "signed_out"):
                     self.dialog_alert("Couldn't sync", message, "error")
             if account.signed_in:
-                self.schedule_sync(self.SYNC_EVERY_MS)
+                changed = self._changed_during_sync and error is None
+                self.schedule_sync(self.SYNC_AFTER_CHANGE_MS if changed else self.SYNC_EVERY_MS)
 
         self.run_in_background(lambda on_ui: account.sync(read_payload, write_payload, on_ui), finished, on_ui_requests=True)
 
@@ -9240,6 +9291,14 @@ class MemoryPalApp(tk.Tk):
                 ("Create account", lambda: self.open_account_dialog("create"), "Primary.TButton"),
                 ("Sign in", lambda: self.open_account_dialog("sign_in"), "TButton"),
             ])
+        legal = [(label, url) for label, url in (("Privacy Policy", cloud_config.PRIVACY_URL), ("Terms of Use", cloud_config.TERMS_URL)) if url]
+        if legal:
+            links = tk.Frame(card, bg=COLORS["surface"])
+            links.pack(anchor="w", pady=(self.px(12), 0))
+            for label, url in legal:
+                link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
+                link.pack(side="left", padx=(0, self.px(14)))
+                link.bind("<Button-1>", lambda _event, target=url: open_web_page(target))
 
     def account_signed_in(self, session, message):
         """Remember a new session, sync straight away, and refresh Settings."""
@@ -9975,17 +10034,19 @@ class MemoryPalApp(tk.Tk):
             safety = self.store.data_file.with_name(f"memorypal-data.before-import-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json")
             self.store.save()
             shutil.copy2(self.store.data_file, safety)
+            self.account.state.start_over()
             self.store.apply_raw(raw)
             self.store.onboarding = {"done": True, "persona": self.store.onboarding.get("persona", "")}
             self.store.save(merge_existing=False)
             self.accessibility = normalize_accessibility(self.store.accessibility)
             self.apply_accessibility_preferences()
             self.show_view("library")
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
+        except (OSError, json.JSONDecodeError, ValueError, TypeError, OverflowError) as exc:
             self.dialog_alert("Import failed", str(exc), "error")
 
     def reset_data(self):
         if self.dialog_confirm("Reset MemoryPal", "Clear local data and restore sample cards?", "Reset", destructive=True):
+            self.account.state.start_over()
             self.store.reset()
             self.accessibility = normalize_accessibility(self.store.accessibility)
             self.apply_accessibility_preferences()

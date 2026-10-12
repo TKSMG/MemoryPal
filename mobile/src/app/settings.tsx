@@ -1,7 +1,9 @@
 /** Settings: comfort and accessibility, appearance, daily goal, and backups. */
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
+import { Linking } from 'react-native';
 
+import { legalLinks } from '../cloud/client';
 import { persona } from '../core/personas';
 import { TextSize } from '../core/store';
 import { exportBackup, pickBackup } from '../state/backup';
@@ -15,6 +17,7 @@ export default function Settings() {
   const theme = useTheme();
   const [prefs, setPrefs] = usePrefs();
   const sync = useSync();
+  const legal = legalLinks();
   const a = store.accessibility;
 
   const doExport = async () => {
@@ -50,6 +53,7 @@ export default function Settings() {
       true,
     );
     if (ok) {
+      sync.account.startOver();
       store.importBackup(raw as Record<string, unknown>);
       notify('Backup loaded', `${store.cards.length} cards are ready.`);
     }
@@ -57,6 +61,7 @@ export default function Settings() {
 
   const doReset = async () => {
     if (await confirm('Start over?', 'This deletes all cards and progress on this phone and brings back the welcome screen. It cannot be undone.', 'Delete everything', true)) {
+      sync.account.startOver();
       store.reset();
       router.replace('/welcome');
     }
@@ -128,6 +133,12 @@ export default function Settings() {
         </>
       ) : null}
 
+      {legal.privacy || legal.terms ? (
+        <Row style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
+          {legal.privacy ? <Button kind="ghost" compact label="Privacy Policy" onPress={() => Linking.openURL(legal.privacy).catch(() => undefined)} /> : null}
+          {legal.terms ? <Button kind="ghost" compact label="Terms of Use" onPress={() => Linking.openURL(legal.terms).catch(() => undefined)} /> : null}
+        </Row>
+      ) : null}
       <Txt variant="small" center>{`MemoryPal ${Constants.expoConfig?.version ?? ''} · ${store.cards.length} cards`}</Txt>
     </Screen>
   );

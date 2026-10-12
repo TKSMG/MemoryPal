@@ -118,18 +118,20 @@ jobs:
       - name: Build for the iOS simulator
         working-directory: mobile/ios
         run: |
-          set -o pipefail
           xcodebuild -workspace MemoryPal.xcworkspace -scheme MemoryPal -configuration Release \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/sim" CODE_SIGNING_ALLOWED=NO build | tail -40
+            -derivedDataPath "$RUNNER_TEMP/sim" CODE_SIGNING_ALLOWED=NO build > "$RUNNER_TEMP/sim.log" 2>&1 \
+            || { grep -E "error:|BUILD FAILED|requires|not installed" "$RUNNER_TEMP/sim.log" | sort -u | head -30 | sed 's/^/::error::/'; tail -80 "$RUNNER_TEMP/sim.log"; exit 1; }
+          tail -5 "$RUNNER_TEMP/sim.log"
 
       - name: Build for iPhone and iPad (unsigned)
         working-directory: mobile/ios
         run: |
-          set -o pipefail
           xcodebuild -workspace MemoryPal.xcworkspace -scheme MemoryPal -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' \
-            -derivedDataPath "$RUNNER_TEMP/device" CODE_SIGNING_ALLOWED=NO build | tail -40
+            -derivedDataPath "$RUNNER_TEMP/device" CODE_SIGNING_ALLOWED=NO build > "$RUNNER_TEMP/device.log" 2>&1 \
+            || { grep -E "error:|BUILD FAILED|requires|not installed" "$RUNNER_TEMP/device.log" | sort -u | head -30 | sed 's/^/::error::/'; tail -80 "$RUNNER_TEMP/device.log"; exit 1; }
+          tail -5 "$RUNNER_TEMP/device.log"
 
       - name: Collect files
         run: |

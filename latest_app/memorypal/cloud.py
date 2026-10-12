@@ -264,7 +264,10 @@ class CloudClient:
                 query["updated_at"] = f"gte.{since}"
             page = self.request("GET", "/rest/v1/sync_records", token=session.access_token, query=query) or []
             for row in page:
-                rows.append((row["key"], None if row.get("deleted") else row.get("data"), row.get("updated_at")))
+                data = None if row.get("deleted") else row.get("data")
+                if not row.get("deleted") and not isinstance(data, dict):
+                    continue  # a malformed row is skipped, never read as a delete
+                rows.append((row["key"], data, row.get("updated_at")))
             if len(page) < PAGE_SIZE:
                 return rows
             offset += PAGE_SIZE
@@ -421,6 +424,13 @@ class SyncState:
         temp = self.path.with_name(self.path.name + ".tmp")
         temp.write_text(json.dumps({"device_id": self.device_id, "user_id": self.user_id, "cursor": self.cursor, "base": self.base, "last_synced": self.last_synced}), encoding="utf-8")
         os.replace(temp, self.path)
+
+    def start_over(self):
+        """After a backup import or reset, the next sync merges as if for the first
+        time, so cards missing here are fetched back rather than deleted everywhere."""
+        self.cursor = None
+        self.base = {}
+        self.save()
 
     def use_account(self, user_id):
         """Switching to a different account starts its sync from scratch (a merge, never a wipe)."""

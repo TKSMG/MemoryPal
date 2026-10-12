@@ -13,8 +13,8 @@
     "extra": {
       "supabaseUrl": "https://wgfaryxbwritolayuydh.supabase.co",
       "supabasePublishableKey": "sb_publishable_2dZ7rq2PQ9oCMG7bMMWhUQ_am1Zh1E6",
-      "termsUrl": "",
-      "privacyUrl": ""
+      "termsUrl": "https://github.com/TKSMG/MemoryPal/blob/main/TERMS_OF_USE.md",
+      "privacyUrl": "https://github.com/TKSMG/MemoryPal/blob/main/PRIVACY_POLICY.md"
     },
     "ios": {
       "supportsTablet": true,
@@ -33,7 +33,13 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 47
+      "versionCode": 47,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
