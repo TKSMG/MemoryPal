@@ -357,3 +357,11 @@ This build is packaged as release 0.48.0.
 The desktop header buttons now use the same drawn line icons as the tab bar, about half the button's size on every system, and the tab and hub-tile icons are a little larger. On the phone, icons grow with the in-app text size so they stay in step with their labels.
 
 This build is packaged as release 0.48.1.
+
+## v79 - Sign-in, Sync and Scrolling Check
+
+- Sign-in and sync: a refresh token the server says was already used now signs out cleanly instead of failing every few minutes, and turning on two-step sign-in on one device asks the other devices to sign in again with the code. Signing out while a refresh is on its way stays signed out. On the desktop, signing in before confirming the email goes to the code box. Signing in on a new device during first launch waits for the account's data, so the setup questions aren't asked again.
+- Scrolling (desktop): a sync that brings changes keeps the page where it was instead of jumping to the top; the wheel glide eases more evenly during a steady spin; precision touchpads move smoothly instead of in notch-sized jumps; background style work waits until scrolling stops. On the phone, cards don't flash pressed when a finger starts a scroll on them.
+- Icons: the streak and sync chips in the desktop header use drawn line icons (flame, cloud, sync, warning) instead of tiny text symbols, and the Associations link icon is larger.
+
+This build is packaged as release 0.48.2.

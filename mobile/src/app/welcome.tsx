@@ -1,7 +1,7 @@
 /** First launch: one plain question, then comfort settings, then straight to Today. */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, View } from 'react-native';
 
 import { MANAGED_SETTINGS, PERSONAS, persona as personaFor } from '../core/personas';
@@ -22,6 +22,11 @@ export default function Welcome() {
   const store = useStore();
   const theme = useTheme();
   const [chosen, setChosen] = useState<PersonaKey | ''>(store.onboarding.persona);
+  // An account signed in on another device brings its answers with it.
+  const done = store.onboarding.done;
+  useEffect(() => {
+    if (done) router.replace('/');
+  }, [done]);
 
   const choose = (key: PersonaKey) => {
     setChosen(key);

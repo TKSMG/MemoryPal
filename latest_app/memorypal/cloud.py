@@ -66,6 +66,8 @@ FRIENDLY = {
     "signup_disabled": "New accounts can't be made right now.",
     "refresh_token_not_found": "You've been signed out. Please sign in again.",
     "session_not_found": "You've been signed out. Please sign in again.",
+    "refresh_token_already_used": "You've been signed out. Please sign in again.",
+    "two_step_now_on": "This account now uses two-step sign-in. Sign in again with your authenticator code.",
     "mfa_verification_failed": "That authenticator code isn't right. Check the time on this device and try the newest code.",
     "mfa_challenge_expired": "That took too long. Try again with a fresh code.",
     "insufficient_aal": "Finish two-step sign-in first: enter the code from your authenticator app.",
@@ -450,7 +452,7 @@ class SyncState:
 class Account:
     """The sign-in for one profile: keeps the session fresh and remembers it securely."""
 
-    SIGNED_OUT_CODES = ("refresh_token_not_found", "session_not_found", "unauthorized", "invalid_grant")
+    SIGNED_OUT_CODES = ("refresh_token_not_found", "refresh_token_already_used", "session_not_found", "unauthorized", "invalid_grant")
 
     def __init__(self, folder, client=None):
         self.client = client or CloudClient()
@@ -458,6 +460,9 @@ class Account:
         self.state = SyncState(folder)
         self.saved = self.tokens.load()
         self.session = None
+        # Bumped by forget(), so a refresh that finishes after Sign out
+        # can't quietly sign the person back in.
+        self.generation = 0
 
     @property
     def signed_in(self):
@@ -483,6 +488,7 @@ class Account:
         self.tokens.clear()
         self.session = None
         self.saved = None
+        self.generation += 1
 
     def active_session(self):
         if self.session and not self.session.expiring():
@@ -490,12 +496,22 @@ class Account:
         refresh = (self.session.refresh_token if self.session else "") or (self.saved or {}).get("refresh_token")
         if not refresh:
             raise CloudError("Sign in to sync your cards.", "signed_out")
+        generation = self.generation
         try:
-            return self.remember(self.client.refresh(refresh))
+            fresh = self.client.refresh(refresh)
         except CloudError as error:
-            if error.code in self.SIGNED_OUT_CODES:
+            if error.code in self.SIGNED_OUT_CODES and generation == self.generation:
                 self.forget()
             raise
+        if generation != self.generation:
+            raise CloudError("Sign in to sync your cards.", "signed_out")
+        if fresh.needs_second_step:
+            # Two-step sign-in was turned on from another device. This
+            # session can't reach the data any more and has nowhere to type
+            # the code, so sign out and let the sign-in ask for it.
+            self.forget()
+            raise CloudError(FRIENDLY["two_step_now_on"], "two_step_now_on")
+        return self.remember(fresh)
 
     def sign_out(self):
         if self.session:
