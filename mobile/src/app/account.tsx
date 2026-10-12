@@ -330,7 +330,7 @@ export default function Account() {
                 <Txt variant="small" color={meterColor}>{`Strength: ${STRENGTH_LABELS[score]}.${problems.length ? ` ${problems[0]}` : ''}`}</Txt>
               </>
             ) : (
-              <Txt variant="small">{`At least ${MIN_PASSWORD} characters. Three or four unrelated words make a strong, memorable password.`}</Txt>
+              <Txt variant="small">{`At least ${MIN_PASSWORD} characters, with letters and at least one number. Three or four unrelated words and a number make a strong, memorable password.`}</Txt>
             )}
           </View>
         ) : null}

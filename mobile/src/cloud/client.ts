@@ -54,7 +54,7 @@ const FRIENDLY: Record<string, string> = {
   email_not_confirmed: 'Confirm your email first: enter the 6-digit code we sent you.',
   user_already_exists: "There's already an account with this email. Sign in instead.",
   email_exists: "There's already an account with this email. Sign in instead.",
-  weak_password: `Choose a longer password: at least ${MIN_PASSWORD} characters, ideally a few words.`,
+  weak_password: `Choose a stronger password: at least ${MIN_PASSWORD} characters with letters and at least one number.`,
   over_email_send_rate_limit: 'Too many emails were sent just now. Wait a few minutes and try again.',
   over_request_rate_limit: 'Too many tries in a short time. Wait a minute and try again.',
   otp_expired: 'That code is wrong or has expired. Ask for a new one.',

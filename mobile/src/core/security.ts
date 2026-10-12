@@ -62,9 +62,8 @@ export function passwordProblems(password: string, email = ''): string[] {
     problems.push("Don't use your email name in your password.");
   }
   if (predictable(value)) problems.push('Avoid repeated letters and runs like 1234 or qwerty.');
-  if (value.length >= MIN_PASSWORD && characterClasses(value) < 2 && value.length < 16) {
-    problems.push('Mix in a number, a capital or a symbol, or make it longer.');
-  }
+  // The account server requires both (Supabase: letters and digits).
+  if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) problems.push('Include at least one letter and one number.');
   return problems;
 }
 

@@ -5,7 +5,8 @@
     "password": "",
     "email": "",
     "problems": [
-     "Use at least 10 characters. A few unrelated words work well."
+     "Use at least 10 characters. A few unrelated words work well.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -15,7 +16,8 @@
     "password": "",
     "email": "pat.lee@example.com",
     "problems": [
-     "Use at least 10 characters. A few unrelated words work well."
+     "Use at least 10 characters. A few unrelated words work well.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -25,7 +27,8 @@
     "password": "abc",
     "email": "",
     "problems": [
-     "Use at least 10 characters. A few unrelated words work well."
+     "Use at least 10 characters. A few unrelated words work well.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -35,7 +38,8 @@
     "password": "abc",
     "email": "pat.lee@example.com",
     "problems": [
-     "Use at least 10 characters. A few unrelated words work well."
+     "Use at least 10 characters. A few unrelated words work well.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -46,7 +50,8 @@
     "email": "",
     "problems": [
      "Use at least 10 characters. A few unrelated words work well.",
-     "This is one of the most common passwords. Choose something less guessable."
+     "This is one of the most common passwords. Choose something less guessable.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -57,7 +62,8 @@
     "email": "pat.lee@example.com",
     "problems": [
      "Use at least 10 characters. A few unrelated words work well.",
-     "This is one of the most common passwords. Choose something less guessable."
+     "This is one of the most common passwords. Choose something less guessable.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -109,7 +115,7 @@
     "problems": [
      "This is one of the most common passwords. Choose something less guessable.",
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -121,7 +127,7 @@
     "problems": [
      "This is one of the most common passwords. Choose something less guessable.",
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -132,7 +138,7 @@
     "email": "",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -143,7 +149,7 @@
     "email": "pat.lee@example.com",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -155,7 +161,7 @@
     "problems": [
      "This is one of the most common passwords. Choose something less guessable.",
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -167,7 +173,7 @@
     "problems": [
      "This is one of the most common passwords. Choose something less guessable.",
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -178,7 +184,7 @@
     "email": "",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -189,7 +195,7 @@
     "email": "pat.lee@example.com",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -200,7 +206,7 @@
     "email": "",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -211,7 +217,7 @@
     "email": "pat.lee@example.com",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -220,16 +226,20 @@
    {
     "password": "correct horse battery staple",
     "email": "",
-    "problems": [],
-    "strength": 4,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 2
    },
    {
     "password": "correct horse battery staple",
     "email": "pat.lee@example.com",
-    "problems": [],
-    "strength": 4,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 2
    },
@@ -382,16 +392,20 @@
    {
     "password": "longlonglonglonglong",
     "email": "",
-    "problems": [],
-    "strength": 3,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 1
    },
    {
     "password": "longlonglonglonglong",
     "email": "pat.lee@example.com",
-    "problems": [],
-    "strength": 3,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 1
    },
@@ -419,7 +433,7 @@
     "password": "ilovemycat",
     "email": "",
     "problems": [
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": false,
@@ -429,7 +443,7 @@
     "password": "ilovemycat",
     "email": "pat.lee@example.com",
     "problems": [
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": false,
@@ -476,16 +490,20 @@
    {
     "password": "mississippi river bend",
     "email": "",
-    "problems": [],
-    "strength": 3,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 2
    },
    {
     "password": "mississippi river bend",
     "email": "pat.lee@example.com",
-    "problems": [],
-    "strength": 3,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 2
    },
