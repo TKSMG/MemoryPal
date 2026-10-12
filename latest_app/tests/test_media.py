@@ -90,6 +90,11 @@ class WindowsMediaTests(MediaTestCase):
         self.assertGreater(media.wav_duration(path), 0.8)
 
     def test_player_plays_and_stops(self):
+        import ctypes
+        # Build machines (GitHub's Windows runners) have no sound card, so MCI
+        # can't open any clip there; a real PC always has an output device.
+        if ctypes.windll.winmm.waveOutGetNumDevs() == 0:
+            self.skipTest("no audio output device on this machine")
         clip = self.dir / "silence.wav"
         write_silent_wav(clip, 2.0)
         player = media.AudioPlayer()

@@ -137,6 +137,27 @@ function moreProgress(a: Data, b: Data): boolean {
   return ra !== rb ? ra > rb : da > db;
 }
 
+function whole(value: unknown): number {
+  return Math.trunc(Number(value ?? 0) || 0);
+}
+
+/**
+ * Whose review schedule to keep when both devices reviewed the same card.
+ * A miss on either side wins, so a forgotten card comes back soon rather than
+ * being pushed weeks out; otherwise the side with more reviews wins.
+ */
+function scheduleWinner(base: Data, local: Data, remote: Data): Data {
+  const lapsesBefore = whole(base.lapses);
+  const localMissed = whole(local.lapses) > lapsesBefore;
+  const remoteMissed = whole(remote.lapses) > lapsesBefore;
+  if (localMissed !== remoteMissed) return localMissed ? local : remote;
+  return moreProgress(local, remote) ? local : remote;
+}
+
+function unreviewed(key: string, data: Data | null): boolean {
+  return kindOf(key) === 'card' && !!data && whole(data.repetitions) === 0 && whole(data.lapses) === 0;
+}
+
 export function mergeRecord(key: string, base: Data | null | undefined, local: Data | null | undefined, remote: Data | null | undefined): Data | null {
   if (!local && !remote) return null;
   if (!local) return remote ?? null; // an edit on the other device beats a delete here
@@ -146,7 +167,7 @@ export function mergeRecord(key: string, base: Data | null | undefined, local: D
   const field = (record: Data, name: string) => record[name] ?? null;
   let winner: Data | null = null;
   if (kindOf(key) === 'card' && SCHEDULE_FIELDS.some((name) => !same(field(local, name), field(remote, name)) && !same(field(local, name), field(was, name)) && !same(field(remote, name), field(was, name)))) {
-    winner = moreProgress(local, remote) ? local : remote;
+    winner = scheduleWinner(was, local, remote);
   }
   const merged: Data = {};
   for (const name of sortKeys([...Object.keys(local), ...Object.keys(remote)])) {
@@ -178,8 +199,14 @@ export function planSync(local: Records, base: Records, remote: Remote): SyncPla
     const mine = local[key] ?? null;
     const was = base[key] ?? null;
     const theirs = key in remote ? remote[key] : was;
-    const localChanged = !same(mine, was);
-    const remoteChanged = key in remote && !same(theirs, was);
+    let localChanged = !same(mine, was);
+    let remoteChanged = key in remote && !same(theirs, was);
+    if (key in remote && theirs === null && was === null && unreviewed(key, mine)) {
+      // A card deleted elsewhere that this device never synced or reviewed
+      // (a starter card on a new install) stays deleted.
+      localChanged = false;
+      remoteChanged = true;
+    }
     let result: Data | null;
     if (remoteChanged && localChanged) result = mergeRecord(key, was, mine, theirs);
     else if (remoteChanged) result = theirs;

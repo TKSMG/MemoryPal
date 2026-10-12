@@ -14,7 +14,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Theme, useTheme } from './theme';
 
@@ -63,7 +63,6 @@ const READABLE_WIDTH = 720;
 
 export function Screen({ title, eyebrow, right, children, scroll = true, padded = true }: { title?: string; eyebrow?: string; right?: ReactNode; children: ReactNode; scroll?: boolean; padded?: boolean }) {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const header = title ? (
     <View style={styles.header}>
       <View style={{ flex: 1 }}>
@@ -74,25 +73,29 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
     </View>
   ) : null;
   const pad = padded ? { paddingHorizontal: 20 } : null;
-  if (!scroll) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-        <View style={[styles.readable, { flex: 1, paddingTop: insets.top + 12 }, pad]}>
+  // The native safe area view pads only where the screen really meets the
+  // status bar or home indicator, so screens under a navigation bar or above
+  // the tab bar get no extra gap.
+  return (
+    <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      {scroll ? (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.readable, { paddingTop: 12, paddingBottom: 40, gap: 16 }, pad]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+        >
+          {header}
+          {children}
+        </ScrollView>
+      ) : (
+        <View style={[styles.readable, { flex: 1, paddingTop: 12 }, pad]}>
           {header}
           {children}
         </View>
-      </View>
-    );
-  }
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      contentContainerStyle={[styles.readable, { paddingTop: insets.top + 12, paddingBottom: 40, gap: 16 }, pad]}
-      keyboardShouldPersistTaps="handled"
-    >
-      {header}
-      {children}
-    </ScrollView>
+      )}
+    </SafeAreaView>
   );
 }
 

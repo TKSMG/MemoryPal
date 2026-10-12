@@ -85,8 +85,25 @@ rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 ditto "$APP_BUNDLE" "$RELEASE_DIR/MemoryPal.app"
 
-if command -v codesign >/dev/null 2>&1; then
-  codesign --force --deep --sign - "$RELEASE_DIR/MemoryPal.app" || true
+# Version, copyright and category for Finder and the About window
+# (PyInstaller's default plist says 0.0.0).
+APP_VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)"
+PLIST="$RELEASE_DIR/MemoryPal.app/Contents/Info.plist"
+plutil -replace CFBundleShortVersionString -string "$APP_VERSION" "$PLIST"
+plutil -replace CFBundleVersion -string "$APP_VERSION" "$PLIST"
+plutil -replace NSHumanReadableCopyright -string "© $(date +%Y) MemoryPal" "$PLIST"
+plutil -replace LSMinimumSystemVersion -string "11.0" "$PLIST"
+plutil -replace LSApplicationCategoryType -string "public.app-category.education" "$PLIST"
+
+# With a Developer ID certificate (MEMORYPAL_MAC_SIGN_IDENTITY) the app is
+# signed for Gatekeeper, and with notary credentials it is notarized too.
+# Without them it gets an ad-hoc signature: it runs, but a downloaded copy
+# has to be opened with right-click > Open the first time.
+SIGN_IDENTITY="${MEMORYPAL_MAC_SIGN_IDENTITY:--}"
+if [[ "$SIGN_IDENTITY" == "-" ]]; then
+  codesign --force --deep --sign - "$RELEASE_DIR/MemoryPal.app"
+else
+  codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$RELEASE_DIR/MemoryPal.app"
 fi
 
 rm -rf "$DMG_ROOT" "$DMG_PATH" "$ZIP_PATH"
@@ -94,6 +111,14 @@ mkdir -p "$DMG_ROOT"
 ditto "$RELEASE_DIR/MemoryPal.app" "$DMG_ROOT/MemoryPal.app"
 ln -s /Applications "$DMG_ROOT/Applications"
 hdiutil create -volname "MemoryPal" -srcfolder "$DMG_ROOT" -ov -format UDZO "$DMG_PATH"
+if [[ "$SIGN_IDENTITY" != "-" ]]; then
+  codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_PATH"
+  if [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" ]]; then
+    xcrun notarytool submit "$DMG_PATH" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+    xcrun stapler staple "$DMG_PATH"
+    xcrun stapler staple "$RELEASE_DIR/MemoryPal.app"
+  fi
+fi
 ditto -c -k --sequesterRsrc --keepParent "$RELEASE_DIR/MemoryPal.app" "$ZIP_PATH"
 
 echo

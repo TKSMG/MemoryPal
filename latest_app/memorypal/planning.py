@@ -257,7 +257,7 @@ def plan_for_today(store, plan=None, today=None):
     except (TypeError, ValueError):
         amount = 1
     total_days = amount * (7 if settings.get("unit") == "weeks" else 1)
-    day_number = (today - created).days + 1
+    day_number = max(1, (today - created).days + 1)  # a plan made in a later time zone starts today
     if day_number > total_days:
         return {"title": f"Your {total_days}-day plan is complete", "steps": [], "finished": True, "day": day_number, "total_days": total_days}
     days = build_multi_day_plan(store, total_days, deck_choice, habits, goal, start=created)

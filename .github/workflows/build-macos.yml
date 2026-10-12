@@ -2,6 +2,7 @@ name: Build macOS App
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     branches:
       - main
@@ -10,6 +11,8 @@ jobs:
   build-macos:
     name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.runner }}
+    env:
+      HAS_MAC_CERT: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -37,9 +40,42 @@ jobs:
           python -c "import tkinter as tk; print(f'Tkinter is available: Tk {tk.TkVersion}')"
 
       - name: Run unit tests
-        run: python -m unittest discover -s latest_app/tests
+        shell: bash
+        run: |
+          # On failure the end of the test output becomes an annotation, so it
+          # can be read from the checks page without downloading logs.
+          if ! python -m unittest discover -s latest_app/tests > "$RUNNER_TEMP/tests.log" 2>&1; then
+            tail -c 3500 "$RUNNER_TEMP/tests.log" | python -c "import sys; print('::error title=Unit tests::' + sys.stdin.read().replace('%', '%25').replace('\r', '').replace('\n', '%0A'))"
+            cat "$RUNNER_TEMP/tests.log"
+            exit 1
+          fi
+          tail -3 "$RUNNER_TEMP/tests.log"
+
+      # Optional: a Developer ID certificate (base64 .p12) and notary
+      # credentials in the repository secrets sign and notarize the app.
+      - name: Load the signing certificate
+        if: ${{ env.HAS_MAC_CERT == 'true' }}
+        env:
+          MAC_CERT: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          echo "$MAC_CERT" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MAC_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | sed -n 's/.*"\(Developer ID Application[^"]*\)".*/\1/p' | head -1)"
+          echo "MEMORYPAL_MAC_SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
 
       - name: Build MemoryPal macOS package
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
           chmod +x build_macos.sh
           MEMORYPAL_MAC_ARTIFACT_SUFFIX="${{ matrix.artifact_suffix }}" ./build_macos.sh

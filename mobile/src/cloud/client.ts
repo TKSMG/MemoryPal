@@ -54,7 +54,7 @@ const FRIENDLY: Record<string, string> = {
   email_not_confirmed: 'Confirm your email first: enter the 6-digit code we sent you.',
   user_already_exists: "There's already an account with this email. Sign in instead.",
   email_exists: "There's already an account with this email. Sign in instead.",
-  weak_password: `Choose a longer password: at least ${MIN_PASSWORD} characters, ideally a few words.`,
+  weak_password: `Choose a stronger password: at least ${MIN_PASSWORD} characters with letters and at least one number.`,
   over_email_send_rate_limit: 'Too many emails were sent just now. Wait a few minutes and try again.',
   over_request_rate_limit: 'Too many tries in a short time. Wait a minute and try again.',
   otp_expired: 'That code is wrong or has expired. Ask for a new one.',
@@ -265,7 +265,12 @@ export class CloudClient {
       const query: Record<string, string | number> = { select: 'key,kind,data,deleted,updated_at', order: 'updated_at.asc,key.asc', limit: PAGE_SIZE, offset };
       if (since) query.updated_at = `gte.${since}`;
       const page = ((await this.request('GET', '/rest/v1/sync_records', { token: session.accessToken, query })) ?? []) as Record<string, unknown>[];
-      for (const row of page) rows.push([String(row.key), row.deleted ? null : ((row.data ?? null) as Data | null), String(row.updated_at ?? '')]);
+      for (const row of page) {
+        const data = row.deleted ? null : row.data;
+        // A malformed row is skipped, never read as a delete.
+        if (!row.deleted && (data === null || typeof data !== 'object' || Array.isArray(data))) continue;
+        rows.push([String(row.key), (data ?? null) as Data | null, String(row.updated_at ?? '')]);
+      }
       if (page.length < PAGE_SIZE) return rows;
     }
   }

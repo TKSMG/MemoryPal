@@ -271,7 +271,19 @@ export class MemoryStore {
 
   /** Take synced data (cards, captures, counts, settings) and save it. */
   replaceWith(raw: Record<string, unknown>) {
+    // Screens hold card objects (the review queue, a quiz round), so keep the
+    // same object for each id; otherwise later ratings change a detached copy.
+    const liveCards = new Map(this.cards.map((card) => [card.id, card]));
+    const liveCaptures = new Map(this.captures.map((capture) => [capture.id, capture]));
     this.applyRaw({ ...(this.payload() as unknown as Record<string, unknown>), ...raw });
+    this.cards = this.cards.map((fresh) => {
+      const existing = liveCards.get(fresh.id);
+      return existing ? Object.assign(existing, fresh) : fresh;
+    });
+    this.captures = this.captures.map((fresh) => {
+      const existing = liveCaptures.get(fresh.id);
+      return existing ? Object.assign(existing, fresh) : fresh;
+    });
     this.save();
   }
 
@@ -518,7 +530,8 @@ export class MemoryStore {
     const card = this.findCard(action.cardId);
     if (!card) return false;
     Object.assign(card, action.snapshot);
-    this.practiced = action.practicedBefore;
+    // Step back by one: a sync since the rating may have added other devices' counts.
+    this.practiced = Math.max(0, this.practiced - 1);
     const key = action.activityKey;
     if ((this.activity[key] ?? 0) > 0) {
       this.activity[key] -= 1;

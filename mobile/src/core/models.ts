@@ -95,6 +95,12 @@ function firstText(raw: Raw, names: string[], fallback: string): string {
   return fallback;
 }
 
+const MAX_ID_LENGTH = 150; // the cloud refuses record keys over 200 characters
+
+function recordId(value: string): string {
+  return value.length > 0 && value.length <= MAX_ID_LENGTH ? value : uid();
+}
+
 function toNumber(value: unknown, integer: boolean, fallback: number): number {
   if (typeof value === 'boolean') return Number(value);
   if (typeof value === 'number' && Number.isFinite(value)) return integer ? Math.trunc(value) : value;
@@ -110,7 +116,7 @@ export function cardFromDict(raw: Raw): Card {
   const defaults = newCard();
   const text = (...names: string[]) => firstText(raw, names, String((defaults as unknown as Raw)[names[0]] ?? ''));
   return {
-    id: text('id'),
+    id: recordId(text('id')),
     deck: text('deck') || 'General',
     front: text('front'),
     back: text('back'),
@@ -139,7 +145,7 @@ export function captureFromDict(raw: Raw): Capture {
     ? raw.chunks.filter((chunk) => chunk !== null && chunk !== undefined && String(chunk).trim()).map(String)
     : [];
   return {
-    id: text('id', uid()),
+    id: recordId(text('id', uid())),
     title: text('title') || 'Captured memory material',
     notes,
     chunks: chunks.length ? chunks : splitStudyBits(notes),

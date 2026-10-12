@@ -139,8 +139,18 @@ export class CloudAccount {
     }
   }
 
+  /**
+   * After a backup is loaded or the phone is reset, the next sync merges with
+   * the cloud as if for the first time, so cards missing here are fetched back
+   * instead of being deleted on every other device.
+   */
+  startOver() {
+    this.state = { ...this.state, cursor: null, base: {} };
+    this.saveState();
+  }
+
   /** One full sync: pull, merge into the store, push, remember the new base. */
-  async sync(store: MemoryStore): Promise<{ pulled: number; pushed: number; applied: number }> {
+  async sync(store: MemoryStore, applying: (apply: () => void) => void = (apply) => apply()): Promise<{ pulled: number; pushed: number; applied: number }> {
     const session = await this.activeSession();
     this.useAccount(session.userId);
     const rows = await this.client.pull(session, pullSince(this.state.cursor));
@@ -155,7 +165,7 @@ export class CloudAccount {
     const payload = store.payload() as unknown as Record<string, unknown>;
     const local = recordsFromPayload(payload, this.state.device_id, this.state.base);
     const plan = planSync(local, this.state.base, remote);
-    if (Object.keys(plan.apply).length) store.replaceWith(applyPlan(payload, local, plan));
+    if (Object.keys(plan.apply).length) applying(() => store.replaceWith(applyPlan(payload, local, plan)));
     if (Object.keys(plan.push).length) await this.client.push(session, plan.push);
     this.state = { ...this.state, base: plan.final, cursor, last_synced: nowLabel() };
     this.saveState();

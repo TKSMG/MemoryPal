@@ -1,5 +1,5 @@
 #define MyAppName "MemoryPal"
-#define MyAppVersion "0.46.0"
+#define MyAppVersion "0.47.0"
 #define MyAppPublisher "MemoryPal"
 #define MyAppExeName "MemoryPal.exe"
 
@@ -8,6 +8,11 @@ AppId={{A66C598E-2E7B-4B88-B49C-91E1A6E7D6A1}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL=https://github.com/TKSMG/MemoryPal
+AppSupportURL=https://github.com/TKSMG/MemoryPal/issues
+AppUpdatesURL=https://github.com/TKSMG/MemoryPal/releases
+AppCopyright=Copyright (C) 2026 {#MyAppPublisher}
+VersionInfoProductName={#MyAppName}
 VersionInfoVersion={#MyAppVersion}
 DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}

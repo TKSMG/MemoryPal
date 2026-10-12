@@ -279,7 +279,7 @@ export function planForToday(store: MemoryStore, planIn?: StudyPlan | null, toda
   let amount = parseInt(String(settings.amount ?? '1'), 10);
   if (!Number.isFinite(amount)) amount = 1;
   const totalDays = amount * (settings.unit === 'weeks' ? 7 : 1);
-  const dayNumber = daysBetween(created, today) + 1;
+  const dayNumber = Math.max(1, daysBetween(created, today) + 1); // a plan made in a later time zone starts today
   if (dayNumber > totalDays) {
     return { title: `Your ${totalDays}-day plan is complete`, steps: [], finished: true, day: dayNumber, totalDays };
   }
