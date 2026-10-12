@@ -50,10 +50,15 @@ class PrefsStore {
   };
 }
 
-const SYNC_AFTER_CHANGE_MS = 15_000;
-const SYNC_EVERY_MS = 10 * 60_000;
+const SYNC_AFTER_CHANGE_MS = 5_000;
+const SYNC_EVERY_MS = 5 * 60_000;
 
-/** Keeps the signed-in profile in sync: on launch, after changes, on return to the app, and every 10 minutes. */
+/**
+ * Keeps the signed-in profile in sync on its own: on launch, a few seconds
+ * after a change, when the app is opened again or put away, and every five
+ * minutes. "Sync now" is always there too, and automatic sync can be turned
+ * off in Account & sync.
+ */
 export class SyncController {
   account = new CloudAccount();
   syncing = false;
@@ -66,7 +71,7 @@ export class SyncController {
 
   constructor(private store: MemoryStore) {
     store.subscribe(() => {
-      if (this.applying || !this.account.signedIn) return;
+      if (this.applying || !this.autoReady) return;
       // A change made while a sync is on the network goes up right after it.
       if (this.syncing) this.changedDuringSync = true;
       else this.syncSoon(SYNC_AFTER_CHANGE_MS);
@@ -76,12 +81,42 @@ export class SyncController {
       // from the cloud instead of syncing the empty phone as deletions.
       if (store.loadProblem) this.account.startOver();
       this.changed();
-      if (this.account.signedIn) this.syncSoon(1000);
+      if (this.autoReady) this.syncSoon(1000);
     });
-    setInterval(() => this.account.signedIn && this.syncSoon(0), SYNC_EVERY_MS);
+    setInterval(() => this.autoReady && this.syncSoon(0), SYNC_EVERY_MS);
     RNAppState.addEventListener('change', (state) => {
-      if (state === 'active' && this.account.signedIn) this.syncSoon(500);
+      if (!this.autoReady) return;
+      // Coming back fetches what other devices did; going away sends what
+      // was done here, so the next device opened is already up to date.
+      if (state === 'active') this.syncSoon(500);
+      else if (state === 'background' && this.timer) this.syncSoon(0);
     });
+  }
+
+  /** Signed in with automatic sync on. */
+  private get autoReady() {
+    return this.account.signedIn && this.account.state.auto_sync;
+  }
+
+  get auto() {
+    return this.account.state.auto_sync;
+  }
+
+  setAuto(value: boolean) {
+    this.account.setOption({ auto_sync: value });
+    this.changed();
+    if (value && this.account.signedIn) this.syncSoon(0);
+  }
+
+  /** The first-launch sign-in page shows until someone signs in or chooses to go on without. */
+  get needsSignInPrompt() {
+    return this.configured && this.account.restored && !this.account.signedIn && !this.account.state.account_prompted;
+  }
+
+  markPrompted() {
+    if (this.account.state.account_prompted) return;
+    this.account.setOption({ account_prompted: true });
+    this.changed();
   }
 
   get configured() {
@@ -136,6 +171,7 @@ export class SyncController {
 
   async signedIn(session: Session) {
     await this.account.remember(session);
+    this.account.setOption({ account_prompted: true });
     this.changed();
     await this.syncNow();
   }

@@ -37,6 +37,7 @@ function RootStack() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="start" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="review" options={{ title: 'Review' }} />
         <Stack.Screen name="quiz" options={{ title: 'Quick quiz' }} />

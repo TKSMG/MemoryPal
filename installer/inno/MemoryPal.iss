@@ -1,5 +1,5 @@
 #define MyAppName "MemoryPal"
-#define MyAppVersion "0.47.0"
+#define MyAppVersion "0.48.0"
 #define MyAppPublisher "MemoryPal"
 #define MyAppExeName "MemoryPal.exe"
 

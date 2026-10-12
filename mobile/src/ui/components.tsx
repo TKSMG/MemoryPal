@@ -11,6 +11,7 @@ import {
   TextInput,
   TextInputProps,
   TextStyle,
+  useWindowDimensions,
   View,
   ViewStyle,
 } from 'react-native';
@@ -40,13 +41,16 @@ const SIZES: Record<Variant, [number, TextStyle['fontWeight'], number]> = {
 export function Txt({ variant = 'body', color, style, children, center, ...rest }: { variant?: Variant; color?: string; style?: StyleProp<TextStyle>; children: ReactNode; center?: boolean; numberOfLines?: number; accessibilityRole?: 'header' | 'text' }) {
   const theme = useTheme();
   const [size, weight, line] = SIZES[variant];
+  // Big headings grow less than body text with the in-app text size, so a
+  // page title still fits on one line on a small phone.
+  const grow = variant === 'title' || variant === 'big' ? Math.min(theme.scale, 1.1) / theme.scale : 1;
   const tone = color ?? (variant === 'muted' || variant === 'small' || variant === 'label' ? theme.colors.muted : theme.colors.ink);
   return (
     <Text
       maxFontSizeMultiplier={2}
       accessibilityRole={rest.accessibilityRole ?? (variant === 'title' || variant === 'h2' ? 'header' : undefined)}
       style={[
-        { color: tone, fontSize: theme.font(size), lineHeight: theme.font(line), fontWeight: weight },
+        { color: tone, fontSize: theme.font(size * grow), lineHeight: theme.font(line * grow), fontWeight: weight },
         center && { textAlign: 'center' },
         style,
       ]}
@@ -72,7 +76,11 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
       {right}
     </View>
   ) : null;
-  const pad = padded ? { paddingHorizontal: 20 } : null;
+  const { width } = useWindowDimensions();
+  // Side margins follow the screen: tighter on small phones so nothing is
+  // squeezed, roomier on tablets (where content also stops at a readable width).
+  const gutter = width < 360 ? 16 : width >= 600 ? 28 : 20;
+  const pad = padded ? { paddingHorizontal: gutter } : null;
   // The native safe area view pads only where the screen really meets the
   // status bar or home indicator, so screens under a navigation bar or above
   // the tab bar get no extra gap.
@@ -81,7 +89,7 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
       {scroll ? (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={[styles.readable, { paddingTop: 12, paddingBottom: 40, gap: 16 }, pad]}
+          contentContainerStyle={[styles.readable, { paddingTop: 12, paddingBottom: 32, gap: 16 }, pad]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           automaticallyAdjustKeyboardInsets
