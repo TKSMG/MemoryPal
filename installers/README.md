@@ -16,7 +16,7 @@ Each release also has `SHA256SUMS.txt` to check a download.
 ## Making a new release
 
 1. Bump the version: `pyproject.toml`, `installer/inno/MemoryPal.iss`, `build_nuitka_windows.cmd` and `mobile/app.json` (`version`, `ios.buildNumber`, `android.versionCode`).
-2. Push a tag: `git tag v0.48.0 && git push origin v0.48.0`.
+2. Push a tag: `git tag v0.48.1 && git push origin v0.48.1`.
 3. The **Release Installers** workflow builds all six files and publishes them as a GitHub Release. It can also be run by hand from the Actions tab with a tag name.
 
 ## Signing for the stores

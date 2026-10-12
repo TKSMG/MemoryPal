@@ -21,7 +21,7 @@ function StepList({ steps }: { steps: PlanStep[] }) {
         <Row key={`${step.title}-${i}`} style={{ alignItems: 'flex-start' }}>
           <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: step.view === 'break' ? theme.colors.alt : theme.colors.primary, alignItems: 'center', justifyContent: 'center' }}>
             {step.view === 'break'
-              ? <Ionicons name="cafe-outline" size={16} color={theme.colors.ink} />
+              ? <Ionicons name="cafe-outline" size={theme.icon(16)} color={theme.colors.ink} />
               : <Txt variant="small" color={theme.colors.onPrimary}>{String(i + 1)}</Txt>}
           </View>
           <View style={{ flex: 1, gap: 2 }}>

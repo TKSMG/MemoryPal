@@ -91,6 +91,7 @@ Tab bar (v77):
 - The active destination is a soft tinted pill in the accent colour, not a bright block. Pages inside a destination (Review inside Study, Puzzles inside Practice) light up their destination.
 - The line above each page title names the destination it belongs to.
 - Every tab has a line icon (`LINE_ICONS`, drawn on a 24-unit grid with one stroke weight, like SF Symbols) and tabs are at least 36px tall. Icons are drawn in code, so there is no image file to ship and they follow the theme colours.
+- Icon sizes (v78): tab icons 20px beside 13pt labels; header buttons draw line icons at about half their 42px size (not icon-font glyphs, whose fallbacks off Windows were tiny); hub-tile icons 24px in a 40px badge. On the phone, content icons use `theme.icon(size)` so they grow with the in-app text size; the tab bar stays fixed like its labels.
 - Hub tiles carry the same icons in a tinted square. When a hub has four or fewer tiles, the rows share the visible height (up to a cap) so the tiles fill the page instead of leaving an empty band below.
 
 Destructive actions: never put them next to everyday actions. Reset all data lives in Settings. Delete card lives inside the card editor, behind a confirmation. Import shows how many cards a backup has and keeps a copy of the current data before replacing it.

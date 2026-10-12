@@ -101,6 +101,8 @@ export interface Theme {
   /** In-app text size multiplier (the phone's font setting applies on top). */
   scale: number;
   font: (size: number) => number;
+  /** Icon size that grows with the in-app text size, so symbols stay in step with their labels. */
+  icon: (size: number) => number;
   space: (units: number) => number;
   radius: number;
   reduceMotion: boolean;
@@ -117,6 +119,7 @@ export function makeTheme(dark: boolean, textSize: keyof typeof TEXT_SCALE, high
     colors,
     scale,
     font: (size) => Math.round(size * scale),
+    icon: (size) => Math.round(size * scale),
     space: (units) => units * 4,
     radius: 14,
     reduceMotion,

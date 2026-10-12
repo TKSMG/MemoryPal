@@ -54,12 +54,12 @@ export default function Practice() {
       {PUZZLES.map((puzzle) => (
         <Card key={puzzle.kind} onPress={() => router.push(`/puzzle?kind=${puzzle.kind}` as Href)} accessibilityLabel={`${puzzle.title}. ${puzzle.body}`}>
           <Row>
-            <Ionicons name={puzzle.icon} size={26} color={c.link} />
+            <Ionicons name={puzzle.icon} size={theme.icon(26)} color={c.link} />
             <View style={{ flex: 1, gap: 2 }}>
               <Txt variant="h3">{puzzle.title}</Txt>
               <Txt variant="muted">{puzzle.body}</Txt>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={c.muted} />
+            <Ionicons name="chevron-forward" size={theme.icon(20)} color={c.muted} />
           </Row>
         </Card>
       ))}

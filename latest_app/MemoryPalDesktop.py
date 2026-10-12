@@ -1663,7 +1663,16 @@ class MemoryPalApp(tk.Tk):
         "elder": [("arc", 8.2, 9.5, 4.2, 135, 350), ("arc", 15.8, 9.5, 4.2, 190, 405), ("seg", 5.23, 12.47, 12, 19.5), ("seg", 18.77, 12.47, 12, 19.5)],
         "tools": [("box", 2.5, 9, 10.5, 15, 3), ("box", 13.5, 9, 21.5, 15, 3), ("seg", 8, 12, 16, 12)],
         "games": [("box", 2.5, 7, 21.5, 18, 4.5), ("seg", 7.5, 10, 7.5, 15), ("seg", 5, 12.5, 10, 12.5), ("dot", 15.5, 11, 1.3), ("dot", 18, 14, 1.3)],
+        # Header buttons. Drawn here rather than taken from an icon font so they
+        # are the same size on every system (the font fallbacks off Windows
+        # were much smaller than the Segoe glyphs).
+        "search": [("circle", 10.5, 10.5, 6.5), ("seg", 15.3, 15.3, 20.5, 20.5)],
+        "back": [("seg", 19.5, 12, 4.5, 12), ("seg", 4.5, 12, 10.5, 6), ("seg", 4.5, 12, 10.5, 18)],
+        "help": [("circle", 12, 12, 9), ("arc", 12, 9.6, 2.6, 180, 405), ("seg", 13.84, 11.44, 12, 13.2), ("seg", 12, 13.2, 12, 14), ("dot", 12, 16.9, 1.2)],
+        "moon": [("arc", 12, 12, 8.5, 7.07, 262.93), ("arc", 16.5, 7.5, 6.8, 54.64, 215.36)],
+        "backup": [("seg", 12, 3.5, 12, 14.5), ("seg", 7.5, 10, 12, 14.5), ("seg", 16.5, 10, 12, 14.5), ("seg", 4, 15, 4, 20), ("seg", 4, 20, 20, 20), ("seg", 20, 20, 20, 15)],
     }
+    LINE_ICONS["sun"] = LINE_ICONS["dashboard"]
 
     def icon_coverage(self, name, size):
         """Antialiased coverage (0-255 per pixel) of a line icon at this size."""
@@ -3321,7 +3330,8 @@ class MemoryPalApp(tk.Tk):
             return
 
     def nav_icon_size(self):
-        return max(16, self.px(18))
+        # A little taller than the 13pt label beside it, as in an Apple tab bar.
+        return max(18, self.px(20))
 
     def set_nav_button_state(self, button, key, selected):
         """Selected/unselected look for a tab, icon included."""
@@ -3371,42 +3381,11 @@ class MemoryPalApp(tk.Tk):
         )
         canvas._memorypal_active = active
 
-        def icon_glyph(name):
-            family = self.available_font("Segoe MDL2 Assets", "Segoe Fluent Icons")
-            if family != "Segoe UI Symbol":
-                glyphs = {
-                    "moon": "\ue708",
-                    "sun": "\ue706",
-                    "backup": "\ue896",
-                    "settings": "\ue713",
-                    "help": "\ue897",
-                    "search": "\ue721",
-                    "back": "\ue72b",
-                }
-                return family, glyphs.get(name, name)
-            fallback = {
-                "moon": "\u263e",
-                "sun": "\u2600",
-                "backup": "\u2193",
-                "settings": "\u2699",
-                "help": "?",
-                "search": "\u2315",
-                "back": "\u2190",
-            }
-            return family, fallback.get(name, name)
-
-        def draw_icon_text(name, icon_size, icon_color):
-            family, glyph = icon_glyph(name)
-            # Nudges for glyphs whose ink isn't centred in the font's box.
-            nudge = {"help": 0.022, "backup": 0.019}.get(name, 0) * pixel_size
-            self.create_centered_canvas_text(
-                canvas,
-                pixel_size / 2 + nudge,
-                pixel_size / 2,
-                text=glyph,
-                fill=icon_color,
-                font=self.font(family, icon_size),
-            )
+        def draw_line_icon(name, icon_color):
+            # About half the button, like a symbol in an Apple toolbar button.
+            image = self.line_icon(name, self.px(round(size * 0.52)), icon_color)
+            if image is not None:
+                canvas.create_image(pixel_size / 2, pixel_size / 2, image=image, anchor="center")
 
         def draw(hover=False):
             canvas.delete("all")
@@ -3419,24 +3398,15 @@ class MemoryPalApp(tk.Tk):
                 canvas.create_rectangle(0, 0, pixel_size, pixel_size, fill=fill, outline="")
             center = pixel_size / 2
             if icon == "theme":
-                if self.theme == "dark":
-                    draw_icon_text("moon", 18, ink)
-                else:
-                    draw_icon_text("sun", 18, ink)
+                draw_line_icon("moon" if self.theme == "dark" else "sun", ink)
             elif icon == "fullscreen":
                 pad = self.px(12)
                 short = self.px(7)
                 for sx, sy, dx, dy in ((pad, pad, short, short), (pixel_size - pad, pad, -short, short), (pad, pixel_size - pad, short, -short), (pixel_size - pad, pixel_size - pad, -short, -short)):
                     canvas.create_line(sx, sy, sx + dx, sy, fill=ink, width=self.px(2), capstyle="round")
                     canvas.create_line(sx, sy, sx, sy + dy, fill=ink, width=self.px(2), capstyle="round")
-            elif icon == "backup":
-                draw_icon_text("backup", 18, ink)
-            elif icon == "help":
-                draw_icon_text("help", 17, ink)
-            elif icon in ("search", "back"):
-                draw_icon_text(icon, 16, ink)
-            elif icon == "settings":
-                draw_icon_text("settings", 17, ink)
+            elif icon in self.LINE_ICONS:
+                draw_line_icon(icon, ink)
             else:
                 self.create_centered_canvas_text(canvas, center, center, icon, fill=ink, font=self.font("Segoe UI Semibold", 13))
 
@@ -5527,11 +5497,11 @@ class MemoryPalApp(tk.Tk):
                 command=lambda view=key: self.show_view(view),
             )
             tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
-            badge_size = self.px(36)
+            badge_size = self.px(40)
             badge = tk.Canvas(tile, width=badge_size, height=badge_size, bg=COLORS["surface"], highlightthickness=0)
             badge.pack(anchor="w", pady=(0, self.px(10)))
             self.draw_antialiased_shape(badge, badge_size, badge_size, self.blend_hex(COLORS["surface"], color, 0.18), radius=self.px(10))
-            icon = self.line_icon(key, self.px(20), color)
+            icon = self.line_icon(key, self.px(24), color)
             if icon is not None:
                 badge.create_image(badge_size // 2, badge_size // 2, image=icon, anchor="center")
             tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
