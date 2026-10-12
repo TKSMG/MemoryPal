@@ -28,6 +28,10 @@ export interface SyncState {
   cursor: string | null;
   base: Records;
   last_synced: string;
+  /** Sync on its own after changes, on opening and every few minutes (on by default). */
+  auto_sync: boolean;
+  /** The first-launch sign-in page was answered (signed in, or chose to go on without). */
+  account_prompted: boolean;
 }
 
 /** Pull from two minutes before the last position (see cloud.pull_since). */
@@ -53,6 +57,9 @@ export class CloudAccount {
     this.state = this.loadState();
   }
 
+  /** True once the remembered sign-in has been read, so screens can tell "signed out" from "not known yet". */
+  restored = false;
+
   /** Read the remembered sign-in from secure storage. */
   async restore() {
     try {
@@ -62,6 +69,7 @@ export class CloudAccount {
     } catch {
       this.saved = null;
     }
+    this.restored = true;
   }
 
   get signedIn() {
@@ -125,7 +133,15 @@ export class CloudAccount {
       cursor: raw.cursor || null,
       base: raw.base && typeof raw.base === 'object' ? (raw.base as Records) : {},
       last_synced: String(raw.last_synced || ''),
+      auto_sync: raw.auto_sync !== false,
+      account_prompted: Boolean(raw.account_prompted),
     };
+  }
+
+  /** Change a device setting kept with the sync state (auto sync, first-launch prompt). */
+  setOption(changes: Partial<Pick<SyncState, 'auto_sync' | 'account_prompted'>>) {
+    this.state = { ...this.state, ...changes };
+    this.saveState();
   }
 
   saveState() {

@@ -1012,7 +1012,6 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             pass
         self.theme = "dark"
-        self.rail_width_units = getattr(self, "rail_width_units", 276)
         self.store = MemoryStore()
         self.init_cloud()
         self.accessibility = normalize_accessibility(self.store.accessibility)
@@ -1336,14 +1335,14 @@ class MemoryPalApp(tk.Tk):
                 remove_screen_cover(cover)
 
     def prelayout_shell(self, width, height):
-        """Lay the rail and main area out for a window size not applied yet."""
+        """Lay the tab bar and main area out for a window size not applied yet."""
         chrome = getattr(self, "app_chrome", None)
         try:
             chrome_h = chrome.winfo_height() if chrome is not None and chrome.winfo_ismapped() else 0
             body_h = max(1, height - chrome_h)
-            rail_w = self.px(self.rail_width_units)
-            self.rail.place_configure(height=body_h, relheight=0)
-            self.main.place_configure(width=max(1, width - rail_w), height=body_h, relwidth=0, relheight=0)
+            bar = self.tab_bar_height()
+            self.rail.place_configure(width=width, height=bar, relwidth=0, relheight=0)
+            self.main.place_configure(width=width, height=max(1, body_h - bar), relwidth=0, relheight=0)
         except (AttributeError, tk.TclError):
             return
         self.settle_layout(relayout_shell=False)
@@ -2157,7 +2156,7 @@ class MemoryPalApp(tk.Tk):
         return list(self.HUBS)
 
     def hub_for(self, view):
-        """The rail item a page belongs to (pages outside the hubs map to themselves)."""
+        """The tab a page belongs to (pages outside the hubs map to themselves)."""
         for hub, pages in self.HUB_PAGES.items():
             if view == hub or view in pages:
                 return hub
@@ -2238,7 +2237,7 @@ class MemoryPalApp(tk.Tk):
         parent = self if scope == "root" else getattr(self, scope, None)
         if parent is None or not parent.winfo_exists():
             return None
-        color = COLORS["rail"] if scope == "rail" else COLORS["bg"]
+        color = COLORS["bg"]
         cover = tk.Canvas(parent, bg=color, highlightthickness=0, bd=0)
         cover.memorypal_scope = scope
         cover.memorypal_cover_color = color
@@ -2304,7 +2303,7 @@ class MemoryPalApp(tk.Tk):
             parent = self.content
         if not parent.winfo_viewable():
             return None
-        color = COLORS["rail"] if scope == "rail" else COLORS["bg"]
+        color = COLORS["bg"]
         cover = tk.Canvas(parent, bg=color, highlightthickness=0, bd=0)
         cover.memorypal_scope = scope
         cover.memorypal_cover_color = color
@@ -2541,7 +2540,6 @@ class MemoryPalApp(tk.Tk):
         multiplier = self.accessibility_multiplier()
         self.font_scale = clamp(self.base_font_scale * multiplier, 0.96, 1.48)
         self.ui_scale = clamp(self.base_ui_scale * (1 + (multiplier - 1) * 0.55), 0.95, 1.55)
-        self.rail_width_units = 294 if multiplier > 1.1 else 276
         self.apply_theme_palette()
 
     def update_accessibility_preference(self, key, value, rebuild=True):
@@ -2758,9 +2756,16 @@ class MemoryPalApp(tk.Tk):
         self.style.map("Nav.TButton", foreground=[("disabled", self.tint(COLORS["rail_muted"], -50)), ("active", COLORS["white"])])
         self.style.configure("ActiveNav.TButton", padding=self.pad(12, 9), space=self.px(12), foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 12))
         self.style.map("ActiveNav.TButton", foreground=[("active", COLORS["white"])])
+        # The top tab bar: quiet tabs on the window background, and the
+        # current section as a soft tinted pill in the accent colour.
+        self.style.configure("TabBar.TFrame", background=COLORS["bg"])
+        self.style.configure("TabBar.TButton", padding=self.pad(14, 8), space=self.px(8), foreground=COLORS["muted"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.map("TabBar.TButton", foreground=[("active", COLORS["ink"])])
+        self.style.configure("ActiveTabBar.TButton", padding=self.pad(14, 8), space=self.px(8), foreground=COLORS["primary"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.map("ActiveTabBar.TButton", foreground=[("active", COLORS["primary"])])
 
         # Keyboard focus is always visible (a ring inside the button).
-        for name in ("TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton"):
+        for name in ("TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TabBar.TButton", "ActiveTabBar.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton"):
             self.style.configure(name, focuscolor=self.focus_color(), focusthickness=self.focus_thickness())
         self.install_rounded_controls()
 
@@ -2781,6 +2786,8 @@ class MemoryPalApp(tk.Tk):
             "Easy.TButton": ("TButton", rating("easy_bg"), COLORS["surface"]),
             "Nav.TButton": ("TButton", (COLORS["rail"], COLORS["rail_hover"], COLORS["rail_hover"], COLORS["rail"]), COLORS["rail"]),
             "ActiveNav.TButton": ("TButton", (COLORS["rail_active"],) * 3 + (COLORS["rail"],), COLORS["rail"]),
+            "TabBar.TButton": ("TButton", (COLORS["bg"], COLORS["surface_soft"], COLORS["alt"]), COLORS["bg"]),
+            "ActiveTabBar.TButton": ("TButton", (COLORS["alt"],) * 3, COLORS["bg"]),
             "TMenubutton": ("TMenubutton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
             "Select.TMenubutton": ("TMenubutton", (COLORS["input"], alt, alt), COLORS["surface"]),
             "Pill.TButton": ("TButton", (COLORS["input"], self.tint(COLORS["input"], -10 if self.theme == "light" else 16), self.tint(COLORS["input"], -20 if self.theme == "light" else 26)), COLORS["surface"]),
@@ -3217,341 +3224,116 @@ class MemoryPalApp(tk.Tk):
         close = chrome_button("\u00d7", close_command, COLORS["danger"], COLORS["white"], "Close")
         return bar
 
-    def nav_visible_count(self):
-        host = getattr(self, "nav_list_host", None)
-        if not host or not host.winfo_exists():
-            return 7
-        item_step = max(getattr(self, "_nav_item_step", 0) or self.px(46), 1)
-        total = len(getattr(self, "nav_items_cache", None) or self.rail_items())
-        # Show every page when they fit (the usual case); only fall back to
-        # Previous/Next paging on short windows or very large text.
-        if self.nav_list_room(False, False) // item_step >= total:
-            return total
-        # Both controls are always reserved so the count doesn't change (and
-        # reshuffle the list) when one appears.
-        count = self.nav_list_room(True, True) // item_step
-        return max(3, min(total, count))
-
-    def nav_list_room(self, previous, more):
-        """Height left for page items once the list's surroundings are placed.
-
-        Measured from the real Previous/More controls, range label and pinned
-        Settings rather than guessed, so the last item is never clipped and
-        the spare space can be centred exactly."""
-        try:
-            height = self.nav_list_host.winfo_height()
-            used = self.px(6) + self.nav_pinned_height()  # list's top pady, Settings block
-            if previous:
-                used += self.nav_up_button.winfo_reqheight() + self.px(8)
-            if previous or more:
-                used += self.nav_range_label.winfo_reqheight() + self.px(6)
-            if more:
-                used += self.nav_down_button.winfo_reqheight() + self.px(2)
-        except (AttributeError, tk.TclError):
-            return 0
-        top, bottom = self.nav_edge_padding(previous, more)
-        return max(0, int(height - used - top - bottom))
-
-    def nav_edge_padding(self, previous, more):
-        """Minimum spacer heights above and below the page list.
-
-        The fixed padding already above the list (the list's own pady, plus
-        the Previous control's) differs from the padding below it (the
-        footer's, plus the pinned block's or range label's), so the spacers
-        make up the difference and the visible gaps come out equal."""
-        above = self.px(6) + (self.px(8) if previous else 0)
-        below = self.px(4) + (0 if more else self.px(6))
-        base = self.nav_top_padding()
-        return base + max(0, below - above), base + max(0, above - below)
-
-    def nav_pinned_height(self):
-        """Height taken by the pinned Settings item and the footer's padding."""
-        pinned = getattr(self, "nav_pinned", None)
-        try:
-            return pinned.winfo_reqheight() + self.px(6) + self.px(18) if pinned is not None and pinned.winfo_exists() else self.px(16)
-        except tk.TclError:
-            return self.px(16)
-
-    def nav_top_padding(self, has_previous=False):
-        # Gap between the brand (or Previous control) and the first item.
-        return self.px(12)
-
-    def bind_nav_wheel(self, widget):
-        widget.bind("<MouseWheel>", self.handle_nav_wheel, add="+")
-        widget.bind("<Button-4>", self.handle_nav_wheel, add="+")
-        widget.bind("<Button-5>", self.handle_nav_wheel, add="+")
-
-    def handle_nav_wheel(self, event):
-        if getattr(event, "num", None) == 4:
-            self.shift_nav_window(-2)
-            return "break"
-        if getattr(event, "num", None) == 5:
-            self.shift_nav_window(2)
-            return "break"
-        delta = getattr(event, "delta", 0)
-        if not delta:
-            return "break"
-        if IS_MAC and abs(delta) < 120:
-            # A trackpad sends a stream of small deltas: step once per few.
-            self._nav_wheel_sum = getattr(self, "_nav_wheel_sum", 0) + delta
-            if abs(self._nav_wheel_sum) < 3:
-                return "break"
-            delta, self._nav_wheel_sum = self._nav_wheel_sum, 0
-            self.shift_nav_window(-1 if delta > 0 else 1)
-            return "break"
-        steps = max(1, min(4, abs(int(delta / 120)) or 1))
-        self.shift_nav_window(-steps if delta > 0 else steps)
-        return "break"
-
-    def shift_nav_window(self, delta):
-        items = getattr(self, "nav_items_cache", None) or self.rail_items()
-        visible = self.nav_visible_count()
-        max_first = max(0, len(items) - visible)
-        current = int(getattr(self, "nav_first_index", 0))
-        next_index = int(clamp(current + delta, 0, max_first))
-        if next_index == current:
-            return
-        self.nav_first_index = next_index
-        self.render_nav_page()
-
     def ensure_nav_item_visible(self, key):
-        items = getattr(self, "nav_items_cache", None) or self.rail_items()
-        key = self.hub_for(key)
-        keys = [item_key for item_key, _label, _short in items]
-        visible = self.nav_visible_count()
-        first = int(getattr(self, "nav_first_index", 0))
-        # Pages outside the list (Settings, Welcome) keep the current window
-        # of items, but the list must still be drawn: skipping it here left the
-        # rail empty after a rebuild (e.g. switching theme on Settings).
-        if key in keys:
-            index = keys.index(key)
-            if index < first:
-                self.nav_first_index = index
-            elif index >= first + visible:
-                self.nav_first_index = max(0, index - visible + 1)
-        host = getattr(self, "nav_list_frame", None)
-        drawn = getattr(self, "nav_rendered_state", None)
-        state = (host, int(getattr(self, "nav_first_index", 0)), visible, len(items))
-        if drawn == state and getattr(self, "nav_buttons", None) and all(button.winfo_exists() for button in self.nav_buttons.values()):
-            # Already showing exactly this page of items: redrawing it again
-            # (as the idle re-check after a rebuild did) only causes a flash.
-            for nav_key, button in self.nav_buttons.items():
-                self.set_nav_button_state(button, nav_key, nav_key == key)
-            return
-        self.render_nav_page()
+        """Every tab always shows, so this only moves the selection."""
+        self.refresh_nav_selection(key)
 
-    def render_nav_page(self):
-        host = getattr(self, "nav_list_frame", None)
-        if not host or not host.winfo_exists():
-            return
-        for child in host.winfo_children():
-            child.destroy()
-
-        items = getattr(self, "nav_items_cache", None) or self.rail_items()
-        visible = self.nav_visible_count()
-        max_first = max(0, len(items) - visible)
-        first = int(clamp(getattr(self, "nav_first_index", 0), 0, max_first))
-        self.nav_first_index = first
-        self.nav_rendered_state = (host, first, visible, len(items))
-        end = min(len(items), first + visible)
-        self.nav_buttons = {}
-        above = first > 0
-        below = end < len(items)
-
-        # Spare height is shared out as even spacing between items (up to a
-        # comfortable maximum) so the pages fill the rail; whatever is left
-        # goes equally above and below (both spacers expand), so the list is
-        # centred between the brand or Previous control and the More control
-        # or Settings at every scale.
-        top_padding = self.nav_top_padding(has_previous=above)
-        top_edge, bottom_edge = self.nav_edge_padding(above, below)
-        # The list starts just under the brand, like a Mac sidebar or the
-        # phone's tab order, with one fixed rhythm between items. (Centring
-        # five items in a tall rail left them floating mid-window with a
-        # large empty band above.) Spare room collects below the list.
-        spacer = tk.Frame(host, bg=COLORS["rail"], height=top_edge)
-        spacer.pack(fill="x")
-        self.bind_nav_wheel(spacer)
-
-        gap = self.px(2)
-        self._nav_spacing_state = (getattr(self.nav_list_host, "winfo_height", lambda: 0)(), gap)
-
-        for key, label, _short in items[first:end]:
-            button = ttk.Button(
-                host,
-                text=label,
-                style="Nav.TButton",
-                command=lambda view=key: self.show_view(view),
-            )
-            self.set_nav_button_state(button, key, False)
-            button.pack(fill="x", padx=self.px(14), pady=gap)
-            self.bind_nav_wheel(button)
-            self.add_tooltip(button, self.nav_hint(key))
-            self.nav_buttons[key] = button
-
-        bottom_spacer = tk.Frame(host, bg=COLORS["rail"], height=bottom_edge)
-        bottom_spacer.pack(fill="both", expand=True)
-        self.bind_nav_wheel(bottom_spacer)
-
-        if hasattr(self, "nav_range_label") and self.nav_range_label.winfo_exists():
-            paged = above or below
-            self.nav_range_label.configure(text=f"{first + 1}-{end} of {len(items)}" if paged else "")
-            if paged and not self.nav_range_label.winfo_manager():
-                self.nav_range_label.pack(anchor="center", pady=(self.px(6), 0))
-            elif not paged:
-                self.nav_range_label.pack_forget()
-        if hasattr(self, "nav_up_button") and self.nav_up_button.winfo_exists():
-            if above:
-                if not self.nav_up_button.winfo_manager():
-                    self.nav_up_button.pack(fill="x", padx=self.px(14), pady=(0, self.px(8)), before=self.nav_list_frame)
-                self.nav_up_button.configure(fg=COLORS["rail_muted"], cursor="hand2")
-            else:
-                self.nav_up_button.pack_forget()
-        if hasattr(self, "nav_down_button") and self.nav_down_button.winfo_exists():
-            if below:
-                if not self.nav_down_button.winfo_manager():
-                    self.nav_down_button.pack(fill="x", pady=(0, self.px(2)), before=self.nav_range_label)
-                self.nav_down_button.configure(
-                    text="\u2193 More pages",
-                    fg=COLORS["rail_muted"],
-                    cursor="hand2",
-                )
-            else:
-                self.nav_down_button.pack_forget()
-        self.nav_visible_items = visible
-        self.nav_top_padding_value = top_padding
-        self.refresh_nav_selection()
-        if self.nav_buttons:
-            # Record the actual button height (plus its pady) for capacity
-            # math; re-check once if the earlier estimate was off.
-            step = next(iter(self.nav_buttons.values())).winfo_reqheight() + 2 * self.px(1)
-            if step != getattr(self, "_nav_item_step", None):
-                self._nav_item_step = step
-                self.after_idle(self.refresh_nav_capacity)
-
-    def refresh_nav_capacity(self, _event=None):
-        if not hasattr(self, "nav_list_frame"):
-            return
-        visible = self.nav_visible_count()
-        top_padding = self.nav_top_padding(has_previous=getattr(self, "nav_first_index", 0) > 0)
-        try:
-            height = self.nav_list_host.winfo_height()
-        except (AttributeError, tk.TclError):
-            height = 0
-        spacing_stale = height != getattr(self, "_nav_spacing_state", (None,))[0]
-        if spacing_stale or visible != getattr(self, "nav_visible_items", None) or top_padding != getattr(self, "nav_top_padding_value", None):
-            self.render_nav_page()
+    def tab_bar_height(self):
+        return self.px(64)
 
     def render_navigation_rail(self, rail_width=None, preserve_cover=None):
+        """The tab bar across the top of the window, like the phone's tabs.
+
+        The logo sits on the left, the five sections in the middle, and
+        Feedback on the right; Settings and the other tools stay in each
+        page's header. (The method keeps its old name because every rebuild
+        path calls it.)"""
         for child in self.rail.winfo_children():
             if child is preserve_cover:
                 continue
             child.destroy()
-        rail_width = rail_width if rail_width is not None else getattr(self, "rail_width_units", 276)
-        self.rail_width_units = rail_width
-        self.rail.configure(width=self.px(rail_width))
+        bar = self.rail
+        bar.configure(style="TabBar.TFrame")
         self.layout_app_body()
-        self.rail.pack_propagate(False)
-        brand = ttk.Frame(self.rail, style="Rail.TFrame")
-        brand.pack(fill="x", padx=self.px(20), pady=self.pad(16, 6))
-        mark_size = self.px(44)
-        mark = tk.Canvas(brand, width=mark_size, height=mark_size, bg=COLORS["rail"], highlightthickness=0)
-        mark.pack(side="left", padx=(0, self.px(12)))
+
+        brand = tk.Frame(bar, bg=COLORS["bg"])
+        brand.place(x=self.px(24), rely=0.5, anchor="w")
+        mark_size = self.px(32)
+        mark = tk.Canvas(brand, width=mark_size, height=mark_size, bg=COLORS["bg"], highlightthickness=0)
+        mark.pack(side="left", padx=(0, self.px(10)))
         if not self.draw_memorypal_logo(mark, mark_size):
             self.draw_chrome_icon(mark, mark_size)
-        label_box = ttk.Frame(brand, style="Rail.TFrame")
-        label_box.pack(side="left")
-        ttk.Label(label_box, text="MemoryPal", style="RailTitle.TLabel").pack(anchor="w")
-        ttk.Label(label_box, text="Memory training", style="RailText.TLabel").pack(anchor="w")
+        self.tab_brand_label = tk.Label(brand, text="MemoryPal", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14))
+        self.tab_brand_label.pack(side="left")
 
-        self.nav_items_cache = self.rail_items()
+        tabs = tk.Frame(bar, bg=COLORS["bg"])
+        tabs.place(relx=0.5, rely=0.5, anchor="center")
+        self.nav_tabs_frame = tabs
         self.nav_buttons = {}
+        for key, label, _short in self.rail_items():
+            button = ttk.Button(tabs, text=label, style="TabBar.TButton", width=0, command=lambda view=key: self.show_view(view))
+            self.set_nav_button_state(button, key, False)
+            button.pack(side="left", padx=self.px(3))
+            self.add_tooltip(button, self.nav_hint(key))
+            self.nav_buttons[key] = button
 
-        nav_host = tk.Frame(self.rail, bg=COLORS["rail"], highlightthickness=0)
-        nav_host.pack(fill="both", expand=True)
-        self.bind_nav_wheel(self.rail)
-        self.bind_nav_wheel(brand)
-        self.bind_nav_wheel(nav_host)
-
-        control_bg = self.tint(COLORS["rail"], 8 if self.theme == "dark" else -4)
-        self.nav_up_button = tk.Label(
-            nav_host,
-            text="\u2191 Previous pages",
-            bg=control_bg,
-            fg=COLORS["rail_muted"],
-            padx=self.px(12),
-            pady=self.px(8),
-            cursor="hand2",
-            font=self.font("Segoe UI Semibold", 10),
-        )
-        self.nav_up_button.bind("<Button-1>", lambda _event: self.shift_nav_window(-max(1, self.nav_visible_count())), add="+")
-        self.bind_nav_wheel(self.nav_up_button)
-
-        self.nav_list_host = nav_host
-        self.nav_list_frame = tk.Frame(nav_host, bg=COLORS["rail"], highlightthickness=0)
-        self.nav_list_frame.pack(fill="both", expand=True, pady=(self.px(6), 0))
-        self.bind_nav_wheel(self.nav_list_frame)
-
-        # Pack the footer from the bottom ahead of the list so the "Next pages"
-        # control keeps its space instead of being squeezed off the rail.
-        footer = tk.Frame(nav_host, bg=COLORS["rail"], highlightthickness=0)
-        footer.pack(side="bottom", fill="x", padx=self.px(14), pady=(self.px(4), self.px(14)), before=self.nav_list_frame)
-        self.nav_footer = footer
-        # Settings is pinned to the bottom of the rail, below a divider, so the
-        # rail has a clear top (pages) and bottom (personal settings).
-        pinned = tk.Frame(footer, bg=COLORS["rail"], highlightthickness=0)
-        pinned.pack(side="bottom", fill="x", pady=(self.px(6), 0))
-        tk.Frame(pinned, bg=self.tint(COLORS["rail"], 26), height=max(1, self.px(1))).pack(fill="x", padx=self.px(4), pady=(0, self.px(8)))
-        # Feedback sits with Settings while the app is in testing.
-        self.nav_feedback_button = ttk.Button(pinned, text="Feedback", style="Nav.TButton", command=lambda: self.show_view("feedback"))
+        # Feedback sits apart from the sections while the app is in testing.
+        self.nav_feedback_button = ttk.Button(bar, text="Feedback", style="TabBar.TButton", width=0, command=lambda: self.show_view("feedback"))
         self.set_nav_button_state(self.nav_feedback_button, "feedback", False)
-        self.nav_feedback_button.pack(fill="x", pady=self.px(2))
+        self.nav_feedback_button.place(relx=1.0, x=-self.px(24), rely=0.5, anchor="e")
         self.add_tooltip(self.nav_feedback_button, self.nav_hint("feedback"))
-        self.bind_nav_wheel(self.nav_feedback_button)
-        self.nav_settings_button = ttk.Button(pinned, text="Settings", style="Nav.TButton", command=lambda: self.show_view("settings"))
-        self.set_nav_button_state(self.nav_settings_button, "settings", False)
-        self.nav_settings_button.pack(fill="x", pady=self.px(2))
-        self.add_tooltip(self.nav_settings_button, self.nav_hint("settings"))
-        self.bind_nav_wheel(pinned)
-        self.nav_pinned = pinned
-        self.nav_down_button = tk.Label(
-            footer,
-            text="\u2193 More pages",
-            bg=control_bg,
-            fg=COLORS["rail_muted"],
-            padx=self.px(12),
-            pady=self.px(8),
-            cursor="hand2",
-            font=self.font("Segoe UI Semibold", 10),
-        )
-        self.nav_down_button.bind("<Button-1>", lambda _event: self.shift_nav_window(max(1, self.nav_visible_count())), add="+")
-        self.bind_nav_wheel(self.nav_down_button)
-        self.nav_range_label = tk.Label(
-            footer,
-            text="",
-            bg=COLORS["rail"],
-            fg=COLORS["rail_muted"],
-            font=self.font("Segoe UI", 10),
-        )
-        self.bind_nav_wheel(self.nav_range_label)
+        self.nav_settings_button = None
 
-        nav_host.bind("<Configure>", self.refresh_nav_capacity, add="+")
-        self.ensure_nav_item_visible(getattr(self, "current_view", "dashboard"))
-        self.after_idle(lambda: self.ensure_nav_item_visible(getattr(self, "current_view", "dashboard")))
+        # A hairline where the bar meets the page, like a toolbar's edge.
+        tk.Frame(bar, bg=COLORS["line"], height=max(1, self.px(1))).place(x=0, rely=1.0, relwidth=1, anchor="sw")
+        bar.bind("<Configure>", self.fit_tab_bar, add="+")
+        self.refresh_nav_selection(getattr(self, "current_view", "dashboard"))
+        self.after_idle(self.fit_tab_bar)
+
+    def fit_tab_bar(self, _event=None):
+        """On a narrow window the brand name goes first, then the tab labels, so the tabs never overlap."""
+        tabs = getattr(self, "nav_tabs_frame", None)
+        brand = getattr(self, "tab_brand_label", None)
+        if tabs is None or not tabs.winfo_exists():
+            return
+        try:
+            width = self.rail.winfo_width()
+            if width <= 1:
+                return
+            feedback = self.nav_feedback_button.winfo_reqwidth()
+            side = self.px(24) * 2 + self.px(16)
+            brand_w = self.px(32) + self.px(10) + (brand.winfo_reqwidth() if brand is not None else 0)
+            compact = getattr(self, "_tabs_compact", False)
+            full_tabs = getattr(self, "_tabs_full_width", 0) or tabs.winfo_reqwidth()
+            if not compact:
+                self._tabs_full_width = tabs.winfo_reqwidth()
+                full_tabs = self._tabs_full_width
+            # The tabs are centred, so each side needs room for the wider of
+            # the brand and Feedback.
+            room = width - 2 * (max(brand_w, feedback) + side)
+            show_brand = room >= full_tabs
+            if brand is not None and brand.winfo_exists():
+                if show_brand and not brand.winfo_manager():
+                    brand.pack(side="left")
+                elif not show_brand and brand.winfo_manager():
+                    brand.pack_forget()
+            if not show_brand:
+                room = width - 2 * (max(self.px(32), feedback) + side)
+            want_compact = room < full_tabs
+            if want_compact != compact:
+                self._tabs_compact = want_compact
+                for key, button in self.nav_buttons.items():
+                    if button.winfo_exists():
+                        # Icons only (with their names as tooltips) when even the
+                        # brand-less bar can't fit the labels.
+                        button.configure(compound="image" if want_compact else "left")
+        except (AttributeError, tk.TclError):
+            return
 
     def nav_icon_size(self):
-        return max(16, self.px(20))
+        return max(16, self.px(18))
 
     def set_nav_button_state(self, button, key, selected):
-        """Selected/unselected look for a rail button, icon included."""
+        """Selected/unselected look for a tab, icon included."""
         size = self.nav_icon_size()
-        bright = self.line_icon(key, size, COLORS["white"])
-        quiet = self.line_icon(key, size, COLORS["rail_text"])
-        options = {"style": "ActiveNav.TButton" if selected else "Nav.TButton"}
-        if bright is not None and quiet is not None:
-            # Hovering brightens the icon along with the label.
-            options["image"] = (bright,) if selected else (quiet, "active", bright)
-            options["compound"] = "left"
+        on = self.line_icon(key, size, COLORS["primary"])
+        quiet = self.line_icon(key, size, COLORS["muted"])
+        hover = self.line_icon(key, size, COLORS["ink"])
+        options = {"style": "ActiveTabBar.TButton" if selected else "TabBar.TButton"}
+        if on is not None and quiet is not None:
+            # Hovering darkens the icon along with the label.
+            options["image"] = (on,) if selected else (quiet, "active", hover)
+            options["compound"] = "image" if getattr(self, "_tabs_compact", False) and key in getattr(self, "nav_buttons", {}) else "left"
         button.configure(**options)
 
     def refresh_nav_selection(self, current=None):
@@ -3723,16 +3505,16 @@ class MemoryPalApp(tk.Tk):
         self.app_body.pack(fill="both", expand=True)
         self.app_body.bind("<Configure>", self.layout_app_body, add="+")
 
-        self.rail_width_units = getattr(self, "rail_width_units", 276)
-        self.rail = ttk.Frame(self.app_body, style="Rail.TFrame")
-        self.rail.place(x=0, y=0, width=self.px(self.rail_width_units), relheight=1)
+        # The section tabs run across the top, like the phone's tab bar.
+        self.rail = ttk.Frame(self.app_body, style="TabBar.TFrame")
+        self.rail.place(x=0, y=0, relwidth=1, height=self.tab_bar_height())
         self.rail.pack_propagate(False)
         self.render_navigation_rail()
 
         self.main = ttk.Frame(self.app_body, style="Page.TFrame")
-        self.main.place(x=self.px(self.rail_width_units), y=0, width=1, relheight=1)
+        self.main.place(x=0, y=self.tab_bar_height(), relwidth=1, height=1)
         top = ttk.Frame(self.main, style="Header.TFrame", padding=self.pad(22, 18))
-        top.pack(fill="x", padx=self.px(36), pady=self.pad(28, 16))
+        top.pack(fill="x", padx=self.px(36), pady=self.pad(20, 14))
         top.columnconfigure(0, weight=1)
         top.columnconfigure(1, weight=0)
         title_box = ttk.Frame(top, style="Header.TFrame")
@@ -3753,6 +3535,11 @@ class MemoryPalApp(tk.Tk):
         goal_chip = tk.Label(status_row, text=f"{today}/{self.store.daily_goal} today", bg=COLORS["good_bg"] if today >= self.store.daily_goal else COLORS["alt"], fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
         goal_chip.pack(side="left", padx=(0, self.px(10)))
         self.goal_chip = goal_chip
+        # Where sync stands, at a glance; clicking it opens Account & sync in Settings.
+        self.sync_chip = tk.Label(status_row, text="", bg=COLORS["alt"], fg=COLORS["muted"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10), cursor="hand2")
+        self.sync_chip.bind("<Button-1>", lambda _event: self.show_view("settings"))
+        self.add_tooltip(self.sync_chip, "Account & sync settings")
+        self.refresh_sync_chip()
         back_button = self.header_icon_button(action_strip, "back", self.go_back, f"Back to the previous page ({BACK_SHORTCUT}).")
         back_button.pack(side="left", padx=(0, self.px(8)))
         find_button = self.header_icon_button(action_strip, "search", self.open_page_finder, f"Go to any page or action ({shortcut('K')}).")
@@ -3810,12 +3597,12 @@ class MemoryPalApp(tk.Tk):
         height = event.height if event is not None else self.app_body.winfo_height()
         if width <= 1 or height <= 1:
             return
-        rail_width = self.px(self.rail_width_units)
+        bar = self.tab_bar_height()
         # place() adds relwidth/relheight to width/height, so clear the
         # relative sizes from the initial placement or both panels end up
-        # taller than the window and their bottoms are clipped.
-        self.rail.place_configure(x=0, y=0, width=rail_width, height=height, relwidth=0, relheight=0)
-        self.main.place_configure(x=rail_width, y=0, width=max(1, width - rail_width), height=height, relwidth=0, relheight=0)
+        # larger than the window and their edges are clipped.
+        self.rail.place_configure(x=0, y=0, width=width, height=bar, relwidth=0, relheight=0)
+        self.main.place_configure(x=0, y=bar, width=width, height=max(1, height - bar), relwidth=0, relheight=0)
 
     def handle_window_configure(self, event):
         if event.widget is not self:
@@ -3869,6 +3656,7 @@ class MemoryPalApp(tk.Tk):
             "games": ("Practice", "Puzzles"), "library": ("Create", "Library"),
             "feedback": ("Help us improve", "Feedback Log"), "settings": ("Personalize", "Settings"),
             "welcome": ("Welcome", "Let's set things up"),
+            "signin": ("Welcome", "Sign in"),
             "study": ("Study", "Ways to study"), "create": ("Create", "Make and organise"),
             "practice": ("Practice", "Practise and play"),
         }
@@ -3917,7 +3705,7 @@ class MemoryPalApp(tk.Tk):
 
     def wants_skeleton(self, view):
         """Every page change shows a skeleton, so all of them look and feel the same."""
-        if view == getattr(self, "current_view", None) or view == "welcome":
+        if view == getattr(self, "current_view", None) or view in ("welcome", "signin"):
             return False
         return hasattr(self, "content") and not getattr(self, "tour", None)
 
@@ -4031,7 +3819,7 @@ class MemoryPalApp(tk.Tk):
             self.save_current_draft()
             previous = self.current_view
             history = self.__dict__.setdefault("view_history", [])
-            if previous and previous != "welcome" and not getattr(self, "_going_back", False):
+            if previous and previous not in ("welcome", "signin") and not getattr(self, "_going_back", False):
                 history.append(previous)
                 del history[:-40]
         self.clear_rating_hotkeys()
@@ -4039,8 +3827,6 @@ class MemoryPalApp(tk.Tk):
         token = self.route_token
         old_host = getattr(self, "view_host", None)
         self.current_view = view
-        if hasattr(self, "nav_list_frame"):
-            self.ensure_nav_item_visible(view)
         self.refresh_nav_selection()
 
         # Build the new page underneath the current one instead of blanking
@@ -5411,10 +5197,10 @@ class MemoryPalApp(tk.Tk):
             "Use Sample": "Load a small everyday sample to practise with.",
             "Show Routine": "Briefly show the routine steps before recall.",
             "Check Routine": "Compare the typed routine with the shown steps.",
-            "Move Up": "Move the selected page higher in the navigation rail.",
-            "Move Down": "Move the selected page lower in the navigation rail.",
-            "Apply Order": "Save this navigation order and refresh the side rail.",
-            "Reset Order": "Return the navigation rail to the default MemoryPal order.",
+            "Move Up": "Move the selected page earlier in its section.",
+            "Move Down": "Move the selected page later in its section.",
+            "Apply Order": "Save this page order and refresh the sections.",
+            "Reset Order": "Return the pages to the default MemoryPal order.",
             "Save Feedback": "Add this tester note to the local feedback log.",
             "Export Feedback": "Save tester notes and ratings as a CSV file.",
             "Open Feedback": "Open the feedback log for tester notes and bug reports.",
@@ -5453,7 +5239,59 @@ class MemoryPalApp(tk.Tk):
         return chip
 
     def start_view(self):
+        # A new install opens on sign-in, then the setup questions, then Today.
+        if self.needs_sign_in_prompt():
+            return "signin"
         return "dashboard" if self.store.onboarding.get("done") else "welcome"
+
+    def needs_sign_in_prompt(self):
+        """Until someone signs in or chooses to go on without an account."""
+        return cloud.configured() and not self.account.signed_in and not self.account.state.account_prompted
+
+    def mark_sign_in_prompted(self):
+        state = self.account.state
+        if not state.account_prompted:
+            state.account_prompted = True
+            state.save()
+
+    def continue_without_account(self):
+        self.mark_sign_in_prompted()
+        self.show_view(self.start_view())
+
+    def view_signin(self):
+        """First launch: sign in or create an account, or go on without one."""
+        page = ScrollFrame(self.view_host)
+        page.pack(fill="both", expand=True)
+        holder = tk.Frame(page.inner, bg=COLORS["bg"])
+        holder.pack(fill="x", pady=(self.px(24), 0))
+        card = tk.Frame(holder, bg=COLORS["surface"], padx=self.px(40), pady=self.px(36), highlightthickness=1, highlightbackground=COLORS["line"])
+        card.pack(anchor="center")
+        mark_size = self.px(72)
+        mark = tk.Canvas(card, width=mark_size, height=mark_size, bg=COLORS["surface"], highlightthickness=0)
+        mark.pack(pady=(0, self.px(14)))
+        if not self.draw_memorypal_logo(mark, mark_size):
+            self.draw_chrome_icon(mark, mark_size)
+        tk.Label(card, text="Welcome to MemoryPal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 22)).pack()
+        tk.Label(
+            card,
+            text="Sign in to keep your cards, progress and settings on all your devices: this computer, your phone and more.",
+            bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(440), justify="center",
+        ).pack(pady=(self.px(6), self.px(22)))
+        buttons = tk.Frame(card, bg=COLORS["surface"])
+        buttons.pack(fill="x")
+        buttons.columnconfigure(0, weight=1)
+        for row, (label, command, style_name) in enumerate((
+            ("Sign in", lambda: self.open_account_dialog("sign_in"), "Primary.TButton"),
+            ("Create an account", lambda: self.open_account_dialog("create"), "TButton"),
+        )):
+            self.row_button(buttons, label, command, style_name).grid(row=row, column=0, sticky="ew", pady=(0, self.px(10)))
+        skip = tk.Label(card, text="Continue without an account", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2", takefocus=1)
+        skip.pack(pady=(self.px(8), 0))
+        skip.bind("<Button-1>", lambda _event: self.continue_without_account())
+        skip.bind("<Return>", lambda _event: self.continue_without_account())
+        skip.bind("<space>", lambda _event: self.continue_without_account())
+        self.add_tooltip(skip, "Your cards stay on this computer. You can sign in later from Settings.")
+        tk.Label(card, text="You can sign in or out any time in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(pady=(self.px(10), 0))
 
     def view_welcome(self):
         page = ScrollFrame(self.view_host)
@@ -5558,7 +5396,6 @@ class MemoryPalApp(tk.Tk):
         self.store.accessibility = dict(self.accessibility)
         self.store.onboarding = {"done": True, "persona": persona_key}
         self.set_nav_order(data["nav"])  # saves the profile
-        self.nav_first_index = 0
         self.tour = {"persona": persona_key, "index": 0} if take_tour else None
         first_view = onboarding.tour_steps(persona_key)[0][0] if take_tour else "dashboard"
 
@@ -9118,8 +8955,8 @@ class MemoryPalApp(tk.Tk):
     # ------------------------------------------------------------------
     # Accounts and cloud sync
     # ------------------------------------------------------------------
-    SYNC_AFTER_CHANGE_MS = 20_000
-    SYNC_EVERY_MS = 10 * 60_000
+    SYNC_AFTER_CHANGE_MS = 5_000
+    SYNC_EVERY_MS = 5 * 60_000
     REFRESH_AFTER_SYNC = ("dashboard", "library", "decks", "stats", "settings", "elder", "plan", "focus", "review")
 
     def init_cloud(self):
@@ -9145,11 +8982,42 @@ class MemoryPalApp(tk.Tk):
             # so cards newer than that save come back instead of being deleted.
             self.account.state.start_over()
         self.store.save_listeners.append(self._changed_since_sync)
-        if cloud.configured() and self.account.signed_in:
+        if not getattr(self, "_sync_focus_bound", False):
+            self.bind("<FocusIn>", self._sync_on_return, add="+")
+            self._sync_focus_bound = True
+        if self.auto_sync_ready():
             self.schedule_sync(3000)
 
+    def auto_sync_ready(self):
+        """Signed in, with automatic sync on (the default)."""
+        return cloud.configured() and self.account.signed_in and self.account.state.auto_sync
+
+    def set_auto_sync(self, value):
+        state = self.account.state
+        state.auto_sync = bool(value)
+        state.save()
+        if state.auto_sync and self.account.signed_in:
+            self.schedule_sync(0)
+        elif self._sync_timer:
+            try:
+                self.after_cancel(self._sync_timer)
+            except tk.TclError:
+                pass
+            self._sync_timer = None
+        self.refresh_account_card()
+
+    def _sync_on_return(self, event):
+        """Coming back to the window fetches what other devices did meanwhile."""
+        if event.widget is not self or self._syncing or not self.auto_sync_ready():
+            return
+        now = time.monotonic()
+        if now - getattr(self, "_last_return_sync", 0.0) < 60:
+            return
+        self._last_return_sync = now
+        self.schedule_sync(500)
+
     def _changed_since_sync(self):
-        if not self._applying_sync and cloud.configured() and self.account.signed_in:
+        if not self._applying_sync and self.auto_sync_ready():
             if self._syncing:
                 self._changed_during_sync = True  # goes up right after this sync
             else:
@@ -9250,13 +9118,39 @@ class MemoryPalApp(tk.Tk):
                 self.refresh_account_card()
                 if manual or (isinstance(error, cloud.CloudError) and error.code == "signed_out"):
                     self.dialog_alert("Couldn't sync", message, "error")
-            if account.signed_in:
-                changed = self._changed_during_sync and error is None
-                self.schedule_sync(self.SYNC_AFTER_CHANGE_MS if changed else self.SYNC_EVERY_MS)
+            changed = self._changed_during_sync and error is None
+            if changed and account.signed_in:
+                self.schedule_sync(self.SYNC_AFTER_CHANGE_MS)
+            elif self.auto_sync_ready():
+                self.schedule_sync(self.SYNC_EVERY_MS)
 
         self.run_in_background(lambda on_ui: account.sync(read_payload, write_payload, on_ui), finished, on_ui_requests=True)
 
+    def sync_chip_text(self):
+        if not cloud.configured():
+            return ""
+        if not self.account.signed_in:
+            return "\u2601  Not signed in"
+        if self._syncing:
+            return "\u21bb  Syncing\u2026"
+        if self.sync_status:
+            return "\u26a0  Not synced"
+        return "\u2601  Synced" if self.account.state.auto_sync else "\u2601  Auto sync off"
+
+    def refresh_sync_chip(self):
+        chip = getattr(self, "sync_chip", None)
+        if chip is None or not chip.winfo_exists():
+            return
+        text = self.sync_chip_text()
+        if not text:
+            chip.pack_forget()
+            return
+        chip.configure(text=text)
+        if not chip.winfo_manager():
+            chip.pack(side="left")
+
     def refresh_account_card(self):
+        self.refresh_sync_chip()
         label = getattr(self, "_account_status_label", None)
         if label is not None and label.winfo_exists():
             label.configure(text=self.account_status_text())
@@ -9269,7 +9163,8 @@ class MemoryPalApp(tk.Tk):
         if self.sync_status:
             return f"Signed in as {self.account.email}. {self.sync_status}"
         last = self.account.state.last_synced
-        return f"Signed in as {self.account.email}. " + (f"Last synced {last}." if last else "Not synced yet.")
+        mode = "Syncs automatically." if self.account.state.auto_sync else "Automatic sync is off."
+        return f"Signed in as {self.account.email}. {mode} " + (f"Last synced {last}." if last else "Not synced yet.")
 
     def render_account_card(self, parent):
         card = self.card(parent, "Card.TFrame", 22)
@@ -9280,8 +9175,12 @@ class MemoryPalApp(tk.Tk):
         if not cloud.configured():
             return
         if self.account.signed_in:
+            auto = tk.BooleanVar(value=self.account.state.auto_sync)
+            auto.trace_add("write", lambda *_args: self.set_auto_sync(auto.get()))
+            self.check_toggle(card, auto, "Sync automatically: a few seconds after each change, when you come back to MemoryPal, and every few minutes", fit=True).pack(fill="x", pady=(0, self.px(12)))
+            self._auto_sync_var = auto
             self.button_row(card, [
-                ("Sync now", lambda: self.sync_now(manual=True), "Primary.TButton"),
+                ("Sync now", lambda: self.sync_now(manual=True), "TButton"),
                 ("Two-step sign-in", self.open_two_step_manager, "TButton"),
                 ("Sign out", self.sign_out_account, "TButton"),
                 ("Delete account", self.delete_cloud_account, "TButton"),
@@ -9303,9 +9202,14 @@ class MemoryPalApp(tk.Tk):
     def account_signed_in(self, session, message):
         """Remember a new session, sync straight away, and refresh Settings."""
         self.account.remember(session)
+        self.mark_sign_in_prompted()
         self.toast_message(message)
         if self.current_view == "settings":
             self.show_view("settings")
+        elif self.current_view == "signin":
+            # First launch: on to the setup questions (or Today, when the
+            # account's first sync brings them along).
+            self.show_view(self.start_view())
         self.sync_now()
 
     def password_hint(self, password_field, email=None, email_field=None):
@@ -9454,7 +9358,7 @@ class MemoryPalApp(tk.Tk):
 
             self.cloud_dialog(
                 "Create your MemoryPal account",
-                "Use an email you can check: we'll send a 6-digit code to confirm it. You don't need an account to use MemoryPal; it only keeps your cards in step across devices.",
+                "Use an email you can check: we'll email you a code to confirm it. You don't need an account to use MemoryPal; it only keeps your cards in step across devices.",
                 [
                     ("birth_month", "Month you were born (1-12)", False),
                     ("birth_year", "Year you were born", False),
@@ -9542,8 +9446,8 @@ class MemoryPalApp(tk.Tk):
 
         self.cloud_dialog(
             "Check your email",
-            f"We sent a 6-digit code to {email}. Type it here to finish creating your account. (It can take a minute; check the spam folder too.)",
-            [("code", "6-digit code", False)],
+            f"We sent a code to {email}. Type it here to finish creating your account. (It can take a minute; check the spam folder too.)",
+            [("code", "Code from the email", False)],
             "Confirm", confirm,
             lambda session, _values: self.account_signed_in(session, "Email confirmed. Your cards are syncing."),
             extra_links=[("Send a new code", resend)],
@@ -9596,8 +9500,8 @@ class MemoryPalApp(tk.Tk):
 
             self.cloud_dialog(
                 "Choose a new password",
-                f"If {email} has a MemoryPal account, a 6-digit code is on its way there.",
-                [("code", "6-digit code", False), ("password", "New password", True), ("again", "New password again", True)],
+                f"If {email} has a MemoryPal account, a code is on its way there.",
+                [("code", "Code from the email", False), ("password", "New password", True), ("again", "New password again", True)],
                 "Save new password", verify, verified,
                 hint=self.password_hint("password", email=email),
             )
@@ -9895,7 +9799,7 @@ class MemoryPalApp(tk.Tk):
         comfort = self.card(page.inner, "AltCard.TFrame", 22)
         comfort.pack(fill="x", padx=(0, 8))
         ttk.Label(comfort, text="Comfort Notes", style="AltH2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(comfort, text="Use focus mode when the rail feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="AltCard.TLabel", wraplength=self.px(1040), justify="left"), pady=(4, 0))
+        self.fit_wrap(ttk.Label(comfort, text="Use focus mode when the window frame feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="AltCard.TLabel", wraplength=self.px(1040), justify="left"), pady=(4, 0))
 
     def view_library(self):
         tools = ttk.Frame(self.view_host, style="Page.TFrame")

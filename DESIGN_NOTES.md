@@ -28,7 +28,7 @@ For testing builds, the app should also answer one project question quickly:
 
 ## Desktop Feel
 
-The desktop app should stay fast and lightweight, but it should not feel unfinished. The visual style uses soft dark and light themes, clear cards, hover hints, a fixed navigation rail, and quiet page reveals. The rail stopped collapsing in v61 because the moving page felt unstable during study.
+The desktop app should stay fast and lightweight, but it should not feel unfinished. The visual style uses soft dark and light themes, clear cards, hover hints, a fixed tab bar across the top, and quiet page reveals.
 
 The goal is not to add decoration everywhere. The goal is to make the app feel intentional and easy to trust.
 
@@ -84,13 +84,13 @@ Controls: buttons, dropdowns, choice pills and text fields are rounded 9-slice i
 
 Focus: keyboard focus is always visible as a solid amber rounded ring (WCAG 2.4.7). It is not an opt-in setting. The setting and high contrast only make the ring thicker. On buttons, the ring shows when focus arrives from the keyboard (Tab or the arrow keys) and clears once the mouse is used again, like a Mac or a browser's `:focus-visible`; otherwise it stayed on whatever was last clicked and read as a stuck selection. Text fields keep their ring always, because it shows where typing will go.
 
-Navigation rail:
+Tab bar (v77):
 
-- The rail holds five destinations, the same as the phone's tabs: Today, Study, Create, Practice and Progress. Feedback and Settings are pinned at the bottom. It still falls back to paging on very short windows or very large text.
-- The list starts just under the logo with one fixed rhythm between items, like a Mac sidebar; spare height collects below it, not around it.
-- The active destination is a calm filled pill, not a bright block. Pages inside a destination (Review inside Study, Puzzles inside Practice) light up their destination.
+- The five destinations sit in a tab bar across the top of the window, the same as the phone's tabs: Today, Study, Create, Practice and Progress. The logo is on the left and Feedback on the right; Settings stays in each page's header. This replaced the side rail, so pages get the full window width.
+- On a narrow window the brand name hides first, then the tab labels, leaving icons with tooltips, so the tabs never overlap.
+- The active destination is a soft tinted pill in the accent colour, not a bright block. Pages inside a destination (Review inside Study, Puzzles inside Practice) light up their destination.
 - The line above each page title names the destination it belongs to.
-- Every rail row has a line icon (`LINE_ICONS`, drawn on a 24-unit grid with one stroke weight, like SF Symbols) and rows are 44px tall, the size of a comfortable click target. Icons are drawn in code, so there is no image file to ship and they follow the theme colours.
+- Every tab has a line icon (`LINE_ICONS`, drawn on a 24-unit grid with one stroke weight, like SF Symbols) and tabs are at least 36px tall. Icons are drawn in code, so there is no image file to ship and they follow the theme colours.
 - Hub tiles carry the same icons in a tinted square. When a hub has four or fewer tiles, the rows share the visible height (up to a cap) so the tiles fill the page instead of leaving an empty band below.
 
 Destructive actions: never put them next to everyday actions. Reset all data lives in Settings. Delete card lives inside the card editor, behind a confirmation. Import shows how many cards a backup has and keeps a copy of the current data before replacing it.
@@ -118,7 +118,7 @@ Each build should feel native where it runs, checked against Apple's Human Inter
 
 ## Navigation And Motion
 
-People should never feel lost: every page is reachable from the rail, from Ctrl+K, and by going Back. Big changes (theme, text size, rebuilding the shell) happen out of sight and appear in one frame; popups appear already finished instead of fading.
+People should never feel lost: every page is reachable from the tab bar, from Ctrl+K, and by going Back. Big changes (theme, text size, rebuilding the shell) happen out of sight and appear in one frame; popups appear already finished instead of fading.
 
 Resizing shows an outline of the new size while dragging and applies it once on release, the same way Windows does, so the page never reflows repeatedly. Small in-page updates use the same snapshot swap as page changes.
 
@@ -126,7 +126,7 @@ Resizing shows an outline of the new size while dragging and applies it once on 
 
 Tk on Windows paints each widget separately and later than it is moved or created, which shows up as tearing and as elements flashing in. These rules keep every change appearing as one finished frame:
 
-- **Every page switch shows a skeleton** (`show_view`). `show_page_skeleton` paints a placeholder of the page's layout ("list", "grid" or "study", from `SKELETON_PAGES`) and switches the title and rail straight away, so every click answers at once and every page change looks the same. The page is built underneath it, out of sight, and the skeleton comes off with painting paused (`set_redraw_frozen`), so the finished page is drawn in one pass. No screen snapshot is used for page changes; re-showing the current page is an in-place update and still uses one.
+- **Every page switch shows a skeleton** (`show_view`). `show_page_skeleton` paints a placeholder of the page's layout ("list", "grid" or "study", from `SKELETON_PAGES`) and switches the title and tab straight away, so every click answers at once and every page change looks the same. The page is built underneath it, out of sight, and the skeleton comes off with painting paused (`set_redraw_frozen`), so the finished page is drawn in one pass. No screen snapshot is used for page changes; re-showing the current page is an in-place update and still uses one.
 - **Skeletons are drawn from the theme**: surface-coloured cards with soft bars for text, never a spinner or a blank page.
 - **Control artwork is made ahead of time.** The rounded tiles for buttons, menus and fields on each card colour are worked out while the app is idle after starting (`warm_corner_styles`), one style per timer tick, instead of on the first visit to a page.
 - **Scrolling runs under one snapshot of the scrolling area** (`ScrollFrame._present`). Without it, cards moved before their text was redrawn. The snapshot goes up on the first step and each later step only swaps its picture (`refresh_screen_cover`), so a step waits for one screen refresh instead of two; it comes down 90ms after scrolling stops.
@@ -175,7 +175,7 @@ Accounts are optional and never block studying: the apps work fully offline, and
 
 ## Mobile Feel
 
-The mobile version (`mobile/`, React Native + Expo) doesn't copy the desktop layout. It has five bottom tabs (Today, Study, Create, Practice, Progress), one main action per screen, large targets, and native share sheets and file pickers. The desktop rail now uses the same five destinations.
+The mobile version (`mobile/`, React Native + Expo) doesn't copy the desktop layout. It has five bottom tabs (Today, Study, Create, Practice, Progress), one main action per screen, large targets, and native share sheets and file pickers. The desktop tab bar uses the same five destinations, across the top of the window.
 
 Why React Native + Expo rather than Kivy or Flutter: the controls are real native ones, so TalkBack and VoiceOver work. For this audience that is non-negotiable, and Kivy has no screen-reader support. It runs on an actual phone straight away through Expo Go, needing no Mac or Android SDK, and one TypeScript codebase also gives a web build and a straightforward path to cloud sync.
 
@@ -188,3 +188,9 @@ Rules carried over from the desktop:
 - **Ending a session:** every review ends with a summary of how many cards were reviewed and remembered, and which were missed. Duolingo's end-of-lesson screen is the model.
 
 Behaviour lives in `mobile/src/core/`, a line-by-line port of `latest_app/memorypal/`. Parity tests (`tools/parity/make_fixtures.py`) check that both versions give identical results. Change the logic on both sides together, regenerate the fixtures, and run the tests.
+
+### First launch and sync (v77)
+
+- A new install opens on sign-in (or create an account, or "Continue without an account"), then the setup questions, then Today. The choice is remembered per device in the sync state (`account_prompted`), so the page shows once.
+- Sync is automatic once signed in: a few seconds after a change, on opening (or coming back to) the app, and every five minutes. "Sync automatically" in Account & sync turns it off; "Sync now" is always there. The phone's Today header and the desktop's page header show where sync stands.
+- Email confirmation and reset codes are described as "the code from the email", because their length is a Supabase setting (Authentication → Sign In / Providers → Email → Email OTP Length).
