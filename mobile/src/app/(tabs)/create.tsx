@@ -52,7 +52,7 @@ export default function Create() {
         {tiles.map((tile) => (
           <Card key={tile.mode} onPress={() => router.push(`/add?mode=${tile.mode}`)} accessibilityLabel={`Add cards: ${tile.title}`} style={{ flexBasis: '46%', flexGrow: 1, paddingVertical: 14 }}>
             <Row gap={10}>
-              <Ionicons name={tile.icon} size={24} color={c.link} />
+              <Ionicons name={tile.icon} size={theme.icon(24)} color={c.link} />
               <Txt variant="h3">{tile.title}</Txt>
             </Row>
           </Card>
@@ -81,7 +81,7 @@ export default function Create() {
                       <Txt variant="h3" color={selected ? c.link : c.ink}>{name}</Txt>
                       <Txt variant="small">{info.total} cards · {info.due} due · {info.mastery}% mastered</Txt>
                     </View>
-                    <Ionicons name={selected ? 'funnel' : 'chevron-forward'} size={20} color={selected ? c.link : c.muted} />
+                    <Ionicons name={selected ? 'funnel' : 'chevron-forward'} size={theme.icon(20)} color={selected ? c.link : c.muted} />
                   </Pressable>
                   {info.due ? <Button compact kind="primary" label="Study" hint={`Review the ${info.due} due cards in ${name}`} onPress={() => router.push(`/review?mode=due&deck=${encodeURIComponent(name)}`)} /> : null}
                 </View>

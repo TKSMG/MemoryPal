@@ -188,7 +188,7 @@ export function IconButton({ icon, label, onPress }: { icon: IconName; label: st
       hitSlop={8}
       style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? theme.colors.alt : theme.colors.surfaceSoft }]}
     >
-      <Ionicons name={icon} size={22} color={theme.colors.ink} />
+      <Ionicons name={icon} size={theme.icon(22)} color={theme.colors.ink} />
     </Pressable>
   );
 }
@@ -320,7 +320,7 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
   const theme = useTheme();
   return (
     <Card style={{ alignItems: 'center', gap: 8, paddingVertical: 28 }}>
-      <Ionicons name={icon} size={36} color={theme.colors.muted} />
+      <Ionicons name={icon} size={theme.icon(36)} color={theme.colors.muted} />
       <Txt variant="h3" center>{title}</Txt>
       <Txt variant="muted" center>{body}</Txt>
       {action}

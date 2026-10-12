@@ -56,8 +56,8 @@ It runs these steps in order and stops at the first failure:
 Before a new tester round, bump the version in three places so testers and Windows can tell builds apart:
 
 ```text
-pyproject.toml                  version = "0.48.0"
-installer\inno\MemoryPal.iss    #define MyAppVersion "0.48.0"
+pyproject.toml                  version = "0.48.1"
+installer\inno\MemoryPal.iss    #define MyAppVersion "0.48.1"
 build_nuitka_windows.cmd        --product-version / --file-version
 ```
 

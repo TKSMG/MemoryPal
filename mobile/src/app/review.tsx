@@ -231,7 +231,7 @@ export default function Review() {
             <Txt variant="h3">{hasAnswer ? card.back : 'No saved answer. Use this as a self-check, then rate yourself.'}</Txt>
             {card.association ? (
               <Row style={{ alignItems: 'flex-start' }}>
-                <Ionicons name="bulb-outline" size={20} color={c.link} />
+                <Ionicons name="bulb-outline" size={theme.icon(20)} color={c.link} />
                 <Txt variant="muted" style={{ flex: 1 }}>{card.association}</Txt>
               </Row>
             ) : null}
