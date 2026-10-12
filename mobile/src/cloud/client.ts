@@ -1,6 +1,6 @@
 /**
  * Accounts and sync with the MemoryPal cloud (Supabase) over plain fetch,
- * mirroring latest_app/memorypal/cloud.py: email + password, 6-digit email
+ * mirroring latest_app/memorypal/cloud.py: email + password, emailed
  * codes for confirming an account and resetting a password, and the
  * sync_records table protected by Row Level Security (supabase/schema.sql),
  * plus optional two-step sign-in with an authenticator app (TOTP).
@@ -51,7 +51,7 @@ export class CloudError extends Error {
 const FRIENDLY: Record<string, string> = {
   invalid_credentials: "That email and password don't match. Check them, or reset your password.",
   invalid_grant: "That email and password don't match. Check them, or reset your password.",
-  email_not_confirmed: 'Confirm your email first: enter the 6-digit code we sent you.',
+  email_not_confirmed: 'Confirm your email first: enter the code we emailed you.',
   user_already_exists: "There's already an account with this email. Sign in instead.",
   email_exists: "There's already an account with this email. Sign in instead.",
   weak_password: `Choose a stronger password: at least ${MIN_PASSWORD} characters with letters and at least one number.`,

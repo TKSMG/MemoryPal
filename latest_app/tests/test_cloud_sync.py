@@ -67,7 +67,7 @@ class AccountTests(unittest.TestCase):
         self.assertIsNone(self.client.sign_up(EMAIL, PASSWORD))
         with self.assertRaises(cloud.CloudError) as caught:
             self.client.sign_in(EMAIL, PASSWORD)
-        self.assertIn("6-digit code", caught.exception.message)
+        self.assertIn("code we emailed", caught.exception.message)
         with self.assertRaises(cloud.CloudError):
             self.client.verify_code(EMAIL, "000000")
         session = self.client.verify_code(EMAIL, "123 456")
@@ -269,6 +269,24 @@ class AgeAndConsentTests(unittest.TestCase):
         folder = tempfile.mkdtemp(prefix="memorypal-token-")
         cloud.TokenStore(folder).save(cloud.Session("a", "r", 0, "u", EMAIL))
         self.assertEqual(os.stat(Path(folder, "account.bin")).st_mode & 0o777, 0o600)
+
+
+class DeviceSyncOptionTests(unittest.TestCase):
+    def test_auto_sync_is_on_and_sign_in_prompt_unanswered_by_default(self):
+        state = cloud.SyncState(tempfile.mkdtemp(prefix="memorypal-options-"))
+        self.assertTrue(state.auto_sync)
+        self.assertFalse(state.account_prompted)
+
+    def test_options_survive_a_restart_and_a_start_over(self):
+        folder = tempfile.mkdtemp(prefix="memorypal-options-")
+        state = cloud.SyncState(folder)
+        state.auto_sync = False
+        state.account_prompted = True
+        state.save()
+        state.start_over()
+        again = cloud.SyncState(folder)
+        self.assertFalse(again.auto_sync)
+        self.assertTrue(again.account_prompted)
 
 
 class TwoDeviceSyncTests(unittest.TestCase):
