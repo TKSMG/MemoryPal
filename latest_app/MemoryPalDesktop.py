@@ -99,6 +99,31 @@ def platform_text(text):
     return re.sub(r"Ctrl ?\+ ?([A-Za-z0-9])", lambda match: shortcut(match.group(1).upper()), text)
 
 
+FILE_MANAGER = "Finder" if IS_MAC else "File Explorer"
+
+
+def system_open(target):
+    """Open a file, folder or link with its default app. os.startfile is Windows-only."""
+    if sys.platform.startswith("win"):
+        os.startfile(str(target))
+        return
+    import subprocess
+
+    subprocess.Popen(["open" if IS_MAC else "xdg-open", str(target)])
+
+
+def system_reveal(target):
+    """Show a file selected in Explorer or Finder."""
+    import subprocess
+
+    if sys.platform.startswith("win"):
+        subprocess.Popen(["explorer", f"/select,{Path(target)}"])
+    elif IS_MAC:
+        subprocess.Popen(["open", "-R", str(target)])
+    else:
+        subprocess.Popen(["xdg-open", str(Path(target).parent)])
+
+
 def bundled_resource_path(*parts):
     """Find a source or packaged resource without generating it at startup."""
     relative = Path(*parts)
@@ -6714,7 +6739,7 @@ class MemoryPalApp(tk.Tk):
             self.dialog_alert("Couldn't copy the file", f"{source.name} could not be copied into MemoryPal: {exc}", "error")
             return None
         if kind == "image" and self.image_photo(target) is None:
-            self.toast_message("Image attached. Windows couldn't make a preview, but it will still open in your photo viewer.")
+            self.toast_message("Image attached. No preview could be made, but it will still open in your photo viewer.")
         return target
 
     def set_pending_media(self, kind, path, labels):
@@ -7313,8 +7338,7 @@ class MemoryPalApp(tk.Tk):
             self.toast_message("Media file was not found.")
             return
         try:
-            import os
-            os.startfile(str(target))
+            system_open(target)
         except OSError as exc:
             self.dialog_alert("Could not open media", str(exc), "error")
 
@@ -8601,8 +8625,8 @@ class MemoryPalApp(tk.Tk):
             folder = target.parent if target.suffix else target
             folder.mkdir(parents=True, exist_ok=True)
         try:
-            os.startfile(target)
-        except (AttributeError, OSError):
+            system_open(target)
+        except OSError:
             import webbrowser
 
             webbrowser.open(target.resolve().as_uri())
@@ -8712,7 +8736,7 @@ class MemoryPalApp(tk.Tk):
         opened = False
         if not prefer_gmail and feedback_report.has_mail_app():
             try:
-                os.startfile(feedback_report.mailto_url(subject, short))
+                system_open(feedback_report.mailto_url(subject, short))
                 opened = True
             except OSError:
                 opened = False
@@ -8720,7 +8744,7 @@ class MemoryPalApp(tk.Tk):
             opened = webbrowser.open(feedback_report.gmail_url(subject, short))
         if attachment:
             self.reveal_file(attachment)
-            self.toast_message(f"Email opened. Attach {attachment.name} (it's open in File Explorer), then press Send.")
+            self.toast_message(f"Email opened. Attach {attachment.name} (it's open in {FILE_MANAGER}), then press Send.")
         elif opened:
             self.toast_message("Your email is ready. Check it, then press Send.")
         else:
@@ -8755,10 +8779,8 @@ class MemoryPalApp(tk.Tk):
         self.show_view("feedback")
 
     def reveal_file(self, path):
-        import subprocess
-
         try:
-            subprocess.Popen(["explorer", f"/select,{Path(path)}"])
+            system_reveal(path)
         except OSError:
             pass
 
@@ -8900,7 +8922,7 @@ class MemoryPalApp(tk.Tk):
         gmail = tk.Label(links, text="Use Gmail in the browser instead", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
         gmail.pack(side="right")
         gmail.bind("<Button-1>", lambda _event: self.email_feedback(notes_to_send, prefer_gmail=True))
-        tk.Label(send, text="Included: your saved notes, plus your Windows version, text size and theme to help fix problems. Never your study cards or profile name.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(self.px(10), 0))
+        tk.Label(send, text="Included: your saved notes, plus your system version, text size and theme to help fix problems. Never your study cards or profile name.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(self.px(10), 0))
 
         recent = self.card(page.inner, "AltCard.TFrame", 22)
         recent.pack(fill="x", padx=(0, 8))
