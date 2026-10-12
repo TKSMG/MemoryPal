@@ -59,7 +59,7 @@ maybe('phone syncs with the laptop through the same account', async () => {
   const account = new CloudAccount(client);
   const store = new MemoryStore(new MemoryAdapter());
   store.finishOnboarding('student');
-  await account.remember(await client.signIn('pat@example.com', 'correct horse battery'));
+  await account.remember(await client.signIn('pat@example.com', 'correct horse battery 7'));
   expect(step).toBe('phone');
 
   // The phone already has some practice of its own before its first sync.
@@ -86,7 +86,7 @@ maybe('phone syncs with the laptop through the same account', async () => {
   const setup = await client.enrollAuthenticator(await account.activeSession());
   expect(setup.secret).toBeTruthy();
   await account.remember(await client.verifyAuthenticator(await account.activeSession(), setup.factorId, '246810'));
-  const halfway = await client.signIn('pat@example.com', 'correct horse battery');
+  const halfway = await client.signIn('pat@example.com', 'correct horse battery 7');
   expect(needsSecondStep(halfway)).toBe(true);
   const fresh = new CloudAccount(client);
   await expect(fresh.remember(halfway)).rejects.toMatchObject({ code: 'insufficient_aal' });

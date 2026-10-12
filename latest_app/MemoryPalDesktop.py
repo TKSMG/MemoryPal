@@ -9313,7 +9313,7 @@ class MemoryPalApp(tk.Tk):
         def hint(values):
             password = values.get(password_field, "")
             if not password:
-                return f"At least {security.MIN_PASSWORD} characters. Three or four unrelated words make a strong, memorable password.", COLORS["muted"]
+                return f"At least {security.MIN_PASSWORD} characters, with letters and at least one number. Three or four unrelated words and a number make a strong, memorable password.", COLORS["muted"]
             address = email if email is not None else values.get(email_field, "")
             score = security.password_strength(password, address)
             problems = security.password_problems(password, address)

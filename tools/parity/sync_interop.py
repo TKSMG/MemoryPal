@@ -31,7 +31,7 @@ from memorypal.core import today_iso  # noqa: E402
 from memorypal.models import Card, sample_cards  # noqa: E402
 from memorypal.store import default_payload  # noqa: E402
 
-EMAIL, PASSWORD = "pat@example.com", "correct horse battery"
+EMAIL, PASSWORD = "pat@example.com", "correct horse battery 7"
 
 
 def check(condition, message):
