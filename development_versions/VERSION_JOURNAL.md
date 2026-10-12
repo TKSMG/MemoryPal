@@ -365,3 +365,11 @@ This build is packaged as release 0.48.1.
 - Icons: the streak and sync chips in the desktop header use drawn line icons (flame, cloud, sync, warning) instead of tiny text symbols, and the Associations link icon is larger.
 
 This build is packaged as release 0.48.2.
+
+## v80 - Store Readiness
+
+- Mac: opening an attachment and emailing feedback no longer fail on a Mac (they used a Windows-only call); saved feedback reports open in Finder.
+- iPhone and iPad: the app icon has no transparency layer (App Store Connect rejects one), and the build now carries Apple's privacy manifest.
+- Privacy Policy: corrected facts (one-time codes, where data is kept on Mac and phones, the hosting region and code sender) and a new "Deleting your account" section.
+
+This build is packaged as release 0.48.3.
