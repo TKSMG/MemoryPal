@@ -60,12 +60,12 @@ export default function Welcome() {
               style={selected ? { borderColor: theme.colors.primary, borderWidth: 2 } : undefined}
             >
               <Row>
-                <Ionicons name={ICONS[item.key]} size={28} color={selected ? theme.colors.link : theme.colors.muted} />
+                <Ionicons name={ICONS[item.key]} size={theme.icon(28)} color={selected ? theme.colors.link : theme.colors.muted} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Txt variant="h3">{item.title}</Txt>
                   <Txt variant="muted">{item.body}</Txt>
                 </View>
-                {selected ? <Ionicons name="checkmark-circle" size={26} color={theme.colors.link} /> : null}
+                {selected ? <Ionicons name="checkmark-circle" size={theme.icon(26)} color={theme.colors.link} /> : null}
               </Row>
             </Card>
           );

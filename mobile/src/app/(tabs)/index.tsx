@@ -88,7 +88,7 @@ export default function Today() {
         <ProgressBar value={today / goal} color={today >= goal ? c.green : c.primary} label={`${today} of ${goal} reviews today`} />
         <Row wrap style={{ justifyContent: 'space-between' }}>
           <Row gap={6}>
-            <Ionicons name="flame" size={20} color={c.orange} />
+            <Ionicons name="flame" size={theme.icon(20)} color={c.orange} />
             <Txt variant="body">{streak} day{streak === 1 ? '' : 's'} in a row</Txt>
           </Row>
           <Txt variant="body" color={c.violet}>Level {level.level} · {level.xp}/{level.need} XP</Txt>
@@ -112,7 +112,7 @@ export default function Today() {
                   hitSlop={10}
                   style={{ paddingTop: 2 }}
                 >
-                  <Ionicons name={ticked ? 'checkmark-circle' : 'ellipse-outline'} size={28} color={ticked ? c.green : c.muted} />
+                  <Ionicons name={ticked ? 'checkmark-circle' : 'ellipse-outline'} size={theme.icon(28)} color={ticked ? c.green : c.muted} />
                 </Pressable>
                 <Pressable style={{ flex: 1, gap: 2, minHeight: 44 }} onPress={() => openStep(step)} accessibilityRole="button" accessibilityHint="Opens this step">
                   <Txt variant="h3" style={ticked ? { textDecorationLine: 'line-through', color: c.muted } : undefined}>{step.title}</Txt>
@@ -125,7 +125,7 @@ export default function Today() {
       ) : (
         <Card onPress={() => router.push('/plan')} accessibilityLabel="Make a study plan">
           <Row>
-            <Ionicons name="map-outline" size={26} color={c.link} />
+            <Ionicons name="map-outline" size={theme.icon(26)} color={c.link} />
             <View style={{ flex: 1 }}>
               <Txt variant="h3">Make a study plan</Txt>
               <Txt variant="muted">Say how much time you have and what’s coming up; get steps to tick off each day.</Txt>
@@ -140,7 +140,7 @@ export default function Today() {
           const mode = MODES[key];
           return (
             <Card key={key} onPress={mode.go} accessibilityLabel={`${mode.title}. ${mode.body}`} style={{ flexBasis: '46%', flexGrow: 1 }}>
-              <Ionicons name={mode.icon as keyof typeof Ionicons.glyphMap} size={26} color={c.link} />
+              <Ionicons name={mode.icon as keyof typeof Ionicons.glyphMap} size={theme.icon(26)} color={c.link} />
               <Txt variant="h3">{mode.title}</Txt>
               <Txt variant="small">{mode.body}</Txt>
             </Card>
