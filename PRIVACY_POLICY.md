@@ -25,14 +25,16 @@ request.
 
 Everything you make in MemoryPal: cards, notes, study plans, review history, settings and any
 pictures, recordings or documents you attach. On Windows this is in
-`%LOCALAPPDATA%\MemoryPal`. It stays there until you delete it. Uninstalling the app does not
-remove it.
+`%LOCALAPPDATA%\MemoryPal`, and on a Mac in `~/Library/Application Support/MemoryPal`. It
+stays there until you delete it, and uninstalling the desktop app does not remove it. On a
+phone or tablet it is kept in the app's own private storage and is removed when you uninstall
+the app.
 
 ## If you create an account
 
 To create an account we ask for:
 
-- **Your email address**, to sign you in and to send 6-digit codes that confirm the account or
+- **Your email address**, to sign you in and to send one-time codes that confirm the account or
   reset the password.
 - **A password.** It is stored only as a secure hash by our hosting provider. We never see it.
 - **The month and year you were born**, only to check that you are 13 or older. This check
@@ -59,13 +61,15 @@ iOS Keychain or the Android Keystore), never your password.
 
 | Service | What it does | What it receives |
 |---|---|---|
-| Supabase ([region]) | Hosts accounts and the cloud copy | Your account and cloud copy, as listed above |
-| [Email provider, e.g. Resend] | Sends sign-in codes | Your email address |
+| Supabase (United States, AWS us-east-1) | Hosts accounts and the cloud copy | Your account and cloud copy, as listed above |
+| Google (Gmail) | Sends sign-in and reset codes | Your email address |
 | Have I Been Pwned | Checks whether a new password has appeared in a data breach | Only the first 5 characters of a scrambled (SHA-1) form of the password, never the password itself |
-| FormSubmit | Delivers feedback you choose to send | Your feedback notes, your Windows version, text size and theme, and a reply address if you give one |
+| FormSubmit | Delivers feedback you choose to send from the desktop app | Your feedback notes, your system version, text size and theme, and a reply address if you give one |
 
 Feedback is only sent when you press **Send Feedback Now**. It never includes your profile name
 or your cards.
+
+Read aloud uses your device's own voice and works offline; the text is not sent to us.
 
 The image-search button on the desktop opens Google in your web browser. That search
 happens in your browser, under Google's own privacy policy.
@@ -83,6 +87,18 @@ Your cloud copy is kept while you have an account. **Delete account** in the app
 account and its cloud copy straight away. [Our hosting provider's backups, if enabled, are
 deleted within [7] days.] Feedback emails are kept for as long as they are useful for fixing
 problems, then deleted.
+
+## Deleting your account
+
+You can delete your account and its cloud copy yourself at any time:
+
+- **Phone or tablet:** Settings, then **Account & sync**, then **Delete account**.
+- **Desktop:** Settings, then **Account & sync**, then **Delete account**.
+
+If you can no longer open the app, email [contact email] from the address you signed up with
+and ask us to delete your account. We will delete the account and its cloud copy within 30
+days and tell you when it is done. Cards saved only on your devices are not affected; remove
+them by uninstalling the app or deleting its data folder.
 
 ## Your rights
 
@@ -112,7 +128,7 @@ authorities as the law requires.
 
 ## Where your data is processed
 
-Our hosting provider stores the cloud copy in [region]. If that is outside your country, it is
+Our hosting provider stores the cloud copy in the United States. If that is outside your country, it is
 protected by [the provider's standard contractual clauses / data processing agreement].
 
 ## Changes
