@@ -5,7 +5,8 @@
     "password": "",
     "email": "",
     "problems": [
-     "Use at least 10 characters. A few unrelated words work well."
+     "Use at least 10 characters. A few unrelated words work well.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -15,7 +16,8 @@
     "password": "",
     "email": "pat.lee@example.com",
     "problems": [
-     "Use at least 10 characters. A few unrelated words work well."
+     "Use at least 10 characters. A few unrelated words work well.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -25,7 +27,8 @@
     "password": "abc",
     "email": "",
     "problems": [
-     "Use at least 10 characters. A few unrelated words work well."
+     "Use at least 10 characters. A few unrelated words work well.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -35,7 +38,8 @@
     "password": "abc",
     "email": "pat.lee@example.com",
     "problems": [
-     "Use at least 10 characters. A few unrelated words work well."
+     "Use at least 10 characters. A few unrelated words work well.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -46,7 +50,8 @@
     "email": "",
     "problems": [
      "Use at least 10 characters. A few unrelated words work well.",
-     "This is one of the most common passwords. Choose something less guessable."
+     "This is one of the most common passwords. Choose something less guessable.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -57,7 +62,8 @@
     "email": "pat.lee@example.com",
     "problems": [
      "Use at least 10 characters. A few unrelated words work well.",
-     "This is one of the most common passwords. Choose something less guessable."
+     "This is one of the most common passwords. Choose something less guessable.",
+     "Include at least one letter and one number."
     ],
     "strength": 0,
     "predictable": false,
@@ -109,7 +115,7 @@
     "problems": [
      "This is one of the most common passwords. Choose something less guessable.",
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -121,7 +127,7 @@
     "problems": [
      "This is one of the most common passwords. Choose something less guessable.",
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -132,7 +138,7 @@
     "email": "",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -143,7 +149,7 @@
     "email": "pat.lee@example.com",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -155,7 +161,7 @@
     "problems": [
      "This is one of the most common passwords. Choose something less guessable.",
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -167,7 +173,7 @@
     "problems": [
      "This is one of the most common passwords. Choose something less guessable.",
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -178,7 +184,7 @@
     "email": "",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -189,7 +195,7 @@
     "email": "pat.lee@example.com",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -200,7 +206,7 @@
     "email": "",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -211,7 +217,7 @@
     "email": "pat.lee@example.com",
     "problems": [
      "Avoid repeated letters and runs like 1234 or qwerty.",
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": true,
@@ -220,16 +226,20 @@
    {
     "password": "correct horse battery staple",
     "email": "",
-    "problems": [],
-    "strength": 4,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 2
    },
    {
     "password": "correct horse battery staple",
     "email": "pat.lee@example.com",
-    "problems": [],
-    "strength": 4,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 2
    },
@@ -382,16 +392,20 @@
    {
     "password": "longlonglonglonglong",
     "email": "",
-    "problems": [],
-    "strength": 3,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 1
    },
    {
     "password": "longlonglonglonglong",
     "email": "pat.lee@example.com",
-    "problems": [],
-    "strength": 3,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 1
    },
@@ -419,7 +433,7 @@
     "password": "ilovemycat",
     "email": "",
     "problems": [
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": false,
@@ -429,7 +443,7 @@
     "password": "ilovemycat",
     "email": "pat.lee@example.com",
     "problems": [
-     "Mix in a number, a capital or a symbol, or make it longer."
+     "Include at least one letter and one number."
     ],
     "strength": 1,
     "predictable": false,
@@ -476,16 +490,20 @@
    {
     "password": "mississippi river bend",
     "email": "",
-    "problems": [],
-    "strength": 3,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 2
    },
    {
     "password": "mississippi river bend",
     "email": "pat.lee@example.com",
-    "problems": [],
-    "strength": 3,
+    "problems": [
+     "Include at least one letter and one number."
+    ],
+    "strength": 1,
     "predictable": false,
     "classes": 2
    },
@@ -1585,6 +1603,19 @@
     }
    },
    "push": {
+    "card:c": {
+     "back": "A edited",
+     "buried_until": "",
+     "deck": "General",
+     "ease": 2.5,
+     "front": "Q",
+     "id": "c",
+     "interval": 1,
+     "lapses": 1,
+     "last_result": "New",
+     "next_review": "2026-10-11",
+     "repetitions": 0
+    },
     "settings:profile": {
      "daily_goal": 15,
      "accessibility": {
@@ -1601,10 +1632,10 @@
      "front": "Q",
      "id": "c",
      "interval": 1,
-     "lapses": 0,
+     "lapses": 1,
      "last_result": "New",
      "next_review": "2026-10-11",
-     "repetitions": 1
+     "repetitions": 0
     },
     "card:d": {
      "id": "d",
@@ -1642,10 +1673,10 @@
      "front": "Q",
      "id": "c",
      "interval": 1,
-     "lapses": 0,
+     "lapses": 1,
      "last_result": "New",
      "next_review": "2026-10-11",
-     "repetitions": 1
+     "repetitions": 0
     },
     "card:d": {
      "id": "d",
@@ -4195,6 +4226,19 @@
      "last_result": "New",
      "buried_until": ""
     },
+    "card:d": {
+     "back": "A",
+     "buried_until": "",
+     "deck": "General",
+     "ease": 2.5,
+     "front": "Q",
+     "id": "d",
+     "interval": 1,
+     "lapses": 1,
+     "last_result": "New",
+     "next_review": "2026-10-11",
+     "repetitions": 0
+    },
     "settings:profile": {
      "daily_goal": 15,
      "accessibility": {
@@ -4215,19 +4259,6 @@
      "last_result": "New",
      "next_review": "2026-10-10",
      "repetitions": 0
-    },
-    "card:d": {
-     "back": "A",
-     "buried_until": "",
-     "deck": "General",
-     "ease": 2.5,
-     "front": "Q",
-     "id": "d",
-     "interval": 3,
-     "lapses": 0,
-     "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
     }
    },
    "final": {
@@ -4277,11 +4308,11 @@
      "ease": 2.5,
      "front": "Q",
      "id": "d",
-     "interval": 3,
-     "lapses": 0,
+     "interval": 1,
+     "lapses": 1,
      "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
+     "next_review": "2026-10-11",
+     "repetitions": 0
     },
     "settings:profile": {
      "daily_goal": 15,
@@ -6950,6 +6981,19 @@
      "next_review": "2026-10-11",
      "repetitions": 1
     },
+    "card:c": {
+     "back": "A",
+     "buried_until": "",
+     "deck": "General",
+     "ease": 2.5,
+     "front": "Q",
+     "id": "c",
+     "interval": 1,
+     "lapses": 1,
+     "last_result": "New",
+     "next_review": "2026-10-11",
+     "repetitions": 0
+    },
     "settings:profile": {
      "daily_goal": 15,
      "accessibility": {
@@ -6958,19 +7002,6 @@
     }
    },
    "apply": {
-    "card:c": {
-     "back": "A",
-     "buried_until": "",
-     "deck": "General",
-     "ease": 2.5,
-     "front": "Q",
-     "id": "c",
-     "interval": 3,
-     "lapses": 0,
-     "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
-    },
     "card:d": {
      "id": "d",
      "deck": "General",
@@ -7019,11 +7050,11 @@
      "ease": 2.5,
      "front": "Q",
      "id": "c",
-     "interval": 3,
-     "lapses": 0,
+     "interval": 1,
+     "lapses": 1,
      "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
+     "next_review": "2026-10-11",
+     "repetitions": 0
     },
     "card:d": {
      "id": "d",
@@ -11047,21 +11078,7 @@
     },
     "card:d": null
    },
-   "push": {
-    "card:d": {
-     "id": "d",
-     "deck": "General",
-     "front": "Q edited",
-     "back": "A",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    }
-   },
+   "push": {},
    "apply": {
     "card:a": {
      "id": "a",
@@ -11101,7 +11118,8 @@
      "ease": 2.5,
      "last_result": "New",
      "buried_until": ""
-    }
+    },
+    "card:d": null
    },
    "final": {
     "card:a": {
@@ -11139,19 +11157,6 @@
      "lapses": 0,
      "interval": 3,
      "next_review": "2026-10-14",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    },
-    "card:d": {
-     "id": "d",
-     "deck": "General",
-     "front": "Q edited",
-     "back": "A",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
      "ease": 2.5,
      "last_result": "New",
      "buried_until": ""
@@ -11597,6 +11602,19 @@
      "last_result": "New",
      "next_review": "2026-10-11",
      "repetitions": 1
+    },
+    "card:c": {
+     "back": "A edited",
+     "buried_until": "",
+     "deck": "General",
+     "ease": 2.5,
+     "front": "Q",
+     "id": "c",
+     "interval": 1,
+     "lapses": 1,
+     "last_result": "New",
+     "next_review": "2026-10-11",
+     "repetitions": 0
     }
    },
    "apply": {
@@ -11608,10 +11626,10 @@
      "front": "Q",
      "id": "c",
      "interval": 1,
-     "lapses": 0,
+     "lapses": 1,
      "last_result": "New",
      "next_review": "2026-10-11",
-     "repetitions": 1
+     "repetitions": 0
     },
     "settings:profile": {
      "daily_goal": 15,
@@ -11655,10 +11673,10 @@
      "front": "Q",
      "id": "c",
      "interval": 1,
-     "lapses": 0,
+     "lapses": 1,
      "last_result": "New",
      "next_review": "2026-10-11",
-     "repetitions": 1
+     "repetitions": 0
     },
     "card:d": {
      "id": "d",
@@ -12566,19 +12584,6 @@
     "card:d": null
    },
    "push": {
-    "card:d": {
-     "id": "d",
-     "deck": "General",
-     "front": "Q",
-     "back": "A",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    },
     "settings:profile": {
      "daily_goal": 30,
      "accessibility": {
@@ -12600,7 +12605,8 @@
      "ease": 2.5,
      "last_result": "New",
      "buried_until": ""
-    }
+    },
+    "card:d": null
    },
    "final": {
     "card:a": {
@@ -12625,19 +12631,6 @@
      "lapses": 0,
      "interval": 3,
      "next_review": "2026-10-14",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    },
-    "card:d": {
-     "id": "d",
-     "deck": "General",
-     "front": "Q",
-     "back": "A",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
      "ease": 2.5,
      "last_result": "New",
      "buried_until": ""
@@ -15463,19 +15456,6 @@
     }
    },
    "push": {
-    "card:c": {
-     "back": "A",
-     "buried_until": "",
-     "deck": "General",
-     "ease": 2.5,
-     "front": "Q",
-     "id": "c",
-     "interval": 3,
-     "lapses": 0,
-     "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
-    },
     "settings:profile": {
      "daily_goal": 30,
      "accessibility": {
@@ -15498,6 +15478,19 @@
      "buried_until": ""
     },
     "card:b": null,
+    "card:c": {
+     "back": "A",
+     "buried_until": "",
+     "deck": "General",
+     "ease": 2.5,
+     "front": "Q",
+     "id": "c",
+     "interval": 1,
+     "lapses": 1,
+     "last_result": "New",
+     "next_review": "2026-10-11",
+     "repetitions": 0
+    },
     "card:d": {
      "id": "d",
      "deck": "General",
@@ -15533,11 +15526,11 @@
      "ease": 2.5,
      "front": "Q",
      "id": "c",
-     "interval": 3,
-     "lapses": 0,
+     "interval": 1,
+     "lapses": 1,
      "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
+     "next_review": "2026-10-11",
+     "repetitions": 0
     },
     "card:d": {
      "id": "d",
@@ -23462,21 +23455,7 @@
      "buried_until": ""
     }
    },
-   "push": {
-    "card:b": {
-     "id": "b",
-     "deck": "General",
-     "front": "Q",
-     "back": "A edited",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    }
-   },
+   "push": {},
    "apply": {
     "card:a": {
      "id": "a",
@@ -23491,6 +23470,7 @@
      "last_result": "New",
      "buried_until": ""
     },
+    "card:b": null,
     "card:c": null,
     "card:d": {
      "id": "d",
@@ -23512,19 +23492,6 @@
      "deck": "General",
      "front": "Q",
      "back": "A",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    },
-    "card:b": {
-     "id": "b",
-     "deck": "General",
-     "front": "Q",
-     "back": "A edited",
      "repetitions": 0,
      "lapses": 0,
      "interval": 0,
@@ -24660,6 +24627,19 @@
     }
    },
    "push": {
+    "card:a": {
+     "back": "A",
+     "buried_until": "",
+     "deck": "General",
+     "ease": 2.5,
+     "front": "Q",
+     "id": "a",
+     "interval": 1,
+     "lapses": 1,
+     "last_result": "New",
+     "next_review": "2026-10-11",
+     "repetitions": 0
+    },
     "settings:profile": {
      "daily_goal": 15,
      "accessibility": {
@@ -24668,19 +24648,6 @@
     }
    },
    "apply": {
-    "card:a": {
-     "back": "A",
-     "buried_until": "",
-     "deck": "General",
-     "ease": 2.5,
-     "front": "Q",
-     "id": "a",
-     "interval": 3,
-     "lapses": 0,
-     "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
-    },
     "card:b": {
      "id": "b",
      "deck": "General",
@@ -24716,11 +24683,11 @@
      "ease": 2.5,
      "front": "Q",
      "id": "a",
-     "interval": 3,
-     "lapses": 0,
+     "interval": 1,
+     "lapses": 1,
      "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
+     "next_review": "2026-10-11",
+     "repetitions": 0
     },
     "card:b": {
      "id": "b",
@@ -37482,22 +37449,10 @@
      }
     }
    },
-   "push": {
-    "card:c": {
-     "id": "c",
-     "deck": "General",
-     "front": "Q edited",
-     "back": "A",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    }
+   "push": {},
+   "apply": {
+    "card:c": null
    },
-   "apply": {},
    "final": {
     "card:a": {
      "id": "a",
@@ -37516,19 +37471,6 @@
      "id": "b",
      "deck": "Spanish",
      "front": "Q",
-     "back": "A",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    },
-    "card:c": {
-     "id": "c",
-     "deck": "General",
-     "front": "Q edited",
      "back": "A",
      "repetitions": 0,
      "lapses": 0,
@@ -46648,6 +46590,19 @@
      "ease": 2.5,
      "last_result": "New",
      "buried_until": ""
+    },
+    "card:d": {
+     "back": "A",
+     "buried_until": "",
+     "deck": "General",
+     "ease": 2.5,
+     "front": "Q",
+     "id": "d",
+     "interval": 1,
+     "lapses": 1,
+     "last_result": "New",
+     "next_review": "2026-10-11",
+     "repetitions": 0
     }
    },
    "apply": {
@@ -46663,19 +46618,6 @@
      "last_result": "New",
      "next_review": "2026-10-10",
      "repetitions": 0
-    },
-    "card:d": {
-     "back": "A",
-     "buried_until": "",
-     "deck": "General",
-     "ease": 2.5,
-     "front": "Q",
-     "id": "d",
-     "interval": 1,
-     "lapses": 0,
-     "last_result": "New",
-     "next_review": "2026-10-11",
-     "repetitions": 1
     }
    },
    "final": {
@@ -46726,10 +46668,10 @@
      "front": "Q",
      "id": "d",
      "interval": 1,
-     "lapses": 0,
+     "lapses": 1,
      "last_result": "New",
      "next_review": "2026-10-11",
-     "repetitions": 1
+     "repetitions": 0
     },
     "settings:profile": {
      "daily_goal": 15,
@@ -60523,19 +60465,6 @@
     "card:a": null
    },
    "push": {
-    "card:a": {
-     "id": "a",
-     "deck": "General",
-     "front": "Q",
-     "back": "A edited",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    },
     "card:c": {
      "id": "c",
      "deck": "General",
@@ -60569,21 +60498,10 @@
      }
     }
    },
-   "apply": {},
+   "apply": {
+    "card:a": null
+   },
    "final": {
-    "card:a": {
-     "id": "a",
-     "deck": "General",
-     "front": "Q",
-     "back": "A edited",
-     "repetitions": 0,
-     "lapses": 0,
-     "interval": 0,
-     "next_review": "2026-10-10",
-     "ease": 2.5,
-     "last_result": "New",
-     "buried_until": ""
-    },
     "card:b": {
      "id": "b",
      "deck": "General",
@@ -63791,19 +63709,6 @@
      "last_result": "New",
      "buried_until": ""
     },
-    "card:b": {
-     "back": "A",
-     "buried_until": "",
-     "deck": "General",
-     "ease": 2.5,
-     "front": "Q",
-     "id": "b",
-     "interval": 3,
-     "lapses": 0,
-     "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
-    },
     "settings:profile": {
      "daily_goal": 30,
      "accessibility": {
@@ -63812,6 +63717,19 @@
     }
    },
    "apply": {
+    "card:b": {
+     "back": "A",
+     "buried_until": "",
+     "deck": "General",
+     "ease": 2.5,
+     "front": "Q",
+     "id": "b",
+     "interval": 1,
+     "lapses": 1,
+     "last_result": "New",
+     "next_review": "2026-10-11",
+     "repetitions": 0
+    },
     "card:d": {
      "id": "d",
      "deck": "Spanish",
@@ -63847,11 +63765,11 @@
      "ease": 2.5,
      "front": "Q",
      "id": "b",
-     "interval": 3,
-     "lapses": 0,
+     "interval": 1,
+     "lapses": 1,
      "last_result": "New",
-     "next_review": "2026-10-14",
-     "repetitions": 2
+     "next_review": "2026-10-11",
+     "repetitions": 0
     },
     "card:c": {
      "id": "c",
@@ -135416,5 +135334,5 @@
    ]
   ]
  },
- "today_check": "2026-10-11"
+ "today_check": "2026-10-12"
 }

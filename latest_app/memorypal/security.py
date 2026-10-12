@@ -69,8 +69,9 @@ def password_problems(password, email=""):
         problems.append("Don't use your email name in your password.")
     if predictable(password):
         problems.append("Avoid repeated letters and runs like 1234 or qwerty.")
-    if len(password) >= MIN_PASSWORD and character_classes(password) < 2 and len(password) < 16:
-        problems.append("Mix in a number, a capital or a symbol, or make it longer.")
+    # The account server requires both (Supabase: letters and digits).
+    if not re.search(r"[A-Za-z]", password) or not re.search(r"[0-9]", password):
+        problems.append("Include at least one letter and one number.")
     return problems
 
 

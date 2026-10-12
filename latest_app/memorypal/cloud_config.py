@@ -15,5 +15,6 @@ SUPABASE_PUBLISHABLE_KEY = "sb_publishable_2dZ7rq2PQ9oCMG7bMMWhUQ_am1Zh1E6"
 # The published Terms of Use and Privacy Policy (drafts: TERMS_OF_USE.md and
 # PRIVACY_POLICY.md). Account sign-up links to them; app stores require the
 # privacy policy before an app with accounts is published.
-TERMS_URL = ""             # e.g. "https://memorypal.app/terms"
-PRIVACY_URL = ""           # e.g. "https://memorypal.app/privacy"
+# Until they have a home of their own, they're read from the public repository.
+TERMS_URL = "https://github.com/TKSMG/MemoryPal/blob/main/TERMS_OF_USE.md"
+PRIVACY_URL = "https://github.com/TKSMG/MemoryPal/blob/main/PRIVACY_POLICY.md"

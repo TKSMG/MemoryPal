@@ -13,6 +13,7 @@ import ctypes
 import hashlib
 import importlib
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -102,7 +103,8 @@ def run_powershell(script, timeout=60, stdin_text=None):
 
 
 def ps_quote(value):
-    return "'" + str(value).replace("'", "''") + "'"
+    # PowerShell also ends a quoted string at curly and low single quotes.
+    return "'" + re.sub("['\u2018\u2019\u201a\u201b]", lambda match: match.group() * 2, str(value)) + "'"
 
 
 # ----------------------------------------------------------------------------

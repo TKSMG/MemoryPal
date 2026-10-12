@@ -3,7 +3,7 @@
     "name": "MemoryPal",
     "slug": "memorypal",
     "scheme": "memorypal",
-    "version": "0.1.0",
+    "version": "0.47.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -13,12 +13,16 @@
     "extra": {
       "supabaseUrl": "https://wgfaryxbwritolayuydh.supabase.co",
       "supabasePublishableKey": "sb_publishable_2dZ7rq2PQ9oCMG7bMMWhUQ_am1Zh1E6",
-      "termsUrl": "",
-      "privacyUrl": ""
+      "termsUrl": "https://github.com/TKSMG/MemoryPal/blob/main/TERMS_OF_USE.md",
+      "privacyUrl": "https://github.com/TKSMG/MemoryPal/blob/main/PRIVACY_POLICY.md"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.memorypal.mobile"
+      "bundleIdentifier": "app.memorypal.mobile",
+      "buildNumber": "47",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "app.memorypal.mobile",
@@ -28,7 +32,14 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 47,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

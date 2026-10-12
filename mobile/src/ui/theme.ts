@@ -4,7 +4,8 @@
  * colour by contrast, and sizes respect both the in-app text size and the
  * phone's own font-size setting.
  */
-import { useColorScheme } from 'react-native';
+import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, useColorScheme } from 'react-native';
 
 import { useStore, usePrefs } from '../state/AppState';
 
@@ -124,11 +125,45 @@ export function makeTheme(dark: boolean, textSize: keyof typeof TEXT_SCALE, high
   };
 }
 
-export function useTheme(): Theme {
+const ThemeContext = createContext<Theme | null>(null);
+
+/** Follows the phone's own Reduce Motion setting as well as the in-app one. */
+function useSystemReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let live = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((value) => live && setReduce(value)).catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduce);
+    return () => {
+      live = false;
+      subscription.remove();
+    };
+  }, []);
+  return reduce;
+}
+
+/**
+ * Works the theme out once for the whole app. Every label and button reads it
+ * from context, so a store change (a sync, a rating) re-renders only the
+ * screens that show store data, not every leaf component on all five tabs.
+ */
+export function ThemeProvider({ children }: { children: ReactNode }) {
   const store = useStore();
   const [prefs] = usePrefs();
   const system = useColorScheme();
+  const systemReduceMotion = useSystemReduceMotion();
   const dark = prefs.theme === 'dark' || (prefs.theme === 'system' && system === 'dark');
   const a = store.accessibility;
-  return makeTheme(dark, a.text_size, a.high_contrast, a.reduce_motion, a.simple_language);
+  const reduceMotion = a.reduce_motion || systemReduceMotion;
+  const theme = useMemo(
+    () => makeTheme(dark, a.text_size, a.high_contrast, reduceMotion, a.simple_language),
+    [dark, a.text_size, a.high_contrast, reduceMotion, a.simple_language],
+  );
+  return createElement(ThemeContext.Provider, { value: theme }, children);
+}
+
+export function useTheme(): Theme {
+  const theme = useContext(ThemeContext);
+  if (!theme) throw new Error('useTheme must be used inside ThemeProvider');
+  return theme;
 }

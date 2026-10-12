@@ -47,7 +47,7 @@ person's data private, so the key alone gives nobody access to anyone's cards.
 **Password policy** (Authentication → Sign In / Providers → Email, or Attack Protection):
 
 - Minimum length **10** (the apps check 10 too).
-- Required characters: letters and digits.
+- Required characters: letters and digits (the apps ask for both too).
 - **Leaked password protection** (Pro plan) checks new passwords against Have I Been Pwned on the
   server. The apps already run the same check on the device, but only the server-side check
   can't be bypassed.

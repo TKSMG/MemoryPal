@@ -1,0 +1,60 @@
+name: Release Installers
+
+# Push a tag like v0.47.0 (or run this by hand with a tag name) to build every
+# installer and publish them together on the repository's Releases page.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v0.47.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    uses: ./.github/workflows/build-windows.yml
+    secrets: inherit
+  macos:
+    uses: ./.github/workflows/build-macos.yml
+    secrets: inherit
+  mobile:
+    uses: ./.github/workflows/build-mobile.yml
+    secrets: inherit
+
+  publish:
+    name: Publish release
+    needs: [windows, macos, mobile]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download every build
+        uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+
+      - name: Gather the installers
+        run: |
+          mkdir -p out
+          cp artifacts/MemoryPal-Windows/MemoryPalSetup.exe out/MemoryPal-Windows-Setup.exe
+          cp artifacts/MemoryPal-macOS-AppleSilicon/*.dmg out/
+          cp artifacts/MemoryPal-macOS-Intel/*.dmg out/
+          cp artifacts/MemoryPal-Android/* out/
+          cp artifacts/MemoryPal-iOS/* out/
+          (cd out && shasum -a 256 * > SHA256SUMS.txt)
+          ls -l out
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "MemoryPal ${TAG#v}" --notes-file <(printf 'Installers for Windows, macOS, Android and iOS. See installers/README.md in the repository for how to install each one.\n')
+          fi

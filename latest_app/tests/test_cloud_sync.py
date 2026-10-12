@@ -20,7 +20,7 @@ from memorypal.core import today_iso  # noqa: E402
 from memorypal.models import Card, sample_cards  # noqa: E402
 from memorypal.store import default_payload  # noqa: E402
 
-EMAIL, PASSWORD = "pat@example.com", "correct horse battery"
+EMAIL, PASSWORD = "pat@example.com", "correct horse battery 7"
 
 
 def new_payload(*cards):
@@ -92,8 +92,8 @@ class AccountTests(unittest.TestCase):
         self.client.verify_code(EMAIL, "123456")
         self.client.request_password_reset(EMAIL)
         session = self.client.verify_code(EMAIL, "654321", kind="recovery")
-        self.client.set_password(session, "a brand new password")
-        self.assertTrue(self.client.sign_in(EMAIL, "a brand new password").access_token)
+        self.client.set_password(session, "a brand new password 9")
+        self.assertTrue(self.client.sign_in(EMAIL, "a brand new password 9").access_token)
 
     def test_refresh_and_offline(self):
         self.client.sign_up(EMAIL, PASSWORD)
@@ -188,8 +188,9 @@ class PasswordAndLimitTests(unittest.TestCase):
         self.assertTrue(any("most common" in p for p in security.password_problems("password123")))
         self.assertTrue(any("email name" in p for p in security.password_problems("patricia-garden-77", "patricia@example.com")))
         self.assertTrue(any("1234" in p for p in security.password_problems("abcdefghijkl")))
-        self.assertEqual(security.password_problems("correct horse battery"), [])
-        self.assertEqual(security.password_strength("correct horse battery staple"), 4)
+        self.assertEqual(security.password_problems("correct horse battery 7"), [])
+        self.assertEqual(security.password_strength("correct horse battery 7 staple"), 4)
+        self.assertTrue(any("one number" in p for p in security.password_problems("correct horse battery staple")))
         self.assertLessEqual(security.password_strength("qwertyuiop"), 1)
 
     def test_leaked_password_check_sends_only_a_hash_prefix(self):
