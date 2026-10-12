@@ -29,7 +29,16 @@ jobs:
         run: python -c "import tkinter as tk; root=tk.Tk(); root.withdraw(); root.destroy(); print('Tkinter is available')"
 
       - name: Run unit tests
-        run: python -m unittest discover -s latest_app/tests
+        shell: bash
+        run: |
+          # On failure the end of the test output becomes an annotation, so it
+          # can be read from the checks page without downloading logs.
+          if ! python -m unittest discover -s latest_app/tests > "$RUNNER_TEMP/tests.log" 2>&1; then
+            tail -c 3500 "$RUNNER_TEMP/tests.log" | python -c "import sys; print('::error title=Unit tests::' + sys.stdin.read().replace('%', '%25').replace('\r', '').replace('\n', '%0A'))"
+            cat "$RUNNER_TEMP/tests.log"
+            exit 1
+          fi
+          tail -3 "$RUNNER_TEMP/tests.log"
 
       - name: Build MemoryPal
         shell: cmd
