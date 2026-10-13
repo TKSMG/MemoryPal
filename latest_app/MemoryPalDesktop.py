@@ -1705,6 +1705,17 @@ class MemoryPalApp(tk.Tk):
         # are the same size on every system (the font fallbacks off Windows
         # were much smaller than the Segoe glyphs).
         "search": [("circle", 10.5, 10.5, 6.5), ("seg", 15.3, 15.3, 20.5, 20.5)],
+        # Window controls, the fullscreen corners and the tick in check boxes:
+        # drawn antialiased like the other icons (Tk's canvas lines are jagged
+        # on Windows).
+        "close": [("seg", 6, 6, 18, 18), ("seg", 18, 6, 6, 18)],
+        "minimize": [("seg", 5, 12, 19, 12)],
+        "maximize": [("seg", 5.5, 5.5, 18.5, 5.5), ("seg", 18.5, 5.5, 18.5, 18.5), ("seg", 18.5, 18.5, 5.5, 18.5), ("seg", 5.5, 18.5, 5.5, 5.5)],
+        "fullscreen": [
+            seg for sx, sy, dx, dy in ((3.5, 3.5, 1, 1), (20.5, 3.5, -1, 1), (3.5, 20.5, 1, -1), (20.5, 20.5, -1, -1))
+            for seg in (("seg", sx, sy, sx + 5 * dx, sy), ("seg", sx, sy, sx, sy + 5 * dy))
+        ],
+        "check": [("seg", 5, 12.5, 9.8, 17.3), ("seg", 9.8, 17.3, 19, 7)],
         "back": [("seg", 19.5, 12, 4.5, 12), ("seg", 4.5, 12, 10.5, 6), ("seg", 4.5, 12, 10.5, 18)],
         "help": [("circle", 12, 12, 9), ("arc", 12, 9.6, 2.6, 180, 405), ("seg", 13.84, 11.44, 12, 13.2), ("seg", 12, 13.2, 12, 14), ("dot", 12, 16.9, 1.2)],
         "moon": [("arc", 12, 12, 8.5, 7.07, 262.93), ("arc", 16.5, 7.5, 6.8, 54.64, 215.36)],
@@ -1720,6 +1731,9 @@ class MemoryPalApp(tk.Tk):
     }
     LINE_ICONS["sun"] = LINE_ICONS["dashboard"]
 
+    # Icons drawn small get a slightly heavier stroke so they don't look faint.
+    LINE_ICON_WEIGHT = {"check": 1.35}
+
     def icon_coverage(self, name, size):
         """Antialiased coverage (0-255 per pixel) of a line icon at this size."""
         cache = self.__dict__.setdefault("_icon_coverage_cache", {})
@@ -1730,7 +1744,7 @@ class MemoryPalApp(tk.Tk):
         if not shapes:
             return None
         unit = size / 24
-        half = 0.9  # half the stroke, in grid units
+        half = 0.9 * self.LINE_ICON_WEIGHT.get(name, 1)  # half the stroke, in grid units
 
         def distance(shape, x, y):
             kind = shape[0]
@@ -2898,6 +2912,27 @@ class MemoryPalApp(tk.Tk):
         self._tile_cache[key] = photo
         return photo
 
+    def corner_photo(self, radius, fill, under, corner):
+        """One antialiased quarter-circle corner (opaque, blended onto `under`), cached."""
+        cache = self.__dict__.setdefault("_corner_cache", {})
+        key = (radius, fill, under, corner)
+        if key in cache:
+            return cache[key]
+        fill_rgb, under_rgb = self.hex_to_rgb(fill), self.hex_to_rgb(under)
+        if not fill_rgb or not under_rgb:
+            return None
+        # The circle's centre sits at the inner corner of the r-by-r square.
+        cx = radius if corner in ("nw", "sw") else 0
+        cy = radius if corner in ("nw", "ne") else 0
+        pixels = bytearray()
+        for y in range(radius):
+            for x in range(radius):
+                cover = max(0.0, min(1.0, radius - math.hypot(x + 0.5 - cx, y + 0.5 - cy) + 0.5))
+                pixels.extend((*(int(round(under_rgb[i] + (fill_rgb[i] - under_rgb[i]) * cover)) for i in range(3)), 255))
+        photo = tk.PhotoImage(master=self, data=base64.b64encode(self.png_rgba(radius, radius, bytes(pixels))).decode("ascii"), format="png")
+        cache[key] = photo
+        return photo
+
     def widen_tile(self, small, radius, fill):
         """Grow a corner tile to a large 9-slice tile, using Tk's own copy.
 
@@ -3249,17 +3284,11 @@ class MemoryPalApp(tk.Tk):
                 # Draw the window controls geometrically instead of using font glyphs.
                 # Font metrics make X/minimize/maximize symbols look subtly off-center
                 # on different platforms and scaling levels.
-                stroke = max(2, self.px(2) // 2 * 2)
-                if value == "\u00d7":
-                    arm = self.px(6)
-                    button.create_line(cx - arm, cy - arm, cx + arm, cy + arm, fill=text_color, width=stroke, capstyle="round")
-                    button.create_line(cx + arm, cy - arm, cx - arm, cy + arm, fill=text_color, width=stroke, capstyle="round")
-                elif value == "\u2212":
-                    arm = self.px(7)
-                    button.create_line(cx - arm, cy, cx + arm, cy, fill=text_color, width=stroke, capstyle="butt")
-                elif value in ("\u25a1", "\u2750"):
-                    half = self.px(6)
-                    button.create_rectangle(cx - half, cy - half, cx + half, cy + half, outline=text_color, width=stroke)
+                icon = {"\u00d7": "close", "\u2212": "minimize", "\u25a1": "maximize", "\u2750": "maximize"}.get(value)
+                image = self.line_icon(icon, self.px(24), text_color) if icon else None
+                if image is not None:
+                    button.create_image(cx, cy, image=image, anchor="center")
+                    button._memorypal_icon = image
                 else:
                     self.create_centered_canvas_text(button, cx, cy, value, fill=text_color, font=self.font("Segoe UI Symbol", 12))
 
@@ -3449,12 +3478,6 @@ class MemoryPalApp(tk.Tk):
             center = pixel_size / 2
             if icon == "theme":
                 draw_line_icon("moon" if self.theme == "dark" else "sun", ink)
-            elif icon == "fullscreen":
-                pad = self.px(12)
-                short = self.px(7)
-                for sx, sy, dx, dy in ((pad, pad, short, short), (pixel_size - pad, pad, -short, short), (pad, pixel_size - pad, short, -short), (pixel_size - pad, pixel_size - pad, -short, -short)):
-                    canvas.create_line(sx, sy, sx + dx, sy, fill=ink, width=self.px(2), capstyle="round")
-                    canvas.create_line(sx, sy, sx, sy + dy, fill=ink, width=self.px(2), capstyle="round")
             elif icon in self.LINE_ICONS:
                 draw_line_icon(icon, ink)
             else:
@@ -3762,11 +3785,21 @@ class MemoryPalApp(tk.Tk):
         radius, gap = self.px(14), self.px(16)
         pad = self.px(22)
 
+        page_bg = canvas.cget("bg")
+
         def block(x1, y1, x2, y2, fill, r=radius):
+            # Two rectangles plus four antialiased corners: a smoothed polygon
+            # has jagged, slightly lumpy corners on Windows.
             r = max(1, min(r, (x2 - x1) // 2, (y2 - y1) // 2))
-            points = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2,
-                      x2 - r, y2, x1 + r, y2, x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
-            canvas.create_polygon(points, smooth=True, fill=fill, outline="")
+            under = card if fill == bar else page_bg
+            canvas.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline="")
+            canvas.create_rectangle(x1, y1 + r, x2, y2 - r, fill=fill, outline="")
+            for corner, x, y in (("nw", x1, y1), ("ne", x2 - r, y1), ("sw", x1, y2 - r), ("se", x2 - r, y2 - r)):
+                image = self.corner_photo(r, fill, under, corner)
+                if image is None:
+                    canvas.create_rectangle(x, y, x + r, y + r, fill=fill, outline="")
+                else:
+                    canvas.create_image(x, y, image=image, anchor="nw")
 
         def lines(x1, y1, x2, count=2):
             span = x2 - x1
@@ -4829,8 +4862,10 @@ class MemoryPalApp(tk.Tk):
             pad = max(1, self.px(2))
             if variable.get():
                 box.create_rectangle(pad, pad, size - pad, size - pad, fill=COLORS["primary"], outline=COLORS["primary"], width=0)
-                box.create_line(size * 0.27, size * 0.53, size * 0.43, size * 0.71, fill=self.on_color(COLORS["primary"]), width=max(2, self.px(2)), capstyle="round")
-                box.create_line(size * 0.43, size * 0.71, size * 0.76, size * 0.30, fill=self.on_color(COLORS["primary"]), width=max(2, self.px(2)), capstyle="round")
+                tick = self.line_icon("check", size, self.on_color(COLORS["primary"]))
+                if tick is not None:
+                    box.create_image(size / 2, size / 2, image=tick, anchor="center")
+                    box._memorypal_icon = tick
             else:
                 box.create_rectangle(pad, pad, size - pad, size - pad, fill=COLORS["input"], outline=COLORS["line"], width=max(1, self.px(1)))
 
