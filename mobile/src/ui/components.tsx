@@ -1,7 +1,9 @@
 /** Building blocks shared by every screen: calm, large, and accessible by default. */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ReactNode } from 'react';
+import { ReactNode, useRef, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleProp,
@@ -38,7 +40,7 @@ const SIZES: Record<Variant, [number, TextStyle['fontWeight'], number]> = {
   small: [13, '400', 18],
 };
 
-export function Txt({ variant = 'body', color, style, children, center, ...rest }: { variant?: Variant; color?: string; style?: StyleProp<TextStyle>; children: ReactNode; center?: boolean; numberOfLines?: number; accessibilityRole?: 'header' | 'text' }) {
+export function Txt({ variant = 'body', color, style, children, center, ...rest }: { variant?: Variant; color?: string; style?: StyleProp<TextStyle>; children: ReactNode; center?: boolean; numberOfLines?: number; adjustsFontSizeToFit?: boolean; maxFontSizeMultiplier?: number; accessibilityRole?: 'header' | 'text'; accessibilityLabel?: string; accessibilityLiveRegion?: 'none' | 'polite' | 'assertive' }) {
   const theme = useTheme();
   const [size, weight, line] = SIZES[variant];
   // Big headings grow less than body text with the in-app text size, so a
@@ -47,7 +49,10 @@ export function Txt({ variant = 'body', color, style, children, center, ...rest 
   const tone = color ?? (variant === 'muted' || variant === 'small' || variant === 'label' ? theme.colors.muted : theme.colors.ink);
   return (
     <Text
-      maxFontSizeMultiplier={2}
+      maxFontSizeMultiplier={rest.maxFontSizeMultiplier ?? 2}
+      adjustsFontSizeToFit={rest.adjustsFontSizeToFit}
+      accessibilityLabel={rest.accessibilityLabel}
+      accessibilityLiveRegion={rest.accessibilityLiveRegion}
       accessibilityRole={rest.accessibilityRole ?? (variant === 'title' || variant === 'h2' ? 'header' : undefined)}
       style={[
         { color: tone, fontSize: theme.font(size * grow), lineHeight: theme.font(line * grow), fontWeight: weight },
@@ -81,12 +86,23 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
   // squeezed, roomier on tablets (where content also stops at a readable width).
   const gutter = width < 360 ? 16 : width >= 600 ? 28 : 20;
   const pad = padded ? { paddingHorizontal: gutter } : null;
+  // iOS scroll views move clear of the keyboard on their own
+  // (automaticallyAdjustKeyboardInsets); Android, drawn edge to edge, needs a
+  // keyboard-avoiding view, offset by however far the screen sits below the
+  // top of the window (the navigation bar, when there is one).
+  const frameRef = useRef<View>(null);
+  const [topOffset, setTopOffset] = useState(0);
+  const measureTop = () => {
+    if (Platform.OS !== 'android') return;
+    frameRef.current?.measureInWindow((_x, y) => setTopOffset(Math.max(0, Math.round(y))));
+  };
   // The native safe area view pads only where the screen really meets the
   // status bar or home indicator, so screens under a navigation bar or above
   // the tab bar get no extra gap.
   return (
-    <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <SafeAreaView ref={frameRef} onLayout={measureTop} edges={['top', 'bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       {scroll ? (
+        <KeyboardAvoidingView style={{ flex: 1 }} enabled={Platform.OS === 'android'} behavior="padding" keyboardVerticalOffset={topOffset}>
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={[styles.readable, { paddingTop: 12, paddingBottom: 32, gap: 16 }, pad]}
@@ -97,6 +113,7 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
           {header}
           {children}
         </ScrollView>
+        </KeyboardAvoidingView>
       ) : (
         <View style={[styles.readable, { flex: 1, paddingTop: 12 }, pad]}>
           {header}
@@ -131,6 +148,9 @@ export function Card({ children, tone = 'default', style, onPress, accessibility
 }
 
 // -------------------------------------------------------------- button
+/** Smallest touch target: Apple asks for 44pt, Android's Material guidance for 48dp. */
+const MIN_TOUCH = Platform.OS === 'android' ? 48 : 44;
+
 export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'ghost' | 'again' | 'review' | 'good' | 'easy';
 
 function buttonColors(theme: Theme, kind: ButtonKind): [string, string, string] {
@@ -152,7 +172,7 @@ function buttonColors(theme: Theme, kind: ButtonKind): [string, string, string] 
   }
 }
 
-export function Button({ label, onPress, kind = 'secondary', icon, disabled, hint, compact, style, sublabel }: { label: string; onPress: () => void; kind?: ButtonKind; icon?: IconName; disabled?: boolean; hint?: string; compact?: boolean; style?: StyleProp<ViewStyle>; sublabel?: string }) {
+export function Button({ label, onPress, kind = 'secondary', icon, disabled, hint, compact, style, sublabel, accessibilityLabel }: { label: string; onPress: () => void; kind?: ButtonKind; icon?: IconName; disabled?: boolean; hint?: string; compact?: boolean; style?: StyleProp<ViewStyle>; sublabel?: string; accessibilityLabel?: string }) {
   const theme = useTheme();
   const [bg, fg, pressedBg] = buttonColors(theme, kind);
   return (
@@ -160,12 +180,12 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={sublabel ? `${label}, ${sublabel}` : label}
+      accessibilityLabel={accessibilityLabel ?? (sublabel ? `${label}, ${sublabel}` : label)}
       accessibilityHint={hint}
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: pressed ? pressedBg : bg, minHeight: compact ? 44 : 52, opacity: disabled ? 0.45 : 1 },
+        { backgroundColor: pressed ? pressedBg : bg, minHeight: compact ? MIN_TOUCH : 52, opacity: disabled ? 0.45 : 1 },
         kind === 'secondary' && { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.line },
         // A press answers the moment the finger lands, not on release.
         pressed && !disabled && !theme.reduceMotion && styles.pressedButton,
@@ -271,7 +291,7 @@ export function ToggleRow({ label, description, value, onChange }: { label: stri
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ true: theme.colors.primary, false: theme.colors.line }}
+        trackColor={{ true: theme.colors.primary, false: theme.colors.muted }}
         thumbColor="#ffffff"
         {...({ activeThumbColor: '#ffffff' } as object)}
         importantForAccessibility="no-hide-descendants"
@@ -345,7 +365,7 @@ const styles = StyleSheet.create({
   button: { borderRadius: 14, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { minHeight: 44, minWidth: 56, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  pill: { minHeight: MIN_TOUCH, minWidth: 56, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6 },
 });

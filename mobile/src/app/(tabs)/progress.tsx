@@ -21,7 +21,7 @@ function Bars({ values, labels, color, summary }: { values: number[]; labels: st
       </View>
       <View style={{ flexDirection: 'row', gap: 4 }}>
         {labels.map((label, i) => (
-          <Txt key={i} variant="small" center style={{ flex: 1, fontSize: theme.font(11) }}>{label}</Txt>
+          <Txt key={i} variant="small" center numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.5} style={{ flex: 1, fontSize: theme.font(11) }}>{label}</Txt>
         ))}
       </View>
     </View>
@@ -44,7 +44,7 @@ export default function Progress() {
   const earned = badges.filter((badge) => badge.done).length;
 
   const segments: [string, number, string][] = [
-    ['New', maturity.new, c.line],
+    ['New', maturity.new, c.muted],
     ['Learning', maturity.learning, c.orange],
     ['Young', maturity.young, c.primary],
     ['Mature', maturity.mature, c.green],

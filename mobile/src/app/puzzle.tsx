@@ -4,7 +4,7 @@
  */
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { AccessibilityInfo, Pressable, View } from 'react-native';
 
 import { useStore } from '../state/AppState';
 import { Button, Card, Field, ProgressBar, Row, Screen, Txt } from '../ui/components';
@@ -67,8 +67,21 @@ export default function Puzzle() {
   const showMs = (kind === 'sequence' ? 1500 + 600 * size : 2500 + 1200 * size) * (moreTime ? 2 : 1);
   const left = Math.max(0, showMs - (tick - startedAt));
 
+  // A screen reader takes far longer to read the words out than the timer
+  // allows, so with one on the words stay until "I'm ready" is pressed.
+  const [screenReader, setScreenReader] = useState(false);
   useEffect(() => {
-    if (phase !== 'show') return undefined;
+    let live = true;
+    AccessibilityInfo.isScreenReaderEnabled().then((value) => live && setScreenReader(value)).catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener('screenReaderChanged', setScreenReader);
+    return () => {
+      live = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'show' || screenReader) return undefined;
     const timer = setInterval(() => {
       const now = Date.now();
       setTick(now);
@@ -78,7 +91,7 @@ export default function Puzzle() {
       }
     }, 200);
     return () => clearInterval(timer);
-  }, [phase, startedAt, showMs]);
+  }, [phase, startedAt, showMs, screenReader]);
 
   const title = kind === 'sequence' ? 'Sequence recall' : kind === 'pairs' ? 'Pair recall' : 'Word recall';
 
@@ -168,7 +181,11 @@ export default function Puzzle() {
               round.shown.map((item) => <Txt key={item} variant="h2">{item}</Txt>)
             )}
           </Card>
-          <ProgressBar value={left / showMs} label={`${Math.ceil(left / 1000)} seconds left`} />
+          {screenReader ? (
+            <Txt variant="muted">Take your time. Press “I’m ready” when you have them.</Txt>
+          ) : (
+            <ProgressBar value={left / showMs} label={`${Math.ceil(left / 1000)} seconds left`} />
+          )}
           <Button label="I'm ready" icon="arrow-forward" onPress={() => setPhase('answer')} />
         </>
       ) : null}

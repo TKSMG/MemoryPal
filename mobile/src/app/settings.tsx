@@ -103,16 +103,16 @@ export default function Settings() {
       <Card>
         <Txt variant="muted">How many reviews make a completed day.</Txt>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Button label="−" onPress={() => store.setDailyGoal(store.dailyGoal - 5)} hint="Five fewer" style={{ width: 64 }} />
-          <Txt variant="big" accessibilityRole="text">{String(store.dailyGoal)}</Txt>
-          <Button label="+" onPress={() => store.setDailyGoal(store.dailyGoal + 5)} hint="Five more" style={{ width: 64 }} />
+          <Button label="−" accessibilityLabel="Lower daily goal" onPress={() => store.setDailyGoal(store.dailyGoal - 5)} hint="Five fewer reviews" style={{ width: 64 }} />
+          <Txt variant="big" accessibilityRole="text" accessibilityLiveRegion="polite" accessibilityLabel={`Daily goal ${store.dailyGoal} reviews`}>{String(store.dailyGoal)}</Txt>
+          <Button label="+" accessibilityLabel="Raise daily goal" onPress={() => store.setDailyGoal(store.dailyGoal + 5)} hint="Five more reviews" style={{ width: 64 }} />
         </Row>
       </Card>
 
       <SectionTitle>Who’s using MemoryPal</SectionTitle>
       <Card>
         <Txt variant="body">{persona(store.onboarding.persona).title}</Txt>
-        <Button label="Choose again" icon="people-outline" onPress={() => router.push('/welcome')} hint="Changes the study modes and comfort defaults." />
+        <Button label="Choose again" icon="people-outline" onPress={() => router.push('/welcome?again=1')} hint="Changes the study modes and comfort defaults." />
       </Card>
 
       <SectionTitle>Your data</SectionTitle>

@@ -82,7 +82,7 @@ export default function Today() {
 
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Txt variant="h3">Daily goal</Txt>
+          <Txt variant="h3" style={{ flexShrink: 1 }}>Daily goal</Txt>
           <Txt variant="muted">{today >= goal ? 'Goal reached 🎯' : `${goal - today} to go`}</Txt>
         </Row>
         <ProgressBar value={today / goal} color={today >= goal ? c.green : c.primary} label={`${today} of ${goal} reviews today`} />

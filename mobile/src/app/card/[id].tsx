@@ -1,6 +1,6 @@
 /** Edit a card's words, start it over, or delete it. Its schedule is kept on edit. */
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 
 import { useStore } from '../../state/AppState';
 import { Button, Card, EmptyState, Field, Row, Screen, Txt } from '../../ui/components';
@@ -14,6 +14,28 @@ export default function EditCard() {
   const [front, setFront] = useState(card?.front ?? '');
   const [back, setBack] = useState(card?.back ?? '');
   const [hook, setHook] = useState(card?.association ?? '');
+  const navigation = useNavigation();
+
+  // With unsaved edits the sheet can't be swiped away, and Cancel or the
+  // back button asks before throwing the edits away.
+  const dirty = !!card && (deck !== (card.deck ?? '') || front !== (card.front ?? '') || back !== (card.back ?? '') || hook !== (card.association ?? ''));
+  const leaving = useRef(false);
+  useEffect(() => {
+    if (!dirty) return undefined;
+    return navigation.addListener('beforeRemove', (event) => {
+      if (leaving.current) return;
+      event.preventDefault();
+      confirm('Discard your changes?', 'Your edits to this card haven’t been saved.', 'Discard', true).then((ok) => {
+        if (!ok) return;
+        leaving.current = true;
+        navigation.dispatch(event.data.action);
+      });
+    });
+  }, [dirty, navigation]);
+  const leave = () => {
+    leaving.current = true;
+    router.back();
+  };
 
   if (!card) {
     return (
@@ -26,25 +48,26 @@ export default function EditCard() {
   const save = () => {
     if (!front.trim()) return notify('A card needs a question', 'Type the question or prompt.');
     store.updateCard(card, { deck, front, back, association: hook });
-    router.back();
+    leave();
   };
 
   const remove = async () => {
     if (await confirm('Delete this card?', `“${card.front.slice(0, 80)}” and its review history will be removed. This can't be undone.`, 'Delete', true)) {
       store.deleteCards([card.id]);
-      router.back();
+      leave();
     }
   };
 
   const learnAgain = async () => {
     if (await confirm('Learn this card again?', 'Its progress is reset and it comes back as a new card today.', 'Learn again')) {
       store.resetProgress([card.id]);
-      router.back();
+      leave();
     }
   };
 
   return (
     <Screen>
+      <Stack.Screen options={{ gestureEnabled: !dirty }} />
       <Card tone="alt">
         <Txt variant="small">
           {card.repetitions
