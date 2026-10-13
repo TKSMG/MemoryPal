@@ -1,7 +1,7 @@
 /** First launch: one plain question, then comfort settings, then straight to Today. */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { Image, View } from 'react-native';
 
 import { MANAGED_SETTINGS, PERSONAS, persona as personaFor } from '../core/personas';
@@ -21,12 +21,31 @@ const ICONS: Record<PersonaKey, keyof typeof Ionicons.glyphMap> = {
 export default function Welcome() {
   const store = useStore();
   const theme = useTheme();
+  const navigation = useNavigation();
+  // Settings opens this screen with ?again=1 to choose again; then it has a
+  // back button and swipe, and leaving without finishing changes nothing.
+  const again = !!useLocalSearchParams<{ again?: string }>().again;
   const [chosen, setChosen] = useState<PersonaKey | ''>(store.onboarding.persona);
-  // An account signed in on another device brings its answers with it.
+  // An account signed in on another device brings its answers with it, so
+  // leave as soon as onboarding becomes done during this visit (but not when
+  // it was already done on arrival, as when choosing again from Settings).
   const done = store.onboarding.done;
+  const doneAtOpen = useRef(done);
   useEffect(() => {
-    if (done) router.replace('/');
+    if (done && !doneAtOpen.current) router.replace('/');
+    doneAtOpen.current = done;
   }, [done]);
+
+  // Choosing a persona applies its comfort settings straight away; leaving
+  // without finishing puts the earlier ones back.
+  const before = useRef(store.accessibility);
+  const finished = useRef(false);
+  useEffect(() => {
+    if (!again) return undefined;
+    return navigation.addListener('beforeRemove', () => {
+      if (!finished.current) store.setAccessibility(before.current);
+    });
+  }, [again, navigation, store]);
 
   const choose = (key: PersonaKey) => {
     setChosen(key);
@@ -36,12 +55,15 @@ export default function Welcome() {
   };
 
   const finish = () => {
+    finished.current = true;
     store.finishOnboarding(chosen || 'general');
-    router.replace('/');
+    if (again && router.canGoBack()) router.back();
+    else router.replace('/');
   };
 
   return (
     <Screen>
+      {again ? <Stack.Screen options={{ headerShown: true, title: 'Choose again', gestureEnabled: true }} /> : null}
       <Row gap={14} style={{ marginTop: 8 }}>
         <Image source={require('../../assets/icon.png')} style={{ width: 56, height: 56, borderRadius: 14 }} accessibilityIgnoresInvertColors accessible={false} />
         <View style={{ flex: 1 }}>

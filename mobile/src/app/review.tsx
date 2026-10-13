@@ -189,7 +189,7 @@ export default function Review() {
   return (
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
-        <Txt variant="label">{`Card ${index + 1} of ${queue.length}${card.deck ? ` · ${card.deck}` : ''}`}</Txt>
+        <Txt variant="label" style={{ flex: 1 }}>{`Card ${index + 1} of ${queue.length}${card.deck ? ` · ${card.deck}` : ''}`}</Txt>
         <Row gap={8}>
           <IconButton icon="volume-high-outline" label="Read the question aloud" onPress={() => speak(card.front, slow)} />
           <IconButton icon="create-outline" label="Edit this card" onPress={() => router.push(`/card/${card.id}`)} />
@@ -216,8 +216,8 @@ export default function Review() {
             onSubmitEditing={reveal}
           />
           <Button kind="primary" label={answer.trim() ? 'Check my answer' : 'Show answer'} icon={answer.trim() ? 'checkmark-done' : 'eye-outline'} onPress={reveal} />
-          <Row>
-            <Button compact label="Skip for today" icon="time-outline" onPress={skip} style={{ flex: 1 }} hint="The card comes back tomorrow without counting as a miss." />
+          <Row style={{ alignItems: 'stretch' }}>
+            <Button compact label="Skip today" icon="time-outline" onPress={skip} style={{ flex: 1 }} hint="The card comes back tomorrow without counting as a miss." />
             <Button compact label="Undo" icon="arrow-undo-outline" onPress={undo} disabled={!results.length} style={{ flex: 1 }} hint="Take back the last rating." />
           </Row>
         </>
