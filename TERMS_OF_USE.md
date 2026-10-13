@@ -63,7 +63,7 @@ you seriously break these terms. Sections 7 and 8 continue after that.
 
 ## 10. Law
 
-These terms are governed by the laws of the United States, except where your local consumer
+These terms are governed by the laws of the State of California, United States, except where your local consumer
 law says otherwise.
 
 ## 11. Contact
