@@ -373,3 +373,12 @@ This build is packaged as release 0.48.2.
 - Privacy Policy: corrected facts (one-time codes, where data is kept on Mac and phones, the hosting region and code sender) and a new "Deleting your account" section.
 
 This build is packaged as release 0.48.3.
+
+## v82-v84 - Developer Name, Smoother Edges and Final UI Review
+
+- The Privacy Policy and Terms name the developer, Kirthik Sai Mouli Parthiban.
+- Desktop: the title bar's close, minimise and maximise symbols, the tick in check boxes and the rounded corners of the loading skeleton are now antialiased like the rest of the icons, instead of jagged on Windows.
+- Desktop: links, plan ticks and the time unit work from the keyboard; error text is easier to read in dark mode; the light focus ring is darker; the Feedback page speaks to everyone, not testers; study modes and the streak use drawn line icons; Library tools sit on a card; right-click copy works on a Mac.
+- Phone: "Choose again" in Settings opens the persona chooser (with a way back); text boxes stay above the Android keyboard; Android tap targets are 48dp; switch "off" states are visible; Edit card asks before discarding changes; puzzles wait for "I'm ready" when a screen reader is on; the Study tab is titled "Review and quiz".
+
+This build is packaged as release 0.48.4.
