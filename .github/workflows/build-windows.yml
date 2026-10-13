@@ -51,6 +51,13 @@ jobs:
         shell: cmd
         run: build_installer_windows.cmd
 
+      - name: Build Microsoft Store package
+        env:
+          MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
+          MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+          MSIX_PUBLISHER_DISPLAY: ${{ vars.MSIX_PUBLISHER_DISPLAY }}
+        run: python tools/msix/make_msix.py release/MemoryPal release/MemoryPal-Windows-Store.msix
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v5
         with:
@@ -59,3 +66,4 @@ jobs:
           path: |
             release/MemoryPal/**
             release/MemoryPalSetup.exe
+            release/MemoryPal-Windows-Store.msix

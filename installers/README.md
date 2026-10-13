@@ -31,4 +31,8 @@ The builds work without any accounts. Adding these repository secrets (Settings 
 
 For the App Store and TestFlight, the simplest route is Expo's build service, which handles Apple certificates and provisioning for you: from `mobile/`, run `npx eas-cli login`, then `npx eas-cli build -p ios --profile production` and `npx eas-cli submit -p ios`. The same works for Google Play with `-p android`. The profiles are in `mobile/eas.json`.
 
+### Microsoft Store
+
+Each release also has `MemoryPal-Windows-Store.msix`, an unsigned package for the Microsoft Store (the Store signs it when it publishes the app, so there is no SmartScreen warning for Store installs). In Partner Center, reserve the name MemoryPal, then open **Product identity** and copy three values into repository variables (Settings → Secrets and variables → Actions → **Variables**): `MSIX_IDENTITY_NAME` (Package/Identity/Name), `MSIX_PUBLISHER` (Package/Identity/Publisher, starts with `CN=`) and `MSIX_PUBLISHER_DISPLAY` (Package/Properties/PublisherDisplayName). The next release builds the package with that identity; upload it under **Packages** in the Store submission. Store installs keep their data separately from the downloaded installer's.
+
 Windows code signing (to remove the SmartScreen warning) needs a code-signing certificate from a certificate authority, or Azure Trusted Signing; it can be added to `build_installer_windows.cmd` with Inno Setup's `SignTool` setting once you have one.
