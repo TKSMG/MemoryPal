@@ -8,7 +8,7 @@
 
 Last updated: [date]
 
-MemoryPal is made by [your name or company] ("we"). This policy explains what MemoryPal
+MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at [contact email] with any question or
 request.
 
@@ -138,6 +138,6 @@ ask you to agree again.
 
 ## Contact
 
-[Your name or company]
+Kirthik Sai Mouli Parthiban
 [Postal address, if required where you publish]
 [contact email]
