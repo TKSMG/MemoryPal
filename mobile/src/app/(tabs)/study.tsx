@@ -24,7 +24,7 @@ export default function Study() {
   ];
 
   return (
-    <Screen eyebrow="Study" title="Practise">
+    <Screen eyebrow="Study" title="Review and quiz">
       <Card tone="alt" style={{ gap: 12 }}>
         <Row>
           <Ionicons name="calendar-outline" size={theme.icon(28)} color={c.link} />
@@ -48,7 +48,7 @@ export default function Study() {
             <Ionicons name={option.icon} size={theme.icon(26)} color={c.link} />
             <View style={{ flex: 1, gap: 2 }}>
               <Row style={{ justifyContent: 'space-between' }}>
-                <Txt variant="h3">{option.title}</Txt>
+                <Txt variant="h3" style={{ flexShrink: 1 }}>{option.title}</Txt>
                 {option.count !== undefined ? <Txt variant="label">{String(option.count)}</Txt> : null}
               </Row>
               <Txt variant="muted">{option.body}</Txt>

@@ -31,7 +31,7 @@ LIGHT_COLORS = {
     "rail_active": "#2a4a8f",
     "rail_text": "#c9d3e6",
     "rail_muted": "#9aa6bd",
-    "focus": "#f59e0b",
+    "focus": "#b45309",
     "on_light": "#0b1020",
     "white": "#ffffff",
     "danger": "#c62828",
