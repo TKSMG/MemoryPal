@@ -1,11 +1,6 @@
 # MemoryPal Terms of Use
 
-> **Draft for review.** Fill in the bracketed parts and have it checked by someone qualified for
-> the places you publish in. Host it at the address in `cloud_config.TERMS_URL` and
-> `mobile/app.json` (`expo.extra.termsUrl`). App stores also apply their own standard terms
-> (for example Apple's standard licence agreement) unless you supply your own.
-
-Last updated: [date]
+Last updated: October 12, 2026
 
 These terms apply when you use MemoryPal, made by Kirthik Sai Mouli Parthiban ("we"). By creating
 an account you agree to them and to the [Privacy Policy](PRIVACY_POLICY.md).
@@ -58,8 +53,7 @@ backup in the app).
 ## 8. Limitation of liability
 
 To the extent the law allows, we are not liable for indirect or consequential losses, or for
-lost data, arising from your use of MemoryPal. [Optional: our total liability is limited to
-[the amount you paid us in the last 12 months / USD 50].] Nothing here limits rights you have
+lost data, arising from your use of MemoryPal. Our total liability is limited to USD 50. Nothing here limits rights you have
 under consumer law that can't be limited.
 
 ## 9. Ending
@@ -69,9 +63,9 @@ you seriously break these terms. Sections 7 and 8 continue after that.
 
 ## 10. Law
 
-These terms are governed by the laws of [country/state], except where your local consumer
+These terms are governed by the laws of the United States, except where your local consumer
 law says otherwise.
 
 ## 11. Contact
 
-Kirthik Sai Mouli Parthiban, [contact email]
+Kirthik Sai Mouli Parthiban, memorypal09@gmail.com

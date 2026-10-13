@@ -1,15 +1,9 @@
 # MemoryPal Privacy Policy
 
-> **Draft for review.** Written from what the app actually does as of version 0.46.0. Fill in the
-> bracketed parts, have it checked by someone qualified in privacy law for the places you
-> publish in, then host it at the address in `cloud_config.PRIVACY_URL` and `mobile/app.json`
-> (`expo.extra.privacyUrl`). Bump `TERMS_VERSION` in `security.py` / `security.ts` whenever
-> this changes in a way people should agree to again.
-
-Last updated: [date]
+Last updated: October 12, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
-collects, why, and the choices you have. Contact us at [contact email] with any question or
+collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
 request.
 
 ## The short version
@@ -84,8 +78,7 @@ happens in your browser, under Google's own privacy policy.
 ## How long we keep it
 
 Your cloud copy is kept while you have an account. **Delete account** in the app removes the
-account and its cloud copy straight away. [Our hosting provider's backups, if enabled, are
-deleted within [7] days.] Feedback emails are kept for as long as they are useful for fixing
+account and its cloud copy straight away. Feedback emails are kept for as long as they are useful for fixing
 problems, then deleted.
 
 ## Deleting your account
@@ -95,7 +88,7 @@ You can delete your account and its cloud copy yourself at any time:
 - **Phone or tablet:** Settings, then **Account & sync**, then **Delete account**.
 - **Desktop:** Settings, then **Account & sync**, then **Delete account**.
 
-If you can no longer open the app, email [contact email] from the address you signed up with
+If you can no longer open the app, email memorypal09@gmail.com from the address you signed up with
 and ask us to delete your account. We will delete the account and its cloud copy within 30
 days and tell you when it is done. Cards saved only on your devices are not affected; remove
 them by uninstalling the app or deleting its data folder.
@@ -117,7 +110,7 @@ We will answer requests within 30 days.
 
 MemoryPal can be used without an account by anyone. Accounts are only for people 13 and
 older, and the app checks this before an account is created. If you believe a child under 13
-has created an account, contact us at [contact email] and we will delete it.
+has created an account, contact us at memorypal09@gmail.com and we will delete it.
 
 ## Security
 
@@ -129,7 +122,7 @@ authorities as the law requires.
 ## Where your data is processed
 
 Our hosting provider stores the cloud copy in the United States. If that is outside your country, it is
-protected by [the provider's standard contractual clauses / data processing agreement].
+protected by our hosting provider's data processing agreement, which includes the EU standard contractual clauses.
 
 ## Changes
 
@@ -139,5 +132,4 @@ ask you to agree again.
 ## Contact
 
 Kirthik Sai Mouli Parthiban
-[Postal address, if required where you publish]
-[contact email]
+memorypal09@gmail.com
