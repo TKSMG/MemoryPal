@@ -121,7 +121,7 @@ const CardRow = memo(function CardRow({ card, leech, today }: { card: CardModel;
   return (
     <Card onPress={() => router.push(`/card/${card.id}`)} accessibilityLabel={`${card.front}. Answer: ${card.back || 'none'}. Tap to edit.`}>
       <Row style={{ justifyContent: 'space-between' }}>
-        <Txt variant="label">{card.deck}</Txt>
+        <Txt variant="label" style={{ flexShrink: 1 }}>{card.deck}</Txt>
         <Txt variant="small">{card.repetitions ? `Next ${card.next_review <= today ? 'today' : card.next_review}` : 'New'}</Txt>
       </Row>
       <Txt variant="h3">{card.front}</Txt>

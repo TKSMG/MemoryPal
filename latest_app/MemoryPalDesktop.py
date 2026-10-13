@@ -100,6 +100,8 @@ def platform_text(text):
 
 
 FILE_MANAGER = "Finder" if IS_MAC else "File Explorer"
+# Tk on macOS reports a right-click as Button-2, and Control-click means the same.
+CONTEXT_CLICKS = ("<Button-2>", "<Control-Button-1>") if IS_MAC else ("<Button-3>",)
 
 
 def system_open(target):
@@ -994,6 +996,10 @@ class Tooltip:
             self.widget.after_cancel(self.after_id)
             self.after_id = None
 
+    def _px(self, value):
+        root = self.widget._root()
+        return root.px(value) if hasattr(root, "px") else value
+
     def show(self):
         if self.tip or not self.text:
             return
@@ -1011,10 +1017,10 @@ class Tooltip:
             fg=COLORS["ink"],
             highlightthickness=1,
             highlightbackground=COLORS["line"],
-            padx=10,
-            pady=7,
+            padx=self._px(10),
+            pady=self._px(7),
             justify="left",
-            wraplength=280,
+            wraplength=self._px(280),
             font=self.widget._root().font("Segoe UI", 10) if hasattr(self.widget._root(), "font") else ("Segoe UI", 10),
         )
         label.pack()
@@ -2660,6 +2666,17 @@ class MemoryPalApp(tk.Tk):
     def focus_color(self):
         return COLORS.get("focus", "#f5b301")
 
+    def keyboard_link(self, widget, handler):
+        """Make a clickable label reachable with Tab and work with Enter or Space."""
+        widget.configure(
+            takefocus=1,
+            highlightthickness=self.focus_thickness(),
+            highlightbackground=widget.cget("bg"),
+            highlightcolor=self.focus_color(),
+        )
+        for sequence in ("<Button-1>", "<Return>", "<KP_Enter>", "<space>"):
+            widget.bind(sequence, handler)
+
     def pace(self, milliseconds):
         """Stretch timed displays when the More time preference is on."""
         return int(milliseconds * (2 if self.accessibility.get("more_time") else 1))
@@ -2776,7 +2793,7 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("WarmH2.TLabel", background=COLORS["warm"], foreground=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 18))
         self.style.configure("Stat.TLabel", background=COLORS["surface"], foreground=COLORS["primary"], font=self.font("Segoe UI Semibold", 34))
         self.style.configure("RailTitle.TLabel", background=COLORS["rail"], foreground=COLORS["white"], font=self.font("Segoe UI Semibold", 20))
-        self.style.configure("RailText.TLabel", background=COLORS["rail"], foreground="#9ca3af", font=self.font("Segoe UI", 12))
+        self.style.configure("RailText.TLabel", background=COLORS["rail"], foreground=COLORS["rail_muted"], font=self.font("Segoe UI", 12))
         self.style.configure("TEntry", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], insertcolor=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
         self.style.map("TEntry", bordercolor=[("focus", COLORS["primary"])], lightcolor=[("focus", COLORS["input"])], darkcolor=[("focus", COLORS["input"])])
         self.style.configure("TCombobox", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
@@ -3581,7 +3598,7 @@ class MemoryPalApp(tk.Tk):
         self.goal_chip = goal_chip
         # Where sync stands, at a glance; clicking it opens Account & sync in Settings.
         self.sync_chip = tk.Label(status_row, text="", bg=COLORS["alt"], fg=COLORS["muted"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10), cursor="hand2")
-        self.sync_chip.bind("<Button-1>", lambda _event: self.show_view("settings"))
+        self.keyboard_link(self.sync_chip, lambda _event: self.show_view("settings"))
         self.add_tooltip(self.sync_chip, "Account & sync settings")
         self.refresh_sync_chip()
         back_button = self.header_icon_button(action_strip, "back", self.go_back, f"Back to the previous page ({BACK_SHORTCUT}).")
@@ -3680,7 +3697,7 @@ class MemoryPalApp(tk.Tk):
             "cuelab": "Generate text, image, and audio cues for any card.",
             "games": "Short recall games for attention and memory.",
             "library": "Search, filter, import, export, and review saved material.",
-            "feedback": "Record tester ratings, bug notes, accessibility comments, and feature ideas.",
+            "feedback": "Rate the app, report a problem, or suggest an idea.",
             "settings": "Personalize appearance, profiles, storage, backups, and focus behavior.",
             "study": "Every way to practise your cards: due review, focus, quizzes and repetition.",
             "create": "Add things to learn, organise decks, browse the library and make cues.",
@@ -3698,7 +3715,7 @@ class MemoryPalApp(tk.Tk):
             "quiz": ("Study", "Quick Quiz"), "shuffle": ("Study", "Repetition Path"),
             "tools": ("Practice", "Associations"), "cuelab": ("Create", "Cue Lab"),
             "games": ("Practice", "Puzzles"), "library": ("Create", "Library"),
-            "feedback": ("Help us improve", "Feedback Log"), "settings": ("Personalize", "Settings"),
+            "feedback": ("Help us improve", "Send Feedback"), "settings": ("Personalize", "Settings"),
             "welcome": ("Welcome", "Let's set things up"),
             "signin": ("Welcome", "Sign in"),
             "study": ("Study", "Ways to study"), "create": ("Create", "Make and organise"),
@@ -4339,7 +4356,7 @@ class MemoryPalApp(tk.Tk):
         entry = ttk.Entry(content)
         entry.insert(0, initial or "")
         entry.pack(fill="x")
-        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["danger"], font=self.font("Segoe UI", 10), anchor="w")
+        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
         error.pack(fill="x", pady=(self.px(6), 0))
 
         def submit():
@@ -4388,7 +4405,7 @@ class MemoryPalApp(tk.Tk):
         field("Question or prompt", "front", card.front, lines=2)
         field("Answer (leave empty for a self-check card)", "back", card.back, lines=3)
         field("Memory hook (optional)", "association", card.association, lines=2)
-        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["danger"], font=self.font("Segoe UI", 10), anchor="w")
+        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
         error.pack(fill="x", pady=(self.px(6), 0))
 
         def value(name):
@@ -4448,10 +4465,10 @@ class MemoryPalApp(tk.Tk):
             try:
                 value = int(entry.get().strip())
             except ValueError:
-                error.configure(text="Please enter a whole number.", fg=COLORS["danger"])
+                error.configure(text="Please enter a whole number.", fg=COLORS["again_fg"])
                 return
             if value < minvalue or value > maxvalue:
-                error.configure(text=f"Choose between {minvalue} and {maxvalue}.", fg=COLORS["danger"])
+                error.configure(text=f"Choose between {minvalue} and {maxvalue}.", fg=COLORS["again_fg"])
                 return
             result["value"] = value
             top.destroy()
@@ -4923,7 +4940,8 @@ class MemoryPalApp(tk.Tk):
             self.bind_class(widget_class, "<B1-Motion>", self._label_drag, add="+")
             self.bind_class(widget_class, "<Double-Button-1>", lambda event: self._label_multi_click(event, "word"), add="+")
             self.bind_class(widget_class, "<Triple-Button-1>", lambda event: self._label_multi_click(event, "line"), add="+")
-            self.bind_class(widget_class, "<Button-3>", self._label_copy_all, add="+")
+            for button in CONTEXT_CLICKS:
+                self.bind_class(widget_class, button, self._label_copy_all, add="+")
             self.bind_class(widget_class, "<Enter>", self._label_hover_cursor, add="+")
         self.bind_all("<ButtonPress-1>", self._maybe_clear_selection, add="+")
 
@@ -5078,7 +5096,8 @@ class MemoryPalApp(tk.Tk):
         box.bind("<B1-Motion>", lambda event: self._overlay_drag(box, event))
         box.bind("<Double-Button-1>", lambda event: self._overlay_select_unit(box, event, "word"))
         box.bind("<Triple-Button-1>", lambda event: self._overlay_select_unit(box, event, "line"))
-        box.bind("<Button-3>", lambda _event: self._copy_overlay(box, whole_if_empty=True))
+        for button in CONTEXT_CLICKS:
+            box.bind(button, lambda _event: self._copy_overlay(box, whole_if_empty=True))
         for sequence in (("<Command-c>", "<Command-C>") if IS_MAC else ("<Control-c>", "<Control-C>", "<Control-Insert>")):
             box.bind(sequence, lambda _event: (self._copy_overlay(box), "break")[1])
         for sequence in (f"<{MOD}-a>", f"<{MOD}-A>"):
@@ -5293,9 +5312,9 @@ class MemoryPalApp(tk.Tk):
             "Move Down": "Move the selected page later in its section.",
             "Apply Order": "Save this page order and refresh the sections.",
             "Reset Order": "Return the pages to the default MemoryPal order.",
-            "Save Feedback": "Add this tester note to the local feedback log.",
-            "Export Feedback": "Save tester notes and ratings as a CSV file.",
-            "Open Feedback": "Open the feedback log for tester notes and bug reports.",
+            "Save Feedback": "Save this note on this computer.",
+            "Export Feedback": "Save your notes and ratings as a CSV file.",
+            "Open Feedback": "Rate the app, report a problem, or suggest an idea.",
             "Back": "Return to the previous section.",
             "Settings": "Personalize MemoryPal's appearance, profiles, storage, and window behavior.",
             "Everyday Memory": "Open the calm older-adult memory support area.",
@@ -5313,7 +5332,7 @@ class MemoryPalApp(tk.Tk):
             "Open Data Folder": "Open the folder where MemoryPal stores profiles, data, and attachments.",
             "Export Backup": "Save a portable JSON copy of the active profile.",
             "Import Backup": "Load a JSON backup into the active profile.",
-            "True Fullscreen": "Use the operating system fullscreen mode. F11 does the same thing.",
+            "True Fullscreen": f"Use the operating system fullscreen mode. {'Control-Command-F' if IS_MAC else 'F11'} does the same thing.",
             "Focus Window": "Use a borderless focus window without changing the operating system fullscreen state.",
         }.get(label, "")
 
@@ -5379,9 +5398,7 @@ class MemoryPalApp(tk.Tk):
             self.row_button(buttons, label, command, style_name).grid(row=row, column=0, sticky="ew", pady=(0, self.px(10)))
         skip = tk.Label(card, text="Continue without an account", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2", takefocus=1)
         skip.pack(pady=(self.px(8), 0))
-        skip.bind("<Button-1>", lambda _event: self.continue_without_account())
-        skip.bind("<Return>", lambda _event: self.continue_without_account())
-        skip.bind("<space>", lambda _event: self.continue_without_account())
+        self.keyboard_link(skip, lambda _event: self.continue_without_account())
         self.add_tooltip(skip, "Your cards stay on this computer. You can sign in later from Settings.")
         tk.Label(card, text="You can sign in or out any time in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(pady=(self.px(10), 0))
 
@@ -6163,7 +6180,7 @@ class MemoryPalApp(tk.Tk):
             pady=self.px(4),
         )
         mark.pack(side="left", padx=(0, self.px(14)))
-        mark.bind("<Button-1>", lambda _event: on_toggle(index))
+        self.keyboard_link(mark, lambda _event: on_toggle(index))
         self.add_tooltip(mark, "Mark as not done yet." if done else "Tick this step as done.")
         action = "Rest" if step.get("view") == "break" else "Start"
         start = ttk.Button(row, text=action, command=lambda s=step: self.start_plan_step(s))
@@ -6184,7 +6201,7 @@ class MemoryPalApp(tk.Tk):
         streak_panel, goal_panel, level_panel, week_panel = self.panel_row(parent, 4)
 
         streak_panel.configure(bg=COLORS["warm"])
-        tk.Label(streak_panel, text=f"\U0001F525 {streak}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(40), COLORS["warm_text"]) or "", compound="left", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
         tk.Label(streak_panel, text=f"day streak" if streak == 1 else "days in a row", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
         message = "Practise today to start one." if streak == 0 else ("Practise today to keep it going." if today == 0 else "Kept alive today.")
         tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}.", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
@@ -6218,31 +6235,31 @@ class MemoryPalApp(tk.Tk):
 
     def study_modes(self):
         persona_key = self.store.onboarding.get("persona") or "general"
-        quick = ("\u26a1", "Quick 10", "Ten focused minutes on whatever matters most right now.", self.quick_session, COLORS["primary"])
+        quick = ("focus", "Quick 10", "Ten focused minutes on whatever matters most right now.", self.quick_session, COLORS["primary"])
         modes = {
             "student": ("Picked for studying", [
                 quick,
-                ("\U0001F4DA", "Deep study", "A full hour: review, new cards, drills, and a self-test.", lambda: self.open_plan_preset(60, "Long-term retention"), COLORS["violet"]),
-                ("\u23f1", "Exam cram", "45 minutes aimed at the test: weak cards first.", lambda: self.open_plan_preset(45, "Cram"), COLORS["pink"]),
-                ("\U0001F4DD", "Add notes", "Turn today's notes into cards.", lambda: self.show_view("capture"), COLORS["orange"]),
+                ("study", "Deep study", "A full hour: review, new cards, drills, and a self-test.", lambda: self.open_plan_preset(60, "Long-term retention"), COLORS["violet"]),
+                ("testing", "Exam cram", "45 minutes aimed at the test: weak cards first.", lambda: self.open_plan_preset(45, "Cram"), COLORS["pink"]),
+                ("capture", "Add notes", "Turn today's notes into cards.", lambda: self.show_view("capture"), COLORS["orange"]),
             ]),
             "everyday": ("Picked for everyday memory", [
-                ("\U0001F33F", "Gentle review", "People, routines, and places at a calm pace.", lambda: self.show_view("elder"), COLORS["cyan"]),
-                ("\U0001F9E9", "Daily puzzles", "Short, friendly memory games.", lambda: self.show_view("games"), COLORS["pink"]),
+                ("elder", "Gentle review", "People, routines, and places at a calm pace.", lambda: self.show_view("elder"), COLORS["cyan"]),
+                ("games", "Daily puzzles", "Short, friendly memory games.", lambda: self.show_view("games"), COLORS["pink"]),
                 quick,
-                ("\U0001F50A", "Listen and practise", "Hear each question read aloud as you review.", self.read_aloud_review, COLORS["green"]),
+                ("review", "Listen and practise", "Hear each question read aloud as you review.", self.read_aloud_review, COLORS["green"]),
             ]),
             "caregiver": ("Picked for caregivers", [
-                ("\U0001F5C2", "Add a memory card", "A person, routine, place, or reminder in plain words.", lambda: self.show_view("elder"), COLORS["cyan"]),
-                ("\U0001F91D", "Practise together", "Sit together for a short review.", lambda: self.show_view("review"), COLORS["primary"]),
-                ("\U0001F4F7", "Photos and voices", "Attach familiar photos or recordings as cues.", lambda: self.show_view("capture"), COLORS["orange"]),
-                ("\U0001F4C8", "Check progress", "See how practice is going this week.", lambda: self.show_view("stats"), COLORS["green"]),
+                ("decks", "Add a memory card", "A person, routine, place, or reminder in plain words.", lambda: self.show_view("elder"), COLORS["cyan"]),
+                ("review", "Practise together", "Sit together for a short review.", lambda: self.show_view("review"), COLORS["primary"]),
+                ("cuelab", "Photos and voices", "Attach familiar photos or recordings as cues.", lambda: self.show_view("capture"), COLORS["orange"]),
+                ("stats", "Check progress", "See how practice is going this week.", lambda: self.show_view("stats"), COLORS["green"]),
             ]),
             "general": ("Pick a way to practise", [
                 quick,
-                ("\U0001F9E0", "Try a technique", "Memory palaces, stories, peg lists and more.", lambda: self.show_view("training"), COLORS["violet"]),
-                ("\U0001F9E9", "Play a puzzle", "A quick recall game for a warm-up or break.", lambda: self.show_view("games"), COLORS["pink"]),
-                ("\U0001F5FA", "Build a plan", "Tell MemoryPal your time and goal; get a path.", lambda: self.show_view("plan"), COLORS["green"]),
+                ("training", "Try a technique", "Memory palaces, stories, peg lists and more.", lambda: self.show_view("training"), COLORS["violet"]),
+                ("games", "Play a puzzle", "A quick recall game for a warm-up or break.", lambda: self.show_view("games"), COLORS["pink"]),
+                ("dashboard", "Build a plan", "Tell MemoryPal your time and goal; get a path.", lambda: self.show_view("plan"), COLORS["green"]),
             ]),
         }
         return modes.get(persona_key, modes["general"])
@@ -6257,7 +6274,15 @@ class MemoryPalApp(tk.Tk):
         for panel, (icon, title, body, action, color) in zip(panels, modes):
             card = self.hover_card(panel, normal=COLORS["surface"], hover=color, command=action)
             card.configure(highlightthickness=max(1, self.px(2)), highlightbackground=COLORS["surface"])
-            tk.Label(card, text=icon, bg=COLORS["surface"], fg=color, font=self.font("Segoe UI Emoji", 22), anchor="w").pack(fill="x")
+            # Line icons in a tinted badge, matching the hub tiles (colour emoji
+            # looked out of place next to the drawn icons everywhere else).
+            badge_size = self.px(40)
+            badge = tk.Canvas(card, width=badge_size, height=badge_size, bg=COLORS["surface"], highlightthickness=0)
+            badge.pack(anchor="w")
+            self.draw_antialiased_shape(badge, badge_size, badge_size, self.blend_hex(COLORS["surface"], color, 0.18), radius=self.px(10))
+            image = self.line_icon(icon, self.px(24), color)
+            if image is not None:
+                badge.create_image(badge_size // 2, badge_size // 2, image=image, anchor="center")
             tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").pack(fill="x", pady=(self.px(6), 0))
             tk.Label(card, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(4), 0))
 
@@ -6381,7 +6406,7 @@ class MemoryPalApp(tk.Tk):
 
         streak_panel, level_panel, goal_panel, mastery_panel = self.panel_row(page.inner, 4)
         streak_panel.configure(bg=COLORS["warm"])
-        tk.Label(streak_panel, text=f"\U0001F525 {streak}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(40), COLORS["warm_text"]) or "", compound="left", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
         tk.Label(streak_panel, text=f"current streak  \u2022  best {best}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x")
         tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["violet"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
         tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP  \u2022  {store.practiced} reviews", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
@@ -6391,7 +6416,7 @@ class MemoryPalApp(tk.Tk):
         tk.Label(goal_head, text="Today's goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13)).pack(side="left")
         change = tk.Label(goal_head, text="Change", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), cursor="hand2")
         change.pack(side="right")
-        change.bind("<Button-1>", lambda _event: self.edit_daily_goal())
+        self.keyboard_link(change, lambda _event: self.edit_daily_goal())
         self.render_goal_ring(goal_panel, today, store.daily_goal, size=96, color=COLORS["green"] if today >= store.daily_goal else COLORS["primary"]).pack(anchor="w", pady=(self.px(6), 0))
         tk.Label(mastery_panel, text=f"{mastery}%", bg=COLORS["surface"], fg=COLORS["green"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
         tk.Label(mastery_panel, text=f"mastered  \u2022  {mastered} of {len(store.cards)} cards", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
@@ -6575,13 +6600,13 @@ class MemoryPalApp(tk.Tk):
             unit_label.configure(text=unit_display())
 
         def unit_display():
-            return f"{unit_var.get()}  \u2022  click to change"
+            return f"{unit_var.get()}  \u2022  change unit"
 
         render_amount_pills()
         unit_label = tk.Label(time_section, text=unit_display(), bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), cursor="hand2")
         unit_label.pack(anchor="w", pady=(2, 0))
-        unit_label.bind("<Button-1>", cycle_unit)
-        self.add_tooltip(unit_label, "Click to switch between minutes, hours, days, and weeks.")
+        self.keyboard_link(unit_label, cycle_unit)
+        self.add_tooltip(unit_label, "Switch between minutes, hours, days, and weeks.")
 
         deck_section = self.card(grid, "AltCard.TFrame", 14)
         deck_section.pack(fill="x", pady=(0, 10))
@@ -6902,7 +6927,7 @@ class MemoryPalApp(tk.Tk):
             if not top.winfo_exists():
                 return
             seconds = recorder.elapsed()
-            status.configure(text=f"\u25cf  Recording  {int(seconds // 60)}:{int(seconds % 60):02d}", fg=COLORS["danger"])
+            status.configure(text=f"\u25cf  Recording  {int(seconds // 60)}:{int(seconds % 60):02d}", fg=COLORS["again_fg"])
             draw_level(recorder.level())
             if seconds >= max_seconds:
                 finish()
@@ -6912,7 +6937,7 @@ class MemoryPalApp(tk.Tk):
         def start():
             ok, message = recorder.start()
             if not ok:
-                status.configure(text="Microphone unavailable", fg=COLORS["danger"])
+                status.configure(text="Microphone unavailable", fg=COLORS["again_fg"])
                 note.configure(text=f"{message} Check Settings > Privacy & security > Microphone, or import an audio file instead.")
                 return
             start_button.configure(text="Stop and save", command=finish, style="Danger.TButton")
@@ -6927,7 +6952,7 @@ class MemoryPalApp(tk.Tk):
             target = self.store.attachment_dir / f"audio-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
             ok, message = recorder.stop(target)
             if not ok:
-                status.configure(text="Nothing was saved", fg=COLORS["danger"])
+                status.configure(text="Nothing was saved", fg=COLORS["again_fg"])
                 note.configure(text=message)
                 start_button.configure(text="Try again", command=start, style="Primary.TButton")
                 return
@@ -6976,20 +7001,20 @@ class MemoryPalApp(tk.Tk):
             if media.open_camera_app():
                 status.configure(text="Camera opened. Record your video, then press Use my recording.", fg=COLORS["muted"])
             else:
-                status.configure(text="The Camera app couldn't be opened. Use Import video instead.", fg=COLORS["danger"])
+                status.configure(text="The Camera app couldn't be opened. Use Import video instead.", fg=COLORS["again_fg"])
 
         def use_recording():
             found = media.newest_video_since(started["at"])
             if found is None:
                 folders = ", ".join(str(folder) for folder in media.camera_folders()) or "your Pictures\\Camera Roll folder"
-                status.configure(text=f"No new video yet. Finish recording in the Camera app first. (Looked in {folders}.)", fg=COLORS["danger"])
+                status.configure(text=f"No new video yet. Finish recording in the Camera app first. (Looked in {folders}.)", fg=COLORS["again_fg"])
                 return
             self.store.attachment_dir.mkdir(parents=True, exist_ok=True)
             target = self.store.attachment_dir / f"video-recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}{found.suffix.lower()}"
             try:
                 shutil.copy2(found, target)
             except OSError as exc:
-                status.configure(text=f"The video couldn't be copied: {exc}", fg=COLORS["danger"])
+                status.configure(text=f"The video couldn't be copied: {exc}", fg=COLORS["again_fg"])
                 return
             result["path"] = target
             top.destroy()
@@ -8890,15 +8915,15 @@ class MemoryPalApp(tk.Tk):
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Frame(hero, bg=COLORS["green"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
-        tk.Label(hero, text="Testing feedback", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        tk.Label(hero, text="Use this during real test sessions to collect ratings, bug reports, confusing moments, and accessibility notes.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(6, 0))
+        tk.Label(hero, text="Help make MemoryPal better", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
+        tk.Label(hero, text="Tell us what's working, what's confusing, or what's broken. Notes stay on this computer until you send them.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(6, 0))
 
         stats = ttk.Frame(page.inner, style="Page.TFrame")
         stats.pack(fill="x", padx=(0, 8), pady=(0, 16))
         stat_items = [
-            ("Entries", str(summary["total"]), "tester notes saved locally", COLORS["primary"]),
+            ("Entries", str(summary["total"]), "notes saved on this computer", COLORS["primary"]),
             ("Average", f"{summary['average']}/5" if summary["average"] else "None", "rated feedback score", COLORS["green"]),
-            ("Latest", summary["latest"], "most recent feedback note", COLORS["orange"]),
+            ("Latest", summary["latest"], "most recent feedback note", COLORS["warm_text"]),
         ]
         for index, (title, value, caption, color) in enumerate(stat_items):
             tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]))
@@ -8910,7 +8935,7 @@ class MemoryPalApp(tk.Tk):
 
         form = self.card(page.inner, "Card.TFrame", 22)
         form.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        ttk.Label(form, text="Add tester note", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(form, text="Add a note", style="H2.TLabel").pack(anchor="w")
         ttk.Label(form, text="Short notes are enough. Capture what felt confusing, broken, helpful, too small, too cluttered, or worth keeping.", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(4, 12))
 
         controls = ttk.Frame(form, style="Card.TFrame")
@@ -9018,14 +9043,14 @@ class MemoryPalApp(tk.Tk):
         links.pack(fill="x", pady=(self.px(14), 0))
         gmail = tk.Label(links, text="Use Gmail in the browser instead", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
         gmail.pack(side="right")
-        gmail.bind("<Button-1>", lambda _event: self.email_feedback(notes_to_send, prefer_gmail=True))
+        self.keyboard_link(gmail, lambda _event: self.email_feedback(notes_to_send, prefer_gmail=True))
         tk.Label(send, text="Included: your saved notes, plus your system version, text size and theme to help fix problems. Never your study cards or profile name.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(self.px(10), 0))
 
         recent = self.card(page.inner, "AltCard.TFrame", 22)
         recent.pack(fill="x", padx=(0, 8))
         ttk.Label(recent, text="Recent feedback", style="AltH2.TLabel").pack(anchor="w")
         if not self.store.feedback:
-            ttk.Label(recent, text="No tester notes yet.", style="AltMuted.TLabel").pack(anchor="w", pady=(6, 0))
+            ttk.Label(recent, text="No notes yet.", style="AltMuted.TLabel").pack(anchor="w", pady=(6, 0))
         for entry in self.store.feedback[:10]:
             item = tk.Frame(recent, bg=COLORS["surface"], padx=self.px(14), pady=self.px(12), highlightthickness=1, highlightbackground=COLORS["soft_line"])
             item.pack(fill="x", pady=(10, 0))
@@ -9299,7 +9324,7 @@ class MemoryPalApp(tk.Tk):
             for label, url in legal:
                 link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
                 link.pack(side="left", padx=(0, self.px(14)))
-                link.bind("<Button-1>", lambda _event, target=url: open_web_page(target))
+                self.keyboard_link(link, lambda _event, target=url: open_web_page(target))
 
     def account_signed_in(self, session, message):
         """Remember a new session, sync straight away, and refresh Settings."""
@@ -9323,7 +9348,7 @@ class MemoryPalApp(tk.Tk):
             address = email if email is not None else values.get(email_field, "")
             score = security.password_strength(password, address)
             problems = security.password_problems(password, address)
-            colour = (COLORS["danger"], COLORS["danger"], COLORS["orange"], COLORS["green"], COLORS["green"])[score]
+            colour = (COLORS["again_fg"], COLORS["again_fg"], COLORS["warm_text"], COLORS["green"], COLORS["green"])[score]
             text = f"Strength: {security.STRENGTH_LABELS[score]}."
             return (f"{text} {problems[0]}" if problems else text), colour
         return hint
@@ -9364,12 +9389,12 @@ class MemoryPalApp(tk.Tk):
                 entry.bind("<KeyRelease>", update_hint, add="+")
             update_hint()
         footer_values = footer(content) if footer else {}
-        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["danger"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(470))
+        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(470))
         error.pack(fill="x", pady=(self.px(8), 0))
         for text, action in extra_links:
             link = tk.Label(content, text=text, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2", anchor="w")
             link.pack(fill="x", pady=(self.px(6), 0))
-            link.bind("<Button-1>", lambda _event, act=action: (top.destroy(), act()))
+            self.keyboard_link(link, lambda _event, act=action: (top.destroy(), act()))
         busy = {"on": False}
 
         def submit():
@@ -9387,7 +9412,7 @@ class MemoryPalApp(tk.Tk):
                     return
                 go.configure(state="normal")
                 if failure is not None:
-                    error.configure(text=failure.message if isinstance(failure, cloud.CloudError) else str(failure), fg=COLORS["danger"])
+                    error.configure(text=failure.message if isinstance(failure, cloud.CloudError) else str(failure), fg=COLORS["again_fg"])
                     return
                 top.destroy()
                 on_success(result, values)
@@ -9448,7 +9473,7 @@ class MemoryPalApp(tk.Tk):
                         continue
                     link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
                     link.pack(side="left", padx=(0, self.px(14)))
-                    link.bind("<Button-1>", lambda _event, target=url: open_web_page(target))
+                    self.keyboard_link(link, lambda _event, target=url: open_web_page(target))
                 return {"agreed": agreed.get}
 
             def created(result, _values):
@@ -9913,8 +9938,10 @@ class MemoryPalApp(tk.Tk):
         self.fit_wrap(ttk.Label(comfort, text="Use focus mode when the window frame feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="AltCard.TLabel", wraplength=self.px(1040), justify="left"), pady=(4, 0))
 
     def view_library(self):
-        tools = ttk.Frame(self.view_host, style="Page.TFrame")
-        tools.pack(fill="x", pady=(0, 12))
+        # On a card, like the other pages: on the bare page background the
+        # quiet buttons and the filter had no visible edge in the light theme.
+        tools = self.card(self.view_host, "Card.TFrame", 16)
+        tools.pack(fill="x", padx=(0, 8), pady=(0, 12))
         if self.deck_filter:
             filter_row = tk.Frame(tools, bg=COLORS["alt"], padx=self.px(14), pady=self.px(8))
             filter_row.pack(fill="x", pady=(0, 10))
@@ -9922,7 +9949,8 @@ class MemoryPalApp(tk.Tk):
             ttk.Button(filter_row, text="Clear filter", command=self.clear_deck_filter).pack(side="right")
         search_var = tk.StringVar()
         filter_var = tk.StringVar(value="All")
-        top = ttk.Frame(tools, style="Page.TFrame")
+        ttk.Label(tools, text="Search your cards", style="CardMuted.TLabel").pack(anchor="w", pady=(0, self.px(4)))
+        top = ttk.Frame(tools, style="Card.TFrame")
         top.pack(fill="x", pady=(0, 10))
         ttk.Entry(top, textvariable=search_var).grid(row=0, column=0, sticky="ew", padx=(0, 8))
         self.select_button(top, filter_var, ["All", "Due", "Weak", "Captures"], on_change=lambda _value: render(), width=10).grid(row=0, column=1, sticky="ew", padx=(0, 8))
@@ -9931,7 +9959,7 @@ class MemoryPalApp(tk.Tk):
         top.columnconfigure(1, weight=1)
         # Everyday actions only; resetting everything lives in Settings, behind
         # a confirmation, rather than as a big red button beside "Add cards".
-        self.button_row(tools, [("Add cards", lambda: self.show_view("capture"), "Primary.TButton"), ("Import backup", self.import_data, "TButton"), ("Export backup", self.export_data, "TButton")], "Page.TFrame")
+        self.button_row(tools, [("Add cards", lambda: self.show_view("capture"), "Primary.TButton"), ("Import backup", self.import_data, "TButton"), ("Export backup", self.export_data, "TButton")], "Card.TFrame")
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
 
