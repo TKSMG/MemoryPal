@@ -7,7 +7,7 @@
 
 Last updated: [date]
 
-These terms apply when you use MemoryPal, made by [your name or company] ("we"). By creating
+These terms apply when you use MemoryPal, made by Kirthik Sai Mouli Parthiban ("we"). By creating
 an account you agree to them and to the [Privacy Policy](PRIVACY_POLICY.md).
 
 ## 1. Using MemoryPal
@@ -74,4 +74,4 @@ law says otherwise.
 
 ## 11. Contact
 
-[Your name or company], [contact email]
+Kirthik Sai Mouli Parthiban, [contact email]
