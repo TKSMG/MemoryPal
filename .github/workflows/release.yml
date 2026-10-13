@@ -40,6 +40,7 @@ jobs:
         run: |
           mkdir -p out
           cp artifacts/MemoryPal-Windows/MemoryPalSetup.exe out/MemoryPal-Windows-Setup.exe
+          cp artifacts/MemoryPal-Windows/MemoryPal-Windows-Store.msix out/
           cp artifacts/MemoryPal-macOS-AppleSilicon/*.dmg out/
           cp artifacts/MemoryPal-macOS-Intel/*.dmg out/
           cp artifacts/MemoryPal-Android/* out/
