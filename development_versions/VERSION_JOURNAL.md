@@ -382,3 +382,10 @@ This build is packaged as release 0.48.3.
 - Phone: "Choose again" in Settings opens the persona chooser (with a way back); text boxes stay above the Android keyboard; Android tap targets are 48dp; switch "off" states are visible; Edit card asks before discarding changes; puzzles wait for "I'm ready" when a screen reader is on; the Study tab is titled "Review and quiz".
 
 This build is packaged as release 0.48.4.
+
+## v85 - Finished Policies and Store Packages
+
+- The Privacy Policy and Terms are complete: contact memorypal09@gmail.com, last updated October 12, 2026, governed by California law; the draft banners are gone.
+- The release now includes the signed Google Play bundle (`MemoryPal-Android-PlayStore.aab`) and the Microsoft Store package (`MemoryPal-Windows-Store.msix`) built with the Partner Center identity.
+
+This build is packaged as release 0.48.5.
