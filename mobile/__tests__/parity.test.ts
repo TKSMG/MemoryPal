@@ -4,7 +4,7 @@
  */
 import fixtures from './fixtures/parity.json';
 import { addDays } from '../src/core/dates';
-import { newCard } from '../src/core/models';
+import { cardFromDict, newCard } from '../src/core/models';
 import { buildMultiDayPlan, buildStudyPlan, PlanStep } from '../src/core/planning';
 import { achievements, bestStreak, dueForecast, levelInfo, maturityBreakdown, ratingMix } from '../src/core/progress';
 import { sequenceRatio } from '../src/core/py';
@@ -125,8 +125,9 @@ describe('parity with the desktop logic', () => {
     }
   });
 
-  test('damaged or hostile study plans from sync are cleaned the same way', () => {
+  test('damaged or hostile plans and cards from sync are cleaned the same way', () => {
     for (const [i, item] of fixtures.hostile.plans.entries()) expect({ i, plan: normalizeStudyPlan(item.raw) }).toEqual({ i, plan: item.plan });
+    for (const item of fixtures.hostile.cards) expect(cardFromDict(item.raw)).toEqual(item.card);
   });
 
   test('profile data converts to sync records and back the same way', () => {
