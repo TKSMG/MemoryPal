@@ -1,0 +1,32 @@
+name: Scroll probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - design-security-pass
+    paths:
+      - latest_app/MemoryPalDesktop.py
+      - tools/render_check/scroll_probe.py
+      - .github/workflows/scroll-probe.yml
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install app packages
+        run: python -m pip install platformdirs pypdf Pillow
+      - name: Measure scroll pacing
+        shell: bash
+        run: |
+          python tools/render_check/scroll_probe.py library stats > probe.txt 2>&1 || true
+          cat probe.txt
+          python -c "import sys; t=open('probe.txt').read()[-3800:]; print('::notice title=Scroll probe ${{ matrix.os }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
