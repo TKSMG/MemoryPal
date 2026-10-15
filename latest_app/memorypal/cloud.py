@@ -68,6 +68,7 @@ FRIENDLY = {
     "session_not_found": "You've been signed out. Please sign in again.",
     "refresh_token_already_used": "You've been signed out. Please sign in again.",
     "two_step_now_on": "This account now uses two-step sign-in. Sign in again with your authenticator code.",
+    "other_account": "This profile last synced with a different account. Choose what to do with its cards before syncing.",
     "mfa_verification_failed": "That authenticator code isn't right. Check the time on this device and try the newest code.",
     "mfa_challenge_expired": "That took too long. Try again with a fresh code.",
     "insufficient_aal": "Finish two-step sign-in first: enter the code from your authenticator app.",
@@ -354,8 +355,35 @@ def _dpapi(data, protect):
         kernel32.LocalFree(target.pbData)
 
 
+KEYCHAIN_SERVICE = "app.memorypal.sign-in"
+
+
+def _keychain(*args, secret=None):
+    """Run the Mac `security` tool; the secret goes in on stdin, never in argv."""
+    import subprocess
+
+    try:
+        if secret is not None:
+            # Interactive mode reads the command from stdin, so the token never
+            # shows in the process list. Base64 has no quotes or spaces to escape.
+            command = " ".join(args) + f" -w {secret}\n"
+            result = subprocess.run(["/usr/bin/security", "-i"], input=command, capture_output=True, text=True, timeout=10)
+        else:
+            result = subprocess.run(["/usr/bin/security", *args], capture_output=True, text=True, timeout=10)
+    except subprocess.SubprocessError as error:
+        raise OSError(str(error)) from error
+    if result.returncode != 0:
+        raise OSError(result.stderr.strip() or "Keychain refused")
+    return result.stdout
+
+
 class TokenStore:
-    """The refresh token for one profile, encrypted at rest on Windows."""
+    """The refresh token for one profile: DPAPI-encrypted on Windows, in the
+    login Keychain on a Mac, and an owner-only file elsewhere.
+
+    On a Mac the file only names the Keychain item (a random id, so renaming
+    the profile folder keeps the sign-in).
+    """
 
     def __init__(self, folder):
         self.path = Path(folder) / "account.bin"
@@ -364,6 +392,8 @@ class TokenStore:
         raw = json.dumps(session.to_dict()).encode("utf-8")
         if sys.platform.startswith("win"):
             blob = b"DPAPI1" + _dpapi(raw, True)
+        elif sys.platform == "darwin" and self._save_to_keychain(raw):
+            blob = b"KEYCH1" + self._keychain_item.encode("ascii")
         else:
             blob = b"PLAIN1" + base64.b64encode(raw)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -379,17 +409,56 @@ class TokenStore:
             file.write(blob)
         os.replace(temp, self.path)
 
+    _keychain_item = ""
+
+    def _existing_item(self):
+        try:
+            blob = self.path.read_bytes()
+        except OSError:
+            return ""
+        item = blob[6:].decode("ascii", "ignore") if blob.startswith(b"KEYCH1") else ""
+        return item if item.isalnum() else ""
+
+    def _save_to_keychain(self, raw):
+        item = self._existing_item() or uuid.uuid4().hex
+        secret = base64.b64encode(raw).decode("ascii")
+        try:
+            _keychain("add-generic-password", "-U", "-s", KEYCHAIN_SERVICE, "-a", item, secret=secret)
+            # Interactive mode doesn't report a failed command in its exit
+            # status, so read it back before trusting it.
+            if _keychain("find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", item, "-w").strip() != secret:
+                return False
+        except (OSError, ValueError):
+            return False
+        self._keychain_item = item
+        return True
+
     def load(self):
         """{refresh_token, user_id, email} or None."""
         try:
             blob = self.path.read_bytes()
-            raw = _dpapi(blob[6:], False) if blob.startswith(b"DPAPI1") else base64.b64decode(blob[6:]) if blob.startswith(b"PLAIN1") else b""
+            if blob.startswith(b"DPAPI1"):
+                raw = _dpapi(blob[6:], False)
+            elif blob.startswith(b"KEYCH1"):
+                item = self._existing_item()
+                raw = base64.b64decode(_keychain("find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", item, "-w").strip()) if item else b""
+            elif blob.startswith(b"PLAIN1") and not sys.platform.startswith("win"):
+                # Windows always encrypts, so a plain file there was planted.
+                raw = base64.b64decode(blob[6:])
+            else:
+                raw = b""
             data = json.loads(raw.decode("utf-8")) if raw else None
         except (OSError, ValueError):
             return None
         return data if isinstance(data, dict) and data.get("refresh_token") else None
 
     def clear(self):
+        item = self._existing_item()
+        if item:
+            try:
+                _keychain("delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", item)
+            except (OSError, ValueError):
+                pass
         try:
             self.path.unlink()
         except OSError:
@@ -514,9 +583,19 @@ class Account:
         return self.remember(fresh)
 
     def sign_out(self):
-        if self.session:
-            self.client.sign_out(self.session)
-        self.forget()
+        """Sign out here and end the session on the server too, so a copy
+        of the saved sign-in taken earlier stops working."""
+        session = self.session
+        if session is None and (self.saved or {}).get("refresh_token"):
+            try:
+                session = self.client.refresh(self.saved["refresh_token"])
+            except CloudError:
+                session = None  # already ended, or offline: forget it locally anyway
+        try:
+            if session is not None:
+                self.client.sign_out(session)
+        finally:
+            self.forget()
 
     def delete_account(self):
         self.client.delete_account(self.active_session())
@@ -524,8 +603,8 @@ class Account:
         self.state.use_account("")
         self.state.save()
 
-    def sync(self, read_payload, write_payload, on_ui=None):
-        return sync_profile(self.client, self.active_session(), self.state, read_payload, write_payload, on_ui)
+    def sync(self, read_payload, write_payload, on_ui=None, mode=None):
+        return sync_profile(self.client, self.active_session(), self.state, read_payload, write_payload, on_ui, mode=mode)
 
 
 OVERLAP_SECONDS = 120
@@ -549,7 +628,7 @@ def pull_since(cursor):
     return (moment - timedelta(seconds=OVERLAP_SECONDS)).isoformat()
 
 
-def sync_profile(client, session, state, read_payload, write_payload, on_ui=None, now_label=None):
+def sync_profile(client, session, state, read_payload, write_payload, on_ui=None, now_label=None, mode=None):
     """One full sync: pull, merge and apply here, push, then remember the new base.
 
     The network calls run on the calling (worker) thread. Reading, merging
@@ -557,8 +636,16 @@ def sync_profile(client, session, state, read_payload, write_payload, on_ui=None
     `on_ui(fn)`, which the desktop uses to run them on the UI thread, so a
     review made during the network call is never overwritten; it simply
     goes up with the next sync. Returns counts: pulled, pushed, applied here.
+
+    When this profile last synced with a different account, nothing is sent
+    until the person chooses (CloudError "other_account"): `mode="merge"`
+    adds this profile's cards to the new account, `mode="replace"` swaps
+    them for the account's own. Without that, signing out of one account and
+    into another quietly copied the first account's cards into the second.
     """
     on_ui = on_ui or (lambda fn: fn())
+    if state.user_id and state.user_id != session.user_id and mode not in ("merge", "replace"):
+        raise CloudError(FRIENDLY["other_account"], "other_account")
     state.use_account(session.user_id)
     rows = client.pull(session, pull_since(state.cursor))
     remote = {}
@@ -570,9 +657,13 @@ def sync_profile(client, session, state, read_payload, write_payload, on_ui=None
 
     def merge_locally():
         payload = read_payload()
+        if mode == "replace":
+            # Start from an empty profile (settings stay until the account's
+            # own arrive), so only the account's records end up here.
+            payload = dict(payload, cards=[], captures=[], activity={}, practiced=0)
         local = sync.records_from_payload(payload, state.device_id, state.base)
         plan = sync.plan_sync(local, state.base, remote)
-        if plan.apply:
+        if plan.apply or mode == "replace":
             write_payload(sync.apply_plan(payload, local, plan))
         return plan
 

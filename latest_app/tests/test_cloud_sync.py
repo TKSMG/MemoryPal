@@ -1,6 +1,8 @@
 """Accounts and two-device sync, against an in-memory Supabase."""
 
+import base64
 import copy
+import json
 import os
 import sys
 import tempfile
@@ -42,11 +44,11 @@ class Device:
     def sign_in(self):
         self.session = self.client.sign_in(EMAIL, PASSWORD)
 
-    def sync(self):
+    def sync(self, mode=None):
         def write(payload):
             self.payload = payload
 
-        return cloud.sync_profile(self.client, self.session, self.state, lambda: copy.deepcopy(self.payload), write)
+        return cloud.sync_profile(self.client, self.session, self.state, lambda: copy.deepcopy(self.payload), write, mode=mode)
 
     def card(self, card_id):
         return next((card for card in self.payload["cards"] if card["id"] == card_id), None)
@@ -299,6 +301,25 @@ class AgeAndConsentTests(unittest.TestCase):
         self.assertEqual(metadata, {"age_confirmed": "13+", "terms_version": security.TERMS_VERSION, "terms_accepted_at": "1970-01-01T00:00:00Z"})
         self.assertFalse(any("birth" in key for key in metadata))
 
+    @unittest.skipUnless(sys.platform == "darwin", "Mac Keychain")
+    def test_mac_keeps_the_sign_in_in_the_keychain(self):
+        folder = tempfile.mkdtemp(prefix="memorypal-token-")
+        store = cloud.TokenStore(folder)
+        store.save(cloud.Session("a", "refresh-secret", 0, "u", EMAIL))
+        blob = Path(folder, "account.bin").read_bytes()
+        self.assertTrue(blob.startswith(b"KEYCH1"), blob[:6])
+        self.assertNotIn(b"refresh-secret", blob)
+        self.assertNotIn(base64.b64encode(b"refresh-secret")[:8], blob)
+        self.assertEqual(cloud.TokenStore(folder).load()["refresh_token"], "refresh-secret")
+        store.clear()
+        self.assertIsNone(cloud.TokenStore(folder).load())
+
+    @unittest.skipUnless(sys.platform.startswith("win"), "Windows only")
+    def test_windows_ignores_a_planted_plain_sign_in(self):
+        folder = tempfile.mkdtemp(prefix="memorypal-token-")
+        Path(folder, "account.bin").write_bytes(b"PLAIN1" + base64.b64encode(json.dumps({"refresh_token": "planted"}).encode()))
+        self.assertIsNone(cloud.TokenStore(folder).load())
+
     @unittest.skipIf(sys.platform.startswith("win"), "Windows uses DPAPI instead of file permissions")
     def test_saved_sign_in_is_owner_only_off_windows(self):
         folder = tempfile.mkdtemp(prefix="memorypal-token-")
@@ -413,6 +434,56 @@ class TwoDeviceSyncTests(unittest.TestCase):
         client.sign_up("other@example.com", PASSWORD)
         stranger = client.sign_in("other@example.com", PASSWORD)
         self.assertEqual(client.pull(stranger), [])
+
+    def test_switching_accounts_asks_before_sending_anything(self):
+        self.laptop.payload["cards"].insert(0, asdict(Card(id="mine", front="Private", back="Mine")))
+        self.laptop.sync()
+        client = self.laptop.client
+        client.sign_up("other@example.com", PASSWORD)
+        self.laptop.session = client.sign_in("other@example.com", PASSWORD)
+        with self.assertRaises(cloud.CloudError) as caught:
+            self.laptop.sync()
+        self.assertEqual(caught.exception.code, "other_account")
+        self.assertEqual(client.pull(self.laptop.session), [])  # nothing leaked into the new account
+
+    def test_replace_swaps_in_the_other_accounts_cards(self):
+        self.phone.payload["cards"].insert(0, asdict(Card(id="theirs", front="Other account", back="Card")))
+        self.phone.sync()
+        other = Device(self.server)
+        other.client.sign_up("other@example.com", PASSWORD)
+        other.session = other.client.sign_in("other@example.com", PASSWORD)
+        other.payload["cards"].insert(0, asdict(Card(id="mine", front="Only in B", back="Card")))
+        other.review("mine")
+        other.sync()
+        other.session = self.phone.session  # this profile now signs in to the first account
+        with self.assertRaises(cloud.CloudError):
+            other.sync()
+        other.sync(mode="replace")
+        self.assertIsNotNone(other.card("theirs"))
+        self.assertIsNone(other.card("mine"))
+        self.assertEqual(other.payload["practiced"], self.phone.payload["practiced"])
+        keys = [key for key, _data, _at in self.phone.client.pull(self.phone.session)]
+        self.assertNotIn("card:mine", keys)
+        other.sync()  # and from then on it syncs normally
+        self.assertIsNone(other.card("mine"))
+
+    def test_merge_adds_this_profiles_cards_to_the_new_account(self):
+        self.laptop.payload["cards"].insert(0, asdict(Card(id="mine", front="Private", back="Mine")))
+        self.laptop.sync()
+        self.laptop.client.sign_up("other@example.com", PASSWORD)
+        self.laptop.session = self.laptop.client.sign_in("other@example.com", PASSWORD)
+        self.laptop.sync(mode="merge")
+        keys = [key for key, _data, _at in self.laptop.client.pull(self.laptop.session)]
+        self.assertIn("card:mine", keys)
+
+    def test_signing_out_ends_the_session_on_the_server_even_before_a_sync(self):
+        account = cloud.Account(self.laptop.folder, client=self.laptop.client)
+        account.remember(self.laptop.session)
+        later = cloud.Account(self.laptop.folder, client=self.laptop.client)  # a fresh launch: no session in memory
+        with mock.patch.object(later.client, "sign_out", wraps=later.client.sign_out) as sign_out:
+            later.sign_out()
+        sign_out.assert_called_once()
+        self.assertFalse(later.signed_in)
 
     def test_feedback_notes_stay_on_the_device(self):
         self.laptop.payload["feedback"] = [{"id": "f1", "note": "local only"}]

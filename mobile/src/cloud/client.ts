@@ -64,6 +64,7 @@ const FRIENDLY: Record<string, string> = {
   refresh_token_not_found: "You've been signed out. Please sign in again.",
   session_not_found: "You've been signed out. Please sign in again.",
   refresh_token_already_used: "You've been signed out. Please sign in again.",
+  other_account: 'This phone last synced with a different account. Choose what to do with its cards before syncing.',
   two_step_now_on: 'This account now uses two-step sign-in. Sign in again with your authenticator code.',
   mfa_verification_failed: "That authenticator code isn't right. Check the time on this device and try the newest code.",
   mfa_challenge_expired: 'That took too long. Try again with a fresh code.',
