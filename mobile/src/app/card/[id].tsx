@@ -3,7 +3,8 @@ import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router'
 import { useEffect, useRef, useState } from 'react';
 
 import { useStore } from '../../state/AppState';
-import { Button, Card, EmptyState, Field, Row, Screen, Txt } from '../../ui/components';
+import { Button, Card, EmptyState, Field, Screen, Txt } from '../../ui/components';
+import { relativeDay } from '../../ui/dates';
 import { confirm, notify } from '../../ui/feedback';
 
 export default function EditCard() {
@@ -39,7 +40,7 @@ export default function EditCard() {
 
   if (!card) {
     return (
-      <Screen>
+      <Screen narrow>
         <EmptyState icon="alert-circle-outline" title="This card is gone" body="It may have been deleted." action={<Button label="Go back" onPress={() => router.back()} />} />
       </Screen>
     );
@@ -66,12 +67,12 @@ export default function EditCard() {
   };
 
   return (
-    <Screen>
+    <Screen narrow>
       <Stack.Screen options={{ gestureEnabled: !dirty }} />
       <Card tone="alt">
         <Txt variant="small">
           {card.repetitions
-            ? `Next review ${card.next_review} · every ${card.interval} day${card.interval === 1 ? '' : 's'} · last result: ${card.last_result}${card.lapses ? ` · missed ${card.lapses}×` : ''}`
+            ? `Next review ${relativeDay(card.next_review)} · every ${card.interval} day${card.interval === 1 ? '' : 's'} · last result: ${card.last_result}${card.lapses ? ` · missed ${card.lapses}×` : ''}`
             : 'New card — not reviewed yet.'}
         </Txt>
       </Card>
@@ -83,10 +84,9 @@ export default function EditCard() {
         <Txt variant="muted">Tip: a card missed this often is usually too big or too vague. Split it into two, make the question more specific, or add a memory hook.</Txt>
       ) : null}
       <Button kind="primary" label="Save changes" icon="checkmark" onPress={save} />
-      <Row>
-        <Button label="Learn again" icon="refresh" onPress={learnAgain} style={{ flex: 1 }} />
-        <Button kind="danger" label="Delete" icon="trash-outline" onPress={remove} style={{ flex: 1 }} />
-      </Row>
+      <Button label="Learn again" icon="refresh" onPress={learnAgain} hint="Resets this card's progress so it comes back as new." />
+      {/* Destructive and rarely needed, so it sits last and quiet; it still asks first. */}
+      <Button kind="dangerGhost" label="Delete card" icon="trash-outline" onPress={remove} style={{ marginTop: 8 }} />
     </Screen>
   );
 }
