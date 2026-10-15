@@ -178,12 +178,15 @@ def set_window_redraw(widget, enabled):
 
 
 def display_refresh_hz(widget, default=60.0):
-    """Refresh rate of the screen showing this window (Windows; else default).
+    """Refresh rate of the screen showing this window (Windows and Mac; else default).
 
     Asked fresh each time, since the window can move between a 60Hz and a
-    144Hz monitor. Values Windows reports as "hardware default" (0 or 1) or
+    144Hz monitor. Values reported as "hardware default" (0 or 1) or
     anything implausible fall back to the default.
     """
+    if IS_MAC:
+        hz = _mac_refresh_hz()
+        return hz if hz else default
     if not sys.platform.startswith("win"):
         return default
     try:
@@ -201,6 +204,89 @@ def display_refresh_hz(widget, default=60.0):
         return float(hz) if 24 <= hz <= 500 else default
     except (AttributeError, OSError, tk.TclError):
         return default
+
+
+def _mac_refresh_hz():
+    """NSScreen.mainScreen.maximumFramesPerSecond (120 on ProMotion), or None."""
+    try:
+        import ctypes
+        import ctypes.util
+
+        objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+        ctypes.cdll.LoadLibrary(ctypes.util.find_library("AppKit"))
+        objc.objc_getClass.restype = ctypes.c_void_p
+        objc.objc_getClass.argtypes = [ctypes.c_char_p]
+        objc.sel_registerName.restype = ctypes.c_void_p
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        address = ctypes.cast(objc.objc_msgSend, ctypes.c_void_p).value
+        send_id = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(address)
+        send_bool = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(address)
+        send_long = ctypes.CFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_void_p)(address)
+        screen = send_id(objc.objc_getClass(b"NSScreen"), objc.sel_registerName(b"mainScreen"))
+        selector = objc.sel_registerName(b"maximumFramesPerSecond")
+        if not screen or not send_bool(screen, objc.sel_registerName(b"respondsToSelector:"), selector):
+            return None
+        hz = send_long(screen, selector)
+        return float(hz) if 24 <= hz <= 500 else None
+    except (AttributeError, OSError, TypeError, ValueError):
+        return None
+
+
+def ms_to_next_vblank():
+    """Milliseconds until the screen's next refresh (Windows), or None.
+
+    Scroll steps are timed to start just after a refresh, so each one is
+    drawn by the next and a steady scroll moves exactly once per frame.
+    Timing steps with plain timers drifted against the refresh, so every
+    so often one frame showed two steps and the next none (judder).
+    """
+    if not sys.platform.startswith("win"):
+        return None
+    try:
+        import ctypes
+
+        timing = _dwm_timing_info()
+        if ctypes.windll.dwmapi.DwmGetCompositionTimingInfo(None, ctypes.byref(timing)) != 0:
+            return None
+        period = timing.qpcRefreshPeriod
+        if period <= 0:
+            return None
+        now, frequency = ctypes.c_int64(), ctypes.c_int64()
+        ctypes.windll.kernel32.QueryPerformanceCounter(ctypes.byref(now))
+        ctypes.windll.kernel32.QueryPerformanceFrequency(ctypes.byref(frequency))
+        ahead = (timing.qpcVBlank - now.value) % period
+        return ahead * 1000.0 / frequency.value
+    except (AttributeError, OSError, ValueError, ZeroDivisionError):
+        return None
+
+
+_DWM_TIMING_INFO = None
+
+
+def _dwm_timing_info():
+    import ctypes
+
+    global _DWM_TIMING_INFO
+    if _DWM_TIMING_INFO is None:
+        u32, u64 = ctypes.c_uint32, ctypes.c_uint64
+        names = [("cbSize", u32), ("rateRefreshNum", u32), ("rateRefreshDen", u32), ("qpcRefreshPeriod", u64),
+                 ("rateComposeNum", u32), ("rateComposeDen", u32), ("qpcVBlank", u64), ("cRefresh", u64),
+                 ("cDXRefresh", u32), ("qpcCompose", u64), ("cFrame", u64), ("cDXPresent", u32),
+                 ("cRefreshFrame", u64), ("cFrameSubmitted", u64), ("cDXPresentSubmitted", u32),
+                 ("cFrameConfirmed", u64), ("cDXPresentConfirmed", u32), ("cRefreshConfirmed", u64),
+                 ("cDXRefreshConfirmed", u32), ("cFramesLate", u64), ("cFramesOutstanding", u32),
+                 ("cFrameDisplayed", u64), ("qpcFrameDisplayed", u64), ("cRefreshFrameDisplayed", u64),
+                 ("cFrameComplete", u64), ("qpcFrameComplete", u64), ("cFramePending", u64),
+                 ("qpcFramePending", u64), ("cFramesDisplayed", u64), ("cFramesComplete", u64),
+                 ("cFramesPending", u64), ("cFramesAvailable", u64), ("cFramesDropped", u64),
+                 ("cFramesMissed", u64), ("cRefreshNextDisplayed", u64), ("cRefreshNextPresented", u64),
+                 ("cRefreshesDisplayed", u64), ("cRefreshesPresented", u64), ("cRefreshStarted", u64),
+                 ("cPixelsReceived", u64), ("cPixelsDrawn", u64), ("cBuffersEmpty", u64)]
+        # dwmapi.h packs its structures to 1 byte.
+        _DWM_TIMING_INFO = type("DWM_TIMING_INFO", (ctypes.Structure,), {"_pack_": 1, "_fields_": names})
+    info = _DWM_TIMING_INFO()
+    info.cbSize = ctypes.sizeof(info)
+    return info
 
 
 def set_fine_timers(enabled):
@@ -418,6 +504,9 @@ class ScrollFrame(ttk.Frame):
         self._glide_time = None
         self._fine_timers = False
         self._frame_ms = self.FRAME_MS
+        self._last_step = 0.0
+        self._idle_after = None
+        self._touchpad_time = -1.0
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
@@ -577,11 +666,16 @@ class ScrollFrame(ttk.Frame):
                 self._queue_wheel(units * self._wheel_step_px, axis="x")
             return "break"
         delta = float(getattr(event, "delta", 0) or 0)
+        now = time.perf_counter()
         if delta and getattr(event, "num", None) not in (4, 5) and delta % 120:
-            # A precision touchpad sends small deltas many times a second.
-            # Move by each one straight away; rounding them to whole wheel
-            # notches made slow two-finger scrolling go still, still, jump.
-            self._queue_wheel(-delta / 120.0 * self._wheel_step_px, axis="y")
+            self._touchpad_time = now
+        if delta and getattr(event, "num", None) not in (4, 5) and now - self._touchpad_time < 0.4:
+            # A precision touchpad sends small deltas many times a second
+            # (and the odd whole notch when moving fast). Follow each one
+            # 1:1; rounding them to wheel notches made slow two-finger
+            # scrolling go still, still, jump, and easing them made the page
+            # trail behind the fingers.
+            self._direct_scroll(-delta / 120.0 * self._wheel_step_px, axis="y")
             return "break"
         units = self._wheel_units(event, "y")
         if units:
@@ -606,24 +700,31 @@ class ScrollFrame(ttk.Frame):
         if not delta or abs(delta) >= 120:
             return False
         axis = "x" if self.horizontal and getattr(event, "state", 0) & 0x0001 else "y"
-        ScrollFrame.last_wheel_time = time.perf_counter()
-        self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) - delta * self._wheel_step_px / 7
-        if self._wheel_after is None and not self._destroyed:
-            self._wheel_after = self.after(1, self._flush_wheel)
+        self._direct_scroll(-delta * self._wheel_step_px / 7, axis)
         return True
+
+    def _direct_scroll(self, pixels, axis="y"):
+        """Move with the fingers, 1:1, once per screen refresh.
+
+        Touchpads already ease and coast in the operating system, so easing
+        them again made the page lag behind the fingers. Every delta that
+        arrives within one frame is summed and drawn in that frame's step.
+        """
+        ScrollFrame.last_wheel_time = time.perf_counter()
+        self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
+        self._request_frame()
 
     def _queue_wheel(self, pixels, axis="y"):
         # A fast wheel spin delivers many events per frame; moving and
         # repainting for each one outruns the embedded widgets and tears.
-        # Sum the distance and apply it on a timer. Timers still fire while
-        # input events stream in; idle callbacks (and Tk's repaints) don't.
-        ScrollFrame.last_wheel_time = time.perf_counter()
+        # Sum the distance and apply it once per screen refresh. Timers still
+        # fire while input events stream in; idle callbacks (and Tk's
+        # repaints) don't.
         root = self.winfo_toplevel()
         if getattr(root, "accessibility", {}).get("reduce_motion"):
-            self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
-            if self._wheel_after is None and not self._destroyed:
-                self._wheel_after = self.after(1, self._flush_wheel)
+            self._direct_scroll(pixels, axis)
             return
+        ScrollFrame.last_wheel_time = time.perf_counter()
         # Otherwise glide: each notch moves the target, and every frame covers
         # part of the remaining distance, so a notch eases in over a few
         # frames instead of jumping, and a fast spin becomes one smooth glide.
@@ -633,17 +734,34 @@ class ScrollFrame(ttk.Frame):
         current, maximum = position
         base = self._wheel_targets.get(axis, current)
         self._wheel_targets[axis] = max(0.0, min(maximum, base + pixels))
-        if self._wheel_after is None and not self._destroyed:
-            self._wheel_after = self.after(1, self._glide_wheel)
+        self._request_frame()
+
+    def _request_frame(self):
+        if self._wheel_after is not None or self._destroyed:
+            return
+        if self._idle_after is not None:
+            self.after_cancel(self._idle_after)
+            self._idle_after = None
+        if not self._fine_timers:
+            self._fine_timers = set_fine_timers(True)
+        if self._glide_time is None or time.perf_counter() - self._last_step > self._frame_ms / 1000.0:
+            # Nothing drawn in the last frame: respond to the fingers at once.
+            wait = 1
+        else:
+            wait = self._frame_wait()
+        self._wheel_after = self.after(wait, self._scroll_step)
+
+    def _frame_wait(self):
+        """Milliseconds to wait so the next step starts just after a refresh."""
+        ahead = ms_to_next_vblank()
+        if ahead is None:
+            spent = (time.perf_counter() - self._last_step) * 1000
+            return max(1, round(self._frame_ms - spent))
+        # Starting right after the refresh leaves the whole frame for drawing.
+        return max(1, int(ahead) + 1)
 
     def _flush_wheel(self):
-        self._wheel_after = None
-        pending, self._wheel_pending = self._wheel_pending, {}
-        if self._destroyed:
-            return
-        for axis, pixels in pending.items():
-            if pixels:
-                self._scroll_pixels(pixels, axis=axis)
+        self._scroll_step()
 
     def _scroll_position(self, axis):
         """(current offset, largest offset) in pixels, or None if unknown."""
@@ -659,17 +777,27 @@ class ScrollFrame(ttk.Frame):
             return None
 
     def _glide_wheel(self):
+        self._scroll_step()
+
+    def _scroll_step(self):
+        """One frame of scrolling: direct (touchpad) moves plus wheel glides."""
         self._wheel_after = None
         if self._destroyed:
             return
         now = time.perf_counter()
         if self._glide_time is None:
-            # A new glide: step at the refresh rate of the screen it's on.
+            # Scrolling starts: step at the refresh rate of the screen it's on.
             self._frame_ms = 1000.0 / display_refresh_hz(self)
         # Milliseconds since the last step (one frame for the first),
         # capped so a stall doesn't turn into a jump.
         elapsed = self._frame_ms if self._glide_time is None else min(50.0, max(1.0, (now - self._glide_time) * 1000))
         self._glide_time = now
+        moves, self._wheel_pending = self._wheel_pending, {}
+        for axis, pixels in moves.items():
+            if axis in self._wheel_targets:
+                # Fingers on the pad take over from a wheel glide.
+                self._wheel_targets.pop(axis, None)
+                self._glide_last.pop(axis, None)
         for axis, target in list(self._wheel_targets.items()):
             position = self._scroll_position(axis)
             if position is None:
@@ -695,19 +823,20 @@ class ScrollFrame(ttk.Frame):
                 step = remaining * (1 - 0.72 ** (elapsed / 16.7))
                 if abs(step) < 2:
                     step = 2 if remaining > 0 else -2
-            if step:
-                self._scroll_pixels(step, axis=axis)
+            moves[axis] = moves.get(axis, 0) + step
+        for axis, pixels in moves.items():
+            if pixels:
+                self._scroll_pixels(pixels, axis=axis)
+        self._last_step = now
         if self._wheel_targets and not self._destroyed:
-            if not self._fine_timers:
-                self._fine_timers = set_fine_timers(True)
-            # One step per screen refresh (30, 60, 144Hz...), timed from when
-            # this step started so the work done in it doesn't stretch the gap.
-            spent = (time.perf_counter() - now) * 1000
-            self._wheel_after = self.after(max(1, round(self._frame_ms - spent)), self._glide_wheel)
-        else:
-            self._end_glide_timing()
+            self._wheel_after = self.after(self._frame_wait(), self._scroll_step)
+        elif not self._destroyed:
+            # Touchpad deltas keep arriving between frames; stay on the
+            # frame clock until they've stopped for a moment.
+            self._idle_after = self.after(250, self._end_glide_timing)
 
     def _end_glide_timing(self):
+        self._idle_after = None
         self._glide_time = None
         if self._fine_timers:
             set_fine_timers(False)
@@ -717,6 +846,8 @@ class ScrollFrame(ttk.Frame):
         """A scrollbar drag, page key or jump takes over from a wheel glide."""
         self._wheel_targets.clear()
         self._glide_last.clear()
+        if self._idle_after is not None:
+            self.after_cancel(self._idle_after)
         self._end_glide_timing()
 
     def _wheel_units(self, event, axis="y"):
@@ -748,11 +879,11 @@ class ScrollFrame(ttk.Frame):
             target = max(0.0, min(maximum, current + float(pixels)))
             fraction = 0.0 if total <= 0 else target / total
             mover = self.viewport.yview_moveto if axis == "y" else self.viewport.xview_moveto
-            self._present(lambda: mover(fraction))
+            self._present(lambda: mover(fraction), distance=abs(target - current))
         except (tk.TclError, ValueError, TypeError):
             pass
 
-    def _present(self, move):
+    def _present(self, move, distance=None):
         """Apply a scroll move and paint the result before the next one.
 
         Tk only repaints from idle callbacks, which never run while a
@@ -761,9 +892,15 @@ class ScrollFrame(ttk.Frame):
         runs from a timer and immediately draws the newly exposed area.
         Moves are never nested: one requested while painting runs as its own
         frame afterwards.
+
+        `distance` is how far the move goes in pixels, if known. Short moves
+        (wheel and touchpad steps) are blitted by Windows and only a thin
+        strip is drawn fresh, so they skip the snapshot cover: copying the
+        window into the cover and waiting for it to be composed took about
+        16ms a step, which held scrolling to half the screen's frame rate.
         """
         if self._presenting:
-            self.after(1, lambda: self._present(move))
+            self.after(1, lambda: self._present(move, distance))
             return
         self._presenting = True
         cover = None
@@ -780,6 +917,9 @@ class ScrollFrame(ttk.Frame):
                 width, height = self.viewport.winfo_width(), self.viewport.winfo_height()
                 if width > 1 and height > 1:
                     geometry = (width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty())
+            small = distance is not None and distance <= self.viewport.winfo_height() / 3
+            if small:
+                geometry = None
             live = self._live_cover
             if live is not None and live[1] != geometry:
                 self._release_live_cover()
@@ -854,8 +994,17 @@ class ScrollFrame(ttk.Frame):
             for axis, args in pending.items():
                 (self.viewport.yview if axis == "y" else self.viewport.xview)(*args)
 
+        distance = None
         try:
-            self._present(move)
+            region = self.viewport.cget("scrollregion").split()
+            args = pending.get("y")
+            if args is not None and len(args) >= 2 and len(region) >= 4 and len(pending) == 1:
+                total = float(region[3])
+                distance = abs(float(args[1]) - self.viewport.yview()[0]) * total
+        except (tk.TclError, ValueError, TypeError):
+            distance = None
+        try:
+            self._present(move, distance)
         except tk.TclError:
             pass
 
@@ -948,6 +1097,11 @@ class ScrollFrame(ttk.Frame):
     def destroy(self):
         self._destroyed = True
         self._release_live_cover()
+        if self._idle_after is not None:
+            try:
+                self.after_cancel(self._idle_after)
+            except tk.TclError:
+                pass
         self._end_glide_timing()
         try:
             if self._region_after is not None:
@@ -6588,7 +6742,7 @@ class MemoryPalApp(tk.Tk):
         def render_amount_pills():
             for child in amount_host.winfo_children():
                 child.destroy()
-            self.pill_group(amount_host, amount_var, TIME_UNIT_OPTIONS[unit_var.get()], max_columns=4, bg=COLORS["alt"]).pack(fill="x")
+            self.pill_group(amount_host, amount_var, TIME_UNIT_OPTIONS[unit_var.get()], max_columns=5, bg=COLORS["alt"]).pack(fill="x")
 
         @self.smooth
         def cycle_unit(_event=None):

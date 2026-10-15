@@ -21,7 +21,6 @@ import MemoryPalDesktop as M  # noqa: E402
 from memorypal.models import Card  # noqa: E402
 
 VIEWS = sys.argv[1:] or ["dashboard", "library", "stats"]
-MODE = os.environ.get("SCROLL_MODE", "current")
 
 M.enable_dpi_awareness()
 app = M.MemoryPalApp()
@@ -34,7 +33,8 @@ app.update()
 
 hz = M.display_refresh_hz(app)
 frame_ms = 1000.0 / hz
-print(f"mode={MODE} platform={sys.platform} refresh={hz:.0f}Hz frame={frame_ms:.1f}ms tk={app.tk.call('info', 'patchlevel')}")
+print(f"platform={sys.platform} refresh={hz:.0f}Hz frame={frame_ms:.1f}ms tk={app.tk.call('info', 'patchlevel')} "
+      f"next_vblank={M.ms_to_next_vblank()}")
 
 # Time the phases of each step.
 phases = {}
@@ -57,46 +57,15 @@ M.show_screen_cover = timed("cover_new", M.show_screen_cover)
 original_present = M.ScrollFrame._present
 
 
-def present(self, move):
+def present(self, move, distance=None):
     start = time.perf_counter()
-    original_present(self, move)
+    original_present(self, move, distance)
     end = time.perf_counter()
     presented.append(end)
     phases.setdefault("step", []).append((end - start) * 1000)
 
 
 M.ScrollFrame._present = present
-
-if MODE in ("nocover", "scrollwindow"):
-    M.show_screen_cover = lambda *a, **k: None
-
-if MODE == "scrollwindow" and sys.platform.startswith("win"):
-    import ctypes
-
-    user32 = ctypes.windll.user32
-    original_scroll = M.ScrollFrame._scroll_pixels
-
-    def scroll_pixels(self, pixels, axis="y"):
-        if axis != "y":
-            return original_scroll(self, pixels, axis)
-        region = self.viewport.cget("scrollregion").split()
-        total = float(region[3])
-        maximum = max(0.0, total - self.viewport.winfo_height())
-        current = round(self.viewport.yview()[0] * total)
-        target = int(round(max(0.0, min(maximum, current + float(pixels)))))
-        dy = target - current
-        if not dy:
-            return
-
-        def move():
-            # Blit what's already drawn and move the content window with it;
-            # only the strip that scrolls into view is invalidated.
-            user32.ScrollWindowEx(self.viewport.winfo_id(), 0, -dy, None, None, None, None, 0x0001 | 0x0002)
-            self.viewport.yview_moveto(target / total)
-
-        self._present(move)
-
-    M.ScrollFrame._scroll_pixels = scroll_pixels
 
 handled = []
 original_flush = M.flush_pending_paint
@@ -135,7 +104,7 @@ def report(label):
     span = presented[-1] - presented[0]
     hitches = sum(1 for g in gaps if g > frame_ms * 1.5)
     if handled:
-        phases["events"] = handled[-len(gaps):]
+        phases["events"] = handled
     parts = " ".join(f"{k}={statistics.mean(v):.1f}" for k, v in sorted(phases.items()))
     print(f"  {label:10} steps/s={len(gaps) / span:6.1f} gap_med={statistics.median(gaps):5.1f}ms "
           f"gap_p95={sorted(gaps)[int(len(gaps) * 0.95)]:5.1f}ms hitches={hitches:3}/{len(gaps)}  ms: {parts}")
@@ -182,7 +151,7 @@ def run(view):
         now = time.perf_counter() - start
         due = int(now * 1000 / 8)
         while sent < due:
-            frame._queue_wheel(6 if now < 0.75 else -6)
+            frame._direct_scroll(6 if now < 0.75 else -6)
             sent += 1
         app.update()
     pump(0.4)
@@ -201,6 +170,98 @@ def run(view):
     check_pixels(frame)
 
 
+
+
+def tear_check(view):
+    """Record the screen while scrolling and count frames that aren't a clean
+    picture of the page at a single scroll offset (torn or half drawn)."""
+    if not sys.platform.startswith("win"):
+        return
+    import ctypes
+    import struct
+    import subprocess
+    from PIL import ImageGrab
+
+    ctypes.windll.user32.SetCursorPos(0, 0)
+    app.show_view(view)
+    pump(0.6)
+    frame = scroll_frame()
+    vp = frame.viewport
+    x, y, w, h = vp.winfo_rootx(), vp.winfo_rooty(), vp.winfo_width(), vp.winfo_height()
+    # Reference: the whole page, drawn at rest, one screenful at a time.
+    rows = {}
+    offset, maximum = 0, int(frame.max_y_offset())
+    while True:
+        frame.scroll_to_offsets(y=offset)
+        pump(0.25)
+        actual = int(round(vp.yview()[0] * float(vp.cget("scrollregion").split()[3])))
+        data = ImageGrab.grab(bbox=(x, y, x + w, y + h)).tobytes()
+        for r in range(h):
+            rows[actual + r] = data[r * w * 3:(r + 1) * w * 3]
+        if offset >= maximum:
+            break
+        offset = min(maximum, offset + h - 40)
+    index = {}
+    for absolute, row in rows.items():
+        index.setdefault(row, []).append(absolute)
+    frame.scroll_to_offsets(y=0)
+    pump(0.3)
+    for label, action in (("touchpad", "touch"), ("wheel", "wheel"), ("drag", "drag")):
+        frame.scroll_to_offsets(y=0)
+        pump(0.3)
+        out = os.path.join(tempfile.gettempdir(), "frames.bin")
+        here = os.path.dirname(os.path.abspath(__file__))
+        proc = subprocess.Popen([sys.executable, os.path.join(here, "grab_frames.py"), str(x), str(y), str(w), str(h), "1.6", out],
+                                stdout=subprocess.PIPE, text=True)
+        proc.stdout.readline()
+        start = time.perf_counter()
+        sent = 0
+        if action == "wheel":
+            for n in range(25):
+                app.after(n * 40, lambda: frame._queue_wheel(frame._wheel_step_px))
+        if action == "drag":
+            for n in range(60):
+                app.after(n * 16, lambda n=n: frame._scrollbar_yview("moveto", str(n / 150)))
+        while proc.poll() is None:
+            if action == "touch":
+                now = time.perf_counter() - start
+                due = int(now * 1000 / 8)
+                while sent < due and now < 1.3:
+                    frame._direct_scroll(6)
+                    sent += 1
+            app.update()
+        with open(out, "rb") as handle:
+            fw, fh, count = struct.unpack("<III", handle.read(12))
+            captured = []
+            for _ in range(count):
+                handle.read(8)
+                captured.append(handle.read(fw * fh * 3))
+        torn = 0
+        worst = (0, None)
+        for data in captured:
+            votes = {}
+            frame_rows = [data[r * fw * 3:(r + 1) * fw * 3] for r in range(fh)]
+            for r in range(0, fh, 3):
+                hits = index.get(frame_rows[r])
+                if hits and len(hits) < 4:
+                    for absolute in hits:
+                        votes[absolute - r] = votes.get(absolute - r, 0) + 1
+            if not votes:
+                torn += 1
+                continue
+            best = max(votes, key=votes.get)
+            bad = sum(1 for r in range(fh) if rows.get(best + r) != frame_rows[r])
+            if bad > 2:
+                torn += 1
+                if bad > worst[0]:
+                    worst = (bad, data)
+        if worst[1] is not None:
+            from PIL import Image
+            Image.frombytes("RGB", (fw, fh), worst[1]).save(os.path.join(os.environ.get("PROBE_OUT", "."), f"{view}-{label}-worst.png"))
+        print(f"  tearing    {label:8} frames={len(captured)} torn_or_half_drawn={torn} worst_bad_rows={worst[0]}/{fh}")
+
+
 for view in VIEWS:
     run(view)
+    tear_check(view)
 app.destroy()
