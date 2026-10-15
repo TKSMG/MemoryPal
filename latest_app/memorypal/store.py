@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import time
 from dataclasses import asdict
@@ -60,15 +61,50 @@ def default_payload():
     }
 
 
+# What a saved plan may say. Plans arrive from other devices through sync, so
+# a plan asking for a million days (or a habit that isn't a word) is cut down
+# here instead of freezing the app when today's plan is worked out.
+PLAN_AMOUNTS = {"minutes": (1, 600, "30"), "hours": (1, 24, "1"), "days": (1, 365, "1"), "weeks": (1, 52, "1")}
+PLAN_HABITS = ("mnemonics", "repetition", "quick_mc", "games", "breaks", "explain")
+MAX_PLAN_TEXT = 200
+
+
+def plan_text(value, default):
+    return value if isinstance(value, str) and len(value) <= MAX_PLAN_TEXT else default
+
+
+def normalize_plan_settings(raw):
+    unit = raw.get("unit") if isinstance(raw.get("unit"), str) and raw.get("unit") in PLAN_AMOUNTS else "minutes"
+    low, high, default = PLAN_AMOUNTS[unit]
+    amount = raw.get("amount", default)
+    if isinstance(amount, bool) or not isinstance(amount, (int, float, str)):
+        amount = default
+    elif isinstance(amount, (int, float)):
+        amount = str(max(low, min(high, int(amount)))) if isinstance(amount, int) or amount.is_integer() else default
+    # Plain digits only: int() also takes " 7", "²", "١٢" and "1_000".
+    elif re.fullmatch(r"[0-9]{1,12}", amount):
+        amount = str(max(low, min(high, int(amount))))
+    else:
+        amount = default
+    habits = {habit for habit in as_list(raw.get("habits")) if isinstance(habit, str)}
+    return {
+        "unit": unit,
+        "amount": amount,
+        "deck": plan_text(raw.get("deck"), "All decks"),
+        "goal_label": plan_text(raw.get("goal_label"), "Long-term retention"),
+        "habits": [key for key in PLAN_HABITS if key in habits],
+    }
+
+
 def normalize_study_plan(raw):
     """A saved plan: the choices it was built from, when, and ticked-off steps."""
     if not isinstance(raw, dict) or not isinstance(raw.get("settings"), dict):
         return {}
     done = raw.get("done") if isinstance(raw.get("done"), dict) else {}
     return {
-        "settings": dict(raw["settings"]),
+        "settings": normalize_plan_settings(raw["settings"]),
         "created": str(raw.get("created") or today_iso()),
-        "done": {str(day): sorted({int(index) for index in indexes if str(index).isdigit()}) for day, indexes in done.items() if isinstance(indexes, list)},
+        "done": {str(day): sorted({int(index) for index in indexes if re.fullmatch(r"[0-9]{1,4}", str(index))}) for day, indexes in done.items() if isinstance(indexes, list)},
     }
 
 

@@ -334,6 +334,30 @@ def security_cases():
     return {"passwords": passwords, "limiter": steps, "waits": waits, "ages": ages}
 
 
+def hostile_cases():
+    """Damaged or hostile data that can arrive through sync: both apps must clean it the same way."""
+    from memorypal.store import normalize_study_plan
+
+    plans = [
+        {"settings": {"unit": "days", "amount": "1000000", "deck": "x" * 201, "goal_label": "Cram", "habits": [{}, "games", "games", "explain", 7]}, "created": "2026-10-01", "done": {"2026-10-01": ["²", "3", 1, "12345", None, True]}},
+        {"settings": {"unit": "weeks", "amount": 99}},
+        {"settings": {"unit": "hours", "amount": "0", "deck": "Spanish", "goal_label": "Exam prep", "habits": "games"}},
+        {"settings": {"unit": "minutes", "amount": -4, "deck": None, "goal_label": 3}},
+        {"settings": {"unit": "minutes", "amount": 4.5}},
+        {"settings": {"unit": "minutes", "amount": " 45"}},
+        {"settings": {"unit": "fortnights", "amount": "1_000"}},
+        {"settings": {"unit": ["days"], "amount": "9999999999999"}},
+        {"settings": {}, "done": []},
+        {"settings": {"unit": "days", "amount": "12", "deck": "é" * 200}},
+        {"settings": []},
+        "not a plan",
+    ]
+    for raw in plans:
+        if isinstance(raw, dict):
+            raw.setdefault("created", "2026-10-02")  # a fixed date, so the fixtures never go stale
+    return {"plans": [{"raw": raw, "plan": normalize_study_plan(raw)} for raw in plans]}
+
+
 def main():
     specs = card_specs()
     sessions, multi = plan_cases(specs)
@@ -341,6 +365,7 @@ def main():
     sync_plans, sync_conversion = sync_cases()
     fixtures = {
         "security": security_cases(),
+        "hostile": hostile_cases(),
         "sync_plans": sync_plans,
         "sync_conversion": sync_conversion,
         "generated_for": "latest_app/memorypal",

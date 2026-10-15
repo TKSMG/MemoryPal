@@ -122,6 +122,34 @@ export function normalizeOnboarding(raw: unknown): Onboarding {
   return { done: source.done === undefined ? true : Boolean(source.done), persona: PERSONAS.includes(persona) ? persona : '' };
 }
 
+// What a saved plan may say. Plans arrive from other devices through sync, so
+// a plan asking for a million days (or a habit that isn't a word) is cut down
+// here instead of freezing the app when today's plan is worked out.
+export const PLAN_AMOUNTS: Record<string, [number, number, string]> = { minutes: [1, 600, '30'], hours: [1, 24, '1'], days: [1, 365, '1'], weeks: [1, 52, '1'] };
+export const PLAN_HABITS = ['mnemonics', 'repetition', 'quick_mc', 'games', 'breaks', 'explain'];
+const MAX_PLAN_TEXT = 200;
+
+const planText = (value: unknown, fallback: string) => (typeof value === 'string' && [...value].length <= MAX_PLAN_TEXT ? value : fallback);
+
+export function normalizePlanSettings(raw: Record<string, unknown>): PlanSettings {
+  const unit = typeof raw.unit === 'string' && Object.hasOwn(PLAN_AMOUNTS, raw.unit) ? raw.unit : 'minutes';
+  const [low, high, fallback] = PLAN_AMOUNTS[unit];
+  const value = raw.amount === undefined ? fallback : raw.amount;
+  const clamp = (n: number) => String(Math.max(low, Math.min(high, n)));
+  let amount = fallback;
+  if (typeof value === 'number') amount = Number.isInteger(value) ? clamp(value) : fallback;
+  // Plain digits only, as on the desktop.
+  else if (typeof value === 'string' && /^[0-9]{1,12}$/.test(value)) amount = clamp(parseInt(value, 10));
+  const habits = new Set(Array.isArray(raw.habits) ? raw.habits.filter((habit) => typeof habit === 'string') : []);
+  return {
+    unit,
+    amount,
+    deck: planText(raw.deck, 'All decks'),
+    goal_label: planText(raw.goal_label, 'Long-term retention'),
+    habits: PLAN_HABITS.filter((key) => habits.has(key)),
+  };
+}
+
 export function normalizeStudyPlan(raw: unknown): StudyPlan | Record<string, never> {
   if (!raw || typeof raw !== 'object') return {};
   const source = raw as Record<string, unknown>;
@@ -130,10 +158,10 @@ export function normalizeStudyPlan(raw: unknown): StudyPlan | Record<string, nev
   if (source.done && typeof source.done === 'object') {
     for (const [day, indexes] of Object.entries(source.done as Record<string, unknown>)) {
       if (!Array.isArray(indexes)) continue;
-      done[String(day)] = [...new Set(indexes.filter((index) => /^\d+$/.test(String(index))).map((index) => Number(index)))].sort((a, b) => a - b);
+      done[String(day)] = [...new Set(indexes.filter((index) => /^[0-9]{1,4}$/.test(String(index))).map((index) => Number(index)))].sort((a, b) => a - b);
     }
   }
-  return { settings: { ...(source.settings as PlanSettings) }, created: String(source.created || todayIso()), done };
+  return { settings: normalizePlanSettings(source.settings as Record<string, unknown>), created: String(source.created || todayIso()), done };
 }
 
 function loadItems<T>(raw: unknown, factory: (item: Record<string, unknown>) => T): T[] {

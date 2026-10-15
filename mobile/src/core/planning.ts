@@ -28,6 +28,10 @@ export const FOCUS_BLOCK_MINUTES = 25;
 export const BREAK_MINUTES = 5;
 export const MINUTES_PER_NEW_CARD = 1.5;
 export const MAX_NEW_CARDS_PER_SESSION = 20;
+// The longest plans the app makes (a year of weeks; a day of minutes). A
+// synced plan asking for more is cut to this rather than built day by day.
+export const MAX_PLAN_DAYS = 400;
+export const MAX_PLAN_MINUTES = 24 * 60;
 
 export type Goal = 'cram' | 'exam_prep' | 'long_term';
 
@@ -195,7 +199,7 @@ export interface PlanDay {
 
 /** Plan several days ahead, projecting which cards come due on each day. */
 export function buildMultiDayPlan(store: MemoryStore, totalDaysIn: number, deckChoice: string, habits: Iterable<string>, goal: string, start?: Date): PlanDay[] {
-  const totalDays = Math.max(1, Math.trunc(totalDaysIn));
+  const totalDays = Math.max(1, Math.min(MAX_PLAN_DAYS, Math.trunc(totalDaysIn)));
   const habitSet = [...(habits ?? [])];
   const baseMinutes = goal === 'cram' ? 45 : 30;
   const today = start ?? now();
@@ -245,8 +249,8 @@ export function planMinutes(settings: Record<string, unknown>): number | null {
   const unit = String(settings.unit ?? 'minutes');
   let amount = parseInt(String(settings.amount ?? '30'), 10);
   if (!Number.isFinite(amount)) amount = 30;
-  if (unit === 'hours') return amount * 60;
-  if (unit === 'minutes') return amount;
+  if (unit === 'hours') return Math.min(MAX_PLAN_MINUTES, amount * 60);
+  if (unit === 'minutes') return Math.min(MAX_PLAN_MINUTES, amount);
   return null;
 }
 
@@ -269,7 +273,7 @@ export function planForToday(store: MemoryStore, planIn?: StudyPlan | null, toda
   const deckChoice = String(settings.deck ?? 'All decks');
   const goalLabel = String(settings.goal_label ?? 'Long-term retention');
   const goal = GOAL_KEYS[goalLabel] ?? 'long_term';
-  const habits = Array.isArray(settings.habits) ? settings.habits : [];
+  const habits = Array.isArray(settings.habits) ? settings.habits.filter((habit) => typeof habit === 'string') : [];
   const minutes = planMinutes(settings);
   if (minutes !== null) {
     const steps = buildStudyPlan(store, minutes, deckChoice, habits, goal);
@@ -278,7 +282,7 @@ export function planForToday(store: MemoryStore, planIn?: StudyPlan | null, toda
   const created = parseIso(plan.created) ?? today;
   let amount = parseInt(String(settings.amount ?? '1'), 10);
   if (!Number.isFinite(amount)) amount = 1;
-  const totalDays = amount * (settings.unit === 'weeks' ? 7 : 1);
+  const totalDays = Math.min(MAX_PLAN_DAYS, amount * (settings.unit === 'weeks' ? 7 : 1));
   const dayNumber = Math.max(1, daysBetween(created, today) + 1); // a plan made in a later time zone starts today
   if (dayNumber > totalDays) {
     return { title: `Your ${totalDays}-day plan is complete`, steps: [], finished: true, day: dayNumber, totalDays };

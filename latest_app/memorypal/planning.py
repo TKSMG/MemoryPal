@@ -29,6 +29,10 @@ BREAK_MINUTES = 5
 # New cards take longer than reviews and add to future review load.
 MINUTES_PER_NEW_CARD = 1.5
 MAX_NEW_CARDS_PER_SESSION = 20
+# The longest plans the app makes (a year of weeks; a day of minutes). A
+# synced plan asking for more is cut to this rather than built day by day.
+MAX_PLAN_DAYS = 400
+MAX_PLAN_MINUTES = 24 * 60
 
 
 def plural(count, word):
@@ -169,7 +173,7 @@ def insert_breaks(steps, break_minutes):
 
 def build_multi_day_plan(store, total_days, deck_choice, habits, goal, start=None):
     """Plan several days ahead, projecting which cards come due on each day."""
-    total_days = max(1, int(total_days))
+    total_days = max(1, min(MAX_PLAN_DAYS, int(total_days)))
     base_minutes = 45 if goal == "cram" else 30
     today = start or date.today()
     days = []
@@ -221,12 +225,12 @@ def plan_minutes(settings):
     unit = settings.get("unit", "minutes")
     try:
         amount = int(settings.get("amount", 30))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         amount = 30
     if unit == "hours":
-        return amount * 60
+        return min(MAX_PLAN_MINUTES, amount * 60)
     if unit == "minutes":
-        return amount
+        return min(MAX_PLAN_MINUTES, amount)
     return None
 
 
@@ -243,7 +247,8 @@ def plan_for_today(store, plan=None, today=None):
     deck_choice = settings.get("deck", "All decks")
     goal_label = settings.get("goal_label", "Long-term retention")
     goal = GOAL_KEYS.get(goal_label, "long_term")
-    habits = set(settings.get("habits", []))
+    habits = settings.get("habits") if isinstance(settings.get("habits"), list) else []
+    habits = {habit for habit in habits if isinstance(habit, str)}
     minutes = plan_minutes(settings)
     if minutes is not None:
         steps = build_study_plan(store, minutes, deck_choice, habits, goal)
@@ -254,9 +259,9 @@ def plan_for_today(store, plan=None, today=None):
         created = today
     try:
         amount = int(settings.get("amount", 1))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         amount = 1
-    total_days = amount * (7 if settings.get("unit") == "weeks" else 1)
+    total_days = min(MAX_PLAN_DAYS, amount * (7 if settings.get("unit") == "weeks" else 1))
     day_number = max(1, (today - created).days + 1)  # a plan made in a later time zone starts today
     if day_number > total_days:
         return {"title": f"Your {total_days}-day plan is complete", "steps": [], "finished": True, "day": day_number, "total_days": total_days}
