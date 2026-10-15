@@ -8,6 +8,9 @@ on:
       - "mobile/**"
       - ".github/workflows/build-mobile.yml"
 
+permissions:
+  contents: read
+
 jobs:
   build-android:
     name: Build Android

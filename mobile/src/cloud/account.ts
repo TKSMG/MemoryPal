@@ -210,7 +210,7 @@ export class CloudAccount {
     }
     this.useAccount(session.userId);
     const rows = await this.client.pull(session, pullSince(this.state.cursor));
-    const remote: Remote = {};
+    const remote: Remote = Object.create(null); // a row keyed __proto__ can't touch the prototype
     let cursor = this.state.cursor;
     for (const [key, data, updatedAt] of rows) {
       remote[key] = data;

@@ -38,7 +38,10 @@ begin
   if exists (
     select 1
     from (select distinct user_id from changed) as who
-    where (select count(*) from public.sync_records s where s.user_id = who.user_id) > 20000
+    -- Deleted cards stay as small tombstones; they count only toward a
+    -- looser cap, so years of tidying never lock an account out.
+    where (select count(*) filter (where not s.deleted) from public.sync_records s where s.user_id = who.user_id) > 20000
+       or (select count(*) from public.sync_records s where s.user_id = who.user_id) > 100000
        or (select coalesce(sum(octet_length(s.data::text)), 0) from public.sync_records s where s.user_id = who.user_id) > 25 * 1024 * 1024
   ) then
     raise exception 'MemoryPal storage limit reached' using errcode = 'P0001', hint = 'storage_limit';

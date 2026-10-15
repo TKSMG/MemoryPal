@@ -162,7 +162,7 @@ class CloudClient:
             return None
         try:
             return json.loads(raw.decode("utf-8"))
-        except ValueError:
+        except (ValueError, RecursionError):  # garbled, or nested deeply enough to crash the parser
             return None
 
     @staticmethod
