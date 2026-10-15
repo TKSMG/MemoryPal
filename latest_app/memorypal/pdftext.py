@@ -7,10 +7,14 @@ no text layer, so they return an empty string (that needs OCR).
 """
 
 import re
+import time
 import zlib
 
-OBJECT_RE = re.compile(rb"(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj", re.S)
-REF_RE = re.compile(rb"(\d+)\s+\d+\s+R")
+# Object numbers are bounded: an unbounded \d+ backtracks over a long run of
+# digits from every position in it, which made a 1 MB file take minutes.
+OBJECT_RE = re.compile(rb"(\d{1,10})\s+(\d{1,5})\s+obj\b")
+END_OBJECT = b"endobj"
+REF_RE = re.compile(rb"(\d{1,10})\s+\d{1,5}\s+R")
 # Limits for untrusted files: a small crafted PDF can inflate to gigabytes
 # (a "zip bomb") or nest page trees deeply enough to exhaust the stack.
 MAX_STREAM_BYTES = 32 * 1024 * 1024
@@ -18,10 +22,41 @@ MAX_TOTAL_BYTES = 256 * 1024 * 1024
 MAX_PAGE_DEPTH = 64
 MAX_TABLE_ENTRIES = 200_000
 MAX_FILE_BYTES = 200 * 1024 * 1024
+# However a file is built, reading stops after this long instead of hanging.
+MAX_SECONDS = 15
 
 
 class PdfTooLarge(RuntimeError):
     pass
+
+
+def check_deadline(deadline):
+    if deadline is not None and time.monotonic() > deadline:
+        raise PdfTooLarge("This PDF is too complex to read. Split it into smaller files or paste the key points.")
+
+
+def word_byte(data, index):
+    """Whether data[index] is a regex word character (ASCII letter, digit or _)."""
+    char = data[index:index + 1] if index >= 0 else b""
+    return char.isalnum() or char == b"_"
+
+
+def between(data, begin, end):
+    """Every stretch of `data` from a `begin` marker to the next `end` marker.
+
+    A forward scan: a lazy regex like begin(.*?)end rescans to the end of
+    the data from every unclosed `begin`, which a crafted file repeats.
+    """
+    found, index = [], 0
+    while True:
+        start = data.find(begin, index)
+        if start < 0:
+            return found
+        stop = data.find(end, start + len(begin))
+        if stop < 0:
+            return found
+        found.append(data[start + len(begin):stop])
+        index = stop + len(end)
 
 
 def inflate(raw, limit=MAX_STREAM_BYTES):
@@ -39,14 +74,35 @@ class PdfText:
         self.objects = {}
         self.cmaps = {}
         self.inflated = 0
+        self.deadline = time.monotonic() + MAX_SECONDS
         self._collect_objects()
 
     # -- objects ---------------------------------------------------------
+    def object_bodies(self):
+        """(number, body) of each `N G obj ... endobj` in the file, in order."""
+        data, index = self.data, 0
+        while True:
+            match = OBJECT_RE.search(data, index)
+            if not match:
+                return
+            end = match.end()
+            while True:
+                end = data.find(END_OBJECT, end)
+                if end < 0:
+                    return  # no object after this one is ever closed
+                if not word_byte(data, end - 1):
+                    break
+                end += 1  # "xendobj" is not the keyword
+            yield int(match.group(1)), data[match.end():end]
+            index = end + len(END_OBJECT)
+            check_deadline(self.deadline)
+
     def _collect_objects(self):
-        for match in OBJECT_RE.finditer(self.data):
-            self.objects[int(match.group(1))] = match.group(3)
+        for number, body in self.object_bodies():
+            self.objects[number] = body
         # Objects packed inside compressed object streams.
         for number, body in list(self.objects.items()):
+            check_deadline(self.deadline)
             head = self.dict_part(body)
             if b"/ObjStm" not in head:
                 continue
@@ -74,7 +130,7 @@ class PdfText:
 
     @staticmethod
     def int_value(head, key):
-        match = re.search(re.escape(key) + rb"\s+(\d+)", head)
+        match = re.search(re.escape(key) + rb"\s+(\d{1,10})", head)
         return int(match.group(1)) if match else None
 
     def stream_data(self, body):
@@ -142,7 +198,7 @@ class PdfText:
                     if depth == 0:
                         return rest[:index + 1]
             return rest
-        ref = re.match(rb"\d+\s+\d+\s+R", rest)
+        ref = REF_RE.match(rest)
         if ref:
             return ref.group(0)
         token = re.match(rb"[^\s/<>\[\]]+|/[^\s/<>\[\]]+", rest)
@@ -150,7 +206,7 @@ class PdfText:
 
     # -- pages -----------------------------------------------------------
     def pages(self):
-        root_match = re.search(rb"/Root\s+(\d+)\s+\d+\s+R", self.data)
+        root_match = re.search(rb"/Root\s+(\d{1,10})\s+\d{1,5}\s+R", self.data)
         ordered = []
         if root_match:
             catalog = self.objects.get(int(root_match.group(1)), b"")
@@ -185,7 +241,7 @@ class PdfText:
             resources = self.resolve(self.entry(page_body, b"/Resources") or b"")
         fonts = self.resolve(self.entry(resources or b"", b"/Font") or b"")
         mapping = {}
-        for name, number in re.findall(rb"/([^\s/<>\[\]]+)\s+(\d+)\s+\d+\s+R", fonts or b""):
+        for name, number in re.findall(rb"/([^\s/<>\[\]]+)\s+(\d{1,10})\s+\d{1,5}\s+R", fonts or b""):
             mapping[name] = self.font_cmap(int(number))
         return mapping
 
@@ -224,6 +280,7 @@ class PdfText:
     def text(self):
         pages = []
         for number, resources in self.pages():
+            check_deadline(self.deadline)
             body = self.objects.get(number, b"")
             head = self.dict_part(body)
             fonts = self.page_fonts(head, resources)
@@ -240,7 +297,7 @@ class PdfText:
                             streams.append(data_inner)
                     continue
                 streams.append(data)
-            text = run_content(b"\n".join(streams), fonts)
+            text = run_content(b"\n".join(streams), fonts, self.deadline)
             if text.strip():
                 pages.append(text.strip())
         return "\n\n".join(pages)
@@ -256,10 +313,10 @@ def parse_cmap(data):
         except UnicodeDecodeError:
             return raw.decode("latin-1")
 
-    for block in re.findall(rb"beginbfchar(.*?)endbfchar", data, re.S):
+    for block in between(data, b"beginbfchar", b"endbfchar"):
         for source, target in re.findall(rb"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]*)>", block):
             mapping[int(source, 16)] = hex_text(target)
-    for block in re.findall(rb"beginbfrange(.*?)endbfrange", data, re.S):
+    for block in between(data, b"beginbfrange", b"endbfrange"):
         for start, end, target in re.findall(rb"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(<[0-9A-Fa-f]*>|\[[^\]]*\])", block):
             low, high = int(start, 16), int(end, 16)
             if target.startswith(b"["):
@@ -281,7 +338,9 @@ def parse_cmap(data):
     return mapping
 
 
-TOKEN_RE = re.compile(rb"\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]*>|\[|\]|/[^\s/\[\]()<>]+|[-+]?\d*\.?\d+|[A-Za-z'\"*]+")
+# A literal string left open runs to the end of the data: otherwise every
+# "(" of an unclosed run rescans to the end, which a crafted stream repeats.
+TOKEN_RE = re.compile(rb"\((?:\\.|[^\\)])*(?:\)|\Z)|<[0-9A-Fa-f\s]*>|\[|\]|/[^\s/\[\]()<>]+|[-+]?\d*\.?\d+|[A-Za-z'\"*]+")
 
 
 def literal_bytes(token):
@@ -375,7 +434,7 @@ def string_advance(raw, font):
     return sum(widths.get(code, default) for code in string_codes(raw, font))
 
 
-def run_content(data, fonts):
+def run_content(data, fonts, deadline=None):
     """Interpret the text operators of a content stream into lines of text.
 
     Positions are tracked with the fonts' real glyph widths, so a new text
@@ -412,7 +471,9 @@ def run_content(data, fonts):
         line.append(decode_string(raw, font))
         state["x"] += string_advance(raw, font) / 1000.0 * size * scale
 
-    for token in tokens:
+    for count, token in enumerate(tokens):
+        if count % 4096 == 0:
+            check_deadline(deadline)
         if token == b"[":
             array_items = []
             continue
