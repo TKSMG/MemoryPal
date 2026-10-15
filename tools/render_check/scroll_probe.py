@@ -236,22 +236,31 @@ def tear_check(view):
             for _ in range(count):
                 handle.read(8)
                 captured.append(handle.read(fw * fh * 3))
-        torn = 0
-        worst = (0, None)
-        worst_spans = ""
+        # Each frame's scroll offset, from the rows it shares with the page.
+        offsets = []
         for data in captured:
             votes = {}
-            frame_rows = [data[r * fw * 3:(r + 1) * fw * 3] for r in range(fh)]
             for r in range(0, fh, 3):
-                hits = index.get(frame_rows[r])
+                hits = index.get(data[r * fw * 3:(r + 1) * fw * 3])
                 if hits and len(hits) < 4:
                     for absolute in hits:
                         votes[absolute - r] = votes.get(absolute - r, 0) + 1
-            if not votes:
+            offsets.append(max(votes, key=votes.get) if votes else None)
+        # Then compare each frame with the page drawn at rest at that offset.
+        at_rest = {}
+        for offset in sorted({o for o in offsets if o is not None}):
+            frame.scroll_to_offsets(y=max(0, offset))
+            pump(0.15)
+            at_rest[offset] = ImageGrab.grab(bbox=(x, y, x + w, y + h)).tobytes()
+        torn = 0
+        worst = (0, None)
+        worst_spans = ""
+        for data, offset in zip(captured, offsets):
+            if offset is None:
                 torn += 1
                 continue
-            best = max(votes, key=votes.get)
-            bad_rows = [r for r in range(fh) if rows.get(best + r) != frame_rows[r]]
+            rest = at_rest[offset]
+            bad_rows = [r for r in range(fh) if rest[r * fw * 3:(r + 1) * fw * 3] != data[r * fw * 3:(r + 1) * fw * 3]]
             bad = len(bad_rows)
             if bad > 2 and bad > worst[0]:
                 spans, run_start = [], None
