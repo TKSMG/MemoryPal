@@ -1,14 +1,13 @@
 name: Scroll probe
 
+# Run by hand (Actions > Scroll probe > Run workflow) after changing how
+# pages scroll: it measures frame pacing and torn frames on real Windows and
+# Mac machines and writes the numbers as a notice on the run.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - design-security-pass
-    paths:
-      - latest_app/MemoryPalDesktop.py
-      - tools/render_check/scroll_probe.py
-      - .github/workflows/scroll-probe.yml
+
+permissions:
+  contents: read
 
 jobs:
   probe:
