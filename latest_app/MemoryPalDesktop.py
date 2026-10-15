@@ -753,9 +753,11 @@ class ScrollFrame(ttk.Frame):
 
     def _frame_wait(self):
         """Milliseconds to wait so the next step starts just after a refresh."""
+        spent = (time.perf_counter() - self._last_step) * 1000
         ahead = ms_to_next_vblank()
-        if ahead is None:
-            spent = (time.perf_counter() - self._last_step) * 1000
+        if ahead is None or spent > self._frame_ms * 0.85:
+            # No refresh timing, or this page takes about a frame to draw:
+            # waiting for the next refresh would halve the rate, so go now.
             return max(1, round(self._frame_ms - spent))
         # Starting right after the refresh leaves the whole frame for drawing.
         return max(1, int(ahead) + 1)

@@ -206,7 +206,7 @@ def tear_check(view):
         index.setdefault(row, []).append(absolute)
     frame.scroll_to_offsets(y=0)
     pump(0.3)
-    for label, action in (("touchpad", "touch"), ("wheel", "wheel"), ("drag", "drag")):
+    for label, action in (("still", "none"), ("touchpad", "touch"), ("wheel", "wheel"), ("drag", "drag")):
         frame.scroll_to_offsets(y=0)
         pump(0.3)
         out = os.path.join(tempfile.gettempdir(), "frames.bin")
@@ -238,6 +238,7 @@ def tear_check(view):
                 captured.append(handle.read(fw * fh * 3))
         torn = 0
         worst = (0, None)
+        worst_spans = ""
         for data in captured:
             votes = {}
             frame_rows = [data[r * fw * 3:(r + 1) * fw * 3] for r in range(fh)]
@@ -250,7 +251,17 @@ def tear_check(view):
                 torn += 1
                 continue
             best = max(votes, key=votes.get)
-            bad = sum(1 for r in range(fh) if rows.get(best + r) != frame_rows[r])
+            bad_rows = [r for r in range(fh) if rows.get(best + r) != frame_rows[r]]
+            bad = len(bad_rows)
+            if bad > 2 and bad > worst[0]:
+                spans, run_start = [], None
+                for n, r in enumerate(bad_rows):
+                    if run_start is None:
+                        run_start = r
+                    if n + 1 == len(bad_rows) or bad_rows[n + 1] != r + 1:
+                        spans.append(f"{run_start}-{r}")
+                        run_start = None
+                worst_spans = ",".join(spans[:8])
             if bad > 2:
                 torn += 1
                 if bad > worst[0]:
@@ -258,7 +269,7 @@ def tear_check(view):
         if worst[1] is not None:
             from PIL import Image
             Image.frombytes("RGB", (fw, fh), worst[1]).save(os.path.join(os.environ.get("PROBE_OUT", "."), f"{view}-{label}-worst.png"))
-        print(f"  tearing    {label:8} frames={len(captured)} torn_or_half_drawn={torn} worst_bad_rows={worst[0]}/{fh}")
+        print(f"  tearing    {label:8} frames={len(captured)} torn_or_half_drawn={torn} worst_bad_rows={worst[0]}/{fh} rows={worst_spans}")
 
 
 for view in VIEWS:
