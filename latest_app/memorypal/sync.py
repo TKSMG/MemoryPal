@@ -19,6 +19,7 @@ SETTINGS_KEY = "settings:profile"
 SETTINGS_FIELDS = ("daily_goal", "accessibility", "onboarding", "study_plan", "nav_order")
 SCHEDULE_FIELDS = ("interval", "repetitions", "ease", "lapses", "last_score", "last_result", "next_review", "buried_until")
 COUNT_KINDS = ("activity", "practiced")
+KINDS = ("card", "capture", "settings") + COUNT_KINDS
 
 
 def count_of(data):
@@ -38,6 +39,19 @@ def whole(value):
 
 def kind_of(key):
     return key.split(":", 1)[0]
+
+
+def known_key(key):
+    """A record key this app understands (``<kind>:...``).
+
+    Anything else in the cloud is ignored: kept in the base it would be
+    pushed back on every sync and refused by the database, stopping sync.
+    """
+    return isinstance(key, str) and ":" in key and kind_of(key) in KINDS
+
+
+def known_only(records):
+    return {key: data for key, data in records.items() if known_key(key)}
 
 
 def device_of(key):
@@ -184,6 +198,7 @@ def plan_sync(local, base, remote):
     base:   key -> data as of the last successful sync
     remote: key -> data (or None if deleted) for cloud records changed since then
     """
+    local, base, remote = known_only(local), known_only(base), known_only(remote)
     push, apply, final = {}, {}, {}
     for key in sorted(set(local) | set(base) | set(remote)):
         mine = local.get(key)

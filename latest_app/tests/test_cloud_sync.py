@@ -440,6 +440,20 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(plan.final["card:a"]["back"], "theirs")
         self.assertNotIn("card:a", plan.push)
 
+    def test_unknown_kinds_from_the_cloud_are_ignored(self):
+        record = {"card:a": {"id": "a", "front": "Q"}}
+        remote = {"evil:x": {"a": 1}, "__proto__": {"card:a": None}, "settings": {"daily_goal": 1}, 7: {"x": 1}, "card:b": {"id": "b"}}
+        plan = sync.plan_sync(record, record, remote)
+        self.assertEqual(sorted(plan.final), ["card:a", "card:b"])
+        self.assertEqual((plan.push, sorted(plan.apply)), ({}, ["card:b"]))
+
+    def test_an_unknown_key_already_in_the_base_is_never_pushed(self):
+        # Older versions kept such keys, then pushed a delete for them on
+        # every sync, which the database refuses: sync stopped for good.
+        record = {"card:a": {"id": "a", "front": "Q"}}
+        plan = sync.plan_sync(record, {**record, "evil:x": {"a": 1}}, {})
+        self.assertEqual((plan.push, plan.apply, sorted(plan.final)), ({}, {}, ["card:a"]))
+
 
 if __name__ == "__main__":
     unittest.main()

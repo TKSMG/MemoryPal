@@ -790,6 +790,158 @@
   ]
  },
  "hostile": {
+  "sync": [
+   {
+    "local": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "A",
+      "repetitions": 1
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "A",
+      "repetitions": 1
+     }
+    },
+    "remote": {
+     "__proto__": {
+      "card:a": null
+     },
+     "constructor": {
+      "x": 1
+     },
+     "evil:x": {
+      "a": 1
+     },
+     "settings": {
+      "daily_goal": 1
+     },
+     "card:b": {
+      "id": "b"
+     }
+    },
+    "push": {},
+    "apply": {
+     "card:b": {
+      "id": "b"
+     }
+    },
+    "final": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "A",
+      "repetitions": 1
+     },
+     "card:b": {
+      "id": "b"
+     }
+    }
+   },
+   {
+    "local": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "A",
+      "repetitions": 1
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "A",
+      "repetitions": 1
+     },
+     "evil:x": {
+      "a": 1
+     },
+     "toString": {
+      "b": 2
+     }
+    },
+    "remote": {},
+    "push": {},
+    "apply": {},
+    "final": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "A",
+      "repetitions": 1
+     }
+    }
+   },
+   {
+    "local": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "mine",
+      "repetitions": 1,
+      "__proto__": "mine",
+      "constructor": "mine"
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "A",
+      "repetitions": 1
+     }
+    },
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "front": "Q",
+      "back": "theirs",
+      "repetitions": 1,
+      "__proto__": "theirs",
+      "toString": "theirs"
+     }
+    },
+    "push": {
+     "card:a": {
+      "__proto__": "theirs",
+      "back": "theirs",
+      "constructor": "mine",
+      "front": "Q",
+      "id": "a",
+      "repetitions": 1,
+      "toString": "theirs"
+     }
+    },
+    "apply": {
+     "card:a": {
+      "__proto__": "theirs",
+      "back": "theirs",
+      "constructor": "mine",
+      "front": "Q",
+      "id": "a",
+      "repetitions": 1,
+      "toString": "theirs"
+     }
+    },
+    "final": {
+     "card:a": {
+      "__proto__": "theirs",
+      "back": "theirs",
+      "constructor": "mine",
+      "front": "Q",
+      "id": "a",
+      "repetitions": 1,
+      "toString": "theirs"
+     }
+    }
+   }
+  ],
   "plans": [
    {
     "raw": {
