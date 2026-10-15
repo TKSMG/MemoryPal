@@ -334,6 +334,50 @@ def security_cases():
     return {"passwords": passwords, "limiter": steps, "waits": waits, "ages": ages}
 
 
+def hostile_cases():
+    """Damaged or hostile data that can arrive through sync: both apps must clean it the same way."""
+    from memorypal.store import normalize_study_plan
+
+    plans = [
+        {"settings": {"unit": "days", "amount": "1000000", "deck": "x" * 201, "goal_label": "Cram", "habits": [{}, "games", "games", "explain", 7]}, "created": "2026-10-01", "done": {"2026-10-01": ["²", "3", 1, "12345", None, True]}},
+        {"settings": {"unit": "weeks", "amount": 99}},
+        {"settings": {"unit": "hours", "amount": "0", "deck": "Spanish", "goal_label": "Exam prep", "habits": "games"}},
+        {"settings": {"unit": "minutes", "amount": -4, "deck": None, "goal_label": 3}},
+        {"settings": {"unit": "minutes", "amount": 4.5}},
+        {"settings": {"unit": "minutes", "amount": " 45"}},
+        {"settings": {"unit": "fortnights", "amount": "1_000"}},
+        {"settings": {"unit": ["days"], "amount": "9999999999999"}},
+        {"settings": {}, "done": []},
+        {"settings": {"unit": "days", "amount": "12", "deck": "é" * 200}},
+        {"settings": []},
+        "not a plan",
+    ]
+    for raw in plans:
+        if isinstance(raw, dict):
+            raw.setdefault("created", "2026-10-02")  # a fixed date, so the fixtures never go stale
+    cards = [
+        {"id": "big", "interval": 10 ** 30, "repetitions": "99999999", "lapses": 123456, "ease": 50, "created_at": "2026-10-01 09:00", "next_review": "2026-10-02"},
+        {"id": "neg", "interval": -5, "repetitions": "-3", "lapses": 1e300, "ease": -1, "created_at": "2026-10-01 09:00", "next_review": "2026-10-02"},
+        {"id": "ok", "interval": 36500, "repetitions": 10000, "lapses": "17", "ease": "2.1", "created_at": "2026-10-01 09:00", "next_review": "2026-10-02"},
+    ]
+    from memorypal import sync
+
+    card = {"id": "a", "front": "Q", "back": "A", "repetitions": 1}
+    syncs = [
+        # Unknown kinds, keys that are built-in names in JavaScript, and a non-key.
+        ({"card:a": card}, {"card:a": card}, {"__proto__": {"card:a": None}, "constructor": {"x": 1}, "evil:x": {"a": 1}, "settings": {"daily_goal": 1}, "card:b": {"id": "b"}}),
+        # An unknown key already in the base is dropped, not deleted in the cloud.
+        ({"card:a": card}, {"card:a": card, "evil:x": {"a": 1}, "toString": {"b": 2}}, {}),
+        # Field names that are built-in names in JavaScript, changed on both sides.
+        ({"card:a": {**card, "__proto__": "mine", "constructor": "mine", "back": "mine"}}, {"card:a": card}, {"card:a": {**card, "__proto__": "theirs", "toString": "theirs", "back": "theirs"}}),
+    ]
+    return {
+        "sync": [{"local": l, "base": b, "remote": r, "push": plan.push, "apply": plan.apply, "final": plan.final} for l, b, r in syncs for plan in [sync.plan_sync(l, b, r)]],
+        "plans": [{"raw": raw, "plan": normalize_study_plan(raw)} for raw in plans],
+        "cards": [{"raw": raw, "card": Card.from_dict(raw).__dict__} for raw in cards],
+    }
+
+
 def main():
     specs = card_specs()
     sessions, multi = plan_cases(specs)
@@ -341,6 +385,7 @@ def main():
     sync_plans, sync_conversion = sync_cases()
     fixtures = {
         "security": security_cases(),
+        "hostile": hostile_cases(),
         "sync_plans": sync_plans,
         "sync_conversion": sync_conversion,
         "generated_for": "latest_app/memorypal",

@@ -4,13 +4,13 @@
  */
 import fixtures from './fixtures/parity.json';
 import { addDays } from '../src/core/dates';
-import { newCard } from '../src/core/models';
+import { cardFromDict, newCard } from '../src/core/models';
 import { buildMultiDayPlan, buildStudyPlan, PlanStep } from '../src/core/planning';
 import { achievements, bestStreak, dueForecast, levelInfo, maturityBreakdown, ratingMix } from '../src/core/progress';
 import { sequenceRatio } from '../src/core/py';
 import { AttemptLimiter, accountAgeCheck, characterClasses, passwordProblems, passwordStrength, predictable, waitMessage } from '../src/core/security';
 import { answerAssessment } from '../src/core/smartCheck';
-import { MemoryStore } from '../src/core/store';
+import { MemoryStore, normalizeStudyPlan } from '../src/core/store';
 import { payloadFromRecords, planSync, recordsFromPayload, Records, Remote } from '../src/core/sync';
 import { acronym, chunkMap, linkChain, palace, parseIdeas, pegList, story } from '../src/core/techniques';
 import { parsePromptAnswerLines, splitStudyBits, textTokens } from '../src/core/text';
@@ -122,6 +122,15 @@ describe('parity with the desktop logic', () => {
     for (const item of fixtures.security.ages) {
       const [message, under] = accountAgeCheck(item.month, item.year, 2026, 10);
       expect({ ...item, message, under }).toEqual(item);
+    }
+  });
+
+  test('damaged or hostile records from sync are handled the same way', () => {
+    for (const [i, item] of fixtures.hostile.plans.entries()) expect({ i, plan: normalizeStudyPlan(item.raw) }).toEqual({ i, plan: item.plan });
+    for (const item of fixtures.hostile.cards) expect(cardFromDict(item.raw)).toEqual(item.card);
+    for (const [i, item] of fixtures.hostile.sync.entries()) {
+      const plan = planSync(item.local as unknown as Records, item.base as unknown as Records, item.remote as unknown as Remote);
+      expect({ i, push: plan.push, apply: plan.apply, final: plan.final }).toEqual({ i, push: item.push, apply: item.apply, final: item.final });
     }
   });
 
