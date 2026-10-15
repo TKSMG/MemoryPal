@@ -1,15 +1,18 @@
 import os
 import sys
 import tempfile
+import time
 import unittest
 import zipfile
 import zlib
 from pathlib import Path
+from unittest import mock
 
 os.environ.setdefault("MEMORYPAL_DATA_DIR", tempfile.mkdtemp(prefix="memorypal-tests-"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from memorypal.core import extract_document_text  # noqa: E402
+from memorypal import pdftext  # noqa: E402
 from memorypal.pdftext import PdfText  # noqa: E402
 
 
@@ -144,6 +147,45 @@ class PdfTests(unittest.TestCase):
             path.write_bytes(blank)
             with self.assertRaises(RuntimeError):
                 extract_document_text(path)
+
+
+class CraftedPdfTests(unittest.TestCase):
+    """Files built to make a regex backtrack: each must read in well under a second."""
+
+    def assertQuick(self, data):
+        start = time.monotonic()
+        PdfText(data).text()
+        self.assertLess(time.monotonic() - start, 2.0)
+
+    def page_with(self, content=b"BT ET", cmap=b""):
+        return build_pdf({
+            1: b"<< /Type /Catalog /Pages 2 0 R >>",
+            2: b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            3: b"<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+            4: stream(content),
+            5: b"<< /Type /Font /Subtype /Type0 /ToUnicode 6 0 R >>",
+            6: stream(cmap),
+        })
+
+    def test_unclosed_objects_and_long_digit_runs(self):
+        self.assertQuick(b"%PDF-1.4\n" + b"1 0 obj " * 125_000)
+        self.assertQuick(b"%PDF-1.4\n" + b"1" * 1_000_000)
+        self.assertQuick(b"%PDF-1.4\n" + b"1 " * 500_000)
+        self.assertQuick(self.page_with().replace(b"/Contents 4 0 R", b"/Contents [" + b"1" * 200_000 + b"]"))
+
+    def test_unclosed_strings_and_cmap_blocks(self):
+        self.assertQuick(self.page_with(b"BT " + b"(" * 1_000_000 + b" ET"))
+        self.assertQuick(self.page_with(cmap=b"beginbfchar " * 100_000))
+        self.assertQuick(self.page_with(cmap=b"beginbfrange " * 100_000))
+
+    def test_reading_stops_at_the_time_limit(self):
+        with mock.patch.object(pdftext, "MAX_SECONDS", -1):
+            with self.assertRaises(pdftext.PdfTooLarge):
+                PdfText(simple_pdf(False)).text()
+
+    def test_keyword_inside_a_word_does_not_end_an_object(self):
+        data = build_pdf({1: b"<< /Note (xendobj) /Type /Catalog /Pages 2 0 R >>", 2: b"<< /Type /Pages /Kids [] /Count 0 >>"})
+        self.assertIn(b"/Pages 2 0 R", PdfText(data).objects[1])
 
 
 class TextFileTests(unittest.TestCase):
