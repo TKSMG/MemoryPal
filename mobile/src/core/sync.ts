@@ -158,6 +158,10 @@ function unreviewed(key: string, data: Data | null): boolean {
   return kindOf(key) === 'card' && !!data && whole(data.repetitions) === 0 && whole(data.lapses) === 0;
 }
 
+function isRecord(value: unknown): value is Data {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export function mergeRecord(key: string, base: Data | null | undefined, local: Data | null | undefined, remote: Data | null | undefined): Data | null {
   if (!local && !remote) return null;
   if (!local) return remote ?? null; // an edit on the other device beats a delete here
@@ -179,7 +183,12 @@ export function mergeRecord(key: string, base: Data | null | undefined, local: D
     else if (same(mine, theirs)) value = mine;
     else if (same(mine, before)) value = theirs;
     else if (same(theirs, before)) value = mine;
-    else value = theirs; // both changed the same field: the cloud copy wins
+    else if (key === SETTINGS_KEY && isRecord(mine) && isRecord(theirs)) {
+      // Settings groups (accessibility, the study plan) merge one level
+      // deeper, so changing text size on one device and motion on another
+      // keeps both.
+      value = mergeRecord('settings:group', isRecord(before) ? before : {}, mine, theirs);
+    } else value = theirs; // both changed the same field: the cloud copy wins
     merged[name] = value === undefined ? null : value;
   }
   return merged;
