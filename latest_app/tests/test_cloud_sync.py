@@ -569,11 +569,13 @@ class CaptchaTests(unittest.TestCase):
                     urllib.request.urlopen(f"{base}?state=wrong&token=planted", timeout=5)
                 with urllib.request.urlopen(f"{base}?state={state}&token=tok-123", timeout=5) as reply:
                     self.page = reply.read().decode()
-            threading.Thread(target=visit, daemon=True).start()
+            self.visit = threading.Thread(target=visit, daemon=True)
+            self.visit.start()
             return True
 
         check = cloud.BrowserCheck("https://tksmg.github.io/MemoryPal/verify/", open_page=browser, timeout=10)
         self.assertEqual(check(), "tok-123")
+        self.visit.join(5)  # the browser finishes reading the "All set" page
         self.assertIn("All set", self.page)
 
     def test_the_browser_check_reports_a_failed_or_unfinished_check(self):
