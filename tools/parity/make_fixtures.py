@@ -355,7 +355,15 @@ def hostile_cases():
     for raw in plans:
         if isinstance(raw, dict):
             raw.setdefault("created", "2026-10-02")  # a fixed date, so the fixtures never go stale
-    return {"plans": [{"raw": raw, "plan": normalize_study_plan(raw)} for raw in plans]}
+    cards = [
+        {"id": "big", "interval": 10 ** 30, "repetitions": "99999999", "lapses": 123456, "ease": 50, "created_at": "2026-10-01 09:00", "next_review": "2026-10-02"},
+        {"id": "neg", "interval": -5, "repetitions": "-3", "lapses": 1e300, "ease": -1, "created_at": "2026-10-01 09:00", "next_review": "2026-10-02"},
+        {"id": "ok", "interval": 36500, "repetitions": 10000, "lapses": "17", "ease": "2.1", "created_at": "2026-10-01 09:00", "next_review": "2026-10-02"},
+    ]
+    return {
+        "plans": [{"raw": raw, "plan": normalize_study_plan(raw)} for raw in plans],
+        "cards": [{"raw": raw, "card": Card.from_dict(raw).__dict__} for raw in cards],
+    }
 
 
 def main():

@@ -13,6 +13,11 @@ def first_text(raw, names, default=""):
 
 
 MAX_ID_LENGTH = 150  # the cloud refuses record keys over 200 characters
+# A hundred years between reviews, and more reviews than anyone makes of one
+# card: anything bigger is damaged (or hostile) synced data, and a 400-digit
+# interval used to crash the scheduler.
+MAX_INTERVAL_DAYS = 36500
+MAX_REVIEW_COUNT = 10000
 
 
 def record_id(value):
@@ -70,10 +75,10 @@ class Card:
             audio=text("audio"),
             video=text("video"),
             next_review=text("next_review", "nextReview"),
-            interval=max(0, number(raw.get("interval"), int, 0)),
-            repetitions=max(0, number(raw.get("repetitions"), int, 0)),
+            interval=max(0, min(MAX_INTERVAL_DAYS, number(raw.get("interval"), int, 0))),
+            repetitions=max(0, min(MAX_REVIEW_COUNT, number(raw.get("repetitions"), int, 0))),
             ease=min(3.5, max(1.3, number(raw.get("ease"), float, 2.5))),
-            lapses=max(0, number(raw.get("lapses"), int, 0)),
+            lapses=max(0, min(MAX_REVIEW_COUNT, number(raw.get("lapses"), int, 0))),
             last_score=max(0, min(100, number(raw.get("last_score", raw.get("lastScore")), int, 0))),
             last_result=text("last_result", "lastResult"),
             created_at=text("created_at", "createdAt"),

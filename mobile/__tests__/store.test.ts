@@ -106,6 +106,16 @@ describe('MemoryStore', () => {
     expect([...reload().planStepsDone()]).toEqual([1]);
   });
 
+  test('a synced card with a huge interval is cut down and can still be rated', () => {
+    const { store } = fresh();
+    store.replaceWith({ cards: [JSON.parse(`{"id": "big", "front": "q", "back": "a", "repetitions": 3, "next_review": "2020-01-01", "interval": ${'9'.repeat(300)}}`)] });
+    const card = store.cards[0];
+    expect(card.interval).toBe(36500);
+    store.schedule(card, 4);
+    expect(card.interval).toBeLessThanOrEqual(365);
+    expect(card.next_review).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
   test('a huge or odd plan synced from another device stays quick', () => {
     const { store } = fresh();
     const payload = store.payload();
