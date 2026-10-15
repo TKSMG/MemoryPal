@@ -85,6 +85,7 @@
     },
     "android": {
       "package": "app.memorypal.mobile",
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#3451db",
         "foregroundImage": "./assets/android-icon-foreground.png",

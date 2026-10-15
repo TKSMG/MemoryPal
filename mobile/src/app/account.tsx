@@ -277,7 +277,8 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
             <Txt variant="h3">{grouped}</Txt>
           </View>
           <Row wrap>
-            {setup.uri ? <Button compact icon="open-outline" label="Open in authenticator app" onPress={() => Linking.openURL(setup.uri).catch(() => setError('No authenticator app opened. Type the setup key into it instead.'))} /> : null}
+            {/* Only ever an authenticator link: the server's answer must not open a web page or another app. */}
+            {/^otpauth:\/\//i.test(setup.uri) ? <Button compact icon="open-outline" label="Open in authenticator app" onPress={() => Linking.openURL(setup.uri).catch(() => setError('No authenticator app opened. Type the setup key into it instead.'))} /> : null}
             <Button compact icon="copy-outline" label="Copy key" onPress={async () => { await Clipboard.setStringAsync(setup.secret); setInfo('Key copied.'); }} />
           </Row>
           {info ? <Txt variant="body" color={c.link}>{info}</Txt> : null}
