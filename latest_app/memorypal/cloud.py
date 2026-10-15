@@ -42,6 +42,21 @@ def configured():
     return bool(url and key)
 
 
+def captcha_url():
+    """The CAPTCHA check page, or "" when the check is off."""
+    value = os.environ.get("MEMORYPAL_CAPTCHA_URL")
+    return (cloud_config.CAPTCHA_URL if value is None else value).strip()
+
+
+# Requests the server refuses without a CAPTCHA token once CAPTCHA protection
+# is on (refreshing a session never needs one).
+CAPTCHA_PATHS = ("/auth/v1/signup", "/auth/v1/recover", "/auth/v1/resend")
+
+
+def needs_captcha(path, query):
+    return path in CAPTCHA_PATHS or (path == "/auth/v1/token" and (query or {}).get("grant_type") == "password")
+
+
 class CloudError(Exception):
     """A failure with a message that can be shown to people as it is."""
 
@@ -55,6 +70,8 @@ FRIENDLY = {
     "invalid_credentials": "That email and password don't match. Check them, or reset your password.",
     "invalid_grant": "That email and password don't match. Check them, or reset your password.",
     "email_not_confirmed": "Confirm your email first: enter the code we emailed you.",
+    "captcha_failed": "The quick check that keeps out bots didn't work. Try again.",
+    "captcha_timeout": "The quick check in your browser wasn't finished. Try again, and finish it in the browser window that opens.",
     "user_already_exists": "There's already an account with this email. Sign in instead.",
     "email_exists": "There's already an account with this email. Sign in instead.",
     "weak_password": f"Choose a stronger password: at least {MIN_PASSWORD} characters with letters and at least one number.",
@@ -127,13 +144,93 @@ class Session:
         return {"refresh_token": self.refresh_token, "user_id": self.user_id, "email": self.email}
 
 
+class BrowserCheck:
+    """Gets a CAPTCHA token from the check page in the person's web browser.
+
+    Tk has no web view, so this opens the page with a one-time port and state
+    in the address, and waits on 127.0.0.1 for the page to hand the token
+    back. Blocks, so call it from a worker thread.
+    """
+
+    DONE_PAGE = (
+        "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+        "<title>MemoryPal</title><body style='font:16px system-ui,sans-serif;text-align:center;padding:48px 16px'>"
+        "<h1 style='font-size:22px'>{title}</h1><p>You can close this tab and go back to MemoryPal.</p>"
+    )
+
+    def __init__(self, page_url, open_page=None, timeout=180):
+        self.page_url = page_url
+        self.open_page = open_page
+        self.timeout = timeout
+
+    def __call__(self):
+        import http.server
+        import secrets
+        import threading
+        import webbrowser
+
+        state = secrets.token_urlsafe(18)
+        result = {}
+        answered = threading.Event()
+        done_page = self.DONE_PAGE
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            timeout = 5  # a browser's idle pre-connection mustn't hold the loop
+
+            def do_GET(self):
+                parts = urllib.parse.urlsplit(self.path)
+                values = urllib.parse.parse_qs(parts.query)
+                if parts.path != "/done" or values.get("state", [""])[0] != state or answered.is_set():
+                    self.send_error(404)
+                    return
+                if values.get("token", [""])[0]:
+                    result["token"] = values["token"][0][:4096]
+                answered.set()
+                body = done_page.format(title="All set" if result.get("token") else "The check didn't work").encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        server.timeout = 0.5
+        try:
+            address = f"{self.page_url}#port={server.server_address[1]}&state={state}"
+            if (self.open_page or webbrowser.open)(address) is False:
+                raise CloudError("Couldn't open your web browser for the quick check that keeps out bots.", "captcha_failed")
+            deadline = time.monotonic() + self.timeout
+            while not answered.is_set() and time.monotonic() < deadline:
+                server.handle_request()
+        finally:
+            server.server_close()
+        if result.get("token"):
+            return result["token"]
+        if answered.is_set():
+            raise CloudError(FRIENDLY["captcha_failed"], "captcha_failed")
+        raise CloudError(FRIENDLY["captcha_timeout"], "captcha_timeout")
+
+
+def browser_check():
+    """A BrowserCheck for this build's check page, or None when the check is off."""
+    url = captcha_url()
+    return BrowserCheck(url) if url else None
+
+
 class CloudClient:
-    def __init__(self, url=None, key=None, opener=None, timeout=TIMEOUT):
+    def __init__(self, url=None, key=None, opener=None, timeout=TIMEOUT, captcha=None):
         default_url, default_key = config()
         self.url = (url or default_url).rstrip("/")
         self.key = key or default_key
         self.opener = opener or urllib.request.urlopen
         self.timeout = timeout
+        # Called for a CAPTCHA token before sign-in, sign-up and emailed codes.
+        self.captcha = captcha
 
     # ------------------------------------------------------------ transport
     def request(self, method, path, body=None, token=None, query=None, prefer=None):
@@ -149,6 +246,8 @@ class CloudClient:
             headers["Authorization"] = f"Bearer {token}"
         if prefer:
             headers["Prefer"] = prefer
+        if self.captcha and body is not None and needs_captcha(path, query):
+            body = dict(body, gotrue_meta_security={"captcha_token": self.captcha()})
         data = json.dumps(body).encode("utf-8") if body is not None else None
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:

@@ -39,6 +39,8 @@ class FakeSupabase:
         self.fail_next_push = False
         self.factors = {}     # factor id -> {user, status}
         self.challenges = {}  # challenge id -> factor id
+        self.captcha = False  # CAPTCHA protection on: auth requests need a fresh token
+        self.captcha_tokens = set()
 
     # --------------------------------------------------------------- helpers
     def stamp(self):
@@ -85,6 +87,12 @@ class FakeSupabase:
         return FakeResponse(json.dumps(result).encode("utf-8") if result is not None else b"")
 
     def route(self, request, method, path, query, body, user_id):
+        password_grant = path == "/auth/v1/token" and query.get("grant_type") == ["password"]
+        if self.captcha and (path in ("/auth/v1/signup", "/auth/v1/recover", "/auth/v1/resend") or password_grant):
+            token = ((body or {}).get("gotrue_meta_security") or {}).get("captcha_token")
+            if token not in self.captcha_tokens:
+                raise self.error(request, 400, "captcha_failed", "captcha protection: request disallowed")
+            self.captcha_tokens.discard(token)  # single use, like Turnstile's
         if path == "/auth/v1/signup":
             email = body["email"].lower()
             if email in self.users:

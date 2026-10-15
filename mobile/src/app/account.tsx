@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, TextInput, View } from 'react-native';
 
 import { checkPassword, CloudError, consentRecord, legalLinks, looksLikeEmail, needsSecondStep, Session } from '../cloud/client';
+import { useCaptcha } from '../cloud/captcha';
 import { leakedMessage, pwnedCount } from '../cloud/pwned';
 import { readSecret, writeSecret } from '../cloud/secrets';
 import { accountAgeCheck, AGE_RETRY_SECONDS, AttemptLimiter, MIN_PASSWORD, passwordProblems, passwordStrength, STRENGTH_LABELS, UNDER_AGE_MESSAGE, waitMessage } from '../core/security';
@@ -79,6 +80,12 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
   const c = theme.colors;
   const account = sync.account;
   const client = account.client;
+  // Signing in, creating an account and emailing a code pass a CAPTCHA first.
+  const captcha = useCaptcha();
+  useEffect(() => {
+    client.setCaptcha(captcha.request);
+    return () => client.setCaptcha(undefined);
+  }, [client, captcha.request]);
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState(account.email);
   const [password, setPassword] = useState('');
@@ -348,6 +355,7 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
 
   return (
     <Screen narrow>
+      {captcha.sheet}
       {intro ? (
         <View style={{ alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 8 }}>
           <Image source={require('../../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 18 }} accessibilityIgnoresInvertColors accessible={false} />

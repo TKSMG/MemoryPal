@@ -526,5 +526,81 @@ class PlanTests(unittest.TestCase):
         self.assertEqual((plan.push, plan.apply, sorted(plan.final)), ({}, {}, ["card:a"]))
 
 
+class CaptchaTests(unittest.TestCase):
+    def setUp(self):
+        self.server = FakeSupabase()
+        self.server.captcha = True
+        self.issued = []
+
+        def check():
+            token = f"turnstile-{len(self.issued)}"
+            self.issued.append(token)
+            self.server.captcha_tokens.add(token)
+            return token
+
+        self.client = cloud.CloudClient("https://example.supabase.co", self.server.key, opener=self.server.open, captcha=check)
+
+    def test_without_a_check_the_server_refuses(self):
+        self.client.captcha = None
+        with self.assertRaises(cloud.CloudError) as caught:
+            self.client.sign_up(EMAIL, PASSWORD)
+        self.assertEqual(caught.exception.code, "captcha_failed")
+        self.assertEqual(caught.exception.message, cloud.FRIENDLY["captcha_failed"])
+
+    def test_every_protected_request_gets_its_own_token(self):
+        self.assertIsNone(self.client.sign_up(EMAIL, PASSWORD))
+        self.client.resend_confirmation(EMAIL)
+        session = self.client.verify_code(EMAIL, "123456")
+        self.client.sign_in(EMAIL, PASSWORD)
+        self.client.request_password_reset(EMAIL)
+        self.client.refresh(session.refresh_token)  # no check for a refresh
+        self.assertEqual(len(self.issued), 4)
+
+    def test_the_browser_check_hands_back_the_token(self):
+        import threading
+        import urllib.request
+
+        def browser(address):
+            port, state = (part.split("=", 1)[1] for part in address.split("#", 1)[1].split("&"))
+            base = f"http://127.0.0.1:{port}/done"
+
+            def visit():
+                with self.assertRaises(urllib.error.HTTPError):
+                    urllib.request.urlopen(f"{base}?state=wrong&token=planted", timeout=5)
+                with urllib.request.urlopen(f"{base}?state={state}&token=tok-123", timeout=5) as reply:
+                    self.page = reply.read().decode()
+            threading.Thread(target=visit, daemon=True).start()
+            return True
+
+        check = cloud.BrowserCheck("https://tksmg.github.io/MemoryPal/verify/", open_page=browser, timeout=10)
+        self.assertEqual(check(), "tok-123")
+        self.assertIn("All set", self.page)
+
+    def test_the_browser_check_reports_a_failed_or_unfinished_check(self):
+        import threading
+        import urllib.request
+
+        def failing(address):
+            port, state = (part.split("=", 1)[1] for part in address.split("#", 1)[1].split("&"))
+            threading.Thread(target=lambda: urllib.request.urlopen(f"http://127.0.0.1:{port}/done?state={state}&error=110200", timeout=5).read(), daemon=True).start()
+            return True
+
+        with self.assertRaises(cloud.CloudError) as caught:
+            cloud.BrowserCheck("https://example.test/verify/", open_page=failing, timeout=10)()
+        self.assertEqual(caught.exception.code, "captcha_failed")
+        with self.assertRaises(cloud.CloudError) as caught:
+            cloud.BrowserCheck("https://example.test/verify/", open_page=lambda _address: True, timeout=0.6)()
+        self.assertEqual(caught.exception.code, "captcha_timeout")
+        with self.assertRaises(cloud.CloudError) as caught:
+            cloud.BrowserCheck("https://example.test/verify/", open_page=lambda _address: False)()
+        self.assertEqual(caught.exception.code, "captcha_failed")
+
+    def test_the_check_page_setting(self):
+        with mock.patch.dict(os.environ, {"MEMORYPAL_CAPTCHA_URL": ""}):
+            self.assertIsNone(cloud.browser_check())
+        with mock.patch.dict(os.environ, {"MEMORYPAL_CAPTCHA_URL": "https://example.test/verify/"}):
+            self.assertEqual(cloud.browser_check().page_url, "https://example.test/verify/")
+
+
 if __name__ == "__main__":
     unittest.main()
