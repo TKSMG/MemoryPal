@@ -120,9 +120,21 @@ export class CloudAccount {
     return this.remember(fresh);
   }
 
+  /** Sign out here and end the session on the server too, so an earlier copy of the sign-in stops working. */
   async signOut() {
-    if (this.session) await this.client.signOut(this.session);
-    await this.forget();
+    let session = this.session;
+    if (!session && this.saved?.refresh_token) {
+      try {
+        session = await this.client.refresh(this.saved.refresh_token);
+      } catch {
+        session = null; // already ended, or offline: forget it here anyway
+      }
+    }
+    try {
+      if (session) await this.client.signOut(session);
+    } finally {
+      await this.forget();
+    }
   }
 
   async deleteAccount() {
@@ -178,9 +190,24 @@ export class CloudAccount {
     this.saveState();
   }
 
-  /** One full sync: pull, merge into the store, push, remember the new base. */
-  async sync(store: MemoryStore, applying: (apply: () => void) => void = (apply) => apply()): Promise<{ pulled: number; pushed: number; applied: number }> {
+  /**
+   * One full sync: pull, merge into the store, push, remember the new base.
+   *
+   * When this phone last synced with a different account, nothing is sent
+   * until the person chooses (CloudError 'other_account'): 'merge' adds this
+   * phone's cards to the new account, 'replace' swaps them for the account's
+   * own. Without that, signing out of one account and into another quietly
+   * copied the first account's cards into the second.
+   */
+  async sync(
+    store: MemoryStore,
+    applying: (apply: () => void) => void = (apply) => apply(),
+    mode?: 'merge' | 'replace',
+  ): Promise<{ pulled: number; pushed: number; applied: number }> {
     const session = await this.activeSession();
+    if (this.state.user_id && this.state.user_id !== session.userId && !mode) {
+      throw new CloudError(friendly('other_account'), 'other_account');
+    }
     this.useAccount(session.userId);
     const rows = await this.client.pull(session, pullSince(this.state.cursor));
     const remote: Remote = {};
@@ -191,10 +218,12 @@ export class CloudAccount {
     }
     // Reading, merging and writing happen with no await in between, so
     // nothing the person does can slip between them.
-    const payload = store.payload() as unknown as Record<string, unknown>;
+    let payload = store.payload() as unknown as Record<string, unknown>;
+    // Replacing starts from an empty phone (settings stay until the account's own arrive).
+    if (mode === 'replace') payload = { ...payload, cards: [], captures: [], activity: {}, practiced: 0 };
     const local = recordsFromPayload(payload, this.state.device_id, this.state.base);
     const plan = planSync(local, this.state.base, remote);
-    if (Object.keys(plan.apply).length) applying(() => store.replaceWith(applyPlan(payload, local, plan)));
+    if (Object.keys(plan.apply).length || mode === 'replace') applying(() => store.replaceWith(applyPlan(payload, local, plan)));
     if (Object.keys(plan.push).length) await this.client.push(session, plan.push);
     this.state = { ...this.state, base: plan.final, cursor, last_synced: nowLabel() };
     this.saveState();

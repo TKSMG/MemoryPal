@@ -3,7 +3,7 @@
  * shared through React context. Screens re-render whenever either changes.
  */
 import { createContext, ReactNode, useContext, useMemo, useSyncExternalStore } from 'react';
-import { AppState as RNAppState } from 'react-native';
+import { Alert, AppState as RNAppState } from 'react-native';
 
 import { CloudAccount } from '../cloud/account';
 import { CloudError, cloudConfigured, Session } from '../cloud/client';
@@ -144,29 +144,60 @@ export class SyncController {
   }
 
   /** Sync now; resolves to an error message, or '' when everything is in step. */
-  async syncNow(): Promise<string> {
+  async syncNow(mode?: 'merge' | 'replace'): Promise<string> {
     if (this.syncing || !this.configured || !this.account.signedIn) return this.error;
+    if (mode === 'replace') {
+      // Keep a copy of this phone's data before it's swapped for the account's.
+      keyAdapter('memorypal-before-account-switch').save(JSON.stringify(this.store.payload()));
+    }
     this.syncing = true;
     this.changedDuringSync = false;
     this.changed();
     try {
-      await this.account.sync(this.store, (apply) => {
-        this.applying = true;
-        try {
-          apply();
-        } finally {
-          this.applying = false;
-        }
-      });
+      await this.account.sync(
+        this.store,
+        (apply) => {
+          this.applying = true;
+          try {
+            apply();
+          } finally {
+            this.applying = false;
+          }
+        },
+        mode,
+      );
       this.error = '';
     } catch (error) {
       this.error = error instanceof CloudError ? error.message : `Sync stopped: ${String(error)}`;
+      if (error instanceof CloudError && error.code === 'other_account') this.askAboutOtherAccount();
     } finally {
       this.syncing = false;
       this.changed();
     }
     if (this.changedDuringSync && !this.error) this.syncSoon(SYNC_AFTER_CHANGE_MS);
     return this.error;
+  }
+
+  private asking = false;
+
+  /** This phone last synced with another account: ask before mixing the two. */
+  private askAboutOtherAccount() {
+    if (this.asking) return;
+    this.asking = true;
+    const email = this.account.email || 'this account';
+    const done = () => {
+      this.asking = false;
+    };
+    Alert.alert(
+      'Different account',
+      `The cards and progress on this phone came from a different account than ${email}.`,
+      [
+        { text: `Use ${email}'s cards`, onPress: () => { done(); this.syncNow('replace').catch(() => undefined); } },
+        { text: `Add this phone's cards to ${email}`, onPress: () => { done(); this.syncNow('merge').catch(() => undefined); } },
+        { text: 'Sign out', style: 'cancel', onPress: () => { done(); this.signOut().catch(() => undefined); } },
+      ],
+      { cancelable: false },
+    );
   }
 
   async signedIn(session: Session) {

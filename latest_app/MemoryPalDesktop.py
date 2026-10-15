@@ -2774,6 +2774,8 @@ class MemoryPalApp(tk.Tk):
         self.apply_theme_palette()
 
     def update_accessibility_preference(self, key, value, rebuild=True):
+        # Start from the saved copy, which may have just synced from another device.
+        self.accessibility = dict(normalize_accessibility(self.store.accessibility))
         self.accessibility[key] = value
         self.accessibility = normalize_accessibility(self.accessibility)
         self.store.accessibility = dict(self.accessibility)
@@ -4321,7 +4323,7 @@ class MemoryPalApp(tk.Tk):
         wrap = tk.Frame(shell, bg=COLORS["bg"], padx=self.px(20), pady=self.px(20))
         wrap.pack(fill="both", expand=True)
         tk.Label(wrap, text="Profiles", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 20)).pack(anchor="w")
-        tk.Label(wrap, text="Each profile keeps its own decks, stats, and streak, completely separate.", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(380), justify="left").pack(anchor="w", pady=(4, 16))
+        tk.Label(wrap, text="Each profile keeps its own decks, stats, and streak. Sign each one in to a different account to keep them apart in the cloud too.", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(380), justify="left").pack(anchor="w", pady=(4, 16))
 
         list_holder = tk.Frame(wrap, bg=COLORS["bg"])
         list_holder.pack(fill="both", expand=True)
@@ -4368,10 +4370,14 @@ class MemoryPalApp(tk.Tk):
             if not self.dialog_confirm("Delete profile", f"Delete \"{name}\" and everything in it? This can't be undone.", "Delete profile", parent=top, destructive=True):
                 return
             was_active = name == active_profile_name()
+            leaving = self.account if was_active else cloud.Account(app_paths.profile_dir(name))
             ok, error = delete_profile(name)
             if not ok:
                 self.dialog_alert("Delete failed", error, "error", parent=top)
                 return
+            if leaving.signed_in:
+                # End its sign-in on the server too, not just the copy on disk.
+                self.run_in_background(leaving.sign_out, lambda _result, _error: None)
             render_list()
             if was_active:
                 top.destroy()
@@ -4503,6 +4509,31 @@ class MemoryPalApp(tk.Tk):
         self.present_dialog(top)
         top.bind("<Escape>", lambda _event: finish(False))
         confirm.focus_set()
+        top.wait_window()
+        return result["value"]
+
+    def dialog_choice(self, title, body, options, parent=None):
+        """Ask with several answers, stacked: options are (value, label); the
+        first is the main one and the last is the way out (also Escape)."""
+        result = {"value": options[-1][0]}
+        top, _content, actions = self.dialog_window(title, body, parent=parent, width=520)
+
+        def finish(value):
+            result["value"] = value
+            top.destroy()
+
+        first = None
+        for index, (value, label) in enumerate(options):
+            if index == 0:
+                button = self.solid_button(actions, label, lambda v=value: finish(v), COLORS["primary"])
+                first = button
+            else:
+                button = ttk.Button(actions, text=label, command=lambda v=value: finish(v))
+            button.pack(fill="x", pady=(0 if index == 0 else self.px(8), 0))
+        self.present_dialog(top)
+        top.bind("<Escape>", lambda _event: finish(options[-1][0]))
+        if first is not None:
+            first.focus_set()
         top.wait_window()
         return result["value"]
 
@@ -6478,9 +6509,7 @@ class MemoryPalApp(tk.Tk):
 
     def read_aloud_review(self):
         if not self.accessibility.get("read_aloud"):
-            self.accessibility["read_aloud"] = True
-            self.store.accessibility = dict(self.accessibility)
-            self.store.save()
+            self.update_accessibility_preference("read_aloud", True, rebuild=False)
             self.toast_message("Read aloud is on. Turn it off any time in Settings.")
         self.show_view("review")
 
@@ -9241,6 +9270,9 @@ class MemoryPalApp(tk.Tk):
         self._syncing = False
         self._applying_sync = False
         self._changed_during_sync = False
+        # A sync still running for the previous profile reports back to
+        # nobody: its finish is matched against this number.
+        self._sync_generation = getattr(self, "_sync_generation", 0) + 1
         if not hasattr(self, "sign_in_limiter"):
             # Slows repeated wrong passwords or codes on this computer; the
             # server's own rate limits are the real protection.
@@ -9345,7 +9377,7 @@ class MemoryPalApp(tk.Tk):
         thread.start()
         self.after(40, poll)
 
-    def sync_now(self, manual=False):
+    def sync_now(self, manual=False, mode=None):
         self._sync_timer = None
         if self._syncing:
             self._changed_during_sync = True
@@ -9356,26 +9388,51 @@ class MemoryPalApp(tk.Tk):
         self._changed_during_sync = False
         self.sync_status = "Syncing…"
         self.refresh_account_card()
-        account = self.account
+        # The profile can change while the network calls run. Everything
+        # below sticks to the profile this sync started with, and its
+        # merge step refuses to run once another profile is open, so one
+        # profile's cards can never be written into (or deleted from)
+        # another's account.
+        account, store = self.account, self.store
+        generation = self._sync_generation
+
+        def still_current():
+            if account is not self.account or store is not self.store:
+                raise cloud.CloudError("The profile changed while syncing.", "profile_changed")
 
         def read_payload():
+            still_current()
             self.save_current_draft()
-            return self.store.payload()
+            return store.payload()
 
         def write_payload(payload):
+            still_current()
             self._applying_sync = True
             try:
-                self.store.replace_with(payload)
+                store.replace_with(payload)
             finally:
                 self._applying_sync = False
 
         def finished(result, error):
+            if generation != self._sync_generation:
+                return  # the profile changed while syncing; its own sync is running
             self._syncing = False
             if account is not self.account:
-                return  # the profile changed while syncing
+                return
+            if isinstance(error, cloud.CloudError) and error.code == "other_account":
+                self.sync_status = error.message
+                self.refresh_account_card()
+                self.choose_account_merge()
+                return
             if error is None:
                 self.sync_status = ""
-                if self.current_view == "welcome" and self.store.onboarding.get("done"):
+                if normalize_accessibility(self.store.accessibility) != self.accessibility:
+                    # Text size, motion or contrast changed on another device.
+                    self.save_current_draft()
+                    self.accessibility = dict(self.store.accessibility)
+                    self.apply_accessibility_preferences()
+                    self.rebuild_shell(self.current_view, refresh_styles=True)
+                elif self.current_view == "welcome" and self.store.onboarding.get("done"):
                     # Signed in on a new device during first launch: the
                     # account already answered the setup questions.
                     self.show_view("dashboard")
@@ -9399,7 +9456,44 @@ class MemoryPalApp(tk.Tk):
             elif self.auto_sync_ready():
                 self.schedule_sync(self.SYNC_EVERY_MS)
 
-        self.run_in_background(lambda on_ui: account.sync(read_payload, write_payload, on_ui), finished, on_ui_requests=True)
+        if mode == "replace":
+            self.keep_copy_before_account_switch()
+        self.run_in_background(lambda on_ui: account.sync(read_payload, write_payload, on_ui, mode=mode), finished, on_ui_requests=True)
+
+    def keep_copy_before_account_switch(self):
+        """Save this profile's data next to it before it's swapped for an account's."""
+        import shutil
+
+        try:
+            self.save_current_draft()
+            self.store.save()
+            target = self.store.data_file.with_name(f"before-account-switch-{time.strftime('%Y%m%d-%H%M%S')}.json")
+            shutil.copy2(self.store.data_file, target)
+        except OSError:
+            pass
+
+    def choose_account_merge(self):
+        """This profile last synced with another account: ask before mixing the two."""
+        email = self.account.email or "this account"
+        choice = self.dialog_choice(
+            "Different account",
+            f"This profile's cards and progress came from a different account than {email}.\n\n"
+            f"Use {email}'s cards: this profile switches to that account's cards and progress. "
+            "A copy of what's here now is saved in the profile folder first.\n\n"
+            f"Add these cards to {email}: both sets end up together in that account.",
+            [("replace", f"Use {email}'s cards"), ("merge", "Add these cards"), ("cancel", "Sign out")],
+        )
+        if choice in ("replace", "merge"):
+            self.sync_now(manual=True, mode=choice)
+        else:
+            try:
+                self.account.sign_out()
+            except cloud.CloudError:
+                pass
+            self.sync_status = ""
+            self.refresh_account_card()
+            self.refresh_header_status()
+
 
     def sync_chip_text(self):
         """(icon, text) for the header sync chip; empty text hides it."""
@@ -9462,6 +9556,7 @@ class MemoryPalApp(tk.Tk):
             auto.trace_add("write", lambda *_args: self.set_auto_sync(auto.get()))
             self.check_toggle(card, auto, "Sync automatically: a few seconds after each change, when you come back to MemoryPal, and every few minutes", fit=True).pack(fill="x", pady=(0, self.px(12)))
             self._auto_sync_var = auto
+            ttk.Label(card, text="Cards, reviews, streaks and settings sync. Pictures, recordings and attached files stay on the computer that has them.", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(0, self.px(12)))
             self.button_row(card, [
                 ("Sync now", lambda: self.sync_now(manual=True), "TButton"),
                 ("Two-step sign-in", self.open_two_step_manager, "TButton"),
@@ -9482,8 +9577,31 @@ class MemoryPalApp(tk.Tk):
                 link.pack(side="left", padx=(0, self.px(14)))
                 self.keyboard_link(link, lambda _event, target=url: open_web_page(target))
 
+    def profiles_using_account(self, user_id):
+        """Other profiles on this computer that last synced with this account."""
+        names = []
+        for name in list_profiles():
+            if name == active_profile_name():
+                continue
+            try:
+                state = cloud.SyncState(app_paths.profile_dir(name))
+            except OSError:
+                continue
+            if user_id and state.user_id == user_id:
+                names.append(name)
+        return names
+
     def account_signed_in(self, session, message):
         """Remember a new session, sync straight away, and refresh Settings."""
+        sharing = self.profiles_using_account(session.user_id)
+        if sharing and not self.dialog_confirm(
+            "Account already in use",
+            f"The profile \"{sharing[0]}\" already syncs with {session.email or 'this account'}. "
+            "If this profile signs in too, both profiles will share the same cards, progress and settings.",
+            "Share the account",
+        ):
+            self.client_sign_out(session)
+            return
         self.account.remember(session)
         self.mark_sign_in_prompted()
         self.toast_message(message)
@@ -9494,6 +9612,10 @@ class MemoryPalApp(tk.Tk):
             # account's first sync brings them along).
             self.show_view(self.start_view())
         self.sync_now()
+
+    def client_sign_out(self, session):
+        """End a session that was never kept (the person changed their mind)."""
+        self.run_in_background(lambda: self.account.client.sign_out(session), lambda _result, _error: None)
 
     def password_hint(self, password_field, email=None, email_field=None):
         """A live strength line for a password box: (values) -> (text, colour)."""
@@ -10244,7 +10366,12 @@ class MemoryPalApp(tk.Tk):
             self.dialog_alert("Import failed", str(exc), "error")
 
     def reset_data(self):
-        if self.dialog_confirm("Reset MemoryPal", "Clear local data and restore sample cards?", "Reset", destructive=True):
+        body = "Clear local data and restore sample cards?"
+        if self.account.signed_in:
+            body = (f"This clears this profile on this computer. Your cards and progress are still in your account "
+                    f"({self.account.email}) and come back the next time it syncs. To remove them everywhere, "
+                    "delete your account in Settings.")
+        if self.dialog_confirm("Reset MemoryPal", body, "Reset", destructive=True):
             self.account.state.start_over()
             self.store.reset()
             self.accessibility = normalize_accessibility(self.store.accessibility)
