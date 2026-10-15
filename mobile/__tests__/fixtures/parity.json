@@ -789,6 +789,254 @@
    }
   ]
  },
+ "hostile": {
+  "plans": [
+   {
+    "raw": {
+     "settings": {
+      "unit": "days",
+      "amount": "1000000",
+      "deck": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "goal_label": "Cram",
+      "habits": [
+       {},
+       "games",
+       "games",
+       "explain",
+       7
+      ]
+     },
+     "created": "2026-10-01",
+     "done": {
+      "2026-10-01": [
+       "²",
+       "3",
+       1,
+       "12345",
+       null,
+       true
+      ]
+     }
+    },
+    "plan": {
+     "settings": {
+      "unit": "days",
+      "amount": "365",
+      "deck": "All decks",
+      "goal_label": "Cram",
+      "habits": [
+       "games",
+       "explain"
+      ]
+     },
+     "created": "2026-10-01",
+     "done": {
+      "2026-10-01": [
+       1,
+       3
+      ]
+     }
+    }
+   },
+   {
+    "raw": {
+     "settings": {
+      "unit": "weeks",
+      "amount": 99
+     },
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "weeks",
+      "amount": "52",
+      "deck": "All decks",
+      "goal_label": "Long-term retention",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": {
+      "unit": "hours",
+      "amount": "0",
+      "deck": "Spanish",
+      "goal_label": "Exam prep",
+      "habits": "games"
+     },
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "hours",
+      "amount": "1",
+      "deck": "Spanish",
+      "goal_label": "Exam prep",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": {
+      "unit": "minutes",
+      "amount": -4,
+      "deck": null,
+      "goal_label": 3
+     },
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "minutes",
+      "amount": "1",
+      "deck": "All decks",
+      "goal_label": "Long-term retention",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": {
+      "unit": "minutes",
+      "amount": 4.5
+     },
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "minutes",
+      "amount": "30",
+      "deck": "All decks",
+      "goal_label": "Long-term retention",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": {
+      "unit": "minutes",
+      "amount": " 45"
+     },
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "minutes",
+      "amount": "30",
+      "deck": "All decks",
+      "goal_label": "Long-term retention",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": {
+      "unit": "fortnights",
+      "amount": "1_000"
+     },
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "minutes",
+      "amount": "30",
+      "deck": "All decks",
+      "goal_label": "Long-term retention",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": {
+      "unit": [
+       "days"
+      ],
+      "amount": "9999999999999"
+     },
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "minutes",
+      "amount": "30",
+      "deck": "All decks",
+      "goal_label": "Long-term retention",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": {},
+     "done": [],
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "minutes",
+      "amount": "30",
+      "deck": "All decks",
+      "goal_label": "Long-term retention",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": {
+      "unit": "days",
+      "amount": "12",
+      "deck": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+     },
+     "created": "2026-10-02"
+    },
+    "plan": {
+     "settings": {
+      "unit": "days",
+      "amount": "12",
+      "deck": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+      "goal_label": "Long-term retention",
+      "habits": []
+     },
+     "created": "2026-10-02",
+     "done": {}
+    }
+   },
+   {
+    "raw": {
+     "settings": [],
+     "created": "2026-10-02"
+    },
+    "plan": {}
+   },
+   {
+    "raw": "not a plan",
+    "plan": {}
+   }
+  ]
+ },
  "sync_plans": [
   {
    "local": {
@@ -135334,5 +135582,5 @@
    ]
   ]
  },
- "today_check": "2026-10-12"
+ "today_check": "2026-10-15"
 }
