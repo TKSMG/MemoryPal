@@ -14,7 +14,8 @@
       "supabaseUrl": "https://wgfaryxbwritolayuydh.supabase.co",
       "supabasePublishableKey": "sb_publishable_2dZ7rq2PQ9oCMG7bMMWhUQ_am1Zh1E6",
       "termsUrl": "https://github.com/TKSMG/MemoryPal/blob/main/TERMS_OF_USE.md",
-      "privacyUrl": "https://github.com/TKSMG/MemoryPal/blob/main/PRIVACY_POLICY.md"
+      "privacyUrl": "https://github.com/TKSMG/MemoryPal/blob/main/PRIVACY_POLICY.md",
+      "captchaUrl": "https://tksmg.github.io/MemoryPal/verify/"
     },
     "ios": {
       "supportsTablet": true,

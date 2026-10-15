@@ -9279,6 +9279,7 @@ class MemoryPalApp(tk.Tk):
             self.sign_in_limiter = security.AttemptLimiter()
         self.sync_status = ""
         self.account = cloud.Account(self.store.data_file.parent)
+        self.account.client.captcha = cloud.browser_check()
         if self.store.recovered_from is not None:
             # Restored from the last good save: merge with the cloud as if new,
             # so cards newer than that save come back instead of being deleted.
@@ -9637,7 +9638,7 @@ class MemoryPalApp(tk.Tk):
         if seen:
             raise cloud.CloudError(f"This password has appeared in data breaches {seen:,} times, so attackers try it first. Please choose a different one.", "pwned_password")
 
-    def cloud_dialog(self, title, body, fields, submit_label, work, on_success, extra_links=(), hint=None, extra_widgets=None, footer=None):
+    def cloud_dialog(self, title, body, fields, submit_label, work, on_success, extra_links=(), hint=None, extra_widgets=None, footer=None, browser_check=False):
         """A small form dialog whose network call runs in the background.
 
         fields: [(name, label, secret)]. work(values) runs on a worker thread;
@@ -9681,7 +9682,10 @@ class MemoryPalApp(tk.Tk):
             values = {name: entry.get() for name, entry in entries.items()}
             values.update({name: read() for name, read in (footer_values or {}).items()})
             busy["on"] = True
-            error.configure(text="Working…", fg=COLORS["muted"])
+            waiting = "Working…"
+            if browser_check and self.account.client.captcha:
+                waiting = "Working… Finish the quick check in the browser window that opens."
+            error.configure(text=waiting, fg=COLORS["muted"])
             go.configure(state="disabled")
 
             def done(result, failure):
@@ -9775,6 +9779,7 @@ class MemoryPalApp(tk.Tk):
                 extra_links=[("Already have an account? Sign in", lambda: self.open_account_dialog("sign_in"))],
                 hint=self.password_hint("password", email_field="email"),
                 footer=consent_box,
+                browser_check=True,
             )
             return
 
@@ -9815,6 +9820,7 @@ class MemoryPalApp(tk.Tk):
             [("email", "Email", False), ("password", "Password", True)],
             "Sign in", sign_in, signed_in,
             extra_links=[("Forgot your password?", self.open_reset_dialog), ("New here? Create an account", lambda: self.open_account_dialog("create"))],
+            browser_check=True,
         )
 
     def open_second_step_dialog(self, session, on_done):
@@ -9920,7 +9926,7 @@ class MemoryPalApp(tk.Tk):
                 hint=self.password_hint("password", email=email),
             )
 
-        self.cloud_dialog("Reset your password", "Enter your account's email and we'll send a code to choose a new password.", [("email", "Email", False)], "Send code", ask, lambda email, _values: reset_with_code(email))
+        self.cloud_dialog("Reset your password", "Enter your account's email and we'll send a code to choose a new password.", [("email", "Email", False)], "Send code", ask, lambda email, _values: reset_with_code(email), browser_check=True)
 
     def open_two_step_manager(self):
         """Turn two-step sign-in (an authenticator app) on or off."""

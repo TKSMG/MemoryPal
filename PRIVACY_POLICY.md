@@ -1,6 +1,6 @@
 # MemoryPal Privacy Policy
 
-Last updated: October 12, 2026
+Last updated: October 15, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
@@ -57,6 +57,8 @@ iOS Keychain or the Android Keystore), never your password.
 |---|---|---|
 | Supabase (United States, AWS us-east-1) | Hosts accounts and the cloud copy | Your account and cloud copy, as listed above |
 | Google (Gmail) | Sends sign-in and reset codes | Your email address |
+| Cloudflare Turnstile | Checks that a person, not a bot, is signing in, creating an account or asking for an emailed code | Technical signals from the check page, such as your IP address and browser details. Not your email, password or cards |
+| GitHub Pages | Hosts that check page | Your IP address and browser details, like any website |
 | Have I Been Pwned | Checks whether a new password has appeared in a data breach | Only the first 5 characters of a scrambled (SHA-1) form of the password, never the password itself |
 | FormSubmit | Delivers feedback you choose to send from the desktop app | Your feedback notes, your system version, text size and theme, and a reply address if you give one |
 
