@@ -27,6 +27,8 @@ jobs:
       - name: Measure scroll pacing
         shell: bash
         run: |
-          python tools/render_check/scroll_probe.py library stats > probe.txt 2>&1 || true
+          for mode in current nocover scrollwindow; do
+            SCROLL_MODE=$mode python tools/render_check/scroll_probe.py library stats >> probe.txt 2>&1 || true
+          done
           cat probe.txt
           python -c "import sys; t=open('probe.txt').read()[-3800:]; print('::notice title=Scroll probe ${{ matrix.os }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
