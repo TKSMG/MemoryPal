@@ -360,7 +360,19 @@ def hostile_cases():
         {"id": "neg", "interval": -5, "repetitions": "-3", "lapses": 1e300, "ease": -1, "created_at": "2026-10-01 09:00", "next_review": "2026-10-02"},
         {"id": "ok", "interval": 36500, "repetitions": 10000, "lapses": "17", "ease": "2.1", "created_at": "2026-10-01 09:00", "next_review": "2026-10-02"},
     ]
+    from memorypal import sync
+
+    card = {"id": "a", "front": "Q", "back": "A", "repetitions": 1}
+    syncs = [
+        # Unknown kinds, keys that are built-in names in JavaScript, and a non-key.
+        ({"card:a": card}, {"card:a": card}, {"__proto__": {"card:a": None}, "constructor": {"x": 1}, "evil:x": {"a": 1}, "settings": {"daily_goal": 1}, "card:b": {"id": "b"}}),
+        # An unknown key already in the base is dropped, not deleted in the cloud.
+        ({"card:a": card}, {"card:a": card, "evil:x": {"a": 1}, "toString": {"b": 2}}, {}),
+        # Field names that are built-in names in JavaScript, changed on both sides.
+        ({"card:a": {**card, "__proto__": "mine", "constructor": "mine", "back": "mine"}}, {"card:a": card}, {"card:a": {**card, "__proto__": "theirs", "toString": "theirs", "back": "theirs"}}),
+    ]
     return {
+        "sync": [{"local": l, "base": b, "remote": r, "push": plan.push, "apply": plan.apply, "final": plan.final} for l, b, r in syncs for plan in [sync.plan_sync(l, b, r)]],
         "plans": [{"raw": raw, "plan": normalize_study_plan(raw)} for raw in plans],
         "cards": [{"raw": raw, "card": Card.from_dict(raw).__dict__} for raw in cards],
     }

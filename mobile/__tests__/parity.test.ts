@@ -125,9 +125,13 @@ describe('parity with the desktop logic', () => {
     }
   });
 
-  test('damaged or hostile plans and cards from sync are cleaned the same way', () => {
+  test('damaged or hostile records from sync are handled the same way', () => {
     for (const [i, item] of fixtures.hostile.plans.entries()) expect({ i, plan: normalizeStudyPlan(item.raw) }).toEqual({ i, plan: item.plan });
     for (const item of fixtures.hostile.cards) expect(cardFromDict(item.raw)).toEqual(item.card);
+    for (const [i, item] of fixtures.hostile.sync.entries()) {
+      const plan = planSync(item.local as unknown as Records, item.base as unknown as Records, item.remote as unknown as Remote);
+      expect({ i, push: plan.push, apply: plan.apply, final: plan.final }).toEqual({ i, push: item.push, apply: item.apply, final: item.final });
+    }
   });
 
   test('profile data converts to sync records and back the same way', () => {
