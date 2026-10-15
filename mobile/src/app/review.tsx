@@ -48,6 +48,12 @@ const RATINGS: { bucket: Bucket; quality: number; kind: ButtonKind; label: strin
   { bucket: 'Easy', quality: 5, kind: 'easy', label: 'Easy', simple: 'Easy' },
 ];
 
+/** Ends a phrase with a full stop unless it already has closing punctuation. */
+function sentence(text: string): string {
+  const trimmed = text.trim();
+  return !trimmed || /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
 function whenLabel(days: number): string {
   if (days <= 1) return 'tomorrow';
   if (days < 30) return `in ${days} days`;
@@ -239,22 +245,27 @@ export default function Review() {
           {checked && bucketColors ? (
             <View accessibilityLiveRegion="polite" style={{ backgroundColor: bucketColors[0], borderRadius: 14, padding: 14, gap: 4 }}>
               <Txt variant="h3" color={bucketColors[1]}>{theme.simple ? describeSimply(checked) : `${checked.label} · ${checked.score}%`}</Txt>
-              {!theme.simple ? <Txt variant="small" color={bucketColors[1]}>{checked.detail} Suggested: {RATINGS.find((r) => r.bucket === checked.bucket)?.label}.</Txt> : null}
+              {!theme.simple ? <Txt variant="small" color={bucketColors[1]}>{`${sentence(checked.detail)} Suggested: ${RATINGS.find((r) => r.bucket === checked.bucket)?.label}.`}</Txt> : null}
             </View>
           ) : null}
           <Txt variant="h3">{theme.plain('How well did you remember it?', 'How did it go?')}</Txt>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {RATINGS.map((rating) => {
               const suggested = checked?.bucket === rating.bucket;
+              const label = theme.simple ? rating.simple : rating.label;
+              const when = whenLabel(preview(rating.quality));
               return (
                 <Button
                   key={rating.bucket}
                   kind={rating.kind}
-                  label={theme.simple ? rating.simple : rating.label}
-                  sublabel={whenLabel(preview(rating.quality))}
+                  label={label}
+                  sublabel={when}
+                  accessibilityLabel={`${label}, ${when}${suggested ? ', suggested' : ''}`}
                   onPress={() => rate(rating.quality, rating.bucket)}
-                  hint={`Shows this card again ${whenLabel(preview(rating.quality))}`}
-                  style={[{ flexBasis: '46%', flexGrow: 1 }, suggested && { borderWidth: 3, borderColor: c.focus }]}
+                  hint={`Shows this card again ${when}`}
+                  // Every rating keeps the same border width, so marking the
+                  // suggested one doesn't make it smaller than the others.
+                  style={{ flexBasis: '46%', flexGrow: 1, borderWidth: 3, borderColor: suggested ? c.suggested : 'transparent' }}
                 />
               );
             })}

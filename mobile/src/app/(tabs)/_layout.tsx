@@ -65,7 +65,9 @@ export default function TabLayout() {
             title: tab.title,
             tabBarIcon: ({ color, focused }) => <Ionicons name={focused ? tab.active : tab.icon} size={24} color={color} />,
             tabBarBadge: tab.name === 'study' && due ? due : undefined,
-            tabBarBadgeStyle: { backgroundColor: theme.colors.primary, color: theme.colors.onPrimary },
+            // With the label beside the icon (iPad), the default spot sits the
+            // badge on top of the icon; lift it to the icon's top-right corner instead.
+            tabBarBadgeStyle: [{ backgroundColor: theme.colors.primary, color: theme.colors.onPrimary }, wide && { top: -10, end: undefined, start: 18 }],
             tabBarAccessibilityLabel: tab.name === 'study' && due ? `${tab.title}, ${due} cards due` : tab.title,
           }}
         />
