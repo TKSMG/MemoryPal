@@ -268,7 +268,7 @@ def sync_cases():
                 local[key] = l
             if rng.random() < 0.5:
                 remote[key] = rng.choice(pool)
-        settings = [{"daily_goal": 15, "accessibility": {"text_size": "Comfort"}}, {"daily_goal": 30, "accessibility": {"text_size": "Comfort"}}, {"daily_goal": 15, "accessibility": {"text_size": "Large"}}]
+        settings = [{"daily_goal": 15, "accessibility": {"text_size": "Comfort"}}, {"daily_goal": 30, "accessibility": {"text_size": "Comfort"}}, {"daily_goal": 15, "accessibility": {"text_size": "Large"}}, {"daily_goal": 15, "accessibility": {"text_size": "Comfort", "reduce_motion": True}}]
         b = rng.choice(settings)
         base[sync.SETTINGS_KEY] = b
         local[sync.SETTINGS_KEY] = rng.choice([b, rng.choice(settings)])

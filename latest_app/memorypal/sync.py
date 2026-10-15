@@ -161,6 +161,11 @@ def merge_record(key, base, local, remote):
             value = theirs
         elif theirs == was:
             value = mine
+        elif key == SETTINGS_KEY and isinstance(mine, dict) and isinstance(theirs, dict):
+            # Settings groups (accessibility, the study plan) merge one level
+            # deeper, so changing text size on one device and motion on
+            # another keeps both.
+            value = merge_record("settings:group", was if isinstance(was, dict) else {}, mine, theirs)
         else:
             value = theirs  # both changed the same field: the cloud copy wins
         merged[name] = value
