@@ -1,8 +1,10 @@
 /** Building blocks shared by every screen: calm, large, and accessible by default. */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ReactNode, useRef, useState } from 'react';
+import { ReactElement, ReactNode, Ref, useRef, useState } from 'react';
 import {
+  FlatList,
   KeyboardAvoidingView,
+  ListRenderItem,
   Platform,
   Pressable,
   ScrollView,
@@ -19,7 +21,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Theme, useTheme } from './theme';
+import { pressedShade, Theme, useTheme } from './theme';
 
 export type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -69,10 +71,20 @@ export function Txt({ variant = 'body', color, style, children, center, ...rest 
 // -------------------------------------------------------------- screen
 /** Lines stay readable on iPad and in landscape: content stops growing here and centres. */
 const READABLE_WIDTH = 720;
+/** Forms (sign-in, add, edit) stop at a narrower width so fields don't stretch across an iPad. */
+const FORM_WIDTH = 520;
 
-export function Screen({ title, eyebrow, right, children, scroll = true, padded = true }: { title?: string; eyebrow?: string; right?: ReactNode; children: ReactNode; scroll?: boolean; padded?: boolean }) {
+/** Side margins follow the screen: tighter on small phones so nothing is
+ * squeezed, roomier on tablets (where content also stops at a readable width). */
+function useGutter(): number {
+  const { width } = useWindowDimensions();
+  return width < 360 ? 16 : width >= 600 ? 28 : 20;
+}
+
+function ScreenHeader({ title, eyebrow, right }: { title?: string; eyebrow?: string; right?: ReactNode }) {
   const theme = useTheme();
-  const header = title ? (
+  if (!title) return null;
+  return (
     <View style={styles.header}>
       <View style={{ flex: 1 }}>
         {eyebrow ? <Txt variant="label" color={theme.colors.link}>{eyebrow}</Txt> : null}
@@ -80,12 +92,15 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
       </View>
       {right}
     </View>
-  ) : null;
-  const { width } = useWindowDimensions();
-  // Side margins follow the screen: tighter on small phones so nothing is
-  // squeezed, roomier on tablets (where content also stops at a readable width).
-  const gutter = width < 360 ? 16 : width >= 600 ? 28 : 20;
+  );
+}
+
+export function Screen({ title, eyebrow, right, children, scroll = true, padded = true, narrow }: { title?: string; eyebrow?: string; right?: ReactNode; children: ReactNode; scroll?: boolean; padded?: boolean; /** Cap the content at form width (centred) on wide screens. */ narrow?: boolean }) {
+  const theme = useTheme();
+  const header = <ScreenHeader title={title} eyebrow={eyebrow} right={right} />;
+  const gutter = useGutter();
   const pad = padded ? { paddingHorizontal: gutter } : null;
+  const width = narrow ? { maxWidth: FORM_WIDTH + (padded ? gutter * 2 : 0) } : null;
   // iOS scroll views move clear of the keyboard on their own
   // (automaticallyAdjustKeyboardInsets); Android, drawn edge to edge, needs a
   // keyboard-avoiding view, offset by however far the screen sits below the
@@ -105,7 +120,7 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
         <KeyboardAvoidingView style={{ flex: 1 }} enabled={Platform.OS === 'android'} behavior="padding" keyboardVerticalOffset={topOffset}>
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={[styles.readable, { paddingTop: 12, paddingBottom: 32, gap: 16 }, pad]}
+          contentContainerStyle={[styles.readable, { paddingTop: 12, paddingBottom: 32, gap: 16 }, pad, width]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           automaticallyAdjustKeyboardInsets
@@ -115,13 +130,51 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
         </ScrollView>
         </KeyboardAvoidingView>
       ) : (
-        <View style={[styles.readable, { flex: 1, paddingTop: 12 }, pad]}>
+        <View style={[styles.readable, { flex: 1, paddingTop: 12 }, pad, width]}>
           {header}
           {children}
         </View>
       )}
     </SafeAreaView>
   );
+}
+
+/**
+ * A screen whose body is a long list: rows are virtualised (only those near
+ * the viewport are rendered), and the header content scrolls with them. The
+ * list spans the whole width so a drag in the iPad side margins still scrolls.
+ */
+export function ScreenList<T>({ title, eyebrow, right, header, data, renderItem, keyExtractor, empty }: { title?: string; eyebrow?: string; right?: ReactNode; header?: ReactNode; data: readonly T[]; renderItem: ListRenderItem<T>; keyExtractor: (item: T) => string; empty?: ReactElement | null }) {
+  const theme = useTheme();
+  const gutter = useGutter();
+  const column = [styles.readable, { paddingHorizontal: gutter }];
+  return (
+    <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <FlatList
+        style={{ flex: 1 }}
+        data={data}
+        renderItem={(info) => <View style={column}>{renderItem(info)}</View>}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
+        ListHeaderComponent={
+          <View style={[column, { gap: 16, marginBottom: 16 }]}>
+            <ScreenHeader title={title} eyebrow={eyebrow} right={right} />
+            {header}
+          </View>
+        }
+        ListEmptyComponent={empty ? <View style={column}>{empty}</View> : null}
+        ItemSeparatorComponent={ListGap}
+        initialNumToRender={8}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+      />
+    </SafeAreaView>
+  );
+}
+
+function ListGap() {
+  return <View style={{ height: 16 }} />;
 }
 
 // ---------------------------------------------------------------- card
@@ -151,7 +204,7 @@ export function Card({ children, tone = 'default', style, onPress, accessibility
 /** Smallest touch target: Apple asks for 44pt, Android's Material guidance for 48dp. */
 const MIN_TOUCH = Platform.OS === 'android' ? 48 : 44;
 
-export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'ghost' | 'again' | 'review' | 'good' | 'easy';
+export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'dangerGhost' | 'ghost' | 'again' | 'review' | 'good' | 'easy';
 
 function buttonColors(theme: Theme, kind: ButtonKind): [string, string, string] {
   const c = theme.colors;
@@ -159,25 +212,28 @@ function buttonColors(theme: Theme, kind: ButtonKind): [string, string, string] 
     case 'primary':
       return [c.primary, c.onPrimary, c.primaryPressed];
     case 'danger':
-      return [c.danger, c.onDanger, c.danger];
+      return [c.danger, c.onDanger, c.dangerPressed];
     case 'ghost':
       return ['transparent', c.link, c.surfaceSoft];
+    case 'dangerGhost':
+      return ['transparent', c.dangerText, c.surfaceSoft];
     case 'again':
     case 'review':
     case 'good':
     case 'easy':
-      return [c[kind][0], c[kind][1], c[kind][0]];
+      return [c[kind][0], c[kind][1], pressedShade(c[kind][0], theme.dark)];
     default:
       return [c.surfaceSoft, c.ink, c.alt];
   }
 }
 
-export function Button({ label, onPress, kind = 'secondary', icon, disabled, hint, compact, style, sublabel, accessibilityLabel }: { label: string; onPress: () => void; kind?: ButtonKind; icon?: IconName; disabled?: boolean; hint?: string; compact?: boolean; style?: StyleProp<ViewStyle>; sublabel?: string; accessibilityLabel?: string }) {
+export function Button({ label, onPress, kind = 'secondary', icon, disabled, hint, compact, inline, style, sublabel, accessibilityLabel }: { label: string; onPress: () => void; kind?: ButtonKind; icon?: IconName; disabled?: boolean; hint?: string; compact?: boolean; /** Text-only ghost action that lines its text up with the content edge (e.g. a section title's action); the hit area grows outward instead. */ inline?: boolean; style?: StyleProp<ViewStyle>; sublabel?: string; accessibilityLabel?: string }) {
   const theme = useTheme();
   const [bg, fg, pressedBg] = buttonColors(theme, kind);
   return (
     <Pressable
       onPress={onPress}
+      hitSlop={inline ? { left: 8, right: 8 } : undefined}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? (sublabel ? `${label}, ${sublabel}` : label)}
@@ -187,6 +243,7 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
         styles.button,
         { backgroundColor: pressed ? pressedBg : bg, minHeight: compact ? MIN_TOUCH : 52, opacity: disabled ? 0.45 : 1 },
         kind === 'secondary' && { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.line },
+        inline && styles.inlineButton,
         // A press answers the moment the finger lands, not on release.
         pressed && !disabled && !theme.reduceMotion && styles.pressedButton,
         style,
@@ -195,7 +252,7 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
       {icon ? <Ionicons name={icon} size={theme.font(20)} color={fg} /> : null}
       <View style={{ alignItems: 'center', flexShrink: 1 }}>
         <Text maxFontSizeMultiplier={1.8} style={{ color: fg, fontSize: theme.font(compact ? 15 : 17), fontWeight: '700', textAlign: 'center' }}>{label}</Text>
-        {sublabel ? <Text maxFontSizeMultiplier={1.6} style={{ color: fg, fontSize: theme.font(12), opacity: 0.85 }}>{sublabel}</Text> : null}
+        {sublabel ? <Text maxFontSizeMultiplier={1.6} style={{ color: fg, fontSize: theme.font(12), fontWeight: '500' }}>{sublabel}</Text> : null}
       </View>
     </Pressable>
   );
@@ -245,8 +302,9 @@ export function Pills<T extends string>({ options, value, onChange, label }: { o
   );
 }
 
-export function Field({ label, hint, ...input }: TextInputProps & { label: string; hint?: string }) {
+export function Field({ label, hint, ref, ...input }: TextInputProps & { label: string; hint?: string; ref?: Ref<TextInput> }) {
   const theme = useTheme();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 6 }}>
       <Txt variant="h3">{label}</Txt>
@@ -256,11 +314,23 @@ export function Field({ label, hint, ...input }: TextInputProps & { label: strin
         placeholderTextColor={theme.colors.muted}
         maxFontSizeMultiplier={2}
         {...input}
+        ref={ref}
+        onFocus={(event) => {
+          setFocused(true);
+          input.onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setFocused(false);
+          input.onBlur?.(event);
+        }}
         style={[
           styles.input,
+          // Focus thickens the outline to 2pt in the primary colour; the
+          // padding gives back the extra point so the text doesn't shift.
+          focused && styles.inputFocused,
           {
             backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.line,
+            borderColor: focused ? theme.colors.primary : theme.colors.inputBorder,
             color: theme.colors.ink,
             fontSize: theme.font(17),
             minHeight: input.multiline ? 96 : 52,
@@ -282,7 +352,8 @@ export function ToggleRow({ label, description, value, onChange }: { label: stri
       accessibilityState={{ checked: value }}
       accessibilityLabel={label}
       accessibilityHint={description}
-      style={styles.toggle}
+      android_ripple={Platform.OS === 'android' ? { color: theme.colors.alt } : undefined}
+      style={({ pressed }) => [styles.toggle, pressed && Platform.OS !== 'android' && { backgroundColor: theme.colors.surfaceSoft }]}
     >
       <View style={{ flex: 1, gap: 2 }}>
         <Txt variant="h3">{label}</Txt>
@@ -366,6 +437,10 @@ const styles = StyleSheet.create({
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: { minHeight: MIN_TOUCH, minWidth: 56, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  inlineButton: { paddingHorizontal: 6, marginHorizontal: -6 },
   input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6 },
+  // The primary border is the focus ring, so the browser's own outline is dropped on web.
+  inputFocused: { borderWidth: 2, paddingHorizontal: 13, paddingVertical: 11, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : null) },
+  // The pressed highlight reaches a little past the text, so the row reads as one target.
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 12, overflow: 'hidden' },
 });
