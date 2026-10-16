@@ -389,3 +389,13 @@ This build is packaged as release 0.48.4.
 - The release now includes the signed Google Play bundle (`MemoryPal-Android-PlayStore.aab`) and the Microsoft Store package (`MemoryPal-Windows-Store.msix`) built with the Partner Center identity.
 
 This build is packaged as release 0.48.5.
+
+## v86 - Smooth Scrolling, Security Pass and Safer Account Switching
+
+- Desktop: scrolling runs at the screen's full refresh rate (64 instead of 31 steps a second on a 60Hz Windows screen); touchpads follow your fingers 1:1; Macs use their real refresh rate (120Hz on ProMotion screens).
+- Accounts: signing a profile or phone in to a different account now asks first (use that account's cards, add these cards to it, or sign out) instead of copying everything across; a copy is kept before switching. Signing two profiles in to one account warns first. Settings changed on two devices merge setting by setting.
+- Security: a CAPTCHA check (Cloudflare Turnstile) runs before signing in, creating an account and emailing a code; the Mac keeps its sign-in in the Keychain; crafted study plans, PDFs and sync records can no longer freeze or crash the app; signing out ends the session on the server; Android no longer backs app data up to Google.
+- Phone: 19 design fixes, including visible text-field borders, pressed states, large-text layouts, return-key flow on the sign-in form and a faster card list.
+- The Privacy Policy lists Cloudflare Turnstile and GitHub Pages (October 15, 2026).
+
+This build is packaged as release 0.49.0.
