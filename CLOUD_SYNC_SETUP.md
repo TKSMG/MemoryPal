@@ -14,9 +14,10 @@ You don't need a domain to build or test this. You will want one before a public
 2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql) and run it.
    It creates the `sync_records` table, its Row Level Security policies (people can read and
    write only their own rows, and two-step accounts need the second step), a storage
-   allowance per person (50,000 records or 100 MB, far above real use), and the
+   allowance per person (20,000 records or 25 MB, far above real use), and the
    `delete_my_account()` function used by "Delete account". The script is safe to run again
-   after it changes; rerun it whenever `schema.sql` is updated.
+   after it changes; rerun it whenever `schema.sql` is updated. An existing project can
+   instead run just the newer changes in [`supabase/migrations/`](supabase/migrations).
 3. Open **Project Settings → API keys** and copy the **Project URL** and the **publishable
    key** (`sb_publishable_...`). Never put the secret / service-role key in either app.
 
@@ -89,9 +90,17 @@ $env:PYTHONIOENCODING="utf-8"; python tools\parity\sync_interop.py   # desktop <
   and [`TERMS_OF_USE.md`](TERMS_OF_USE.md). Fill in the bracketed parts and have them reviewed,
   publish them, then put their addresses in `cloud_config.py` (`TERMS_URL`, `PRIVACY_URL`) and
   `mobile/app.json` (`expo.extra.termsUrl`, `privacyUrl`). The sign-up screens link to them.
-- **CAPTCHA** (Authentication → Attack Protection) helps stop bot sign-ups, but the apps
-  don't send a CAPTCHA token yet. Turning it on before that is built will block every sign-up
-  and sign-in.
+- **CAPTCHA** stops bots from mass-creating accounts. The apps open a Cloudflare Turnstile
+  check (`site/verify/`, published to https://tksmg.github.io/MemoryPal/verify/ by
+  `.github/workflows/pages.yml`) before signing in, creating an account, resetting a password
+  or resending a code, and send its token along. The page address is `CAPTCHA_URL` in
+  `cloud_config.py` and `expo.extra.captchaUrl` in `mobile/app.json`. To turn it on, in order:
+  1. Cloudflare dashboard → Turnstile → Add widget: hostname `tksmg.github.io`, mode Managed.
+  2. GitHub → Settings → Pages → Source: **GitHub Actions**; Settings → Secrets and variables →
+     Actions → Variables: `TURNSTILE_SITE_KEY` = the widget's site key. Run **Publish website**.
+  3. Release the apps (older versions can't pass the check).
+  4. Supabase → Authentication → Attack Protection → Enable CAPTCHA protection: provider
+     Turnstile, the widget's **secret** key.
 - **Google and Apple sign-in** are planned. Apple requires Sign in with Apple on iOS if any
   other social sign-in is offered.
 - Consider the Pro plan for leaked-password protection, daily backups and no project pausing.

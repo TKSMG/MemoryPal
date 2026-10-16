@@ -11,8 +11,8 @@ from memorypal.core import add_days, today_iso  # noqa: E402
 from memorypal.models import Card  # noqa: E402
 from datetime import date, timedelta  # noqa: E402
 
-from memorypal.planning import build_multi_day_plan, build_study_plan, plan_for_today  # noqa: E402
-from memorypal.store import MemoryStore  # noqa: E402
+from memorypal.planning import MAX_PLAN_DAYS, MAX_PLAN_MINUTES, build_multi_day_plan, build_study_plan, plan_for_today  # noqa: E402
+from memorypal.store import MemoryStore, normalize_study_plan  # noqa: E402
 
 ALL_HABITS = {"mnemonics", "repetition", "quick_mc", "games", "breaks", "explain"}
 
@@ -108,6 +108,33 @@ class SavedPlanTests(PlanTestCase):
         self.assertEqual(reloaded.study_plan["settings"]["amount"], "15")
         self.assertEqual(reloaded.plan_steps_done(), {1})
         self.assertFalse(reloaded.toggle_plan_step(1))
+
+
+class SyncedPlanTests(PlanTestCase):
+    """A plan can arrive from another device, so it is checked before use."""
+
+    def test_settings_are_cut_to_what_the_app_offers(self):
+        plan = normalize_study_plan({"settings": {"unit": "days", "amount": "1000000", "deck": "x" * 201, "goal_label": ["Cram"], "habits": [{}, "games", "games", "rm -rf", 3], "extra": "dropped"}, "done": {}})
+        self.assertEqual(plan["settings"], {"unit": "days", "amount": "365", "deck": "All decks", "goal_label": "Long-term retention", "habits": ["games"]})
+        for unit, amount, expected in (("weeks", "999", "52"), ("hours", "0", "1"), ("minutes", 5000, "600"), ("fortnights", "3", "3"), ("days", "²", "1"), ("days", " 7", "1"), ("days", True, "1"), ("minutes", 4.5, "30")):
+            self.assertEqual(normalize_study_plan({"settings": {"unit": unit, "amount": amount}})["settings"]["amount"], expected, (unit, amount))
+        self.assertEqual(normalize_study_plan({"settings": {"unit": ["days"]}})["settings"]["unit"], "minutes")
+
+    def test_ticks_keep_only_plain_numbers(self):
+        plan = normalize_study_plan({"settings": {}, "done": {"2026-10-15": ["²", "3", 1, "9" * 5000, None]}})
+        self.assertEqual(plan["done"], {"2026-10-15": [1, 3]})
+
+    def test_huge_or_odd_plans_from_sync_stay_quick(self):
+        payload = self.store.payload()
+        payload["study_plan"] = {"settings": {"unit": "days", "amount": "1000000", "habits": [{}]}, "created": today_iso(), "done": {}}
+        self.store.replace_with(payload)
+        self.assertEqual(plan_for_today(self.store)["total_days"], 365)
+        # Even unchecked plans are capped and don't trip over odd habits.
+        raw = {"settings": {"unit": "days", "amount": "1000000", "habits": [{}, ["x"]]}, "created": today_iso(), "done": {}}
+        self.assertEqual(plan_for_today(self.store, raw)["total_days"], MAX_PLAN_DAYS)
+        steps = plan_for_today(self.store, {"settings": {"unit": "minutes", "amount": "999999"}})["steps"]
+        self.assertEqual(sum(step["minutes"] for step in steps), MAX_PLAN_MINUTES)
+        self.assertEqual(len(build_multi_day_plan(self.store, 10 ** 9, "All decks", set(), "long_term")), MAX_PLAN_DAYS)
 
 
 class MultiDayPlanTests(PlanTestCase):

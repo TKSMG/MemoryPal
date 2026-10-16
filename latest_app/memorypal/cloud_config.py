@@ -18,3 +18,9 @@ SUPABASE_PUBLISHABLE_KEY = "sb_publishable_2dZ7rq2PQ9oCMG7bMMWhUQ_am1Zh1E6"
 # Until they have a home of their own, they're read from the public repository.
 TERMS_URL = "https://github.com/TKSMG/MemoryPal/blob/main/TERMS_OF_USE.md"
 PRIVACY_URL = "https://github.com/TKSMG/MemoryPal/blob/main/PRIVACY_POLICY.md"
+
+# The CAPTCHA check page (site/verify/, published by .github/workflows/pages.yml).
+# Signing in, creating an account and emailing a code open it first, so bots
+# can't mass-create accounts. Empty turns the check off. The
+# MEMORYPAL_CAPTCHA_URL environment variable overrides it ("" turns it off).
+CAPTCHA_URL = "https://tksmg.github.io/MemoryPal/verify/"

@@ -1,7 +1,7 @@
 /** Today: the one next action first, then today's plan, progress, and study modes. */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import { now } from '../../core/dates';
 import { persona } from '../../core/personas';
@@ -37,6 +37,7 @@ export default function Today() {
   const sync = useSync();
   const theme = useTheme();
   const c = theme.colors;
+  const android = Platform.OS === 'android';
   const due = store.dueCards();
   const weak = store.weakCards();
   const today = store.todayCount();
@@ -95,13 +96,15 @@ export default function Today() {
         </Row>
       </Card>
 
-      <SectionTitle action={<Button kind="ghost" compact label={plan ? 'Edit' : 'Make one'} onPress={() => router.push('/plan')} />}>Today’s plan</SectionTitle>
+      <SectionTitle action={<Button kind="ghost" compact inline label={plan ? 'Edit' : 'Make one'} onPress={() => router.push('/plan')} />}>Today’s plan</SectionTitle>
       {plan ? (
         <Card>
           <Txt variant="muted">{plan.title}</Txt>
           {plan.finished ? <Txt variant="body">Well done — the plan is complete. Make a new one when you’re ready.</Txt> : null}
           {plan.steps.map((step, index) => {
             const ticked = done.has(index);
+            // A press shows at once: a ripple on Android, a soft fill elsewhere.
+            const pressedFill = (pressed: boolean) => pressed && !android && { backgroundColor: c.surfaceSoft };
             return (
               <Row key={`${step.title}-${index}`} style={{ alignItems: 'flex-start' }}>
                 <Pressable
@@ -110,11 +113,18 @@ export default function Today() {
                   accessibilityState={{ checked: ticked }}
                   accessibilityLabel={`${step.title}, ${step.minutes} minutes`}
                   hitSlop={10}
-                  style={{ paddingTop: 2 }}
+                  android_ripple={android ? { color: c.alt, borderless: true, radius: 22 } : undefined}
+                  style={({ pressed }) => [{ paddingTop: 2, borderRadius: 22 }, pressedFill(pressed)]}
                 >
                   <Ionicons name={ticked ? 'checkmark-circle' : 'ellipse-outline'} size={theme.icon(28)} color={ticked ? c.green : c.muted} />
                 </Pressable>
-                <Pressable style={{ flex: 1, gap: 2, minHeight: 44 }} onPress={() => openStep(step)} accessibilityRole="button" accessibilityHint="Opens this step">
+                <Pressable
+                  onPress={() => openStep(step)}
+                  accessibilityRole="button"
+                  accessibilityHint="Opens this step"
+                  android_ripple={android ? { color: c.alt } : undefined}
+                  style={({ pressed }) => [{ flex: 1, gap: 2, minHeight: 44, paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 10, overflow: 'hidden' }, pressedFill(pressed)]}
+                >
                   <Txt variant="h3" style={ticked ? { textDecorationLine: 'line-through', color: c.muted } : undefined}>{step.title}</Txt>
                   <Txt variant="small">{step.minutes} min · {step.blurb}</Txt>
                 </Pressable>

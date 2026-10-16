@@ -1,0 +1,64 @@
+name: Publish website
+
+# Publishes site/ to GitHub Pages (https://tksmg.github.io/MemoryPal/).
+# site/verify/ is the CAPTCHA check the apps open before signing in or
+# creating an account. Needs Settings > Pages > Source: GitHub Actions, and
+# the repository variable TURNSTILE_SITE_KEY (the public site key from the
+# Cloudflare Turnstile widget).
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - site/**
+      - .github/workflows/pages.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Fill in the Turnstile site key
+        env:
+          SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+        run: |
+          if [ -z "$SITE_KEY" ]; then
+            echo "::error::Set the repository variable TURNSTILE_SITE_KEY first (Settings > Secrets and variables > Actions > Variables)."
+            exit 1
+          fi
+          if ! printf '%s' "$SITE_KEY" | grep -Eq '^[A-Za-z0-9_-]{10,100}$'; then
+            echo "::error::TURNSTILE_SITE_KEY doesn't look like a Turnstile site key."
+            exit 1
+          fi
+          sed -i "s/__TURNSTILE_SITE_KEY__/$SITE_KEY/" site/verify/index.html
+          grep -q "$SITE_KEY" site/verify/index.html
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -53,6 +53,7 @@ export default function Study() {
               </Row>
               <Txt variant="muted">{option.body}</Txt>
             </View>
+            <Ionicons name="chevron-forward" size={theme.icon(20)} color={c.muted} style={{ alignSelf: 'center' }} />
           </Row>
         </Card>
       ))}

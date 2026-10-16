@@ -26,6 +26,26 @@ begin
 end;
 $$;
 
+-- A key always starts with its kind ("card:...", "settings:profile"), the
+-- same rule the apps use; a row breaking it could otherwise sit in a device's
+-- sync state and be refused on every later upload. Added NOT VALID, then
+-- checked against existing rows; if an old row breaks the rule, the check
+-- still applies to every new write and a notice says so.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'sync_records_key_kind') then
+    alter table public.sync_records
+      add constraint sync_records_key_kind
+      check (key ~ '^(card|capture|settings|activity|practiced):' and split_part(key, ':', 1) = kind) not valid;
+  end if;
+  begin
+    alter table public.sync_records validate constraint sync_records_key_kind;
+  exception when check_violation then
+    raise notice 'sync_records has older rows whose key does not match their kind; new writes are checked.';
+  end;
+end;
+$$;
+
 create index if not exists sync_records_user_updated on public.sync_records (user_id, updated_at);
 
 -- The server's clock decides updated_at, never the device's, so pulling
@@ -55,17 +75,24 @@ create trigger sync_records_touch
 -- A storage allowance per person, so one account (or a stolen one) can't
 -- fill the database. Far above real use: thousands of cards are a few MB.
 -- Checked once per write statement (an upload batch), not once per row.
+-- Sizes are the JSON as sent (pg_column_size counts it compressed, so text
+-- that compresses well could go far past the limit). The lock makes one
+-- person's uploads take turns, so two at once can't both pass the check.
 create or replace function public.sync_records_quota()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
+  perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text, 0));
   if exists (
     select 1
     from (select distinct user_id from changed) as who
-    where (select count(*) from public.sync_records s where s.user_id = who.user_id) > 50000
-       or (select coalesce(sum(pg_column_size(s.data)), 0) from public.sync_records s where s.user_id = who.user_id) > 100 * 1024 * 1024
+    -- Deleted cards stay as small tombstones; they count only toward a
+    -- looser cap, so years of tidying never lock an account out.
+    where (select count(*) filter (where not s.deleted) from public.sync_records s where s.user_id = who.user_id) > 20000
+       or (select count(*) from public.sync_records s where s.user_id = who.user_id) > 100000
+       or (select coalesce(sum(octet_length(s.data::text)), 0) from public.sync_records s where s.user_id = who.user_id) > 25 * 1024 * 1024
   ) then
     raise exception 'MemoryPal storage limit reached' using errcode = 'P0001', hint = 'storage_limit';
   end if;
