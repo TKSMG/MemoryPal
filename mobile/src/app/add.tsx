@@ -99,7 +99,7 @@ export default function Add() {
   );
 
   return (
-    <Screen>
+    <Screen narrow>
       <Pills<Mode>
         label="How do you want to add cards?"
         value={mode}

@@ -17,6 +17,8 @@ export interface Palette {
   ink: string;
   muted: string;
   line: string;
+  /** Text-field outline: meets the 3:1 non-text contrast that `line` (a divider) doesn't. */
+  inputBorder: string;
   primary: string;
   primaryPressed: string;
   onPrimary: string;
@@ -25,6 +27,9 @@ export interface Palette {
   orange: string;
   violet: string;
   danger: string;
+  dangerPressed: string;
+  /** Destructive text on the page or a card (a quiet Delete). */
+  dangerText: string;
   onDanger: string;
   warm: string;
   warmText: string;
@@ -33,6 +38,8 @@ export interface Palette {
   good: [string, string];
   easy: [string, string];
   focus: string;
+  /** Outline marking Smart Check's suggested rating: at least 3:1 against the page and every rating fill. */
+  suggested: string;
   tabBar: string;
 }
 
@@ -44,6 +51,7 @@ const LIGHT: Palette = {
   ink: '#172033',
   muted: '#56657d',
   line: '#d8e2ef',
+  inputBorder: '#7d8ca3',
   primary: '#2563eb',
   primaryPressed: '#1d4ed8',
   onPrimary: '#ffffff',
@@ -52,6 +60,8 @@ const LIGHT: Palette = {
   orange: '#c2410c',
   violet: '#7c3aed',
   danger: '#c62828',
+  dangerPressed: '#a82020',
+  dangerText: '#c62828',
   onDanger: '#ffffff',
   warm: '#fff4e5',
   warmText: '#a45b09',
@@ -60,6 +70,7 @@ const LIGHT: Palette = {
   good: ['#e4f7ed', '#157a45'],
   easy: ['#e4efff', '#2467b7'],
   focus: '#f59e0b',
+  suggested: '#b45309',
   tabBar: '#ffffff',
 };
 
@@ -71,6 +82,7 @@ const DARK: Palette = {
   ink: '#edf2fb',
   muted: '#aeb8cb',
   line: '#33445f',
+  inputBorder: '#6f84a3',
   primary: '#65afff',
   primaryPressed: '#3f8ee6',
   onPrimary: '#0b1020',
@@ -79,6 +91,8 @@ const DARK: Palette = {
   orange: '#ffab3d',
   violet: '#c084fc',
   danger: '#dc2626',
+  dangerPressed: '#b91c1c',
+  dangerText: '#ff8a80',
   onDanger: '#ffffff',
   warm: '#2a1f14',
   warmText: '#ffb572',
@@ -87,11 +101,28 @@ const DARK: Palette = {
   good: ['#123423', '#5be08c'],
   easy: ['#12233f', '#7fbfff'],
   focus: '#fbbf24',
+  suggested: '#fbbf24',
   tabBar: '#0f1729',
 };
 
 const HIGH_CONTRAST_LIGHT: Partial<Palette> = { bg: '#eef3fb', muted: '#25324a', line: '#8da4bf', primary: '#005fcc', primaryPressed: '#004b9f', link: '#004b9f' };
 const HIGH_CONTRAST_DARK: Partial<Palette> = { bg: '#0b1220', surface: '#101b2d', muted: '#d5dfef', line: '#74859f', primary: '#8dccff', link: '#a9d8ff' };
+
+/**
+ * The pressed look of a filled control: about 8% darker in light mode and 8%
+ * lighter in dark mode, so a press shows even with Reduce Motion's scale off.
+ */
+export function pressedShade(hex: string, dark: boolean, amount = 0.08): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return hex;
+  const value = parseInt(match[1], 16);
+  const target = dark ? 255 : 0;
+  const channel = (shift: number) => {
+    const c = (value >> shift) & 255;
+    return Math.round(c + (target - c) * amount).toString(16).padStart(2, '0');
+  };
+  return `#${channel(16)}${channel(8)}${channel(0)}`;
+}
 
 const TEXT_SCALE = { Comfort: 1, Large: 1.15, 'Extra Large': 1.3 } as const;
 

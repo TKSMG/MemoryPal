@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src https://challenges.cloudflare.com; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>MemoryPal check</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f7f6f2; --text: #1f2933; --muted: #52606d; --bad: #b42318; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #15181c; --text: #eef0f2; --muted: #a7b0ba; --bad: #ff8a80; } }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 420px; padding: 24px 16px; text-align: center; }
+  h1 { font-size: 22px; line-height: 1.25; margin: 0 0 8px; }
+  p { margin: 0 0 20px; color: var(--muted); }
+  #widget { display: flex; justify-content: center; min-height: 70px; }
+  #status.bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">One quick check</h1>
+  <p id="status">This keeps bots from making MemoryPal accounts. It usually finishes by itself.</p>
+  <div id="widget"></div>
+</main>
+<script>
+// The MemoryPal apps open this page when they sign in, create an account or
+// send an email code. It hands the Turnstile token back to the app:
+//  - the phone app shows it in a WebView and gets a message;
+//  - the desktop app opens it in the browser with #port=...&state=... and
+//    listens on 127.0.0.1:<port> for the token.
+var SITE_KEY = "__TURNSTILE_SITE_KEY__";
+var params = new URLSearchParams(location.hash.slice(1));
+var port = params.get("port") || "";
+var state = params.get("state") || "";
+var phone = !!window.ReactNativeWebView;
+var finished = false;
+
+function show(title, text, bad) {
+  document.getElementById("title").textContent = title;
+  var status = document.getElementById("status");
+  status.textContent = text;
+  status.className = bad ? "bad" : "";
+}
+
+function deliver(message) {
+  if (finished) return;
+  finished = true;
+  if (phone) {
+    window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    return;
+  }
+  if (!/^\d{2,5}$/.test(port) || !/^[\w-]{8,64}$/.test(state)) {
+    show("Go back to MemoryPal", "Open this check from the MemoryPal app.", true);
+    return;
+  }
+  var target = "http://127.0.0.1:" + port + "/done?state=" + encodeURIComponent(state);
+  if (message.token) target += "&token=" + encodeURIComponent(message.token);
+  else target += "&error=" + encodeURIComponent(message.error || "failed");
+  location.replace(target);
+}
+
+function failed(code) {
+  if (finished) return;  // the token was already handed over
+  show("The check didn't work", "Go back to MemoryPal and try again.", true);
+  deliver({ type: "turnstile", error: String(code || "failed") });
+}
+
+window.onTurnstileLoad = function () {
+  turnstile.render("#widget", {
+    sitekey: SITE_KEY,
+    action: "memorypal-auth",
+    theme: "auto",
+    callback: function (token) {
+      show("Done", phone ? "Continuing…" : "Going back to MemoryPal…", false);
+      deliver({ type: "turnstile", token: token });
+    },
+    "error-callback": failed,
+    "expired-callback": function () { failed("expired"); },
+    "timeout-callback": function () { failed("timeout"); }
+  });
+};
+</script>
+<!-- No integrity hash: Cloudflare updates api.js in place and says to load it from this URL as is. -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
+</body>
+</html>

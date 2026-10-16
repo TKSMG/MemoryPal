@@ -1,10 +1,15 @@
+import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
+os.environ.setdefault("MEMORYPAL_DATA_DIR", tempfile.mkdtemp(prefix="memorypal-tests-"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from memorypal.models import Capture, Card  # noqa: E402
+from memorypal.models import MAX_INTERVAL_DAYS, MAX_REVIEW_COUNT, Capture, Card  # noqa: E402
+from memorypal.store import MemoryStore  # noqa: E402
 
 
 class CardFromDictTests(unittest.TestCase):
@@ -26,6 +31,28 @@ class CardFromDictTests(unittest.TestCase):
 
     def test_ease_is_kept_in_a_sane_range(self):
         self.assertEqual(Card.from_dict({"ease": 0.2}).ease, 1.3)
+
+    def test_huge_numbers_from_sync_are_cut_down(self):
+        card = Card.from_dict(json.loads('{"id": "big", "interval": ' + "9" * 400 + ', "repetitions": 1e300, "lapses": "' + "9" * 30 + '", "ease": ' + "9" * 400 + "}"))
+        self.assertEqual((card.interval, card.repetitions, card.lapses, card.ease), (MAX_INTERVAL_DAYS, MAX_REVIEW_COUNT, MAX_REVIEW_COUNT, 2.5))
+        self.assertEqual(Card.from_dict({"interval": "9" * 5000}).interval, 0)
+
+
+class HostileStoreTests(unittest.TestCase):
+    def test_a_synced_card_with_a_huge_interval_can_still_be_rated(self):
+        store = MemoryStore()
+        payload = store.payload()
+        payload["cards"] = [json.loads('{"id": "big", "front": "q", "back": "a", "repetitions": 3, "next_review": "2020-01-01", "interval": ' + "9" * 400 + "}")]
+        store.replace_with(payload)
+        store.schedule(store.cards[0], 4)
+        self.assertLessEqual(store.cards[0].interval, store.MAX_INTERVAL)
+
+    def test_superscript_digits_in_plan_ticks_do_not_crash_loading(self):
+        store = MemoryStore()
+        payload = store.payload()
+        payload["study_plan"] = {"settings": {}, "done": {"2026-10-15": ["²", "2"]}}
+        store.replace_with(payload)
+        self.assertEqual(store.plan_steps_done("2026-10-15"), {2})
 
 
 class CaptureFromDictTests(unittest.TestCase):

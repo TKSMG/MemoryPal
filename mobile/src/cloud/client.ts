@@ -27,6 +27,17 @@ export function cloudConfigured(): boolean {
   return Boolean(url && key);
 }
 
+/** The CAPTCHA check page (app.json expo.extra captchaUrl; site/verify/ in the repo); empty turns the check off. */
+export function captchaUrl(): string {
+  const extra = (Constants.expoConfig?.extra ?? {}) as { captchaUrl?: string };
+  return String(extra.captchaUrl ?? '').trim();
+}
+
+/** Requests the server refuses without a CAPTCHA token once CAPTCHA protection is on (cloud.py needs_captcha). */
+export function needsCaptcha(path: string, query: Record<string, string | number> = {}): boolean {
+  return ['/auth/v1/signup', '/auth/v1/recover', '/auth/v1/resend'].includes(path) || (path === '/auth/v1/token' && query.grant_type === 'password');
+}
+
 /** The published Terms of Use and Privacy Policy (app.json expo.extra termsUrl / privacyUrl). */
 export function legalLinks(): { terms: string; privacy: string } {
   const extra = (Constants.expoConfig?.extra ?? {}) as { termsUrl?: string; privacyUrl?: string };
@@ -52,6 +63,8 @@ const FRIENDLY: Record<string, string> = {
   invalid_credentials: "That email and password don't match. Check them, or reset your password.",
   invalid_grant: "That email and password don't match. Check them, or reset your password.",
   email_not_confirmed: 'Confirm your email first: enter the code we emailed you.',
+  captcha_failed: "The quick check that keeps out bots didn't work. Try again.",
+  captcha_cancelled: 'The quick check was closed before it finished. Try again when you\'re ready.',
   user_already_exists: "There's already an account with this email. Sign in instead.",
   email_exists: "There's already an account with this email. Sign in instead.",
   weak_password: `Choose a stronger password: at least ${MIN_PASSWORD} characters with letters and at least one number.`,
@@ -64,6 +77,7 @@ const FRIENDLY: Record<string, string> = {
   refresh_token_not_found: "You've been signed out. Please sign in again.",
   session_not_found: "You've been signed out. Please sign in again.",
   refresh_token_already_used: "You've been signed out. Please sign in again.",
+  other_account: 'This phone last synced with a different account. Choose what to do with its cards before syncing.',
   two_step_now_on: 'This account now uses two-step sign-in. Sign in again with your authenticator code.',
   mfa_verification_failed: "That authenticator code isn't right. Check the time on this device and try the newest code.",
   mfa_challenge_expired: 'That took too long. Try again with a fresh code.',
@@ -137,6 +151,13 @@ export function checkPassword(password: string, email = '') {
 export type Row = [key: string, data: Data | null, updatedAt: string];
 
 export class CloudClient {
+  /** Asked for a CAPTCHA token before sign-in, sign-up and emailed codes (the account screen sets it). */
+  private captcha?: () => Promise<string>;
+
+  setCaptcha(check?: () => Promise<string>) {
+    this.captcha = check;
+  }
+
   constructor(
     private url = cloudConfig().url,
     private key = cloudConfig().key,
@@ -150,11 +171,15 @@ export class CloudClient {
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
     if (options.token) headers.Authorization = `Bearer ${options.token}`;
     if (options.prefer) headers.Prefer = options.prefer;
+    let body = options.body;
+    if (this.captcha && body !== undefined && needsCaptcha(path, options.query)) {
+      body = { ...(body as Record<string, unknown>), gotrue_meta_security: { captcha_token: await this.captcha() } };
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     let response: Response;
     try {
-      response = await this.fetcher(`${this.url}${path}${query}`, { method, headers, body: options.body !== undefined ? JSON.stringify(options.body) : undefined, signal: controller.signal });
+      response = await this.fetcher(`${this.url}${path}${query}`, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal: controller.signal });
     } catch {
       throw new CloudError("Couldn't reach the MemoryPal cloud. Check the internet connection and try again.", 'offline');
     } finally {

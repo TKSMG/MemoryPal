@@ -5,10 +5,11 @@
  */
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Image, Linking, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Image, Linking, TextInput, View } from 'react-native';
 
 import { checkPassword, CloudError, consentRecord, legalLinks, looksLikeEmail, needsSecondStep, Session } from '../cloud/client';
+import { useCaptcha } from '../cloud/captcha';
 import { leakedMessage, pwnedCount } from '../cloud/pwned';
 import { readSecret, writeSecret } from '../cloud/secrets';
 import { accountAgeCheck, AGE_RETRY_SECONDS, AttemptLimiter, MIN_PASSWORD, passwordProblems, passwordStrength, STRENGTH_LABELS, UNDER_AGE_MESSAGE, waitMessage } from '../core/security';
@@ -79,6 +80,12 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
   const c = theme.colors;
   const account = sync.account;
   const client = account.client;
+  // Signing in, creating an account and emailing a code pass a CAPTCHA first.
+  const captcha = useCaptcha();
+  useEffect(() => {
+    client.setCaptcha(captcha.request);
+    return () => client.setCaptcha(undefined);
+  }, [client, captcha.request]);
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState(account.email);
   const [password, setPassword] = useState('');
@@ -92,6 +99,11 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
   const [birthMonth, setBirthMonth] = useState('');
   const [birthYear, setBirthYear] = useState('');
   const [agreed, setAgreed] = useState(false);
+  // The keyboard's return key walks through the form, and the last field submits it.
+  const yearRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const againRef = useRef<TextInput>(null);
   const links = legalLinks();
   const onboarded = store.onboarding.done;
 
@@ -249,7 +261,7 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
 
   if (!sync.configured) {
     return (
-      <Screen>
+      <Screen narrow>
         <Card>
           <Txt variant="h3">Sync isn’t set up in this copy of MemoryPal yet</Txt>
           <Txt variant="muted">Your cards are safe on this phone. Use Settings → Save a backup to move them to another device for now.</Txt>
@@ -261,7 +273,7 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
   if (account.signedIn && setup) {
     const grouped = setup.secret.match(/.{1,4}/g)?.join(' ') ?? setup.secret;
     return (
-      <Screen>
+      <Screen narrow>
         <Card>
           <Txt variant="h2">Set up two-step sign-in</Txt>
           <Txt variant="body">1. Open an authenticator app (Microsoft Authenticator, Google Authenticator, 1Password…).</Txt>
@@ -272,11 +284,12 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
             <Txt variant="h3">{grouped}</Txt>
           </View>
           <Row wrap>
-            {setup.uri ? <Button compact icon="open-outline" label="Open in authenticator app" onPress={() => Linking.openURL(setup.uri).catch(() => setError('No authenticator app opened. Type the setup key into it instead.'))} /> : null}
+            {/* Only ever an authenticator link: the server's answer must not open a web page or another app. */}
+            {/^otpauth:\/\//i.test(setup.uri) ? <Button compact icon="open-outline" label="Open in authenticator app" onPress={() => Linking.openURL(setup.uri).catch(() => setError('No authenticator app opened. Type the setup key into it instead.'))} /> : null}
             <Button compact icon="copy-outline" label="Copy key" onPress={async () => { await Clipboard.setStringAsync(setup.secret); setInfo('Key copied.'); }} />
           </Row>
           {info ? <Txt variant="body" color={c.link}>{info}</Txt> : null}
-          <Field label="Code from the app" value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={8} />
+          <Field label="Code from the app" value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={8} returnKeyType="go" onSubmitEditing={turnOnTwoStep} />
           {errorBox}
           <Button kind="primary" label={busy ? 'Checking…' : 'Turn on'} disabled={busy} onPress={turnOnTwoStep} />
         </Card>
@@ -289,7 +302,7 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
     const last = account.state.last_synced;
     const twoStepOn = Boolean(account.session?.factors.length);
     return (
-      <Screen>
+      <Screen narrow>
         <Card tone="alt">
           <Txt variant="label">Signed in</Txt>
           <Txt variant="h2">{account.email}</Txt>
@@ -331,8 +344,18 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
   const problems = passwordProblems(password, email);
   const meterColor = [c.again[1], c.again[1], c.review[1], c.good[1], c.good[1]][score];
 
+  const submit = { signin: signIn, create, code: confirmCode, reset: sendReset, 'reset-code': finishReset, 'second-step': secondStep }[mode];
+  // Return key: `next` moves on to the following field; `last` submits the form.
+  const next = { returnKeyType: 'next' as const, submitBehavior: 'submit' as const };
+  const focusYear = () => yearRef.current?.focus();
+  const focusEmail = () => emailRef.current?.focus();
+  const focusPassword = () => passwordRef.current?.focus();
+  const focusAgain = () => againRef.current?.focus();
+  const last = { returnKeyType: 'go' as const, onSubmitEditing: submit };
+
   return (
-    <Screen>
+    <Screen narrow>
+      {captcha.sheet}
       {intro ? (
         <View style={{ alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 8 }}>
           <Image source={require('../../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 18 }} accessibilityIgnoresInvertColors accessible={false} />
@@ -344,7 +367,8 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
         <Pills<Mode> label="Account" value={mode} onChange={(value) => go(value)} options={[{ value: 'signin', label: 'Sign in' }, { value: 'create', label: 'Create account' }]} />
       ) : null}
       <Card>
-        <Txt variant="h2">{title}</Txt>
+        {/* With the Sign in / Create account pills just above, a heading repeating the same words adds nothing. */}
+        {mode === 'signin' || mode === 'create' ? null : <Txt variant="h2">{title}</Txt>}
         {mode === 'signin' ? <Txt variant="muted">Use the same account on every device to keep your cards in step.</Txt> : null}
         {mode === 'create' ? <Txt variant="muted">Use an email you can check: we’ll email you a code to confirm it. You don’t need an account to use MemoryPal; it only keeps your cards in step across devices.</Txt> : null}
         {mode === 'second-step' ? <Txt variant="muted">Open your authenticator app and type the 6-digit code it shows for MemoryPal.</Txt> : null}
@@ -352,19 +376,19 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
 
         {mode === 'create' ? (
           <>
-            <Field label="Month you were born (1-12)" value={birthMonth} onChangeText={setBirthMonth} keyboardType="number-pad" maxLength={2} />
-            <Field label="Year you were born" value={birthYear} onChangeText={setBirthYear} keyboardType="number-pad" maxLength={4} />
+            <Field label="Month you were born (1-12)" value={birthMonth} onChangeText={setBirthMonth} keyboardType="number-pad" maxLength={2} {...next} onSubmitEditing={focusYear} />
+            <Field ref={yearRef} label="Year you were born" value={birthYear} onChangeText={setBirthYear} keyboardType="number-pad" maxLength={4} {...next} onSubmitEditing={focusEmail} />
           </>
         ) : null}
 
         {mode === 'signin' || mode === 'create' || mode === 'reset' ? (
-          <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" />
+          <Field ref={emailRef} label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" {...(mode === 'reset' ? last : { ...next, onSubmitEditing: focusPassword })} />
         ) : null}
         {mode === 'code' || mode === 'reset-code' || mode === 'second-step' ? (
-          <Field label={mode === 'second-step' ? 'Authenticator code' : 'Code from the email'} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={10} />
+          <Field label={mode === 'second-step' ? 'Authenticator code' : 'Code from the email'} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={10} {...(mode === 'reset-code' ? { ...next, onSubmitEditing: focusPassword } : last)} />
         ) : null}
         {mode === 'signin' || choosing ? (
-          <Field label={mode === 'reset-code' ? 'New password' : 'Password'} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} textContentType={mode === 'signin' ? 'password' : 'newPassword'} />
+          <Field ref={passwordRef} {...(mode === 'signin' ? last : { ...next, onSubmitEditing: focusAgain })} label={mode === 'reset-code' ? 'New password' : 'Password'} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} textContentType={mode === 'signin' ? 'password' : 'newPassword'} />
         ) : null}
         {choosing ? (
           <View accessibilityLiveRegion="polite" style={{ gap: 6 }}>
@@ -379,7 +403,18 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
           </View>
         ) : null}
         {choosing ? (
-          <Field label="Password again" value={again} onChangeText={setAgain} secureTextEntry autoComplete="new-password" textContentType="newPassword" />
+          <Field
+            ref={againRef}
+            label="Password again"
+            value={again}
+            onChangeText={setAgain}
+            secureTextEntry
+            autoComplete="new-password"
+            textContentType="newPassword"
+            // Creating an account still needs the terms ticked below, so the
+            // return key just closes the keyboard there.
+            {...(mode === 'create' ? { returnKeyType: 'done' as const } : last)}
+          />
         ) : null}
         {mode === 'create' ? (
           <>

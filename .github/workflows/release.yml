@@ -12,8 +12,10 @@ on:
         description: "Release tag, for example v0.47.0"
         required: true
 
+# The builds only read the repository; only the publish job may write (to
+# create the release), so a compromised build step can't push or retag.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows:
@@ -30,6 +32,8 @@ jobs:
     name: Publish release
     needs: [windows, macos, mobile]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download every build
         uses: actions/download-artifact@v5

@@ -96,6 +96,10 @@ function firstText(raw: Raw, names: string[], fallback: string): string {
 }
 
 const MAX_ID_LENGTH = 150; // the cloud refuses record keys over 200 characters
+// A hundred years between reviews, and more reviews than anyone makes of one
+// card: anything bigger is damaged (or hostile) synced data.
+export const MAX_INTERVAL_DAYS = 36500;
+export const MAX_REVIEW_COUNT = 10000;
 
 function recordId(value: string): string {
   return value.length > 0 && value.length <= MAX_ID_LENGTH ? value : uid();
@@ -127,10 +131,10 @@ export function cardFromDict(raw: Raw): Card {
     audio: text('audio'),
     video: text('video'),
     next_review: text('next_review', 'nextReview'),
-    interval: Math.max(0, toNumber(raw.interval, true, 0)),
-    repetitions: Math.max(0, toNumber(raw.repetitions, true, 0)),
+    interval: Math.max(0, Math.min(MAX_INTERVAL_DAYS, toNumber(raw.interval, true, 0))),
+    repetitions: Math.max(0, Math.min(MAX_REVIEW_COUNT, toNumber(raw.repetitions, true, 0))),
     ease: Math.min(3.5, Math.max(1.3, toNumber(raw.ease, false, 2.5))),
-    lapses: Math.max(0, toNumber(raw.lapses, true, 0)),
+    lapses: Math.max(0, Math.min(MAX_REVIEW_COUNT, toNumber(raw.lapses, true, 0))),
     last_score: Math.max(0, Math.min(100, toNumber(raw.last_score ?? raw.lastScore, true, 0))),
     last_result: text('last_result', 'lastResult'),
     created_at: text('created_at', 'createdAt'),

@@ -1,6 +1,6 @@
 import { addDays, todayIso } from '../src/core/dates';
 import { newCard } from '../src/core/models';
-import { planForToday } from '../src/core/planning';
+import { buildMultiDayPlan, MAX_PLAN_DAYS, planForToday } from '../src/core/planning';
 import { MemoryAdapter, MemoryStore } from '../src/core/store';
 
 function fresh() {
@@ -104,5 +104,28 @@ describe('MemoryStore', () => {
     expect(today?.steps.reduce((sum, step) => sum + step.minutes, 0)).toBe(30);
     expect(store.togglePlanStep(1)).toBe(true);
     expect([...reload().planStepsDone()]).toEqual([1]);
+  });
+
+  test('a synced card with a huge interval is cut down and can still be rated', () => {
+    const { store } = fresh();
+    store.replaceWith({ cards: [JSON.parse(`{"id": "big", "front": "q", "back": "a", "repetitions": 3, "next_review": "2020-01-01", "interval": ${'9'.repeat(300)}}`)] });
+    const card = store.cards[0];
+    expect(card.interval).toBe(36500);
+    store.schedule(card, 4);
+    expect(card.interval).toBeLessThanOrEqual(365);
+    expect(card.next_review).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test('a huge or odd plan synced from another device stays quick', () => {
+    const { store } = fresh();
+    const payload = store.payload();
+    payload.study_plan = { settings: { unit: 'days', amount: '1000000', deck: 'All decks', goal_label: 'Cram', habits: [{}] as unknown as string[] }, created: todayIso(), done: {} };
+    store.replaceWith(payload as unknown as Record<string, unknown>);
+    expect(store.studyPlan).toMatchObject({ settings: { unit: 'days', amount: '365', habits: [] } });
+    expect(planForToday(store)?.totalDays).toBe(365);
+    // Even an unchecked plan is capped.
+    const raw = { settings: { unit: 'weeks', amount: '99999', deck: 'All decks', goal_label: 'Cram', habits: [] }, created: todayIso(), done: {} };
+    expect(planForToday(store, raw)?.totalDays).toBe(MAX_PLAN_DAYS);
+    expect(buildMultiDayPlan(store, 1e9, 'All decks', [], 'long_term')).toHaveLength(MAX_PLAN_DAYS);
   });
 });

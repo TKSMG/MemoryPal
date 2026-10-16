@@ -1,5 +1,5 @@
 /** Progress: streaks, level, simple charts in plain words, and badges. */
-import { View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
 import { WEEKDAYS, achievements, bestStreak, dailySeries, dueForecast, levelInfo, maturityBreakdown } from '../../core/progress';
 import { weekday } from '../../core/dates';
@@ -42,6 +42,10 @@ export default function Progress() {
   const total = Math.max(1, store.cards.length);
   const badges = achievements(store);
   const earned = badges.filter((badge) => badge.done).length;
+  // On narrow phones the day labels drop to one letter (M T W…), like Health's
+  // charts, instead of being cut short to "M..".
+  const { width } = useWindowDimensions();
+  const dayLength = width < 400 ? 1 : 2;
 
   const segments: [string, number, string][] = [
     ['New', maturity.new, c.muted],
@@ -53,7 +57,7 @@ export default function Progress() {
   return (
     <Screen eyebrow="Progress" title="How it's going">
       <Card>
-        <Row wrap>
+        <Row wrap style={{ alignItems: 'flex-start' }}>
           <Stat value={streak} label={`day streak${best > streak ? ` (best ${best})` : ''}`} color={c.orange} />
           <Stat value={store.practiced} label="reviews in total" />
         </Row>
@@ -66,7 +70,7 @@ export default function Progress() {
       <Card>
         <Bars
           values={week.map(([, count]) => count)}
-          labels={week.map(([day], i) => (i % 2 ? '' : WEEKDAYS[weekday(day)].slice(0, 2)))}
+          labels={week.map(([day], i) => (i % 2 ? '' : WEEKDAYS[weekday(day)].slice(0, dayLength)))}
           color={c.primary}
           summary={`${weekTotal} reviews in the last 7 days.`}
         />
@@ -77,7 +81,7 @@ export default function Progress() {
       <Card>
         <Bars
           values={forecast.map(([, count]) => count)}
-          labels={forecast.map(([day], i) => (i === 0 ? 'Today' : WEEKDAYS[weekday(day)].slice(0, 2)))}
+          labels={forecast.map(([day], i) => (i === 0 ? 'Today' : WEEKDAYS[weekday(day)].slice(0, dayLength)))}
           color={c.orange}
           summary={`Cards due over the next 7 days: ${forecast.map(([, count]) => count).join(', ')}.`}
         />
@@ -103,7 +107,7 @@ export default function Progress() {
       <SectionTitle>{`Badges · ${earned} of ${badges.length}`}</SectionTitle>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {badges.map((badge) => (
-          <Card key={badge.key} style={{ flexBasis: '46%', flexGrow: 1, opacity: badge.done ? 1 : 0.85 }}>
+          <Card key={badge.key} style={{ flexBasis: '46%', flexGrow: 1 }}>
             <Txt variant="title">{badge.done ? badge.icon : '🔒'}</Txt>
             <Txt variant="h3">{badge.title}</Txt>
             <Txt variant="small">{badge.body}</Txt>

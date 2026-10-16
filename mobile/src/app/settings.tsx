@@ -60,7 +60,10 @@ export default function Settings() {
   };
 
   const doReset = async () => {
-    if (await confirm('Start over?', 'This deletes all cards and progress on this phone and brings back the welcome screen. It cannot be undone.', 'Delete everything', true)) {
+    const body = sync.account.signedIn
+      ? `This clears this phone and brings back the welcome screen. Your cards and progress are still in your account (${sync.account.email}) and come back the next time it syncs. To remove them everywhere, delete your account in Account & sync.`
+      : 'This deletes all cards and progress on this phone and brings back the welcome screen. It cannot be undone.';
+    if (await confirm('Start over?', body, sync.account.signedIn ? 'Clear this phone' : 'Delete everything', true)) {
       sync.account.startOver();
       store.reset();
       router.replace('/welcome');
