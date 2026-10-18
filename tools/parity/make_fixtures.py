@@ -378,6 +378,86 @@ def hostile_cases():
     }
 
 
+QUIZ_TODAY = "2026-10-18"
+NOTE_TEXTS = [
+    "Photosynthesis is the process plants use to turn light into food. In 1492, Columbus sailed the ocean blue. The war ended in 1945.",
+    "The Battle of Hastings was in 1066\nMitochondria means powerhouse of the cell\nPrimary colours: red, yellow, blue\nDNA stands for deoxyribonucleic acid",
+    "It is raining today in the city. The heart has 4 chambers and pumps blood around the body. Paris",
+    "Water boils at 100 degrees Celsius at sea level; A noun is called a naming word; Is this a question?; The Treaty of Versailles was signed in 1919",
+    "1. Mercury 2. Venus 3. Earth",
+    "Osmosis refers to water moving across a membrane | The capital of Peru is Lima | They were happy",
+    "",
+    "Interest rates rose by 0.25% in March 2024 according to the central bank report",
+]
+LIST_TEXTS = ["Mercury, Venus, Earth and Mars", "red; green; blue", "- one\n- two\n- three", "Salt and pepper", "Bread, butter", "apples, pears, or plums.", "The process plants use to turn light, water, and carbon dioxide into food.", "a\\nb\\nc"]
+KIND_TEXTS = ["1945", "42", "1,000 metres", "3.14", "12 March", "May the force", "Paris", "Dr Lee", "Take the blue pill after breakfast with water", "", "4 July 1776", "50%"]
+
+
+def quiz_cards():
+    def card(card_id, deck, front, back, **extra):
+        base = {"id": card_id, "deck": deck, "front": front, "back": back, "next_review": "2026-10-20", "repetitions": 2, "lapses": 0, "last_score": 90, "last_result": "Good", "buried_until": ""}
+        base.update(extra)
+        return base
+
+    return [
+        card("geo-fr", "Geography", "Capital of France", "Paris", next_review="2026-10-10", lapses=1),
+        card("geo-es", "Geography", "Capital of Spain", "Madrid", next_review="2026-10-18"),
+        card("geo-it", "Geography", "Capital of Italy", "Rome"),
+        card("geo-de", "Geography", "Capital of Germany", "Berlin", last_score=40),
+        card("geo-pl", "Geography", "Planets nearest the sun", "Mercury, Venus, Earth and Mars"),
+        card("his-ww2", "History", "When did World War II end?", "1945", next_review="2026-10-01"),
+        card("his-hast", "History", "Battle of Hastings", "1066"),
+        card("his-bit", "History", "Study bit 3", "The Treaty of Versailles was signed in 1919"),
+        card("his-gen", "History", "What should I recall from bit {n}?", "Napoleon was exiled to the island of Elba"),
+        card("bio-ps", "Biology", "What is photosynthesis?", "The process plants use to turn light, water, and carbon dioxide into food.", repetitions=0, last_result="New"),
+        card("bio-mito", "Biology", "Mitochondria", "The powerhouse of the cell that releases energy from food", last_result="Again"),
+        card("bio-cells", "Biology", "Parts of a cell", "nucleus; membrane; cytoplasm; ribosome"),
+        card("bio-same", "Biology", "Powerhouse?", "the powerhouse of the cell that releases energy from food"),
+        card("bur", "Biology", "Buried card", "Never shown", buried_until="2026-12-01"),
+        card("empty", "Biology", "", ""),
+        card("mem-sr", "Memory Techniques", "What is spaced repetition?", "Reviewing information at increasing intervals so recall strengthens over time."),
+        card("mem-rp", "Memory Techniques", "What is retrieval practice?", "Trying to recall the answer before rereading or revealing it."),
+        card("num-km", "Maths", "Metres in a kilometre", "1,000"),
+        card("num-pi", "Maths", "Pi to two places", "3.14"),
+    ]
+
+
+def question_cases():
+    from memorypal import questions as q
+
+    rng_cases = []
+    for seed in (0, 1, 42, 70, 2 ** 32 - 1, 123456789):
+        r = q.Rng(seed)
+        values = [r.next_uint() for _ in range(6)]
+        r2 = q.Rng(seed)
+        rng_cases.append({"seed": seed, "uints": values, "below": [r2.below(n) for n in (1, 2, 3, 7, 10, 100, 1000)], "shuffle": q.Rng(seed).shuffle(list(range(10)))})
+    cards = quiz_cards()
+    quizzes = []
+    for seed in range(12):
+        for count, recent, types in ((5, [], None), (10, [], None), (25, [], None), (8, ["geo-fr", "his-ww2:choice", "bio-mito:cloze"], None), (6, [], ["choice", "truefalse"]), (6, [], ["recall"]), (4, [], ["match", "order", "reverse"])):
+            quizzes.append({"seed": seed, "count": count, "recent": recent, "types": types, "quiz": q.build_quiz(cards, count, q.Rng(seed), recent_ids=recent, types=types, today=QUIZ_TODAY)})
+    small = [cards[0], cards[1]]
+    quizzes.append({"seed": 3, "count": 5, "recent": [], "types": None, "quiz": q.build_quiz(small, 5, q.Rng(3), today=QUIZ_TODAY), "cards": "small"})
+    singles = []
+    for index, card in enumerate(cards):
+        for kind in q.TYPES:
+            singles.append({"card": card["id"], "type": kind, "seed": index, "question": q.card_question(card, kind, cards, q.Rng(index * 7 + len(kind)))})
+    bits = [bit for text in NOTE_TEXTS for bit in text.replace("|", "\n").replace(";", "\n").split("\n")] + ["  - The Nile is the longest river.  ", "Pi is about 3.14 and never ends", "AI", "x: y", "Gold is Au"]
+    return {
+        "today": QUIZ_TODAY,
+        "rng": rng_cases,
+        "cards": cards,
+        "quizzes": quizzes,
+        "singles": singles,
+        "notes": [{"text": text, "questions": q.note_questions(text)} for text in NOTE_TEXTS],
+        "bits": [{"bit": bit, "question": q.question_for_bit(bit)} for bit in bits],
+        "lists": [{"text": text, "items": q.list_items(text)} for text in LIST_TEXTS],
+        "kinds": [{"text": text, "kind": q.answer_kind(text)} for text in KIND_TEXTS],
+        "cloze": [{"text": text, "candidates": [list(c) for c in q.cloze_candidates(text, "What is photosynthesis?")]} for text in ANSWERS],
+        "generic": [{"front": f, "back": b, "deck": d, "generic": q.is_generic_front(f, b, d)} for f, b, d in (("Study bit 4", "x", ""), ("What should I recall from bit 2?", "x", ""), ("Notes: P____", "Paris", "Notes"), ("Capital of France", "Paris", "Geo"), ("", "x", ""))],
+    }
+
+
 def main():
     specs = card_specs()
     sessions, multi = plan_cases(specs)
@@ -402,6 +482,7 @@ def main():
         "parse_ideas": parse,
         "progress": progress_cases(specs),
         "today_check": today_iso(),
+        "questions": question_cases(),
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(fixtures, indent=1, ensure_ascii=False), encoding="utf-8")
