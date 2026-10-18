@@ -7,7 +7,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { AccessibilityInfo, Animated, Easing, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Platform, View } from 'react-native';
 
 import { answerAssessment } from '../core/smartCheck';
 import { buildQueue, Mode } from '../features/queue';
@@ -21,6 +21,8 @@ import { useTheme } from '../ui/theme';
 function useScreenReader(): boolean {
   const [on, setOn] = useState(false);
   useEffect(() => {
+    // react-native-web always reports a screen reader, so the browser preview runs hands free.
+    if (Platform.OS === 'web') return undefined;
     let live = true;
     AccessibilityInfo.isScreenReaderEnabled().then((value) => live && setOn(value)).catch(() => undefined);
     const subscription = AccessibilityInfo.addEventListener('screenReaderChanged', setOn);

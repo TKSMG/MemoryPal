@@ -37,7 +37,7 @@ function makeRound(kind: string, level: number): Round {
     const words = sample(WORDS, level * 2);
     const pairs = Array.from({ length: level }, (_, i) => [words[i * 2], words[i * 2 + 1]] as [string, string]);
     const partners = pairs.map(([, b]) => b);
-    return { shown: pairs.map(([a, b]) => `${a} — ${b}`), pairs, options: pairs.map(() => sample(partners, partners.length)) };
+    return { shown: pairs.map(([a, b]) => `${a} and ${b}`), pairs, options: pairs.map(() => sample(partners, partners.length)) };
   }
   return { shown: sample(WORDS, level) };
 }
@@ -153,7 +153,7 @@ export default function Puzzle() {
 
   if (phase === 'done') {
     return (
-      <Screen title="All done" eyebrow={title}>
+      <Screen title="All done" subtitle={title}>
         <Stack.Screen options={{ title }} />
         <Card tone="alt">
           <Txt variant="big">{score} / {ROUNDS}</Txt>
@@ -234,7 +234,7 @@ export default function Puzzle() {
         <>
           <View accessibilityLiveRegion="polite" style={{ backgroundColor: lastRight ? c.good[0] : c.review[0], borderRadius: 14, padding: 16, gap: 6 }}>
             <Txt variant="h3" color={lastRight ? c.good[1] : c.review[1]}>
-              {lastRight ? 'Well remembered!' : theme.plain('Nearly — that one was tricky.', 'Good try. Let’s keep going.')}
+              {lastRight ? 'Well remembered!' : theme.plain('Nearly. That one was tricky.', 'Good try. Let’s keep going.')}
             </Txt>
             <Txt variant="body" color={lastRight ? c.good[1] : c.review[1]}>
               {kind === 'sequence' ? `It was ${round.shown.join(' ')}.` : kind === 'pairs' ? `${pairRight} of ${round.shown.length} pairs right.` : `You remembered ${pairRight} of ${round.shown.length}: ${round.shown.join(', ')}.`}

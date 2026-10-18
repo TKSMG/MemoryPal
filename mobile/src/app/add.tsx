@@ -12,7 +12,7 @@ import { newCard, uid } from '../core/models';
 import { normalizeSpace, splitStudyBits } from '../core/text';
 import { blankRow, hasContent, readyRows, Row, splitPasted } from '../features/setBuilder';
 import { useStore } from '../state/AppState';
-import { Button, Disclosure, Field, IconButton, Pills, Row as HRow, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
+import { Button, Card, Disclosure, Field, IconButton, MIN_TOUCH, Pills, Row as HRow, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
 import { confirm, notify } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
@@ -143,17 +143,17 @@ export default function Add() {
       <SectionTitle action={<Txt variant="muted" accessibilityLiveRegion="polite">{ready.length ? `${plural(ready.length, 'card')} ready` : 'No cards yet'}</Txt>}>Cards</SectionTitle>
 
       {rows.map((row, i) => (
-        <View key={row.key} style={{ gap: 10, paddingBottom: 16, borderBottomWidth: i < rows.length - 1 ? 1 : 0, borderBottomColor: theme.colors.line }}>
-          <HRow style={{ justifyContent: 'space-between' }}>
-            <Txt variant="label">{row.deck ? `Card ${i + 1} · goes to ${row.deck}` : `Card ${i + 1}`}</Txt>
-            <IconButton icon="trash-outline" label={`Remove card ${i + 1}`} onPress={() => remove(row.key)} />
+        <Card key={row.key}>
+          <HRow style={{ justifyContent: 'space-between', minHeight: MIN_TOUCH }}>
+            <Txt variant="label">{row.deck ? `Card ${i + 1}, goes to ${row.deck}` : `Card ${i + 1}`}</Txt>
+            {rows.length > 1 || hasContent(row) ? <IconButton icon="trash-outline" label={`Remove card ${i + 1}`} onPress={() => remove(row.key)} /> : null}
           </HRow>
           <Field label="Question" value={row.front} onChangeText={(value) => update(row.key, { front: value })} multiline placeholder="What is photosynthesis?" style={{ minHeight: 52 }} />
           <Field label="Answer" value={row.back} onChangeText={(value) => update(row.key, { back: value })} multiline placeholder="How plants turn light into food" style={{ minHeight: 52 }} />
           {showHooks || row.hook ? (
             <Field label="Memory hook" value={row.hook} onChangeText={(value) => update(row.key, { hook: value })} multiline placeholder="A picture, rhyme or story" style={{ minHeight: 52 }} />
           ) : null}
-        </View>
+        </Card>
       ))}
 
       <Button label="Add a card" icon="add" onPress={() => append([blankRow()])} />

@@ -68,10 +68,10 @@ export default function Quiz() {
 
   if (index >= questions.length) {
     return (
-      <Screen title="Quiz done" eyebrow="Nice work">
+      <Screen title="Quiz done">
         <Card tone="alt">
           <Txt variant="big">{score} / {questions.length}</Txt>
-          <Txt variant="body">{score === questions.length ? 'Every one right!' : 'Cards you missed are worth a proper review — typing the answer from memory works better than picking it.'}</Txt>
+          <Txt variant="body">{score === questions.length ? 'Every one right!' : 'Cards you missed are worth a proper review. Typing the answer from memory works better than picking it.'}</Txt>
         </Card>
         <Button kind="primary" label="Done" onPress={() => router.back()} />
         <Button label="Review weaker cards" onPress={() => router.replace('/review?mode=weak')} />

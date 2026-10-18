@@ -92,7 +92,7 @@ export default function Review() {
     const missed = results.filter((r) => r.quality < 3);
     const tomorrow = store.dueCards(null, addDays(1)).length;
     return (
-      <Screen title="Session done" eyebrow="Well done">
+      <Screen title="Session done">
         <Card tone="alt">
           {/* One row per number: three narrow columns broke words apart at large text sizes. */}
           {([
