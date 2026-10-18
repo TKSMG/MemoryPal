@@ -19,6 +19,7 @@ export default function Study() {
     { icon: 'flash-outline', title: 'Quick 10', body: 'Ten cards: due ones first, then shaky ones. About five minutes.', href: '/review?mode=quick' },
     { icon: 'fitness-outline', title: theme.plain('Weak cards', 'Cards to practise more'), body: 'Cards you have missed or found hard, hardest first.', count: weak, href: '/review?mode=weak' },
     { icon: 'sparkles-outline', title: 'New cards', body: 'Meet cards you haven’t studied yet (up to 20).', count: fresh, href: '/review?mode=new' },
+    { icon: 'chatbubbles-outline', title: 'Talk-back study', body: 'Hands free: hear each question, say the answer, hear how you did.', href: '/talkback?mode=quick' },
     { icon: 'list-circle-outline', title: 'Multiple-choice quiz', body: 'Pick the answer from four. A fast confidence check.', href: '/quiz' },
     { icon: 'map-outline', title: 'Study plan', body: 'Tell MemoryPal your time and goal; get steps for each day.', href: '/plan' },
   ];
