@@ -64,6 +64,7 @@ from memorypal.paths import (
 from memorypal import cloud, cloud_config, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
+from memorypal import popup_geometry
 from memorypal.speech import Speaker
 from memorypal.planning import (
     STUDY_HABIT_OPTIONS,
@@ -1159,11 +1160,9 @@ class Tooltip:
     def show(self):
         if self.tip or not self.text:
             return
-        x = self.widget.winfo_rootx() + 18
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 8
         self.tip = tk.Toplevel(self.widget)
+        self.tip.withdraw()
         self.tip.wm_overrideredirect(True)
-        self.tip.wm_geometry(f"+{x}+{y}")
         label = tk.Label(
             self.tip,
             text=self.text,
@@ -1180,6 +1179,16 @@ class Tooltip:
             font=self.widget._root().font("Segoe UI", 10) if hasattr(self.widget._root(), "font") else ("Segoe UI", 10),
         )
         label.pack()
+        # Below the widget, nudged right; flipped above or shifted left when
+        # it would run off the screen edge.
+        self.tip.update_idletasks()
+        width, height = self.tip.winfo_reqwidth(), self.tip.winfo_reqheight()
+        left, top = self.widget.winfo_rootx() + self._px(18), self.widget.winfo_rooty()
+        anchor = (left, top, left, top + self.widget.winfo_height())
+        screen = (0, 0, self.widget.winfo_screenwidth(), self.widget.winfo_screenheight())
+        x, y, width, height = popup_geometry.fit_popup_rect(width, height, anchor, screen, gap=self._px(8), margin=self._px(8))
+        self.tip.wm_geometry(f"+{x}+{y}")
+        self.tip.deiconify()
 
     def hide(self, _event=None):
         self.cancel()
@@ -2580,11 +2589,25 @@ class MemoryPalApp(tk.Tk):
         self.fade_frame_cover(cover, step=step)
 
     def show_popup_window(self, top, owner, width=None, height=None, modal=True):
+        # width/height are the preferred size; the popup still grows to fit
+        # what it holds (a fixed size clipped buttons and text at the larger
+        # text sizes) and is capped to, and kept on, the screen.
         top.update_idletasks()
-        popup_width = width or max(top.winfo_reqwidth(), top.winfo_width(), self.px(360))
-        popup_height = height or max(top.winfo_reqheight(), top.winfo_height(), self.px(160))
-        x = owner.winfo_rootx() + max(0, (owner.winfo_width() - popup_width) // 2)
+        popup_width = max(width or 0, top.winfo_reqwidth(), self.px(360))
+        if width:
+            # Wrapped labels asked for their width at the preferred size; let
+            # them settle at the final width before measuring the height.
+            top.geometry(f"{popup_width}x{max(1, top.winfo_reqheight())}")
+            top.update_idletasks()
+        popup_height = max(height or 0, top.winfo_reqheight(), self.px(160))
+        left, s_top, right, bottom = self.screen_bounds(owner)
+        margin = self.px(8)
+        popup_width = min(popup_width, right - left - margin * 2)
+        popup_height = min(popup_height, bottom - s_top - margin * 2)
+        x = owner.winfo_rootx() + (owner.winfo_width() - popup_width) // 2
         y = owner.winfo_rooty() + max(0, (owner.winfo_height() - popup_height) // 3)
+        x = max(left + margin, min(x, right - margin - popup_width))
+        y = max(s_top + margin, min(y, bottom - margin - popup_height))
         top.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
         self.reveal_window(top, owner)
         previous_grab = None
@@ -4202,7 +4225,7 @@ class MemoryPalApp(tk.Tk):
         )
         listbox.pack(fill="both", expand=True, pady=(self.px(10), self.px(6)))
         detail = tk.Label(box, text="", bg=COLORS["surface_soft"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(520))
-        detail.pack(fill="x")
+        self.fit_wrap(detail)
         tk.Label(box, text="\u2191 \u2193 to move  \u2022  Enter to open  \u2022  Esc to close", bg=COLORS["surface_soft"], fg=COLORS["muted"], font=self.font("Segoe UI", 9)).pack(anchor="w", pady=(self.px(8), 0))
         shown = []
 
@@ -4253,12 +4276,20 @@ class MemoryPalApp(tk.Tk):
         top.bind("<ButtonPress-1>", press)
         refresh()
 
-        width = self.px(600)
+        measure = tkfont.Font(root=self, font=self.font("Segoe UI", 12))
+        longest = max((measure.measure(f"  {label}") for label, _hint, _action in entries), default=0)
+        width = max(self.px(600), longest + self.px(32) + self.px(24))
         top.update_idletasks()
         height = top.winfo_reqheight()
         anchor = getattr(self, "main", self)
-        x = anchor.winfo_rootx() + max(0, (anchor.winfo_width() - width) // 2)
+        left, s_top, right, bottom = self.screen_bounds(anchor)
+        margin = self.px(8)
+        width = min(width, right - left - margin * 2)
+        height = min(height, bottom - s_top - margin * 2)
+        x = anchor.winfo_rootx() + (anchor.winfo_width() - width) // 2
         y = anchor.winfo_rooty() + self.px(70)
+        x = max(left + margin, min(x, right - margin - width))
+        y = max(s_top + margin, min(y, bottom - margin - height))
         top.geometry(f"{width}x{height}+{x}+{y}")
         self.reveal_window(top)
         entry.focus_force()
@@ -4312,7 +4343,6 @@ class MemoryPalApp(tk.Tk):
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
         self.own_window(top, self)
-        top.geometry(f"{self.px(420)}x{self.px(480)}")
         top.minsize(self.px(360), self.px(360))
 
         shell = tk.Frame(top, bg=COLORS["bg"])
@@ -4323,7 +4353,7 @@ class MemoryPalApp(tk.Tk):
         wrap = tk.Frame(shell, bg=COLORS["bg"], padx=self.px(20), pady=self.px(20))
         wrap.pack(fill="both", expand=True)
         tk.Label(wrap, text="Profiles", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 20)).pack(anchor="w")
-        tk.Label(wrap, text="Each profile keeps its own decks, stats, and streak. Sign each one in to a different account to keep them apart in the cloud too.", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(380), justify="left").pack(anchor="w", pady=(4, 16))
+        self.fit_wrap(tk.Label(wrap, text="Each profile keeps its own decks, stats, and streak. Sign each one in to a different account to keep them apart in the cloud too.", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(380), justify="left"), pady=(4, 16))
 
         list_holder = tk.Frame(wrap, bg=COLORS["bg"])
         list_holder.pack(fill="both", expand=True)
@@ -4336,18 +4366,20 @@ class MemoryPalApp(tk.Tk):
             for name in list_profiles():
                 row = tk.Frame(list_holder, bg=COLORS["surface"], padx=self.px(14), pady=self.px(12))
                 row.pack(fill="x", pady=(0, 8))
-                label_text = f"\U0001F464 {name}" + ("   \u2022 active" if name == active else "")
-                tk.Label(row, text=label_text, bg=COLORS["surface"], fg=(COLORS["primary"] if name == active else COLORS["ink"]), font=self.font("Segoe UI Semibold", 12)).pack(side="left")
+                label_text = name + ("  (active)" if name == active else "")
                 button_area = tk.Frame(row, bg=COLORS["surface"])
                 button_area.pack(side="right")
+                # Packed after the buttons so a long name wraps instead of
+                # pushing them out of the window.
+                name_label = tk.Label(row, text=label_text, bg=COLORS["surface"], fg=(COLORS["primary"] if name == active else COLORS["ink"]), font=self.font("Segoe UI Semibold", 12), anchor="w", justify="left", wraplength=self.px(160))
+                name_label.pack(side="left", fill="x", expand=True)
+                self.bind_rewrap(name_label)
+                # The app's own rounded buttons, like every other dialog.
                 if name != active:
-                    switch_btn = tk.Button(button_area, text="Switch", relief="flat", bd=0, cursor="hand2", bg=COLORS["primary"], fg=self.on_color(COLORS["primary"]), font=self.font("Segoe UI Semibold", 10), padx=self.px(12), pady=self.px(6), command=lambda n=name: (top.destroy(), self.switch_profile(n)))
-                    switch_btn.pack(side="left", padx=(0, 6))
-                rename_btn = tk.Button(button_area, text="Rename", relief="flat", bd=0, cursor="hand2", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), padx=self.px(12), pady=self.px(6), command=lambda n=name: do_rename(n))
-                rename_btn.pack(side="left", padx=(0, 6))
+                    ttk.Button(button_area, text="Switch", style="Primary.TButton", cursor="hand2", command=lambda n=name: (top.destroy(), self.switch_profile(n))).pack(side="left", padx=(0, self.px(6)))
+                ttk.Button(button_area, text="Rename", cursor="hand2", command=lambda n=name: do_rename(n)).pack(side="left", padx=(0, self.px(6)))
                 if len(list_profiles()) > 1:
-                    delete_btn = tk.Button(button_area, text="Delete", relief="flat", bd=0, cursor="hand2", bg=COLORS["again_bg"], fg=COLORS["again_fg"], font=self.font("Segoe UI Semibold", 10), padx=self.px(12), pady=self.px(6), command=lambda n=name: do_delete(n))
-                    delete_btn.pack(side="left")
+                    ttk.Button(button_area, text="Delete", cursor="hand2", command=lambda n=name: do_delete(n)).pack(side="left")
 
         def do_rename(name):
             new_name = self.dialog_text("Rename profile", f"New name for \"{name}\":", initial=name, parent=top)
@@ -4396,12 +4428,10 @@ class MemoryPalApp(tk.Tk):
             self.switch_profile(normalize_profile_name(new_name))
 
         render_list()
-        new_button = tk.Button(wrap, text="+ New profile", relief="flat", bd=0, cursor="hand2", bg=COLORS["green"], fg=self.on_color(COLORS["green"]), font=self.font("Segoe UI Semibold", 11), padx=self.px(16), pady=self.px(10), command=do_create)
-        new_button.pack(fill="x", pady=(12, 0))
-        close_button = tk.Button(wrap, text="Close", relief="flat", bd=0, cursor="hand2", bg=COLORS["surface_soft"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 11), padx=self.px(16), pady=self.px(10), command=top.destroy)
-        close_button.pack(fill="x", pady=(8, 0))
+        ttk.Button(wrap, text="New profile", style="Primary.TButton", cursor="hand2", command=do_create).pack(fill="x", pady=(self.px(12), 0))
+        ttk.Button(wrap, text="Close", cursor="hand2", command=top.destroy).pack(fill="x", pady=(self.px(8), 0))
         top.bind("<Escape>", lambda _event: top.destroy())
-        self.show_popup_window(top, self, self.px(420), self.px(480))
+        self.show_popup_window(top, self, self.px(440), self.px(420))
 
     def toggle_theme(self):
         self.save_current_draft()
@@ -4431,6 +4461,8 @@ class MemoryPalApp(tk.Tk):
 
     def toast_message(self, text):
         self.toast_var.set(text)
+        room = max(self.px(200), self.winfo_width() - self.px(48))
+        self.toast.configure(wraplength=min(self.px(520), room), justify="left")
         self.toast.place(relx=1, rely=1, anchor="se", x=-self.px(24), y=-self.px(24))
         pending = getattr(self, "_toast_after", None)
         if pending is not None:
@@ -4468,7 +4500,8 @@ class MemoryPalApp(tk.Tk):
         shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(22), pady=self.px(18))
         shell.pack(fill="both", expand=True)
         if body:
-            tk.Label(shell, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(width - 70), justify="left", anchor="w").pack(fill="x", pady=(self.px(6), self.px(14)))
+            body_label = tk.Label(shell, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(width - 70), justify="left", anchor="w")
+            self.fit_wrap(body_label, pady=(self.px(6), self.px(14)))
         content = ttk.Frame(shell, style="Card.TFrame")
         content.pack(fill="x")
         actions = ttk.Frame(shell, style="Card.TFrame")
@@ -4881,6 +4914,29 @@ class MemoryPalApp(tk.Tk):
             except tk.TclError:
                 pass
 
+    def screen_bounds(self, widget=None):
+        """(left, top, right, bottom) of the screen area a popup may use."""
+        widget = widget or self
+        try:
+            return 0, 0, widget.winfo_screenwidth(), widget.winfo_screenheight()
+        except tk.TclError:
+            return 0, 0, self.winfo_screenwidth(), self.winfo_screenheight()
+
+    def fit_popup_rect(self, width, height, anchor_rect, gap=0):
+        """(x, y, width, height) for a popup beside anchor_rect, kept on screen."""
+        return popup_geometry.fit_popup_rect(width, height, anchor_rect, self.screen_bounds(), gap, self.px(8))
+
+    def place_centered(self, top, owner, width, height):
+        """Centre top over owner at width x height, capped to and kept on the screen."""
+        try:
+            owner_rect = (owner.winfo_rootx(), owner.winfo_rooty(),
+                          owner.winfo_rootx() + owner.winfo_width(), owner.winfo_rooty() + owner.winfo_height())
+        except tk.TclError:
+            owner_rect = self.screen_bounds()
+        x, y, width, height = popup_geometry.centered_rect(width, height, owner_rect, self.screen_bounds(), self.px(8))
+        top.geometry(f"{width}x{height}+{x}+{y}")
+        return width, height
+
     def open_dropdown(self, anchor, entries):
         self.close_dropdown()
         if not entries:
@@ -4892,9 +4948,21 @@ class MemoryPalApp(tk.Tk):
         top.configure(bg=COLORS["surface_soft"])
         self.own_window(top, anchor.winfo_toplevel())
         inset = self.px(6)
+        font_spec = self.font("Segoe UI", 11)
+        measure = tkfont.Font(root=self, font=font_spec)
+        row_height = measure.metrics("linespace") + 1
+        anchor.update_idletasks()
+        anchor_rect = (
+            anchor.winfo_rootx(), anchor.winfo_rooty(),
+            anchor.winfo_rootx() + anchor.winfo_width(), anchor.winfo_rooty() + anchor.winfo_height(),
+        )
+        x, y, width, height, rows, shown = popup_geometry.dropdown_layout(
+            [label for label, _command, _selected in entries], measure.measure, anchor_rect, self.screen_bounds(),
+            row_height, inset, side=measure.measure("  "), gap=self.px(4), margin=self.px(8))
         listbox = tk.Listbox(
             top,
-            height=min(len(entries), 10),
+            height=rows,
+            width=0,  # Tk's default is 20 characters, which clipped long labels.
             bg=COLORS["surface_soft"],
             fg=COLORS["ink"],
             selectbackground=COLORS["primary"],
@@ -4903,14 +4971,14 @@ class MemoryPalApp(tk.Tk):
             bd=0,
             highlightthickness=0,
             activestyle="none",
-            font=self.font("Segoe UI", 11),
+            font=font_spec,
             exportselection=False,
             cursor="hand2",
         )
         listbox.pack(fill="both", expand=True, padx=inset, pady=inset)
         current = 0
-        for index, (label, _command, selected) in enumerate(entries):
-            listbox.insert("end", f"  {label}  ")
+        for index, (_label, _command, selected) in enumerate(entries):
+            listbox.insert("end", f"  {shown[index]}  ")
             if selected:
                 current = index
                 listbox.itemconfigure(index, fg=COLORS["primary"])
@@ -4939,7 +5007,8 @@ class MemoryPalApp(tk.Tk):
             return None
 
         def wheel(event):
-            listbox.yview_scroll(-1 if event.delta > 0 else 1, "units")
+            up = getattr(event, "num", 0) == 4 or getattr(event, "delta", 0) > 0
+            listbox.yview_scroll(-1 if up else 1, "units")
             return "break"
 
         listbox.bind("<Motion>", hover)
@@ -4947,18 +5016,17 @@ class MemoryPalApp(tk.Tk):
         listbox.bind("<Return>", choose)
         listbox.bind("<Escape>", lambda _event: (self.close_dropdown(), "break")[1])
         listbox.bind("<MouseWheel>", wheel)
+        listbox.bind("<Button-4>", wheel)
+        listbox.bind("<Button-5>", wheel)
         top.bind("<ButtonPress-1>", press)
         listbox.bind("<ButtonPress-1>", press, add="+")
         listbox.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
 
         top.update_idletasks()
-        width = max(anchor.winfo_width(), listbox.winfo_reqwidth() + inset * 2)
+        # The listbox knows its exact row height; re-place with it so a list
+        # that flipped above the anchor still sits right against it.
         height = listbox.winfo_reqheight() + inset * 2
-        x = anchor.winfo_rootx()
-        y = anchor.winfo_rooty() + anchor.winfo_height() + self.px(4)
-        if y + height > self.winfo_screenheight():
-            y = anchor.winfo_rooty() - height - self.px(4)
-        x = max(0, min(x, self.winfo_screenwidth() - width))
+        x, y, width, height = self.fit_popup_rect(width, height, anchor_rect, gap=self.px(4))
         top.geometry(f"{width}x{height}+{x}+{y}")
         self.reveal_window(top)
         listbox.focus_force()
@@ -5058,8 +5126,9 @@ class MemoryPalApp(tk.Tk):
         box.pack(side="left", padx=(0, self.px(9)))
         label = tk.Label(row, text=text, bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI", 11), cursor="hand2", justify="left", wraplength=self.px(wraplength), anchor="w")
         label.pack(side="left", fill="x", expand=True)
-        if fit:
-            self.bind_rewrap(label)
+        # Always follow the real width: a fixed wrap clipped long labels in
+        # narrow columns and at the larger text sizes.
+        self.bind_rewrap(label)
 
         def draw():
             box.delete("all")
@@ -5748,10 +5817,10 @@ class MemoryPalApp(tk.Tk):
         card = tk.Frame(self.main, bg=COLORS["alt"], padx=self.px(22), pady=self.px(18))
         card.place(relx=1.0, rely=1.0, anchor="se", x=-self.px(52), y=-self.px(34), width=self.px(460))
         tk.Label(card, text=f"Guided tour  \u2022  step {index + 1} of {len(steps)}", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x")
-        tk.Label(card, text=title, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+        self.fit_wrap(tk.Label(card, text=title, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16), anchor="w", justify="left", wraplength=self.px(410)), pady=(self.px(4), 0))
         body = platform_text(body)
         text = tk.Label(card, text=body, bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(410))
-        text.pack(fill="x", pady=(self.px(6), self.px(14)))
+        self.fit_wrap(text, pady=(self.px(6), self.px(14)))
         buttons = [("Back", lambda: self.move_tour(-1), "TButton")] if index else []
         buttons += [("Finish" if last else "Next", lambda: self.move_tour(1), "Primary.TButton"), ("End Tour", self.end_tour, "TButton")]
         row = tk.Frame(card, bg=COLORS["alt"])
