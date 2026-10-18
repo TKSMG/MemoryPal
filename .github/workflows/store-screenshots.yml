@@ -5,6 +5,12 @@ name: Store screenshots
 # store-screenshots-output branch, so they can be fetched with git.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - ms-store-screenshots
+    paths:
+      - tools/render_check/store_screenshots.py
+      - .github/workflows/store-screenshots.yml
 
 permissions:
   contents: write
