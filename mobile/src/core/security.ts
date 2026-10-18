@@ -126,7 +126,7 @@ export const MIN_ACCOUNT_AGE = 13;
 // simply be changed and sent again.
 export const AGE_RETRY_SECONDS = 24 * 60 * 60;
 // Bump when the Terms or Privacy Policy change; stored with each new account.
-export const TERMS_VERSION = '2026-10-12';
+export const TERMS_VERSION = '2026-10-18';
 export const AGE_FORMAT_MESSAGE = 'Enter the month (1-12) and the year you were born.';
 export const UNDER_AGE_MESSAGE =
   `MemoryPal accounts are for people ${MIN_ACCOUNT_AGE} and older. You can keep using ` +
