@@ -8,7 +8,7 @@ import { persona } from '../../core/personas';
 import { planForToday } from '../../core/planning';
 import { levelInfo, nextAchievement } from '../../core/progress';
 import { useStore, useSync } from '../../state/AppState';
-import { Button, Card, IconButton, IconName, ProgressBar, Row, Screen, SectionTitle, Txt } from '../../ui/components';
+import { Button, Card, IconButton, IconName, ProgressBar, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
 import { MODES, openStep } from '../../ui/routes';
 import { useTheme } from '../../ui/theme';
 
@@ -96,7 +96,16 @@ export default function Today() {
         </Row>
       </Card>
 
-      <SectionTitle action={<Button kind="ghost" compact inline label={plan ? 'Edit' : 'Make one'} onPress={() => router.push('/plan')} />}>Today’s plan</SectionTitle>
+      <SectionTitle
+        action={
+          <Row gap={4}>
+            {plan && !plan.finished ? <SpeakButton text={plan.steps.map((step, i) => `Step ${i + 1}: ${step.title}, ${step.minutes} minutes.`).join(' ')} label="Read today’s plan aloud" /> : null}
+            <Button kind="ghost" compact inline label={plan ? 'Edit' : 'Make one'} onPress={() => router.push('/plan')} />
+          </Row>
+        }
+      >
+        Today’s plan
+      </SectionTitle>
       {plan ? (
         <Card>
           <Txt variant="muted">{plan.title}</Txt>

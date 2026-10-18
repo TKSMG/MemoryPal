@@ -7,9 +7,14 @@ import { View } from 'react-native';
 import { buildMultiDayPlan, buildStudyPlan, GOAL_KEYS, planMinutes, PlanStep, STUDY_HABIT_OPTIONS, TIME_UNIT_OPTIONS, TIME_UNIT_ORDER } from '../core/planning';
 import { StudyPlan } from '../core/store';
 import { useStore } from '../state/AppState';
-import { Button, Card, Pills, Row, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
+import { Button, Card, Pills, Row, Screen, SectionTitle, SpeakButton, ToggleRow, Txt, useStopSpeechOnLeave } from '../ui/components';
 import { confirm } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
+
+/** The steps as one paragraph to read aloud. */
+function stepsText(steps: PlanStep[]): string {
+  return steps.map((step, i) => `Step ${i + 1}: ${step.title}, ${step.minutes} minutes. ${step.blurb}`).join(' ');
+}
 
 const KIND_LABEL: Record<string, string> = { learn: 'Learn day', review: 'Spaced review day', maintenance: 'Short maintenance', light: 'Light day', study: 'Study day' };
 
@@ -37,6 +42,7 @@ function StepList({ steps }: { steps: PlanStep[] }) {
 export default function Plan() {
   const store = useStore();
   const theme = useTheme();
+  useStopSpeechOnLeave();
   const params = useLocalSearchParams<{ minutes?: string; goal?: string }>();
   const saved = (store.studyPlan as StudyPlan).settings;
   const [unit, setUnit] = useState<string>(params.minutes ? 'minutes' : String(saved?.unit ?? 'minutes'));
@@ -91,7 +97,7 @@ export default function Plan() {
         ))}
       </Card>
 
-      <SectionTitle>Your plan</SectionTitle>
+      <SectionTitle action={<SpeakButton text={session ? stepsText(session) : days ? days.map((day) => `Day ${day.day}, ${day.minutes} minutes. ${day.steps.map((step) => step.title).join(', ')}.`).join(' ') : ''} label="Read the plan aloud" />}>Your plan</SectionTitle>
       {session ? (
         <Card tone="alt">
           <Txt variant="muted">{`${minutes} minutes · ${goal} · ${deck}`}</Txt>
