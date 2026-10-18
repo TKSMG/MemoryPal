@@ -8,7 +8,7 @@ import { persona } from '../../core/personas';
 import { planForToday } from '../../core/planning';
 import { levelInfo, nextAchievement } from '../../core/progress';
 import { useStore, useSync } from '../../state/AppState';
-import { Button, Card, IconButton, IconName, ProgressBar, Row, Screen, SectionTitle, Txt } from '../../ui/components';
+import { Button, Card, IconButton, IconName, ListGroup, ListRow, ProgressBar, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
 import { MODES, openStep } from '../../ui/routes';
 import { useTheme } from '../../ui/theme';
 
@@ -66,7 +66,7 @@ export default function Today() {
 
   return (
     <Screen
-      eyebrow={greeting()}
+      subtitle={greeting()}
       title="Today"
       right={
         <Row gap={10}>
@@ -84,7 +84,7 @@ export default function Today() {
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt variant="h3" style={{ flexShrink: 1 }}>Daily goal</Txt>
-          <Txt variant="muted">{today >= goal ? 'Goal reached 🎯' : `${goal - today} to go`}</Txt>
+          <Txt variant="muted">{today >= goal ? 'Goal reached' : `${goal - today} to go`}</Txt>
         </Row>
         <ProgressBar value={today / goal} color={today >= goal ? c.green : c.primary} label={`${today} of ${goal} reviews today`} />
         <Row wrap style={{ justifyContent: 'space-between' }}>
@@ -92,15 +92,24 @@ export default function Today() {
             <Ionicons name="flame" size={theme.icon(20)} color={c.orange} />
             <Txt variant="body">{streak} day{streak === 1 ? '' : 's'} in a row</Txt>
           </Row>
-          <Txt variant="body" color={c.violet}>Level {level.level} · {level.xp}/{level.need} XP</Txt>
+          <Txt variant="muted">{`Level ${level.level}, ${level.xp} of ${level.need} XP`}</Txt>
         </Row>
       </Card>
 
-      <SectionTitle action={<Button kind="ghost" compact inline label={plan ? 'Edit' : 'Make one'} onPress={() => router.push('/plan')} />}>Today’s plan</SectionTitle>
+      <SectionTitle
+        action={
+          <Row gap={4}>
+            {plan && !plan.finished ? <SpeakButton text={plan.steps.map((step, i) => `Step ${i + 1}: ${step.title}, ${step.minutes} minutes.`).join(' ')} label="Read today’s plan aloud" /> : null}
+            <Button kind="ghost" compact inline label={plan ? 'Edit' : 'Make one'} onPress={() => router.push('/plan')} />
+          </Row>
+        }
+      >
+        Today’s plan
+      </SectionTitle>
       {plan ? (
         <Card>
           <Txt variant="muted">{plan.title}</Txt>
-          {plan.finished ? <Txt variant="body">Well done — the plan is complete. Make a new one when you’re ready.</Txt> : null}
+          {plan.finished ? <Txt variant="body">Well done, the plan is complete. Make a new one when you’re ready.</Txt> : null}
           {plan.steps.map((step, index) => {
             const ticked = done.has(index);
             // A press shows at once: a ripple on Android, a soft fill elsewhere.
@@ -144,31 +153,22 @@ export default function Today() {
         </Card>
       )}
 
-      <SectionTitle>Study modes</SectionTitle>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+      <ListGroup header="Study modes">
         {persona(store.onboarding.persona).modes.map((key) => {
           const mode = MODES[key];
-          return (
-            <Card key={key} onPress={mode.go} accessibilityLabel={`${mode.title}. ${mode.body}`} style={{ flexBasis: '46%', flexGrow: 1 }}>
-              <Ionicons name={mode.icon as keyof typeof Ionicons.glyphMap} size={theme.icon(26)} color={c.link} />
-              <Txt variant="h3">{mode.title}</Txt>
-              <Txt variant="small">{mode.body}</Txt>
-            </Card>
-          );
+          return <ListRow key={key} icon={mode.icon as IconName} title={mode.title} detail={mode.body} onPress={mode.go} />;
         })}
-      </View>
+      </ListGroup>
 
       {badge ? (
-        <Card onPress={() => router.push('/progress')} accessibilityLabel={`Next badge: ${badge.title}. ${badge.body}`}>
-          <Row>
-            <Txt variant="title">{badge.icon}</Txt>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Txt variant="h3">Next badge: {badge.title}</Txt>
-              <Txt variant="small">{badge.body} {badge.current}/{badge.target}</Txt>
-              <ProgressBar value={badge.current / badge.target} color={c.orange} height={8} />
-            </View>
-          </Row>
-        </Card>
+        <ListGroup>
+          <ListRow
+            icon="ribbon-outline"
+            title={`Next badge: ${badge.title}`}
+            detail={`${badge.body} ${badge.current} of ${badge.target}.`}
+            onPress={() => router.push('/progress')}
+          />
+        </ListGroup>
       ) : null}
     </Screen>
   );
