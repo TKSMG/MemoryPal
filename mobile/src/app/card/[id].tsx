@@ -74,7 +74,7 @@ export default function EditCard() {
         <Txt variant="small">
           {card.repetitions
             ? `Next review ${relativeDay(card.next_review)} · every ${card.interval} day${card.interval === 1 ? '' : 's'} · last result: ${card.last_result}${card.lapses ? ` · missed ${card.lapses}×` : ''}`
-            : 'New card — not reviewed yet.'}
+            : 'New card, not reviewed yet.'}
         </Txt>
       </Card>
       <Field label="Deck" value={deck} onChangeText={setDeck} autoCapitalize="words" />

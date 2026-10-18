@@ -74,8 +74,7 @@ export default function Create() {
 
   return (
     <ScreenList
-      eyebrow="Create"
-      title="Your cards"
+      title="Create"
       header={header}
       data={matches}
       renderItem={renderCard}
@@ -107,7 +106,7 @@ const CardRow = memo(function CardRow({ card, leech, today }: { card: CardModel;
       {card.back ? <Txt variant="muted" numberOfLines={3}>{card.back}</Txt> : null}
       {leech ? (
         <View style={{ backgroundColor: c.again[0], borderRadius: 10, padding: 8 }}>
-          <Txt variant="small" color={c.again[1]}>{`Missed ${card.lapses} times — try rewriting it or adding a memory hook.`}</Txt>
+          <Txt variant="small" color={c.again[1]}>{`Missed ${card.lapses} times. Try rewriting it or adding a memory hook.`}</Txt>
         </View>
       ) : null}
     </Card>
