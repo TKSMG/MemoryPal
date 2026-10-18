@@ -700,6 +700,25 @@ class MemoryStore:
                 setattr(card, name, (value or "General") if name == "deck" else value)
         self.save()
 
+    def rename_deck(self, old_name, new_name):
+        """Move every card in deck old_name to new_name with one save.
+
+        Renaming onto an existing deck merges the two. Returns how many
+        cards moved (0 when the name is blank or unchanged).
+        """
+        old_name = str(old_name or "").strip() or "General"
+        new_name = " ".join(str(new_name or "").split())
+        if not new_name or new_name == old_name:
+            return 0
+        moved = 0
+        for card in self.cards:
+            if (card.deck or "General") == old_name:
+                card.deck = new_name
+                moved += 1
+        if moved:
+            self.save()
+        return moved
+
     def delete_cards(self, ids):
         """Remove cards by id with one save. Returns how many were removed."""
         ids = set(ids)
