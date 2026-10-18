@@ -1899,8 +1899,21 @@ class MemoryPalApp(tk.Tk):
         "cloud": [("arc", 7, 14.5, 4, 90, 262.8), ("arc", 12, 10.5, 5.5, 179.7, 360), ("arc", 17.5, 14.5, 4, 270, 450), ("seg", 7, 18.5, 17.5, 18.5)],
         "syncing": [("arc", 12, 12, 7.5, 320, 625), ("seg", 13.9, 4.74, 10.6, 2), ("seg", 13.9, 4.74, 10.8, 7.8)],
         "warning": [("seg", 12, 3.5, 21, 19.5), ("seg", 21, 19.5, 3, 19.5), ("seg", 3, 19.5, 12, 3.5), ("seg", 12, 9.5, 12, 13.5), ("dot", 12, 16.5, 1.2)],
+        # Read aloud and talk-back study.
+        "speaker": [
+            ("seg", 3.5, 9.5, 7.5, 9.5), ("seg", 7.5, 9.5, 12, 5), ("seg", 12, 5, 12, 19), ("seg", 12, 19, 7.5, 14.5),
+            ("seg", 7.5, 14.5, 3.5, 14.5), ("seg", 3.5, 14.5, 3.5, 9.5),
+            ("arc", 12, 12, 4.5, 315, 405), ("arc", 12, 12, 8.5, 310, 410),
+        ],
+        "stop": [("box", 6, 6, 18, 18, 2.5)],
+        "pause": [("seg", 9, 6, 9, 18), ("seg", 15, 6, 15, 18)],
+        "play": [("seg", 8, 5, 19, 12), ("seg", 19, 12, 8, 19), ("seg", 8, 19, 8, 5)],
+        "skip": [("seg", 5, 5, 15, 12), ("seg", 15, 12, 5, 19), ("seg", 5, 19, 5, 5), ("seg", 19, 5, 19, 19)],
+        "mic": [("box", 9, 3, 15, 14, 3), ("arc", 12, 11, 6.5, 0, 180), ("seg", 12, 17.5, 12, 21), ("seg", 8.5, 21, 15.5, 21)],
+        "keyboard": [("box", 2.5, 6, 21.5, 18, 2.5), ("dot", 7, 10, 1), ("dot", 10.33, 10, 1), ("dot", 13.66, 10, 1), ("dot", 17, 10, 1), ("seg", 7.5, 14, 16.5, 14)],
     }
     LINE_ICONS["sun"] = LINE_ICONS["dashboard"]
+    LINE_ICONS["repeat"] = LINE_ICONS["syncing"]
 
     # Icons drawn small get a slightly heavier stroke so they don't look faint.
     LINE_ICON_WEIGHT = {"check": 1.35}
@@ -2825,13 +2838,75 @@ class MemoryPalApp(tk.Tk):
 
     def speak(self, text):
         """Read text aloud with the system voice (slower when More time is on)."""
+        self._reset_speak_button()
         if not self.speaker.speak(text, slow=self.accessibility.get("more_time", False)):
-            self.toast_message("Read aloud isn't available on this computer.")
+            if normalize_space(text):
+                self.toast_message("Read aloud isn't available on this computer.")
+            return False
+        return True
+
+    def stop_speaking(self):
+        self.speaker.stop()
+        self._reset_speak_button()
+
+    def _reset_speak_button(self):
+        button = getattr(self, "_speaking_button", None)
+        self._speaking_button = None
+        if button is not None:
+            try:
+                if button.winfo_exists():
+                    button._memorypal_set(False)
+            except tk.TclError:
+                pass
+
+    def speak_button(self, parent, text, label="Read aloud", compact=False):
+        """The read-aloud control used everywhere a card, note or answer is shown.
+
+        A speaker icon (with "Read aloud" unless compact) that turns into Stop
+        while reading. text may be a string or a function returning one, so
+        it reads what is on screen at the moment it is pressed. It is a normal
+        button: Tab reaches it, Space or Enter presses it, and changing page
+        stops the voice.
+        """
+        source = text if callable(text) else (lambda: text)
+        size = self.px(18)
+        button = ttk.Button(parent, style="Link.TButton" if compact else "TButton", cursor="hand2", takefocus=1)
+
+        def show(speaking):
+            icon = self.line_icon("stop" if speaking else "speaker", size, COLORS["primary"] if compact else COLORS["ink"])
+            words = "Stop" if speaking else label
+            if icon is not None:
+                button._memorypal_icon = icon
+                button.configure(image=icon, compound="image" if compact else "left", text="" if compact else f" {words}")
+            else:
+                button.configure(text=words)
+
+        def watch():
+            if not button.winfo_exists() or getattr(self, "_speaking_button", None) is not button:
+                return
+            if self.speaker.speaking():
+                button.after(250, watch)
+            else:
+                self._reset_speak_button()
+
+        def press():
+            if getattr(self, "_speaking_button", None) is button and self.speaker.speaking():
+                self.stop_speaking()
+                return
+            if self.speak(source()):
+                self._speaking_button = button
+                show(True)
+                button.after(250, watch)
+
+        button._memorypal_set = show
+        button.configure(command=press)
+        button.bind("<Return>", lambda _event: (press(), "break")[1])
+        show(False)
+        self.add_tooltip(button, f"{label} with the computer's own voice. Works offline. Press again to stop.")
+        return button
 
     def read_aloud_button(self, parent, text, label="Read aloud"):
-        button = ttk.Button(parent, text=label, command=lambda: self.speak(text))
-        self.add_tooltip(button, "Read this out loud with the computer's voice. Works offline.")
-        return button
+        return self.speak_button(parent, text, label)
 
     def show_focus_outline(self):
         # Keyboard users must always see where focus is (WCAG 2.4.7), so the
@@ -4071,7 +4146,7 @@ class MemoryPalApp(tk.Tk):
         # belongs to (Today, Study, Create, Practice, Progress), so people can
         # tell where they are without reading the rail.
         titles = self.page_titles()
-        self.speaker.stop()
+        self.stop_speaking()
         self.audio_player.stop()
         self.clear_text_selection()
         self.close_page_finder()
@@ -7674,7 +7749,8 @@ class MemoryPalApp(tk.Tk):
                 body = tk.Frame(row, bg=surface)
                 body.pack(fill="x")
                 remove = ttk.Button(body, text="Remove", style="Link.TButton", cursor="hand2", command=lambda i=index: remove_item(i))
-                remove.pack(side="right", anchor="n", padx=(self.px(8), 0))
+                remove.pack(side="right", anchor="n", padx=(self.px(4), 0))
+                self.speak_button(body, f"{item['prompt']}. {item['answer'] or ''}", compact=True).pack(side="right", anchor="n", padx=(self.px(8), 0))
                 text = tk.Frame(body, bg=surface)
                 text.pack(side="left", fill="x", expand=True)
                 self.fit_wrap(tk.Label(text, text=item["prompt"], bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 12), wraplength=self.px(300), justify="left"))
@@ -7718,6 +7794,7 @@ class MemoryPalApp(tk.Tk):
 
         ttk.Button(typed_actions, text="Add card", cursor="hand2", command=add_typed).pack(side="left")
         ttk.Button(paste_actions, text="Split into cards", cursor="hand2", command=split_notes).pack(side="left")
+        self.speak_button(paste_actions, lambda: notes.get("1.0", "end")).pack(side="left", padx=(self.px(8), 0))
         question.bind("<Return>", lambda _event: (answer.focus_set(), "break")[1])
         answer.bind("<Return>", add_typed)
         answer.bind("<KP_Enter>", add_typed)
@@ -7980,7 +8057,7 @@ class MemoryPalApp(tk.Tk):
         card = self.current_review
         ttk.Label(host, text=f"{card.deck} | Next review: {card.next_review}", style="CardMuted.TLabel").pack(anchor="w")
         ttk.Label(host, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(10, 8))
-        self.read_aloud_button(host, card.front if not show_answer else f"{card.front}. The answer is: {card.back}", "Read aloud").pack(anchor="w", pady=(0, 12))
+        self.speak_button(host, card.front if not show_answer else f"{card.front}. The answer is: {card.back}").pack(anchor="w", pady=(0, 12))
         if not show_answer and self.accessibility.get("read_aloud"):
             self.after(250, lambda: self.speak(card.front))
         self.render_media_controls(host, card)
@@ -8047,15 +8124,19 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(guide, text="Answer first, then check", style="WarmH2.TLabel").pack(anchor="w")
         ttk.Label(guide, text="Smart Check compares your response in context and suggests a review bucket. Reveal is always available if this is a self-check card.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
         ttk.Label(panel, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 8))
-        self.read_aloud_button(panel, card.front, "Read question aloud").pack(anchor="w", pady=(0, 14))
+        self.speak_button(panel, card.front).pack(anchor="w", pady=(0, 14))
         if self.accessibility.get("read_aloud"):
             self.after(250, lambda: self.speak(card.front))
         self.render_media_controls(panel, card)
         response = self.answer_area(panel, "Your test answer", "Answer here without leaving the testing page.", 5)
         if draft.get("card_id") == card.id and draft.get("context") == self.testing_context:
             response.insert("1.0", draft.get("response", ""))
-        result = ttk.Label(panel, text="Smart Check will highlight the suggested bucket.", style="CardMuted.TLabel", wraplength=1040)
-        result.pack(anchor="w", pady=(0, 10))
+        result_row = ttk.Frame(panel, style="Card.TFrame")
+        result_row.pack(fill="x", pady=(0, 10))
+        self.speak_button(result_row, lambda: str(result.cget("text")), "Read result", compact=True).pack(side="right", anchor="n")
+        result = ttk.Label(result_row, text="Smart Check will highlight the suggested bucket.", style="CardMuted.TLabel", wraplength=1040)
+        result.pack(side="left", fill="x", expand=True, anchor="w")
+        self.bind_rewrap(result)
         bucket_holder = ttk.Frame(panel, style="Card.TFrame")
         bucket_holder.pack(fill="x")
         answer_holder = ttk.Frame(panel, style="Card.TFrame")
@@ -8088,7 +8169,7 @@ class MemoryPalApp(tk.Tk):
                 child.destroy()
             ttk.Label(answer_holder, text="Saved answer", style="CardMuted.TLabel").pack(anchor="w")
             ttk.Label(answer_holder, text=card.back, style="Card.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 8))
-            self.read_aloud_button(answer_holder, card.back, "Read answer aloud").pack(anchor="w")
+            self.speak_button(answer_holder, card.back).pack(anchor="w")
             answer_holder.pack(fill="x", pady=(8, 0))
             answer_visible["value"] = True
             if self.accessibility.get("read_aloud"):
@@ -8237,12 +8318,18 @@ class MemoryPalApp(tk.Tk):
             return
         card = self.quiz_cards[self.quiz_round]
         ttk.Label(host, text=f"Question {self.quiz_round + 1} of {len(self.quiz_cards)}", style="CardMuted.TLabel").pack(anchor="w")
-        ttk.Label(host, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(10, 20))
-        self.render_media_controls(host, card)
+        ttk.Label(host, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(10, 8))
+        choices = []
         if self.quiz_mode == "choices":
             wrong = [item.back for item in self.store.cards if item.id != card.id]
             choices = random.sample(wrong, min(3, len(wrong))) + [card.back]
             random.shuffle(choices)
+        spoken = card.front + (". The choices are: " + "; ".join(choices) if choices else "")
+        self.speak_button(host, spoken).pack(anchor="w", pady=(0, 16))
+        if self.accessibility.get("read_aloud"):
+            self.after(250, lambda: self.speak(spoken))
+        self.render_media_controls(host, card)
+        if self.quiz_mode == "choices":
             for choice in choices:
                 ttk.Button(host, text=choice, command=lambda value=choice: self.answer_quiz(host, value, card.back)).pack(fill="x", pady=5)
             return
@@ -10436,7 +10523,10 @@ class MemoryPalApp(tk.Tk):
                         continue
                     item = self.card(page.inner)
                     item.pack(fill="x", padx=(0, 8), pady=(0, 10))
-                    ttk.Label(item, text=f"Capture | {capture.created_at}", style="CardMuted.TLabel").pack(anchor="w")
+                    capture_head = ttk.Frame(item, style="Card.TFrame")
+                    capture_head.pack(fill="x")
+                    self.speak_button(capture_head, ". ".join([capture.title] + chunks), compact=True).pack(side="right")
+                    ttk.Label(capture_head, text=f"Capture | {capture.created_at}", style="CardMuted.TLabel").pack(side="left", anchor="w")
                     ttk.Label(item, text=capture.title, style="H2.TLabel", wraplength=1060).pack(anchor="w", pady=(6, 5))
                     ttk.Label(item, text=f"{len(chunks)} study bits", style="CardMuted.TLabel").pack(anchor="w")
                     for index, chunk in enumerate(chunks[:5], 1):
@@ -10467,6 +10557,7 @@ class MemoryPalApp(tk.Tk):
                     head.pack(fill="x")
                     edit = ttk.Button(head, text="Edit", command=lambda c=card: self.open_card_editor(c, render))
                     edit.pack(side="right")
+                    self.speak_button(head, f"{card.front}. The answer is: {card.back}", compact=True).pack(side="right", padx=(0, self.px(6)))
                     self.add_tooltip(edit, "Change the words, deck or memory hook, or delete this card.")
                     ttk.Label(head, text=status_line, style="CardMuted.TLabel").pack(side="left", anchor="w")
                     if self.store.is_leech(card):
@@ -10484,6 +10575,8 @@ class MemoryPalApp(tk.Tk):
                 ttk.Button(more, text=f"Show {min(page_size, hidden)} more", command=show_more).pack(side="right")
             if shown == 0:
                 ttk.Label(page.inner, text="No matching material.", style="Muted.TLabel").pack(anchor="w")
+            # Search re-renders after the page was built; wrap to the real width again.
+            self.fit_wrap_tree(page.inner)
 
         render()
 
