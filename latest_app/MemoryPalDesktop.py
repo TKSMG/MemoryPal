@@ -2840,11 +2840,11 @@ class MemoryPalApp(tk.Tk):
         self.rebuild_shell("settings", refresh_styles=True)
         self.toast_message("Senior-friendly layout applied.")
 
-    def speak(self, text):
+    def speak(self, text, quiet=False):
         """Read text aloud with the system voice (slower when More time is on)."""
         self._reset_speak_button()
         if not self.speaker.speak(text, slow=self.accessibility.get("more_time", False)):
-            if normalize_space(text):
+            if normalize_space(text) and not quiet:
                 self.toast_message("Read aloud isn't available on this computer.")
             return False
         return True
@@ -3033,39 +3033,53 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("Root.TFrame", background=COLORS["bg"])
         self.style.configure("Rail.TFrame", background=COLORS["rail"])
         self.style.configure("Page.TFrame", background=COLORS["bg"])
-        self.style.configure("Header.TFrame", background=COLORS["surface"], relief="flat", borderwidth=0)
+        # The page header sits straight on the window, like a macOS/Windows
+        # title area: no card around it, so the page content is the first box.
+        self.style.configure("Header.TFrame", background=COLORS["bg"], relief="flat", borderwidth=0)
         self.style.configure("Card.TFrame", background=COLORS["surface"], relief="flat", borderwidth=0)
         self.style.configure("AltCard.TFrame", background=COLORS["alt"], relief="flat", borderwidth=0)
-        self.style.configure("WarmCard.TFrame", background=COLORS["warm"], relief="flat", borderwidth=0)
+        # "Warm" callouts are now quiet neutral insets; the orange boxes
+        # shouted louder than the content they introduced.
+        self.style.configure("WarmCard.TFrame", background=COLORS["alt"], relief="flat", borderwidth=0)
         self.style.configure("TLabel", background=COLORS["bg"], foreground=COLORS["ink"], font=self.font("Segoe UI", 12))
         self.style.configure("Muted.TLabel", background=COLORS["bg"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
         self.style.configure("Card.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI", 12))
         self.style.configure("CardMuted.TLabel", background=COLORS["surface"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
-        self.style.configure("Header.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI", 12))
-        self.style.configure("HeaderMuted.TLabel", background=COLORS["surface"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
+        self.style.configure("Header.TLabel", background=COLORS["bg"], foreground=COLORS["ink"], font=self.font("Segoe UI", 12))
+        self.style.configure("HeaderMuted.TLabel", background=COLORS["bg"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
+        self.style.configure("PageTitle.TLabel", background=COLORS["bg"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 25))
         self.style.configure("AltCard.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI", 12))
         self.style.configure("AltMuted.TLabel", background=COLORS["alt"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
-        self.style.configure("WarmCard.TLabel", background=COLORS["warm"], foreground=COLORS["warm_text"], font=self.font("Segoe UI", 12))
-        self.style.configure("WarmMuted.TLabel", background=COLORS["warm"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
+        self.style.configure("WarmCard.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI", 11))
+        self.style.configure("WarmMuted.TLabel", background=COLORS["alt"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
         self.style.configure("Title.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 28))
         self.style.configure("H2.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 18))
         self.style.configure("AltH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 18))
-        self.style.configure("WarmH2.TLabel", background=COLORS["warm"], foreground=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 18))
+        self.style.configure("WarmH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 13))
         self.style.configure("Stat.TLabel", background=COLORS["surface"], foreground=COLORS["primary"], font=self.font("Segoe UI Semibold", 34))
         self.style.configure("RailTitle.TLabel", background=COLORS["rail"], foreground=COLORS["white"], font=self.font("Segoe UI Semibold", 20))
         self.style.configure("RailText.TLabel", background=COLORS["rail"], foreground=COLORS["rail_muted"], font=self.font("Segoe UI", 12))
         self.style.configure("TEntry", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], insertcolor=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
         self.style.map("TEntry", bordercolor=[("focus", COLORS["primary"])], lightcolor=[("focus", COLORS["input"])], darkcolor=[("focus", COLORS["input"])])
         self.style.configure("TCombobox", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
-        for scrollbar_style in ("Vertical.TScrollbar", "Horizontal.TScrollbar"):
+        # Slim overlay-style scrollbars: a quiet thumb on the window colour,
+        # no arrow buttons (they drew as small square caps at each end), and
+        # a darker thumb only while it is being used.
+        thumb = self.blend_hex(COLORS["bg"], COLORS["muted"], 0.45)
+        for orient in ("Vertical", "Horizontal"):
+            scrollbar_style = f"{orient}.TScrollbar"
+            self.style.layout(scrollbar_style, [(f"{orient}.Scrollbar.trough", {
+                "sticky": "ns" if orient == "Vertical" else "ew",
+                "children": [(f"{orient}.Scrollbar.thumb", {"expand": "1", "sticky": "nswe"})],
+            })])
             self.style.configure(
                 scrollbar_style,
                 gripcount=0,
-                width=self.px(10),
-                arrowsize=self.px(9),
-                background=COLORS["muted"],
-                darkcolor=COLORS["muted"],
-                lightcolor=COLORS["muted"],
+                width=self.px(8),
+                arrowsize=self.px(8),
+                background=thumb,
+                darkcolor=thumb,
+                lightcolor=thumb,
                 troughcolor=COLORS["bg"],
                 bordercolor=COLORS["bg"],
                 arrowcolor=COLORS["muted"],
@@ -3073,8 +3087,9 @@ class MemoryPalApp(tk.Tk):
             )
             self.style.map(
                 scrollbar_style,
-                background=[("pressed", COLORS["primary"]), ("active", COLORS["primary"])],
-                arrowcolor=[("active", COLORS["primary"])],
+                background=[("pressed", COLORS["muted"]), ("active", COLORS["muted"])],
+                darkcolor=[("pressed", COLORS["muted"]), ("active", COLORS["muted"])],
+                lightcolor=[("pressed", COLORS["muted"]), ("active", COLORS["muted"])],
             )
         self.style.configure("Rail.Vertical.TScrollbar", gripcount=0, width=self.px(13), arrowsize=self.px(11), background=COLORS["muted"], darkcolor=COLORS["rail"], lightcolor=COLORS["rail"], troughcolor=COLORS["rail"], bordercolor=COLORS["rail"], arrowcolor=COLORS["muted"], relief="flat")
         self.style.configure("Horizontal.TProgressbar", troughcolor=COLORS["alt"], background=COLORS["primary"], bordercolor=COLORS["alt"], lightcolor=COLORS["primary"], darkcolor=COLORS["primary"])
@@ -3732,13 +3747,17 @@ class MemoryPalApp(tk.Tk):
         except ValueError:
             return 1
 
-    def header_icon_button(self, parent, icon, command, hint="", size=42, active=False):
+    def header_icon_button(self, parent, icon, command, hint="", size=38, active=False):
         pixel_size = self.px(size)
+        try:
+            base = parent.cget("bg") or COLORS["surface"]
+        except tk.TclError:
+            base = COLORS["surface"]
         canvas = tk.Canvas(
             parent,
             width=pixel_size,
             height=pixel_size,
-            bg=COLORS["surface"],
+            bg=base,
             highlightthickness=0,
             bd=0,
             cursor="hand2",
@@ -3754,12 +3773,13 @@ class MemoryPalApp(tk.Tk):
         def draw(hover=False):
             canvas.delete("all")
             is_active = bool(getattr(canvas, "_memorypal_active", active))
-            normal_fill = self.tint(COLORS["surface"], -5 if self.theme == "light" else 10)
-            active_fill = self.tint(COLORS["surface"], -10 if self.theme == "light" else 18)
-            fill = active_fill if hover or is_active else normal_fill
+            # Nothing behind the symbol at rest; a soft tile only on hover or
+            # when the button is "on", like a native toolbar.
+            if hover or is_active:
+                fill = self.tint(base, -10 if self.theme == "light" else 16)
+                if not self.draw_antialiased_shape(canvas, pixel_size, pixel_size, fill, radius=self.px(10), inset=1):
+                    canvas.create_rectangle(0, 0, pixel_size, pixel_size, fill=fill, outline="")
             ink = COLORS["primary"] if hover or is_active else COLORS["muted"]
-            if not self.draw_antialiased_shape(canvas, pixel_size, pixel_size, fill, radius=self.px(14), inset=1):
-                canvas.create_rectangle(0, 0, pixel_size, pixel_size, fill=fill, outline="")
             center = pixel_size / 2
             if icon == "theme":
                 draw_line_icon("moon" if self.theme == "dark" else "sun", ink)
@@ -3779,16 +3799,20 @@ class MemoryPalApp(tk.Tk):
         return canvas
 
     def profile_avatar_button(self, parent):
-        size = self.px(42)
+        size = self.px(38)
         profile_number = str(min(self.active_profile_number(), 99))
         # Initials read as "this is me" at a glance; "P1" read as a code.
         words = [word for word in re.split(r"[\s_-]+", active_profile_name()) if word]
         profile_label = ("".join(word[0] for word in words[:2]) or profile_number).upper()
+        try:
+            base = parent.cget("bg") or COLORS["surface"]
+        except tk.TclError:
+            base = COLORS["surface"]
         button = tk.Canvas(
             parent,
             width=size,
             height=size,
-            bg=COLORS["surface"],
+            bg=base,
             highlightthickness=0,
             bd=0,
             cursor="hand2",
@@ -3797,11 +3821,11 @@ class MemoryPalApp(tk.Tk):
         def draw(hover=False):
             button.delete("all")
             if self.theme == "light":
-                fill = self.tint(COLORS["surface"], -9 if hover else -4)
+                fill = self.tint(base, -16 if hover else -9)
             else:
-                fill = self.tint(COLORS["surface"], 17 if hover else 9)
+                fill = self.tint(base, 22 if hover else 14)
             ink = COLORS["primary"] if hover else COLORS["ink"]
-            if not self.draw_antialiased_shape(button, size, size, fill, radius=self.px(14), inset=1):
+            if not self.draw_antialiased_shape(button, size, size, fill, radius=size // 2, inset=1):
                 button.create_rectangle(0, 0, size, size, fill=fill, outline="")
             self.create_centered_canvas_text(
                 button,
@@ -3841,46 +3865,50 @@ class MemoryPalApp(tk.Tk):
 
         self.main = ttk.Frame(self.app_body, style="Page.TFrame")
         self.main.place(x=0, y=self.tab_bar_height(), relwidth=1, height=1)
-        top = ttk.Frame(self.main, style="Header.TFrame", padding=self.pad(22, 18))
-        top.pack(fill="x", padx=self.px(36), pady=self.pad(20, 14))
+        top = ttk.Frame(self.main, style="Header.TFrame", padding=0)
+        top.pack(fill="x", padx=self.px(36), pady=(self.px(22), self.px(16)))
         top.columnconfigure(0, weight=1)
         top.columnconfigure(1, weight=0)
         title_box = ttk.Frame(top, style="Header.TFrame")
         title_box.grid(row=0, column=0, sticky="ew")
         self.eyebrow = ttk.Label(title_box, text="Today", style="HeaderMuted.TLabel")
         self.eyebrow.pack(anchor="w")
-        self.title_label = ttk.Label(title_box, text="Dashboard", style="Title.TLabel")
+        self.title_label = ttk.Label(title_box, text="Dashboard", style="PageTitle.TLabel")
         self.title_label.pack(anchor="w", fill="x")
-        action_strip = tk.Frame(top, bg=COLORS["surface"])
+        header_bg = COLORS["bg"]
+        action_strip = tk.Frame(top, bg=header_bg)
         action_strip.grid(row=0, column=1, sticky="e", padx=(self.px(18), 0))
-        status_row = tk.Frame(top, bg=COLORS["surface"])
-        status_row.grid(row=1, column=0, sticky="w", pady=(self.px(14), 0))
+        # Streak, today's count and sync as one quiet line of text with
+        # small symbols, not three coloured badges competing with the page.
+        status_row = tk.Frame(top, bg=header_bg)
+        status_row.grid(row=1, column=0, sticky="w", pady=(self.px(6), 0))
+        status_font = self.font("Segoe UI", 11)
         streak = self.store.current_streak()
-        streak_chip = tk.Label(status_row, text=f"{streak} day{'s' if streak != 1 else ''}", bg=COLORS["warm"], fg=COLORS["warm_text"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
+        streak_chip = tk.Label(status_row, text=f" {streak} day streak", bg=header_bg, fg=COLORS["muted"], padx=0, pady=self.px(2), font=status_font)
         self.set_chip_icon(streak_chip, "flame", COLORS["warm_text"])
-        streak_chip.pack(side="left", padx=(0, self.px(10)))
+        streak_chip.pack(side="left", padx=(0, self.px(18)))
         self.streak_chip = streak_chip
         today = self.store.today_count()
-        goal_chip = tk.Label(status_row, text=f"{today}/{self.store.daily_goal} today", bg=COLORS["good_bg"] if today >= self.store.daily_goal else COLORS["alt"], fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["primary"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10))
-        goal_chip.pack(side="left", padx=(0, self.px(10)))
+        goal_chip = tk.Label(status_row, text=f"{today} of {self.store.daily_goal} today", bg=header_bg, fg=COLORS["good_fg"] if today >= self.store.daily_goal else COLORS["muted"], padx=0, pady=self.px(2), font=status_font)
+        goal_chip.pack(side="left", padx=(0, self.px(18)))
         self.goal_chip = goal_chip
         # Where sync stands, at a glance; clicking it opens Account & sync in Settings.
-        self.sync_chip = tk.Label(status_row, text="", bg=COLORS["alt"], fg=COLORS["muted"], padx=self.px(12), pady=self.px(7), font=self.font("Segoe UI Semibold", 10), cursor="hand2")
+        self.sync_chip = tk.Label(status_row, text="", bg=header_bg, fg=COLORS["muted"], padx=0, pady=self.px(2), font=status_font, cursor="hand2")
         self.keyboard_link(self.sync_chip, lambda _event: self.show_view("settings"))
         self.add_tooltip(self.sync_chip, "Account & sync settings")
         self.refresh_sync_chip()
         back_button = self.header_icon_button(action_strip, "back", self.go_back, f"Back to the previous page ({BACK_SHORTCUT}).")
-        back_button.pack(side="left", padx=(0, self.px(8)))
+        back_button.pack(side="left", padx=(0, self.px(4)))
         find_button = self.header_icon_button(action_strip, "search", self.open_page_finder, f"Go to any page or action ({shortcut('K')}).")
-        find_button.pack(side="left", padx=(0, self.px(8)))
+        find_button.pack(side="left", padx=(0, self.px(4)))
         help_button = self.header_icon_button(action_strip, "help", self.start_tour, "Show me around: a short guided tour of the pages you use most.")
-        help_button.pack(side="left", padx=(0, self.px(8)))
+        help_button.pack(side="left", padx=(0, self.px(4)))
         theme_button = self.header_icon_button(action_strip, "theme", self.toggle_theme, "Switch between light and dark appearance.")
-        theme_button.pack(side="left", padx=(0, self.px(8)))
+        theme_button.pack(side="left", padx=(0, self.px(4)))
         backup = self.header_icon_button(action_strip, "backup", self.export_data, "Export a local JSON backup of your MemoryPal data.")
-        backup.pack(side="left", padx=(0, self.px(8)))
+        backup.pack(side="left", padx=(0, self.px(4)))
         settings_button = self.header_icon_button(action_strip, "settings", lambda: self.show_view("settings"), "Open Settings.")
-        settings_button.pack(side="left", padx=(0, self.px(8)))
+        settings_button.pack(side="left", padx=(0, self.px(10)))
         profile_avatar = self.profile_avatar_button(action_strip)
         profile_avatar.pack(side="left")
 
@@ -3888,9 +3916,11 @@ class MemoryPalApp(tk.Tk):
         self.content.pack(fill="both", expand=True, padx=self.px(36), pady=(0, self.px(18)))
         self.toast_var = tk.StringVar()
         self.toast = tk.Label(self, textvariable=self.toast_var, bg=COLORS["rail"], fg=COLORS["white"], padx=self.px(20), pady=self.px(14), font=self.font("Segoe UI Semibold", 12))
-        right_grip = tk.Frame(self, bg=COLORS["line"], cursor="sb_h_double_arrow")
-        bottom_grip = tk.Frame(self, bg=COLORS["line"], cursor="sb_v_double_arrow")
-        corner_grip = tk.Frame(self, bg=COLORS["muted"], cursor="bottom_right_corner")
+        # Invisible grips along the window edge: the cursor shows where to
+        # drag, so they need no grey strip or corner square of their own.
+        right_grip = tk.Frame(self, bg=COLORS["bg"], cursor="sb_h_double_arrow")
+        bottom_grip = tk.Frame(self, bg=COLORS["bg"], cursor="sb_v_double_arrow")
+        corner_grip = tk.Frame(self, bg=COLORS["bg"], cursor="bottom_right_corner")
         self.resize_grips = [right_grip, bottom_grip, corner_grip]
         right_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "e"), add="+")
         bottom_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "s"), add="+")
@@ -3905,16 +3935,15 @@ class MemoryPalApp(tk.Tk):
         streak_chip = getattr(self, "streak_chip", None)
         if streak_chip is not None and streak_chip.winfo_exists():
             streak = self.store.current_streak()
-            streak_chip.configure(text=f"{streak} day{'s' if streak != 1 else ''}")
+            streak_chip.configure(text=f" {streak} day streak")
         chip = getattr(self, "goal_chip", None)
         if chip is None or not chip.winfo_exists():
             return
         today = self.store.today_count()
         met = today >= self.store.daily_goal
         chip.configure(
-            text=f"{today}/{self.store.daily_goal} today",
-            bg=COLORS["good_bg"] if met else COLORS["alt"],
-            fg=COLORS["good_fg"] if met else COLORS["primary"],
+            text=f"{today} of {self.store.daily_goal} today",
+            fg=COLORS["good_fg"] if met else COLORS["muted"],
         )
 
     def layout_app_body(self, event=None):
@@ -4895,11 +4924,17 @@ class MemoryPalApp(tk.Tk):
         runs the command, which also gives a much larger target than the
         small button inside it.
         """
-        normal = normal or COLORS["line"]
-        frame.configure(highlightthickness=1, highlightbackground=normal)
+        # Cards are set apart by their fill, not a 1px outline on every box;
+        # the edge stays invisible until a clickable card is hovered, and it
+        # is always the one accent colour (the per-tile rainbow is gone).
+        try:
+            normal = frame.cget("bg")
+        except tk.TclError:
+            normal = normal or COLORS["surface"]
+        frame.configure(highlightthickness=1, highlightbackground=normal, highlightcolor=normal)
         if command is None:
             return frame
-        hover = hover or COLORS["primary"]
+        hover = COLORS["primary"]
 
         def pointer_inside():
             try:
@@ -5590,11 +5625,21 @@ class MemoryPalApp(tk.Tk):
             Tooltip(widget, text)
 
     def action_hint(self, label):
+        hints = self._action_hints()
+        if label in hints:
+            return hints[label]
+        folded = {key.casefold(): value for key, value in hints.items()}
+        return folded.get(str(label).casefold(), "")
+
+    def _action_hints(self):
         return {
             "Smart Check": "Compare your response with the saved answer and highlight the suggested bucket.",
             "Reveal / Hide Answer": "Show or hide the saved answer without rating the card.",
             "Reveal Only": "Show the answer without using Smart Check.",
             "Use Smart Rating": "Schedule the card using the latest Smart Check result.",
+            "Use suggested rating": "Schedule the card using the latest Smart Check result.",
+            "Reveal answer": "Show or hide the saved answer without rating the card.",
+            "Next card": "Move to the next self-check card.",
             "Again": "Bring this card back soon.",
             "Good": "You remembered enough; schedule it a little later.",
             "Easy": "You knew it well; schedule it further out.",
@@ -5679,7 +5724,7 @@ class MemoryPalApp(tk.Tk):
             "Import Backup": "Load a JSON backup into the active profile.",
             "True Fullscreen": f"Use the operating system fullscreen mode. {'Control-Command-F' if IS_MAC else 'F11'} does the same thing.",
             "Focus Window": "Use a borderless focus window without changing the operating system fullscreen state.",
-        }.get(label, "")
+        }
 
     def mastery_summary(self):
         total = len(self.store.cards)
@@ -5756,7 +5801,6 @@ class MemoryPalApp(tk.Tk):
 
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(30), pady=self.px(28)))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        tk.Frame(hero, bg=COLORS["primary"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
         tk.Label(hero, text=f"Welcome to MemoryPal, {active_profile_name()}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
         tk.Label(hero, text="Three quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
 
@@ -5938,6 +5982,18 @@ class MemoryPalApp(tk.Tk):
     def view_practice(self):
         self.view_hub("practice")
 
+    def icon_badge(self, parent, icon, size=40):
+        """A page symbol on a soft neutral tile, in the one accent colour."""
+        bg = parent.cget("bg")
+        badge_size = self.px(size)
+        badge = tk.Canvas(parent, width=badge_size, height=badge_size, bg=bg, highlightthickness=0)
+        self.draw_antialiased_shape(badge, badge_size, badge_size, self.blend_hex(bg, COLORS["primary"], 0.10), radius=self.px(10))
+        image = self.line_icon(icon, self.px(round(size * 0.58)), COLORS["primary"])
+        if image is not None:
+            badge.create_image(badge_size // 2, badge_size // 2, image=image, anchor="center")
+            badge._memorypal_icon = image
+        return badge
+
     def hub_page_note(self, view):
         """A short live count for a hub tile, or "" when there's nothing to count."""
         store = self.store
@@ -5967,7 +6023,6 @@ class MemoryPalApp(tk.Tk):
         labels = {key: label for key, label, _short in self.default_nav_items()}
         order = {key: index for index, (key, _label, _short) in enumerate(self.ordered_nav_items())}
         pages = sorted(self.HUB_PAGES[hub], key=lambda key: order.get(key, len(order)))
-        accents = [COLORS["primary"], COLORS["green"], COLORS["orange"], COLORS["violet"], COLORS["cyan"]]
 
         tiles = ttk.Frame(page.inner, style="Page.TFrame")
         tiles.pack(fill="both", expand=True, padx=(0, 8))
@@ -5975,21 +6030,13 @@ class MemoryPalApp(tk.Tk):
             tiles.columnconfigure(column, weight=1, uniform=f"hub-{hub}")
         for index, key in enumerate(pages):
             row, column = divmod(index, 2)
-            color = accents[index % len(accents)]
             title = self.page_titles().get(key, ("", labels.get(key, key)))[1]
             tile = self.hover_card(
                 tk.Frame(tiles, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18)),
-                hover=color,
                 command=lambda view=key: self.show_view(view),
             )
             tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
-            badge_size = self.px(40)
-            badge = tk.Canvas(tile, width=badge_size, height=badge_size, bg=COLORS["surface"], highlightthickness=0)
-            badge.pack(anchor="w", pady=(0, self.px(10)))
-            self.draw_antialiased_shape(badge, badge_size, badge_size, self.blend_hex(COLORS["surface"], color, 0.18), radius=self.px(10))
-            icon = self.line_icon(key, self.px(24), color)
-            if icon is not None:
-                badge.create_image(badge_size // 2, badge_size // 2, image=icon, anchor="center")
+            self.icon_badge(tile, key).pack(anchor="w", pady=(0, self.px(10)))
             tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
             tk.Label(tile, text=self.nav_hint(key), bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(500), justify="left", anchor="w").pack(fill="x", pady=(self.px(5), 0))
             note = self.hub_page_note(key)
@@ -6029,7 +6076,6 @@ class MemoryPalApp(tk.Tk):
 
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        tk.Frame(hero, bg=COLORS["cyan"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
         tk.Label(hero, text="Memory Gym", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
         tk.Label(
             hero,
@@ -6459,23 +6505,21 @@ class MemoryPalApp(tk.Tk):
         head.columnconfigure(0, weight=1)
         text = tk.Frame(head, bg=bg)
         text.grid(row=0, column=0, sticky="nsew")
-        tk.Label(text, text=f"{self.greeting().upper()}  \u2022  TODAY'S PATH", bg=bg, fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x")
+        tk.Label(text, text=self.greeting(), bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 12), anchor="w").pack(fill="x")
         buttons = tk.Frame(head, bg=bg)
         buttons.grid(row=0, column=1, sticky="ne", padx=(self.px(16), 0))
 
         if not today:
-            title, body, action, color = self.best_next_action()
-            tk.Label(text, text=title, bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+            title, body, action, _color = self.best_next_action()
+            tk.Label(text, text=title, bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(2), 0))
             tk.Label(text, text=body, bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 13), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(6), 0))
-            self.solid_button(buttons, title, action, color).pack(fill="x")
+            self.solid_button(buttons, title, action).pack(fill="x")
             ttk.Button(buttons, text="Make a study plan", command=lambda: self.show_view("plan")).pack(fill="x", pady=(self.px(8), 0))
-            tip = tk.Frame(box, bg=COLORS["alt"], padx=self.px(16), pady=self.px(12))
-            tip.pack(fill="x", pady=(self.px(18), 0))
-            tk.Label(tip, text="\U0001F5FA  Save a study plan and this card turns into a step-by-step path for each day, with steps you can tick off.", bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI", 11), wraplength=self.px(900), justify="left").pack(anchor="w")
+            self.fit_wrap(tk.Label(box, text="A saved study plan turns this into a step-by-step path for each day.", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(900), justify="left"), pady=(self.px(16), 0))
             return
 
         if today["finished"]:
-            tk.Label(text, text="You finished your plan \U0001F389", bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+            tk.Label(text, text="You finished your plan", bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
             tk.Label(text, text=f"{today['title']}. Make a new plan to keep the momentum going, or just keep reviewing what's due.", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 13), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(6), 0))
             self.solid_button(buttons, "Make a new plan", lambda: self.show_view("plan"), COLORS["primary"]).pack(fill="x")
             ttk.Button(buttons, text="Review due cards", command=lambda: self.show_view("review")).pack(fill="x", pady=(self.px(8), 0))
@@ -6484,14 +6528,14 @@ class MemoryPalApp(tk.Tk):
         steps = today["steps"]
         done = {index for index in self.store.plan_steps_done() if index < len(steps)}
         remaining = [index for index in range(len(steps)) if index not in done]
-        heading = "Your plan is done for today \u2705" if not remaining else "Your study plan for today"
+        heading = "Your plan is done for today" if not remaining else "Your study plan for today"
         tk.Label(text, text=heading, bg=bg, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
         tk.Label(text, text=today["title"], bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(4), 0))
         if remaining:
             step = steps[remaining[0]]
             self.solid_button(buttons, f"Continue: {step['title']}", lambda s=step: self.start_plan_step(s), COLORS["primary"]).pack(fill="x")
         else:
-            self.solid_button(buttons, "Keep going: quick quiz", lambda: self.show_view("quiz"), COLORS["green"]).pack(fill="x")
+            self.solid_button(buttons, "Keep going: quick quiz", lambda: self.show_view("quiz")).pack(fill="x")
         ttk.Button(buttons, text="Edit plan", command=lambda: self.show_view("plan")).pack(fill="x", pady=(self.px(8), 0))
 
         progress_row = tk.Frame(box, bg=bg)
@@ -6547,22 +6591,21 @@ class MemoryPalApp(tk.Tk):
         week = progress.daily_series(self.store.activity, 7)
         streak_panel, goal_panel, level_panel, week_panel = self.panel_row(parent, 4)
 
-        streak_panel.configure(bg=COLORS["warm"])
-        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(40), COLORS["warm_text"]) or "", compound="left", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
-        tk.Label(streak_panel, text=f"day streak" if streak == 1 else "days in a row", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 28), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f"day streak" if streak == 1 else "days in a row", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
         message = "Practise today to start one." if streak == 0 else ("Practise today to keep it going." if today == 0 else "Kept alive today.")
-        tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}.", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
+        tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
 
         tk.Label(goal_panel, text="Daily goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
         ring = tk.Frame(goal_panel, bg=COLORS["surface"])
         ring.pack(anchor="w", pady=(self.px(6), 0))
         self.render_goal_ring(ring, today, goal, size=96, color=COLORS["green"] if today >= goal else COLORS["primary"]).pack()
         left = max(0, goal - today)
-        tk.Label(goal_panel, text="Goal reached! \U0001F3AF" if not left else f"{left} more to go", bg=COLORS["surface"], fg=COLORS["green"] if not left else COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(6), 0))
+        tk.Label(goal_panel, text="Goal reached" if not left else f"{left} more to go", bg=COLORS["surface"], fg=COLORS["green"] if not left else COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(6), 0))
 
-        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["violet"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
+        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
         tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
-        self.meter(level_panel, level["pct"], COLORS["violet"], 10).pack(fill="x")
+        self.meter(level_panel, level["pct"], COLORS["primary"], 10).pack(fill="x")
         tk.Label(level_panel, text=f"+{progress.XP_PER_REVIEW} XP for every review.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
 
         total = sum(count for _day, count in week)
@@ -6619,17 +6662,10 @@ class MemoryPalApp(tk.Tk):
         tk.Label(head, text=f"{subtitle}  \u2022  {shortcut('K')} jumps to any page", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0), pady=(self.px(4), 0))
         panels = self.panel_row(parent, len(modes))
         for panel, (icon, title, body, action, color) in zip(panels, modes):
-            card = self.hover_card(panel, normal=COLORS["surface"], hover=color, command=action)
-            card.configure(highlightthickness=max(1, self.px(2)), highlightbackground=COLORS["surface"])
-            # Line icons in a tinted badge, matching the hub tiles (colour emoji
-            # looked out of place next to the drawn icons everywhere else).
-            badge_size = self.px(40)
-            badge = tk.Canvas(card, width=badge_size, height=badge_size, bg=COLORS["surface"], highlightthickness=0)
-            badge.pack(anchor="w")
-            self.draw_antialiased_shape(badge, badge_size, badge_size, self.blend_hex(COLORS["surface"], color, 0.18), radius=self.px(10))
-            image = self.line_icon(icon, self.px(24), color)
-            if image is not None:
-                badge.create_image(badge_size // 2, badge_size // 2, image=image, anchor="center")
+            card = self.hover_card(panel, command=action)
+            card.configure(highlightthickness=max(1, self.px(2)))
+            # Line icons in a tinted badge, matching the hub tiles.
+            self.icon_badge(card, icon).pack(anchor="w")
             tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").pack(fill="x", pady=(self.px(6), 0))
             tk.Label(card, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(4), 0))
 
@@ -6750,12 +6786,11 @@ class MemoryPalApp(tk.Tk):
         mastery, mastered, learning = self.mastery_summary()
 
         streak_panel, level_panel, goal_panel, mastery_panel = self.panel_row(page.inner, 4)
-        streak_panel.configure(bg=COLORS["warm"])
-        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(40), COLORS["warm_text"]) or "", compound="left", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
-        tk.Label(streak_panel, text=f"current streak  \u2022  best {best}", bg=COLORS["warm"], fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x")
-        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["violet"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 28), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f"current streak  \u2022  best {best}", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x")
+        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
         tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP  \u2022  {store.practiced} reviews", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
-        self.meter(level_panel, level["pct"], COLORS["violet"], 10).pack(fill="x")
+        self.meter(level_panel, level["pct"], COLORS["primary"], 10).pack(fill="x")
         goal_head = tk.Frame(goal_panel, bg=COLORS["surface"])
         goal_head.pack(fill="x")
         tk.Label(goal_head, text="Today's goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13)).pack(side="left")
@@ -6782,7 +6817,7 @@ class MemoryPalApp(tk.Tk):
         tomorrow = forecast[1][1] if len(forecast) > 1 else 0
         self.panel_title(forecast_panel, "Coming up", f"Cards due over the next two weeks  \u2022  {tomorrow} tomorrow")
         self.bar_chart(
-            forecast_panel, [count for _day, count in forecast], ["Today" if index == 0 else day.strftime("%a")[:2] for index, (day, _count) in enumerate(forecast)], COLORS["violet"],
+            forecast_panel, [count for _day, count in forecast], ["Today" if index == 0 else day.strftime("%a")[:2] for index, (day, _count) in enumerate(forecast)], COLORS["primary"],
             height=150, highlight=0, tips=[f"{'Today (incl. overdue)' if index == 0 else day.strftime('%a %d %b')}: {count} due" for index, (day, count) in enumerate(forecast)],
         ).pack(fill="x")
         groups = progress.maturity_breakdown(store.cards)
@@ -7113,7 +7148,7 @@ class MemoryPalApp(tk.Tk):
                         child.destroy()
                     tk.Label(chart_host, text="Minutes each day  \u2022  click a bar to open that day", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="w")
                     self.bar_chart(
-                        chart_host, [d["minutes"] for d in days], [str(d["day"]) for d in days], COLORS["violet"], height=120,
+                        chart_host, [d["minutes"] for d in days], [str(d["day"]) for d in days], COLORS["primary"], height=120,
                         highlight=selected, tips=[f"Day {d['day']}: {d['minutes']} min, {d.get('due', 0)} due" for d in days],
                         on_click=lambda index: (day_var.set(str(days[index]["day"])), show_day(str(days[index]["day"]))),
                     ).pack(fill="x", pady=(self.px(6), 0))
@@ -8120,23 +8155,18 @@ class MemoryPalApp(tk.Tk):
         card = self.testing_card or (self.store.due_cards()[0] if self.store.due_cards() else self.store.cards[0] if self.store.cards else None)
         panel = self.card(page.inner)
         panel.pack(fill="both", expand=True, padx=(0, 8))
-        ttk.Label(panel, text="Separate testing page", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(panel, text="Use this page for focused testing, then return to where you came from.", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(6, 16))
         if not card:
             ttk.Label(panel, text="Add cards first.", style="Card.TLabel").pack(anchor="w")
             ttk.Button(panel, text="Back", command=lambda: self.show_view(self.return_view)).pack(fill="x", pady=(16, 0))
             return
         self.testing_card = card
-        guide = self.card(panel, "WarmCard.TFrame", 16)
-        guide.pack(fill="x", pady=(0, self.px(12)))
-        ttk.Label(guide, text="Answer first, then check", style="WarmH2.TLabel").pack(anchor="w")
-        ttk.Label(guide, text="Smart Check compares your response in context and suggests a review bucket. Reveal is always available if this is a self-check card.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
+        ttk.Label(panel, text="Answer from memory, then check or reveal.", style="CardMuted.TLabel").pack(anchor="w", pady=(0, self.px(10)))
         ttk.Label(panel, text=card.front, style="H2.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 8))
         self.speak_button(panel, card.front).pack(anchor="w", pady=(0, 14))
         if self.accessibility.get("read_aloud"):
             self.after(250, lambda: self.speak(card.front))
         self.render_media_controls(panel, card)
-        response = self.answer_area(panel, "Your test answer", "Answer here without leaving the testing page.", 5)
+        response = self.answer_area(panel, "Your answer", "Type what you remember.", 5)
         if draft.get("card_id") == card.id and draft.get("context") == self.testing_context:
             response.insert("1.0", draft.get("response", ""))
         result_row = ttk.Frame(panel, style="Card.TFrame")
@@ -8207,8 +8237,8 @@ class MemoryPalApp(tk.Tk):
         actions.pack(fill="x", pady=(self.px(10), 0))
         action_defs = [
             ("Smart Check", "Primary.TButton", smart_check),
-            ("Reveal / Hide Answer", "TButton", reveal),
-            ("Use Smart Rating", "TButton", smart_rating),
+            ("Reveal answer", "TButton", reveal),
+            ("Use suggested rating", "TButton", smart_rating),
             ("Back", "TButton", lambda: self.show_view(self.return_view)),
         ]
         for column, (label, style, command) in enumerate(action_defs):
@@ -8299,20 +8329,14 @@ class MemoryPalApp(tk.Tk):
             "score": self.quiz_score,
             "mode": self.quiz_mode,
         })
-        guide = self.card(host, "WarmCard.TFrame", 14)
-        guide.pack(fill="x", pady=(0, 12))
-        ttk.Label(guide, text="Choose how you want to check yourself", style="WarmH2.TLabel").pack(anchor="w")
-        ttk.Label(guide, text="Self Check opens Test Lab for typed recall. Multiple Choice is faster when you want a quick confidence check.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
         mode = ttk.Frame(host, style="Card.TFrame")
-        mode.pack(fill="x", pady=(0, 16))
-        self_check = ttk.Button(mode, text="Self Check", style="Primary.TButton" if self.quiz_mode == "self" else "TButton", command=lambda: self.set_quiz_mode(host, "self"))
-        self_check.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        choices_button = ttk.Button(mode, text="Multiple Choice", style="Primary.TButton" if self.quiz_mode == "choices" else "TButton", command=lambda: self.set_quiz_mode(host, "choices"))
-        choices_button.grid(row=0, column=1, sticky="ew")
+        mode.pack(anchor="w", pady=(0, 16))
+        self_check = ttk.Button(mode, text="Type the answer", style="PillOn.TButton" if self.quiz_mode == "self" else "Pill.TButton", cursor="hand2", command=lambda: self.set_quiz_mode(host, "self"))
+        self_check.grid(row=0, column=0, sticky="w", padx=(0, self.px(6)))
+        choices_button = ttk.Button(mode, text="Multiple choice", style="PillOn.TButton" if self.quiz_mode == "choices" else "Pill.TButton", cursor="hand2", command=lambda: self.set_quiz_mode(host, "choices"))
+        choices_button.grid(row=0, column=1, sticky="w")
         self.add_tooltip(self_check, self.action_hint("Self Check"))
         self.add_tooltip(choices_button, self.action_hint("Multiple Choice"))
-        mode.columnconfigure(0, weight=1)
-        mode.columnconfigure(1, weight=1)
 
         if self.quiz_mode == "choices" and len(self.store.cards) < 2:
             ttk.Label(host, text="Multiple Choice needs at least two cards.", style="H2.TLabel").pack(anchor="w")
@@ -8341,8 +8365,7 @@ class MemoryPalApp(tk.Tk):
             for choice in choices:
                 ttk.Button(host, text=choice, command=lambda value=choice: self.answer_quiz(host, value, card.back)).pack(fill="x", pady=5)
             return
-        ttk.Label(host, text="Self-check uses Test Lab so the answer, reveal, and Smart Check stay on a separate testing page.", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(0, 12))
-        self.button_row(host, [("Open in Test Lab", lambda: self.open_testing(card, "quiz", "quiz"), "Primary.TButton"), ("Skip / Next", lambda: self.next_self_quiz(host), "TButton")])
+        self.button_row(host, [("Open in Test Lab", lambda: self.open_testing(card, "quiz", "quiz"), "Primary.TButton"), ("Next card", lambda: self.next_self_quiz(host), "TButton")])
 
     def set_quiz_mode(self, host, mode):
         self.quiz_mode = mode
@@ -8462,6 +8485,11 @@ class MemoryPalApp(tk.Tk):
             button._memorypal_icon = image
             return button
 
+        def say(text):
+            # Without a system voice, say so once per round, not on every card.
+            if not self.speak(text, quiet=state.get("voice_warned", False)):
+                state["voice_warned"] = True
+
         def alive():
             return self.talkback is state and state["token"] == self.route_token and panel.winfo_exists()
 
@@ -8525,7 +8553,7 @@ class MemoryPalApp(tk.Tk):
             feedback.configure(text="")
             typed_entry.delete(0, "end")
             set_status("Reading the question", "reading")
-            self.speak(f"Question {state['index'] + 1}. {card().front}")
+            say(f"Question {state['index'] + 1}. {card().front}")
             after_speech(answer_turn)
 
         def answer_turn():
@@ -8571,7 +8599,7 @@ class MemoryPalApp(tk.Tk):
                     return
                 state["phase"] = "reading"
                 set_status("Didn't catch that. Listening again in a moment.", "reading")
-                self.speak("I didn't catch that.")
+                say("I didn't catch that.")
                 after_speech(answer_turn)
                 return
             switch_to_typing(f"Speech recognition stopped: {result.message} Answers are typed for now.")
@@ -8606,7 +8634,7 @@ class MemoryPalApp(tk.Tk):
                 feedback.configure(text=message, fg=COLORS["ink"])
             update_counts()
             set_status("Checking", "checking")
-            self.speak(message)
+            say(message)
             after_speech(next_card)
 
         def next_card():
@@ -8679,13 +8707,13 @@ class MemoryPalApp(tk.Tk):
             row.pack(anchor="w")
             ttk.Button(row, text="Study again", style="Primary.TButton", cursor="hand2", command=lambda: self.show_view("talkback")).pack(side="left")
             ttk.Button(row, text="Back to Study", cursor="hand2", command=lambda: self.show_view("study")).pack(side="left", padx=(self.px(10), 0))
-            self.speak(f"Round finished. {summary}")
+            say(f"Round finished. {summary}")
 
         def refresh_controls():
             for child in controls.winfo_children():
                 child.destroy()
             buttons = [
-                control("Resume" if state["paused"] else "Pause", "play" if state["paused"] else "pause", toggle_pause, "Primary.TButton"),
+                control("Resume" if state["paused"] else "Pause", "play" if state["paused"] else "pause", toggle_pause),
                 control("Repeat", "repeat", repeat),
                 control("Skip", "skip", skip),
             ]
@@ -8717,7 +8745,7 @@ class MemoryPalApp(tk.Tk):
                 notice.configure(text=text)
                 refresh_controls()
                 # Say it once too, since this mode is meant to be used by ear.
-                self.speak("Type your answers. I'll still read the questions and results aloud.")
+                say("Type your answers. I'll still read the questions and results aloud.")
                 after_speech(ask)
                 return
             elif available and not voice_wanted:
@@ -9005,7 +9033,7 @@ class MemoryPalApp(tk.Tk):
                 actions.pack(fill="x", pady=(self.px(10), 0))
                 controls = [
                     ("Smart Check", "Primary.TButton", check, "normal"),
-                    ("Reveal / Hide Answer", "TButton", reveal, "normal"),
+                    ("Reveal answer", "TButton", reveal, "normal"),
                     ("Previous", "TButton", lambda: move(-1), "disabled" if round_index == 0 else "normal"),
                     ("Next Round", "TButton", lambda: move(1), "disabled" if round_index == len(round_state["steps"]) - 1 else "normal"),
                 ]
@@ -9723,7 +9751,6 @@ class MemoryPalApp(tk.Tk):
 
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        tk.Frame(hero, bg=COLORS["green"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
         tk.Label(hero, text="Help make MemoryPal better", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
         tk.Label(hero, text="Tell us what's working, what's confusing, or what's broken. Notes stay on this computer until you send them.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(6, 0))
 
@@ -9807,7 +9834,6 @@ class MemoryPalApp(tk.Tk):
 
         send = tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(24), pady=self.px(22))
         send.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        tk.Frame(send, bg=COLORS["primary"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, self.px(12)))
         tk.Label(send, text="Send feedback to the MemoryPal team", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w").pack(fill="x")
         tk.Label(send, text="Your notes stay on this computer until you choose to send them.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(self.px(4), self.px(14)))
 
@@ -10146,7 +10172,7 @@ class MemoryPalApp(tk.Tk):
         if not text:
             chip.pack_forget()
             return
-        chip.configure(text=text)
+        chip.configure(text=f" {text}")
         self.set_chip_icon(chip, icon, COLORS["muted"])
         if not chip.winfo_manager():
             chip.pack(side="left")
@@ -10638,12 +10664,6 @@ class MemoryPalApp(tk.Tk):
         profile_path = str(self.store.data_file)
         attachment_path = str(self.store.attachment_dir)
 
-        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
-        hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        tk.Frame(hero, bg=COLORS["violet"], width=self.px(42), height=self.px(4)).pack(anchor="w", pady=(0, 14))
-        tk.Label(hero, text="Make MemoryPal yours", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        self.fit_wrap(tk.Label(hero, text="Adjust the way the app looks, how it opens, where data is kept, and which profile is active.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left"), pady=(6, 0))
-
         self.render_account_card(page.inner)
 
         grid = ttk.Frame(page.inner, style="Page.TFrame")
@@ -10659,58 +10679,58 @@ class MemoryPalApp(tk.Tk):
         self.button_row(
             appearance,
             [
-                ("Light mode" if self.theme == "dark" else "Dark mode", self.toggle_theme, "Primary.TButton"),
+                ("Light mode" if self.theme == "dark" else "Dark mode", self.toggle_theme, "TButton"),
             ],
         )
 
-        window_card = self.card(grid, "AltCard.TFrame", 22)
+        window_card = self.card(grid, "Card.TFrame", 22)
         window_card.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
-        ttk.Label(window_card, text="Window", style="AltH2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(window_card, text="F11 uses true fullscreen. The titlebar square uses borderless focus mode.", style="AltMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
-        state_row = tk.Frame(window_card, bg=COLORS["alt"])
+        ttk.Label(window_card, text="Window", style="H2.TLabel").pack(anchor="w")
+        self.fit_wrap(ttk.Label(window_card, text="F11 uses true fullscreen. The titlebar square uses borderless focus mode.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
+        state_row = tk.Frame(window_card, bg=COLORS["surface"])
         state_row.pack(fill="x", pady=(0, 12))
-        self.render_status_chip(state_row, "True fullscreen on" if self.is_fullscreen else "True fullscreen off", COLORS["green"] if self.is_fullscreen else COLORS["surface"], self.on_color(COLORS["green"]) if self.is_fullscreen else COLORS["muted"])
-        self.render_status_chip(state_row, "Focus window on" if self.is_focus_window else "Focus window off", COLORS["primary"] if self.is_focus_window else COLORS["surface"], self.on_color(COLORS["primary"]) if self.is_focus_window else COLORS["muted"])
+        self.render_status_chip(state_row, "True fullscreen on" if self.is_fullscreen else "True fullscreen off", COLORS["green"] if self.is_fullscreen else COLORS["alt"], self.on_color(COLORS["green"]) if self.is_fullscreen else COLORS["muted"])
+        self.render_status_chip(state_row, "Focus window on" if self.is_focus_window else "Focus window off", COLORS["primary"] if self.is_focus_window else COLORS["alt"], self.on_color(COLORS["primary"]) if self.is_focus_window else COLORS["muted"])
         self.button_row(
             window_card,
             [
-                ("True Fullscreen", self.toggle_true_fullscreen, "Primary.TButton"),
-                ("Focus Window", self.toggle_focus_window, "TButton"),
+                ("True fullscreen", self.toggle_true_fullscreen, "TButton"),
+                ("Focus window", self.toggle_focus_window, "TButton"),
             ],
-            "AltCard.TFrame",
+            "Card.TFrame",
         )
 
         profile_card = self.card(grid, "Card.TFrame", 22)
         profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 12))
         ttk.Label(profile_card, text="Profiles", style="H2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(profile_card, text=f"Active profile: {active_profile_name()} | {profile_count} profile{'s' if profile_count != 1 else ''} on this PC.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
-        self.button_row(profile_card, [("Manage Profiles", self.open_profile_manager, "Primary.TButton"), ("Edit Daily Goal", self.edit_daily_goal, "TButton")])
+        self.fit_wrap(ttk.Label(profile_card, text=f"Active profile: {active_profile_name()}  \u00b7  {profile_count} profile{'s' if profile_count != 1 else ''} on this PC.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
+        self.button_row(profile_card, [("Manage profiles", self.open_profile_manager, "TButton"), ("Edit daily goal", self.edit_daily_goal, "TButton")])
 
-        study_card = self.card(grid, "WarmCard.TFrame", 22)
+        study_card = self.card(grid, "Card.TFrame", 22)
         study_card.grid(row=1, column=1, sticky="nsew")
-        ttk.Label(study_card, text="Study Defaults", style="WarmH2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(study_card, text=f"Daily goal: {self.store.daily_goal} cards. Due now: {due}. Cards stay on this computer unless you sync them with an account or export them.", style="WarmCard.TLabel", wraplength=self.px(500)), pady=(4, 12))
-        self.button_row(study_card, [("Start Due Review", lambda: self.show_view("review"), "Primary.TButton"), ("Open in Test Lab", lambda: self.open_testing(return_view="settings", context="study"), "TButton")], "WarmCard.TFrame")
+        ttk.Label(study_card, text="Study defaults", style="H2.TLabel").pack(anchor="w")
+        self.fit_wrap(ttk.Label(study_card, text=f"Daily goal: {self.store.daily_goal} cards. Due now: {due}. Cards stay on this computer unless you sync them with an account or export them.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
+        self.button_row(study_card, [("Start due review", lambda: self.show_view("review"), "TButton"), ("Open in Test Lab", lambda: self.open_testing(return_view="settings", context="study"), "TButton")], "Card.TFrame")
 
-        accessibility_card = self.card(grid, "AltCard.TFrame", 22)
+        accessibility_card = self.card(grid, "Card.TFrame", 22)
         accessibility_card.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(0, 12))
-        ttk.Label(accessibility_card, text="Accessibility", style="AltH2.TLabel").pack(anchor="w")
+        ttk.Label(accessibility_card, text="Accessibility", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(
             accessibility_card,
             text="Tune MemoryPal for larger text, steadier screens, clearer contrast, and caregiver-supported use. These settings are saved to this profile.",
-            style="AltMuted.TLabel",
+            style="CardMuted.TLabel",
             wraplength=self.px(1040),
             justify="left",
         ), pady=(4, 12))
         text_size = tk.StringVar(value=self.accessibility.get("text_size", "Comfort"))
-        ttk.Label(accessibility_card, text="Text size", style="AltMuted.TLabel").pack(anchor="w")
+        ttk.Label(accessibility_card, text="Text size", style="CardMuted.TLabel").pack(anchor="w")
         self.select_button(
             accessibility_card,
             text_size,
             ["Comfort", "Large", "Extra Large"],
             on_change=lambda value: self.update_accessibility_preference("text_size", value),
         ).pack(fill="x", pady=(self.px(4), self.px(12)))
-        toggle_grid = tk.Frame(accessibility_card, bg=COLORS["alt"])
+        toggle_grid = tk.Frame(accessibility_card, bg=COLORS["surface"])
         toggle_grid.pack(fill="x", pady=(0, self.px(12)))
         accessibility_toggles = [
             ("high_contrast", "Higher contrast text and borders"),
@@ -10724,17 +10744,17 @@ class MemoryPalApp(tk.Tk):
         ]
         for index, (key, label) in enumerate(accessibility_toggles):
             var = tk.BooleanVar(value=bool(self.accessibility.get(key)))
-            row = self.check_toggle(toggle_grid, var, label, on_change=lambda checked, pref=key: self.update_accessibility_preference(pref, checked), bg=COLORS["alt"], wraplength=470, fit=True)
+            row = self.check_toggle(toggle_grid, var, label, on_change=lambda checked, pref=key: self.update_accessibility_preference(pref, checked), bg=COLORS["surface"], wraplength=470, fit=True)
             row.grid(row=index // 2, column=index % 2, sticky="ew", padx=(0 if index % 2 == 0 else self.px(12), 0), pady=(0 if index < 2 else self.px(8), 0))
             toggle_grid.columnconfigure(index % 2, weight=1, uniform="toggles")
         self.button_row(
             accessibility_card,
             [
-                ("Use Senior Layout", self.apply_senior_layout_defaults, "Primary.TButton"),
-                ("Everyday Memory", lambda: self.show_view("elder"), "TButton"),
-                ("Open Feedback", lambda: self.show_view("feedback"), "TButton"),
+                ("Use senior layout", self.apply_senior_layout_defaults, "TButton"),
+                ("Everyday memory", lambda: self.show_view("elder"), "TButton"),
+                ("Open feedback", lambda: self.show_view("feedback"), "TButton"),
             ],
-            "AltCard.TFrame",
+            "Card.TFrame",
         )
 
         welcome_card = self.card(page.inner, "Card.TFrame", 22)
@@ -10743,15 +10763,15 @@ class MemoryPalApp(tk.Tk):
         chosen = self.store.onboarding.get("persona")
         persona_title = onboarding.persona(chosen)["title"] if chosen else "Not chosen yet"
         ttk.Label(welcome_card, text=f"Set up for: {persona_title}. Answer the welcome questions again to change the menu order and comfort settings, or replay the guided tour (also the ? button at the top).", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(4, 12))
-        self.button_row(welcome_card, [("Replay Tour", self.start_tour, "Primary.TButton"), ("Redo Welcome Questions", lambda: self.show_view("welcome"), "TButton")])
+        self.button_row(welcome_card, [("Replay tour", self.start_tour, "TButton"), ("Redo welcome questions", lambda: self.show_view("welcome"), "TButton")])
 
-        nav_card = self.card(page.inner, "AltCard.TFrame", 22)
+        nav_card = self.card(page.inner, "Card.TFrame", 22)
         nav_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        ttk.Label(nav_card, text="Page Order", style="AltH2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(nav_card, text="Move pages up or down to choose which come first inside Today, Study, Create, Practice and Progress, and in the page finder.", style="AltMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
+        ttk.Label(nav_card, text="Page order", style="H2.TLabel").pack(anchor="w")
+        self.fit_wrap(ttk.Label(nav_card, text="Move pages up or down to choose which come first inside Today, Study, Create, Practice and Progress, and in the page finder.", style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
         nav_order = [key for key, _label, _short in self.ordered_nav_items()]
         nav_labels = {key: label for key, label, _short in self.default_nav_items()}
-        order_row = tk.Frame(nav_card, bg=COLORS["alt"])
+        order_row = tk.Frame(nav_card, bg=COLORS["surface"])
         order_row.pack(fill="x", pady=(0, self.px(12)))
         listbox = tk.Listbox(
             order_row,
@@ -10809,12 +10829,12 @@ class MemoryPalApp(tk.Tk):
         self.button_row(
             nav_card,
             [
-                ("Move Up", lambda: move_nav(-1), "TButton"),
-                ("Move Down", lambda: move_nav(1), "TButton"),
-                ("Apply Order", apply_nav_order, "Primary.TButton"),
-                ("Reset Order", reset_nav_order, "TButton"),
+                ("Move up", lambda: move_nav(-1), "TButton"),
+                ("Move down", lambda: move_nav(1), "TButton"),
+                ("Apply order", apply_nav_order, "TButton"),
+                ("Reset order", reset_nav_order, "TButton"),
             ],
-            "AltCard.TFrame",
+            "Card.TFrame",
         )
 
         storage = self.card(page.inner, "Card.TFrame", 22)
@@ -10826,25 +10846,25 @@ class MemoryPalApp(tk.Tk):
             ("Active profile", profile_path),
             ("Attachments", attachment_path),
         ]:
-            row = tk.Frame(storage, bg=COLORS["alt"], padx=self.px(14), pady=self.px(10))
+            row = tk.Frame(storage, bg=COLORS["surface"], padx=self.px(14), pady=self.px(10))
             row.pack(fill="x", pady=(0, 8))
-            tk.Label(row, text=label, bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), width=14, anchor="w").pack(side="left", padx=(0, self.px(12)))
-            value_label = tk.Label(row, text=value, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI", 10), wraplength=self.px(850), justify="left", anchor="w")
+            tk.Label(row, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), width=14, anchor="w").pack(side="left", padx=(0, self.px(12)))
+            value_label = tk.Label(row, text=value, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 10), wraplength=self.px(850), justify="left", anchor="w")
             value_label.pack(side="left", fill="x", expand=True)
             self.bind_rewrap(value_label)
         self.button_row(
             storage,
             [
-                ("Open Data Folder", self.open_data_folder, "Primary.TButton"),
+                ("Open Data Folder", self.open_data_folder, "TButton"),
                 ("Export Backup", self.export_data, "TButton"),
                 ("Import Backup", self.import_data, "TButton"),
             ] + ([] if self.accessibility.get("caregiver_mode") else [("Reset", self.reset_data, "Danger.TButton")]),
         )
 
-        comfort = self.card(page.inner, "AltCard.TFrame", 22)
+        comfort = self.card(page.inner, "Card.TFrame", 22)
         comfort.pack(fill="x", padx=(0, 8))
-        ttk.Label(comfort, text="Comfort Notes", style="AltH2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(comfort, text="Use focus mode when the window frame feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="AltCard.TLabel", wraplength=self.px(1040), justify="left"), pady=(4, 0))
+        ttk.Label(comfort, text="Comfort Notes", style="H2.TLabel").pack(anchor="w")
+        self.fit_wrap(ttk.Label(comfort, text="Use focus mode when the window frame feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="Card.TLabel", wraplength=self.px(1040), justify="left"), pady=(4, 0))
 
     def view_library(self):
         # On a card, like the other pages: on the bare page background the
@@ -10904,7 +10924,7 @@ class MemoryPalApp(tk.Tk):
                     capture_head = ttk.Frame(item, style="Card.TFrame")
                     capture_head.pack(fill="x")
                     self.speak_button(capture_head, ". ".join([capture.title] + chunks), compact=True).pack(side="right")
-                    ttk.Label(capture_head, text=f"Capture | {capture.created_at}", style="CardMuted.TLabel").pack(side="left", anchor="w")
+                    ttk.Label(capture_head, text=f"Capture  \u00b7  {capture.created_at}", style="CardMuted.TLabel").pack(side="left", anchor="w")
                     ttk.Label(item, text=capture.title, style="H2.TLabel", wraplength=1060).pack(anchor="w", pady=(6, 5))
                     ttk.Label(item, text=f"{len(chunks)} study bits", style="CardMuted.TLabel").pack(anchor="w")
                     for index, chunk in enumerate(chunks[:5], 1):
@@ -10928,7 +10948,7 @@ class MemoryPalApp(tk.Tk):
                         continue
                     item = self.card(page.inner)
                     item.pack(fill="x", padx=(0, 8), pady=(0, 10))
-                    status_line = f"{card.deck} | Next: {card.next_review} | {card.last_result} {card.last_score}%"
+                    status_line = f"{card.deck}  \u00b7  due {card.next_review}  \u00b7  {card.last_result} {card.last_score}%"
                     if card.buried_until > today_iso():
                         status_line += f"  \u2022  Buried until {card.buried_until}"
                     head = ttk.Frame(item, style="Card.TFrame")
