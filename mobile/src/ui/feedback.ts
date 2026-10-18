@@ -3,13 +3,59 @@ import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { Alert, Platform } from 'react-native';
 
-export function speak(text: string, slow = false) {
+// Which speaker button (if any) started the voice that is talking now, so
+// only that button shows "Stop" and a screen can stop its own speech.
+let owner: object | null = null;
+const listeners = new Set<() => void>();
+
+function setOwner(next: object | null) {
+  if (owner === next) return;
+  owner = next;
+  listeners.forEach((listener) => listener());
+}
+
+export function speakingOwner(): object | null {
+  return owner;
+}
+
+export function onSpeakingChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function rate(slow: boolean): number {
+  return slow ? 0.8 : 1.0;
+}
+
+/** Says `text`, cutting off anything already being said. `who` marks the button that asked. */
+export function speak(text: string, slow = false, who: object | null = null) {
   Speech.stop();
-  if (text.trim()) Speech.speak(text, { rate: slow ? 0.8 : 1.0 });
+  if (!text.trim()) {
+    setOwner(null);
+    return;
+  }
+  setOwner(who);
+  const finished = () => {
+    if (owner === who) setOwner(null);
+  };
+  Speech.speak(text, { rate: rate(slow), onDone: finished, onStopped: finished, onError: finished });
+}
+
+/** Says `text` and resolves when it has been said (or was stopped). */
+export function speakAsync(text: string, slow = false): Promise<void> {
+  return new Promise((resolve) => {
+    Speech.stop();
+    setOwner(null);
+    if (!text.trim()) return resolve();
+    Speech.speak(text, { rate: rate(slow), onDone: () => resolve(), onStopped: () => resolve(), onError: () => resolve() });
+  });
 }
 
 export function stopSpeaking() {
   Speech.stop();
+  setOwner(null);
 }
 
 export function tap(enabled = true) {

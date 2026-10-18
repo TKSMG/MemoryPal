@@ -5,10 +5,8 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { parseIdeas, TECHNIQUES } from '../../core/techniques';
-import { Button, Card, Field, Pills, Row, Screen, SectionTitle, Txt } from '../../ui/components';
-import { speak } from '../../ui/feedback';
+import { Card, Field, Pills, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
 import { useTheme } from '../../ui/theme';
-import { useStore } from '../../state/AppState';
 
 const PUZZLES: { kind: string; icon: keyof typeof Ionicons.glyphMap; title: string; body: string }[] = [
   { kind: 'sequence', icon: 'keypad-outline', title: 'Sequence recall', body: 'See a short run of numbers, then type it back.' },
@@ -18,7 +16,6 @@ const PUZZLES: { kind: string; icon: keyof typeof Ionicons.glyphMap; title: stri
 
 export default function Practice() {
   const theme = useTheme();
-  const store = useStore();
   const c = theme.colors;
   const [ideas, setIdeas] = useState('');
   const [technique, setTechnique] = useState(TECHNIQUES[0].key);
@@ -43,8 +40,8 @@ export default function Practice() {
         {output ? (
           <View style={{ backgroundColor: c.alt, borderRadius: 14, padding: 14, gap: 8 }} accessibilityLiveRegion="polite">
             <Txt variant="body">{output}</Txt>
-            <Row>
-              <Button compact label="Read aloud" icon="volume-high-outline" onPress={() => speak(output, store.accessibility.more_time)} style={{ flex: 1 }} />
+            <Row style={{ justifyContent: 'flex-end' }}>
+              <SpeakButton text={output} label="Read it aloud" />
             </Row>
           </View>
         ) : null}

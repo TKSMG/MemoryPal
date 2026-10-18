@@ -1,6 +1,7 @@
 /** Building blocks shared by every screen: calm, large, and accessible by default. */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ReactElement, ReactNode, Ref, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { ReactElement, ReactNode, Ref, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -21,6 +22,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useStore } from '../state/AppState';
+import { onSpeakingChange, speak, speakingOwner, stopSpeaking } from './feedback';
 import { pressedShade, Theme, useTheme } from './theme';
 
 export type IconName = keyof typeof Ionicons.glyphMap;
@@ -202,7 +205,7 @@ export function Card({ children, tone = 'default', style, onPress, accessibility
 
 // -------------------------------------------------------------- button
 /** Smallest touch target: Apple asks for 44pt, Android's Material guidance for 48dp. */
-const MIN_TOUCH = Platform.OS === 'android' ? 48 : 44;
+export const MIN_TOUCH = Platform.OS === 'android' ? 48 : 44;
 
 export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'dangerGhost' | 'ghost' | 'again' | 'review' | 'good' | 'easy';
 
@@ -258,18 +261,52 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
   );
 }
 
-export function IconButton({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+export function IconButton({ icon, label, onPress, hint, color }: { icon: IconName; label: string; onPress: () => void; hint?: string; color?: string }) {
   const theme = useTheme();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={8}
+      accessibilityHint={hint}
+      hitSlop={4}
       style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? theme.colors.alt : theme.colors.surfaceSoft }]}
     >
-      <Ionicons name={icon} size={theme.icon(22)} color={theme.colors.ink} />
+      <Ionicons name={icon} size={theme.icon(22)} color={color ?? theme.colors.ink} />
     </Pressable>
+  );
+}
+
+/** Stops anything being read aloud when the screen loses focus or closes. */
+export function useStopSpeechOnLeave() {
+  useFocusEffect(useCallback(() => stopSpeaking, []));
+}
+
+/**
+ * The one speaker button used wherever a card, note, question or answer is
+ * shown. A second tap stops it; leaving the screen or removing the button
+ * stops it too. `label` says what is read ("Read the question aloud").
+ */
+export function SpeakButton({ text, label, slow }: { text: string; label: string; slow?: boolean }) {
+  const theme = useTheme();
+  const store = useStore();
+  const [me] = useState(() => ({}));
+  const speaking = useSyncExternalStore(onSpeakingChange, () => speakingOwner() === me, () => false);
+  const moreTime = slow ?? store.accessibility.more_time;
+  useEffect(() => () => {
+    if (speakingOwner() === me) stopSpeaking();
+  }, [me]);
+  useFocusEffect(useCallback(() => () => {
+    if (speakingOwner() === me) stopSpeaking();
+  }, [me]));
+  if (!text.trim()) return null;
+  return (
+    <IconButton
+      icon={speaking ? 'stop-circle-outline' : 'volume-high-outline'}
+      label={speaking ? 'Stop reading' : label}
+      color={theme.colors.link}
+      onPress={() => (speaking ? stopSpeaking() : speak(text, moreTime, me))}
+    />
   );
 }
 
@@ -302,12 +339,19 @@ export function Pills<T extends string>({ options, value, onChange, label }: { o
   );
 }
 
-export function Field({ label, hint, ref, ...input }: TextInputProps & { label: string; hint?: string; ref?: Ref<TextInput> }) {
+export function Field({ label, hint, ref, accessory, ...input }: TextInputProps & { label: string; hint?: string; ref?: Ref<TextInput>; /** A control beside the label, such as a speaker button. */ accessory?: ReactNode }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 6 }}>
-      <Txt variant="h3">{label}</Txt>
+      {accessory ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <Txt variant="h3" style={{ flexShrink: 1 }}>{label}</Txt>
+          {accessory}
+        </View>
+      ) : (
+        <Txt variant="h3">{label}</Txt>
+      )}
       {hint ? <Txt variant="muted">{hint}</Txt> : null}
       <TextInput
         accessibilityLabel={label}
@@ -513,7 +557,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginBottom: 4 },
   card: { borderRadius: 18, padding: 18, gap: 10, borderWidth: StyleSheet.hairlineWidth },
   button: { borderRadius: 14, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, alignItems: 'center', justifyContent: 'center' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: { minHeight: MIN_TOUCH, minWidth: 56, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   inlineButton: { paddingHorizontal: 6, marginHorizontal: -6 },

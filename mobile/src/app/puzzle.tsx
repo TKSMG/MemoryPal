@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, View } from 'react-native';
 
 import { useStore } from '../state/AppState';
-import { Button, Card, Field, ProgressBar, Row, Screen, Txt } from '../ui/components';
+import { Button, Card, Field, ProgressBar, Row, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../ui/components';
 import { useTheme } from '../ui/theme';
 
 const WORDS = ['apple', 'river', 'candle', 'garden', 'pencil', 'window', 'basket', 'violin', 'mountain', 'teacup', 'ladder', 'blanket', 'compass', 'lemon', 'harbour', 'button', 'feather', 'kettle', 'meadow', 'lantern', 'pebble', 'orchard', 'saddle', 'thimble'];
@@ -47,6 +47,7 @@ export default function Puzzle() {
   const theme = useTheme();
   const c = theme.colors;
   const { kind = 'sequence' } = useLocalSearchParams<{ kind?: string }>();
+  useStopSpeechOnLeave();
   const moreTime = store.accessibility.more_time;
   const firstLevel = kind === 'sequence' ? 4 : kind === 'words' ? 5 : 3;
   const [level, setLevel] = useState(firstLevel);
@@ -173,7 +174,10 @@ export default function Puzzle() {
 
       {phase === 'show' ? (
         <>
-          <Txt variant="h2">{kind === 'sequence' ? 'Remember these numbers' : kind === 'pairs' ? 'Remember which words go together' : 'Remember these words'}</Txt>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Txt variant="h2" style={{ flex: 1 }}>{kind === 'sequence' ? 'Remember these numbers' : kind === 'pairs' ? 'Remember which words go together' : 'Remember these words'}</Txt>
+            <SpeakButton text={kind === 'pairs' ? (round.pairs ?? []).map(([x, y]) => `${x} goes with ${y}`).join('. ') : round.shown.join(', ')} label={kind === 'sequence' ? 'Read the numbers aloud' : 'Read the words aloud'} />
+          </Row>
           <Card style={{ alignItems: 'center', paddingVertical: 28, gap: 12 }}>
             {kind === 'sequence' ? (
               <Txt variant="big" style={{ letterSpacing: 8 }}>{round.shown.join(' ')}</Txt>
@@ -207,7 +211,10 @@ export default function Puzzle() {
 
       {phase === 'answer' && kind === 'pairs' && round.pairs ? (
         <>
-          <Txt variant="h2">{`What went with “${round.pairs[pairIndex][0]}”?`}</Txt>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Txt variant="h2" style={{ flex: 1 }}>{`What went with “${round.pairs[pairIndex][0]}”?`}</Txt>
+            <SpeakButton text={`What went with ${round.pairs[pairIndex][0]}? The choices are ${(round.options?.[pairIndex] ?? []).join(', ')}.`} label="Read the question and choices aloud" />
+          </Row>
           <View style={{ gap: 10 }}>
             {(round.options?.[pairIndex] ?? []).map((option) => (
               <Pressable

@@ -12,7 +12,7 @@ import { Card as CardModel } from '../core/models';
 import { answerAssessment, Assessment, Bucket, describeSimply } from '../core/smartCheck';
 import { MemoryStore } from '../core/store';
 import { useStore, usePrefs } from '../state/AppState';
-import { Button, ButtonKind, Card, EmptyState, Field, IconButton, ProgressBar, Row, Screen, Txt } from '../ui/components';
+import { Button, ButtonKind, Card, EmptyState, Field, IconButton, ProgressBar, Row, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../ui/components';
 import { speak, stopSpeaking, tap } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
@@ -92,6 +92,7 @@ export default function Review() {
     if (card && readAloud) speak(card.front, slow);
     return stopSpeaking;
   }, [card?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useStopSpeechOnLeave();
 
   if (!queue.length) {
     return (
@@ -140,10 +141,13 @@ export default function Review() {
           <Card>
             <Txt variant="h3">Worth another look</Txt>
             {missed.map(({ card: item }) => (
-              <View key={item.id} style={{ gap: 2 }}>
-                <Txt variant="body">{item.front}</Txt>
-                <Txt variant="small">{item.back}</Txt>
-              </View>
+              <Row key={item.id} style={{ alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt variant="body">{item.front}</Txt>
+                  <Txt variant="small">{item.back}</Txt>
+                </View>
+                <SpeakButton text={`${item.front}. ${item.back}`} label={`Read aloud: ${item.front}`} />
+              </Row>
             ))}
           </Card>
         ) : null}
@@ -197,7 +201,7 @@ export default function Review() {
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt variant="label" style={{ flex: 1 }}>{`Card ${index + 1} of ${queue.length}${card.deck ? ` · ${card.deck}` : ''}`}</Txt>
         <Row gap={8}>
-          <IconButton icon="volume-high-outline" label="Read the question aloud" onPress={() => speak(card.front, slow)} />
+          <SpeakButton text={card.front} label="Read the question aloud" />
           <IconButton icon="create-outline" label="Edit this card" onPress={() => router.push(`/card/${card.id}`)} />
         </Row>
       </Row>
@@ -232,13 +236,14 @@ export default function Review() {
           <Card tone="alt">
             <Row style={{ justifyContent: 'space-between' }}>
               <Txt variant="label">{theme.plain('Answer', 'The answer')}</Txt>
-              {hasAnswer ? <IconButton icon="volume-high-outline" label="Read the answer aloud" onPress={() => speak(card.back, slow)} /> : null}
+              {hasAnswer ? <SpeakButton text={card.back} label="Read the answer aloud" /> : null}
             </Row>
             <Txt variant="h3">{hasAnswer ? card.back : 'No saved answer. Use this as a self-check, then rate yourself.'}</Txt>
             {card.association ? (
               <Row style={{ alignItems: 'flex-start' }}>
                 <Ionicons name="bulb-outline" size={theme.icon(20)} color={c.link} />
                 <Txt variant="muted" style={{ flex: 1 }}>{card.association}</Txt>
+                <SpeakButton text={card.association} label="Read the memory hook aloud" />
               </Row>
             ) : null}
           </Card>

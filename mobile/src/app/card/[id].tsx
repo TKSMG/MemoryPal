@@ -3,7 +3,7 @@ import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router'
 import { useEffect, useRef, useState } from 'react';
 
 import { useStore } from '../../state/AppState';
-import { Button, Card, EmptyState, Field, Screen, Txt } from '../../ui/components';
+import { Button, Card, EmptyState, Field, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../../ui/components';
 import { relativeDay } from '../../ui/dates';
 import { confirm, notify } from '../../ui/feedback';
 
@@ -16,6 +16,7 @@ export default function EditCard() {
   const [back, setBack] = useState(card?.back ?? '');
   const [hook, setHook] = useState(card?.association ?? '');
   const navigation = useNavigation();
+  useStopSpeechOnLeave();
 
   // With unsaved edits the sheet can't be swiped away, and Cancel or the
   // back button asks before throwing the edits away.
@@ -77,9 +78,9 @@ export default function EditCard() {
         </Txt>
       </Card>
       <Field label="Deck" value={deck} onChangeText={setDeck} autoCapitalize="words" />
-      <Field label="Question or prompt" value={front} onChangeText={setFront} multiline />
-      <Field label="Answer" hint="Leave it empty for a self-check card." value={back} onChangeText={setBack} multiline />
-      <Field label="Memory hook (optional)" value={hook} onChangeText={setHook} multiline />
+      <Field label="Question or prompt" value={front} onChangeText={setFront} multiline accessory={<SpeakButton text={front} label="Read the question aloud" />} />
+      <Field label="Answer" hint="Leave it empty for a self-check card." value={back} onChangeText={setBack} multiline accessory={<SpeakButton text={back} label="Read the answer aloud" />} />
+      <Field label="Memory hook (optional)" value={hook} onChangeText={setHook} multiline accessory={<SpeakButton text={hook} label="Read the memory hook aloud" />} />
       {store.isLeech(card) ? (
         <Txt variant="muted">Tip: a card missed this often is usually too big or too vague. Split it into two, make the question more specific, or add a memory hook.</Txt>
       ) : null}
