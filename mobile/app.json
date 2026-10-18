@@ -24,6 +24,10 @@
       "config": {
         "usesNonExemptEncryption": false
       },
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud.",
+        "NSSpeechRecognitionUsageDescription": "MemoryPal turns your spoken answers into text to check them. Where your iPhone supports it, this happens on the device."
+      },
       "privacyManifests": {
         "NSPrivacyTracking": false,
         "NSPrivacyTrackingDomains": [],
@@ -95,11 +99,13 @@
       },
       "predictiveBackGestureEnabled": false,
       "versionCode": 54,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -124,7 +130,18 @@
         }
       ],
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud.",
+          "speechRecognitionPermission": "MemoryPal turns your spoken answers into text to check them. Where your iPhone supports it, this happens on the device.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
+        }
+      ]
     ]
   }
 }

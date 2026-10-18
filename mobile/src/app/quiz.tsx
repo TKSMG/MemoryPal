@@ -6,7 +6,7 @@ import { Pressable, View } from 'react-native';
 
 import { Card as CardModel } from '../core/models';
 import { useStore, usePrefs } from '../state/AppState';
-import { Button, Card, EmptyState, ProgressBar, Row, Screen, Txt } from '../ui/components';
+import { Button, Card, EmptyState, ProgressBar, Row, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../ui/components';
 import { speak, stopSpeaking, tap } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
@@ -56,6 +56,7 @@ export default function Quiz() {
     if (question && store.accessibility.read_aloud) speak(question.card.front, store.accessibility.more_time);
     return stopSpeaking;
   }, [index]); // eslint-disable-line react-hooks/exhaustive-deps
+  useStopSpeechOnLeave();
 
   if (questions.length < 2 || questions.some((q) => q.choices.length < 2)) {
     return (
@@ -67,10 +68,10 @@ export default function Quiz() {
 
   if (index >= questions.length) {
     return (
-      <Screen title="Quiz done" eyebrow="Nice work">
+      <Screen title="Quiz done">
         <Card tone="alt">
           <Txt variant="big">{score} / {questions.length}</Txt>
-          <Txt variant="body">{score === questions.length ? 'Every one right!' : 'Cards you missed are worth a proper review — typing the answer from memory works better than picking it.'}</Txt>
+          <Txt variant="body">{score === questions.length ? 'Every one right!' : 'Cards you missed are worth a proper review. Typing the answer from memory works better than picking it.'}</Txt>
         </Card>
         <Button kind="primary" label="Done" onPress={() => router.back()} />
         <Button label="Review weaker cards" onPress={() => router.replace('/review?mode=weak')} />
@@ -90,7 +91,11 @@ export default function Quiz() {
 
   return (
     <Screen>
-      <Txt variant="label">{`Question ${index + 1} of ${questions.length}`}</Txt>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Txt variant="label" style={{ flex: 1 }}>{`Question ${index + 1} of ${questions.length}`}</Txt>
+        <SpeakButton text={question.card.front} label="Read the question aloud" />
+        <SpeakButton text={question.choices.map((choice, i) => `${String.fromCharCode(65 + i)}: ${choice}`).join('. ')} label="Read the choices aloud" />
+      </Row>
       <ProgressBar value={index / questions.length} />
       <Card style={{ minHeight: 120, justifyContent: 'center' }}>
         <Txt variant="h2">{question.card.front}</Txt>

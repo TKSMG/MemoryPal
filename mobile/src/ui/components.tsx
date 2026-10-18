@@ -1,6 +1,7 @@
 /** Building blocks shared by every screen: calm, large, and accessible by default. */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ReactElement, ReactNode, Ref, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { ReactElement, ReactNode, Ref, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -21,20 +22,24 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useStore } from '../state/AppState';
+import { onSpeakingChange, speak, speakingOwner, stopSpeaking } from './feedback';
 import { pressedShade, Theme, useTheme } from './theme';
 
 export type IconName = keyof typeof Ionicons.glyphMap;
 
 // ---------------------------------------------------------------- text
-type Variant = 'title' | 'h2' | 'h3' | 'body' | 'muted' | 'label' | 'small' | 'big';
+type Variant = 'title' | 'h2' | 'section' | 'h3' | 'body' | 'muted' | 'label' | 'small' | 'big';
 
-// Apple's text styles: Large Title 34, Title 2 22, Headline 17 semibold,
-// Body 17, Subheadline 15, Footnote 13. Body keeps a roomier 24pt line for
-// longer reading.
+// Apple's text styles: Large Title 34, Title 2 22, Title 3 20, Headline 17
+// semibold, Body 17, Subheadline 15, Footnote 13. Body keeps a roomier 24pt
+// line for longer reading. Section headings use Title 3 so they sit below the
+// page title instead of competing with it.
 const SIZES: Record<Variant, [number, TextStyle['fontWeight'], number]> = {
   title: [34, '700', 41],
   big: [40, '700', 46],
   h2: [22, '700', 28],
+  section: [20, '600', 25],
   h3: [17, '600', 22],
   body: [17, '400', 24],
   muted: [15, '400', 20],
@@ -55,7 +60,7 @@ export function Txt({ variant = 'body', color, style, children, center, ...rest 
       adjustsFontSizeToFit={rest.adjustsFontSizeToFit}
       accessibilityLabel={rest.accessibilityLabel}
       accessibilityLiveRegion={rest.accessibilityLiveRegion}
-      accessibilityRole={rest.accessibilityRole ?? (variant === 'title' || variant === 'h2' ? 'header' : undefined)}
+      accessibilityRole={rest.accessibilityRole ?? (variant === 'title' || variant === 'h2' || variant === 'section' ? 'header' : undefined)}
       style={[
         { color: tone, fontSize: theme.font(size * grow), lineHeight: theme.font(line * grow), fontWeight: weight },
         center && { textAlign: 'center' },
@@ -81,23 +86,23 @@ function useGutter(): number {
   return width < 360 ? 16 : width >= 600 ? 28 : 20;
 }
 
-function ScreenHeader({ title, eyebrow, right }: { title?: string; eyebrow?: string; right?: ReactNode }) {
-  const theme = useTheme();
+/** A large title, like iOS and Material's large top app bar, with an optional quiet line under it. */
+function ScreenHeader({ title, subtitle, right }: { title?: string; subtitle?: string; right?: ReactNode }) {
   if (!title) return null;
   return (
     <View style={styles.header}>
-      <View style={{ flex: 1 }}>
-        {eyebrow ? <Txt variant="label" color={theme.colors.link}>{eyebrow}</Txt> : null}
+      <View style={{ flex: 1, gap: 2 }}>
         <Txt variant="title">{title}</Txt>
+        {subtitle ? <Txt variant="muted">{subtitle}</Txt> : null}
       </View>
       {right}
     </View>
   );
 }
 
-export function Screen({ title, eyebrow, right, children, scroll = true, padded = true, narrow }: { title?: string; eyebrow?: string; right?: ReactNode; children: ReactNode; scroll?: boolean; padded?: boolean; /** Cap the content at form width (centred) on wide screens. */ narrow?: boolean }) {
+export function Screen({ title, subtitle, right, children, scroll = true, padded = true, narrow }: { title?: string; subtitle?: string; right?: ReactNode; children: ReactNode; scroll?: boolean; padded?: boolean; /** Cap the content at form width (centred) on wide screens. */ narrow?: boolean }) {
   const theme = useTheme();
-  const header = <ScreenHeader title={title} eyebrow={eyebrow} right={right} />;
+  const header = <ScreenHeader title={title} subtitle={subtitle} right={right} />;
   const gutter = useGutter();
   const pad = padded ? { paddingHorizontal: gutter } : null;
   const width = narrow ? { maxWidth: FORM_WIDTH + (padded ? gutter * 2 : 0) } : null;
@@ -144,7 +149,7 @@ export function Screen({ title, eyebrow, right, children, scroll = true, padded 
  * the viewport are rendered), and the header content scrolls with them. The
  * list spans the whole width so a drag in the iPad side margins still scrolls.
  */
-export function ScreenList<T>({ title, eyebrow, right, header, data, renderItem, keyExtractor, empty }: { title?: string; eyebrow?: string; right?: ReactNode; header?: ReactNode; data: readonly T[]; renderItem: ListRenderItem<T>; keyExtractor: (item: T) => string; empty?: ReactElement | null }) {
+export function ScreenList<T>({ title, subtitle, right, header, data, renderItem, keyExtractor, empty }: { title?: string; subtitle?: string; right?: ReactNode; header?: ReactNode; data: readonly T[]; renderItem: ListRenderItem<T>; keyExtractor: (item: T) => string; empty?: ReactElement | null }) {
   const theme = useTheme();
   const gutter = useGutter();
   const column = [styles.readable, { paddingHorizontal: gutter }];
@@ -158,7 +163,7 @@ export function ScreenList<T>({ title, eyebrow, right, header, data, renderItem,
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 32 }}
         ListHeaderComponent={
           <View style={[column, { gap: 16, marginBottom: 16 }]}>
-            <ScreenHeader title={title} eyebrow={eyebrow} right={right} />
+            <ScreenHeader title={title} subtitle={subtitle} right={right} />
             {header}
           </View>
         }
@@ -181,7 +186,7 @@ function ListGap() {
 export function Card({ children, tone = 'default', style, onPress, accessibilityLabel, accessibilityHint, accessibilityRole = 'button', accessibilityState }: { children: ReactNode; tone?: 'default' | 'alt' | 'warm' | 'primary'; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; accessibilityRole?: 'button' | 'radio'; accessibilityState?: { selected?: boolean; checked?: boolean } }) {
   const theme = useTheme();
   const background = { default: theme.colors.surface, alt: theme.colors.alt, warm: theme.colors.warm, primary: theme.colors.primary }[tone];
-  const base: StyleProp<ViewStyle> = [styles.card, { backgroundColor: background, borderColor: tone === 'default' ? theme.colors.line : 'transparent' }, style];
+  const base: StyleProp<ViewStyle> = [styles.card, { backgroundColor: background }, style];
   if (!onPress) return <View style={base}>{children}</View>;
   return (
     <Pressable
@@ -202,7 +207,7 @@ export function Card({ children, tone = 'default', style, onPress, accessibility
 
 // -------------------------------------------------------------- button
 /** Smallest touch target: Apple asks for 44pt, Android's Material guidance for 48dp. */
-const MIN_TOUCH = Platform.OS === 'android' ? 48 : 44;
+export const MIN_TOUCH = Platform.OS === 'android' ? 48 : 44;
 
 export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'dangerGhost' | 'ghost' | 'again' | 'review' | 'good' | 'easy';
 
@@ -242,7 +247,6 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: pressed ? pressedBg : bg, minHeight: compact ? MIN_TOUCH : 52, opacity: disabled ? 0.45 : 1 },
-        kind === 'secondary' && { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.line },
         inline && styles.inlineButton,
         // A press answers the moment the finger lands, not on release.
         pressed && !disabled && !theme.reduceMotion && styles.pressedButton,
@@ -251,25 +255,59 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
     >
       {icon ? <Ionicons name={icon} size={theme.font(20)} color={fg} /> : null}
       <View style={{ alignItems: 'center', flexShrink: 1 }}>
-        <Text maxFontSizeMultiplier={1.8} style={{ color: fg, fontSize: theme.font(compact ? 15 : 17), fontWeight: '700', textAlign: 'center' }}>{label}</Text>
+        <Text maxFontSizeMultiplier={1.8} style={{ color: fg, fontSize: theme.font(compact ? 15 : 17), fontWeight: '600', textAlign: 'center' }}>{label}</Text>
         {sublabel ? <Text maxFontSizeMultiplier={1.6} style={{ color: fg, fontSize: theme.font(12), fontWeight: '500' }}>{sublabel}</Text> : null}
       </View>
     </Pressable>
   );
 }
 
-export function IconButton({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+export function IconButton({ icon, label, onPress, hint, color }: { icon: IconName; label: string; onPress: () => void; hint?: string; color?: string }) {
   const theme = useTheme();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={8}
+      accessibilityHint={hint}
+      hitSlop={4}
       style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? theme.colors.alt : theme.colors.surfaceSoft }]}
     >
-      <Ionicons name={icon} size={theme.icon(22)} color={theme.colors.ink} />
+      <Ionicons name={icon} size={theme.icon(22)} color={color ?? theme.colors.ink} />
     </Pressable>
+  );
+}
+
+/** Stops anything being read aloud when the screen loses focus or closes. */
+export function useStopSpeechOnLeave() {
+  useFocusEffect(useCallback(() => stopSpeaking, []));
+}
+
+/**
+ * The one speaker button used wherever a card, note, question or answer is
+ * shown. A second tap stops it; leaving the screen or removing the button
+ * stops it too. `label` says what is read ("Read the question aloud").
+ */
+export function SpeakButton({ text, label, slow }: { text: string; label: string; slow?: boolean }) {
+  const theme = useTheme();
+  const store = useStore();
+  const [me] = useState(() => ({}));
+  const speaking = useSyncExternalStore(onSpeakingChange, () => speakingOwner() === me, () => false);
+  const moreTime = slow ?? store.accessibility.more_time;
+  useEffect(() => () => {
+    if (speakingOwner() === me) stopSpeaking();
+  }, [me]);
+  useFocusEffect(useCallback(() => () => {
+    if (speakingOwner() === me) stopSpeaking();
+  }, [me]));
+  if (!text.trim()) return null;
+  return (
+    <IconButton
+      icon={speaking ? 'stop-circle-outline' : 'volume-high-outline'}
+      label={speaking ? 'Stop reading' : label}
+      color={theme.colors.link}
+      onPress={() => (speaking ? stopSpeaking() : speak(text, moreTime, me))}
+    />
   );
 }
 
@@ -290,11 +328,11 @@ export function Pills<T extends string>({ options, value, onChange, label }: { o
               styles.pill,
               {
                 backgroundColor: selected ? theme.colors.primary : pressed ? theme.colors.alt : theme.colors.surface,
-                borderColor: selected ? theme.colors.primary : theme.colors.line,
+                borderColor: selected ? theme.colors.primary : theme.colors.inputBorder,
               },
             ]}
           >
-            <Text maxFontSizeMultiplier={1.8} style={{ color: selected ? theme.colors.onPrimary : theme.colors.ink, fontWeight: '600', fontSize: theme.font(15) }}>{option.label}</Text>
+            <Text maxFontSizeMultiplier={1.8} style={{ color: selected ? theme.colors.onPrimary : theme.colors.ink, fontWeight: selected ? '600' : '500', fontSize: theme.font(15) }}>{option.label}</Text>
           </Pressable>
         );
       })}
@@ -302,12 +340,19 @@ export function Pills<T extends string>({ options, value, onChange, label }: { o
   );
 }
 
-export function Field({ label, hint, ref, ...input }: TextInputProps & { label: string; hint?: string; ref?: Ref<TextInput> }) {
+export function Field({ label, hint, ref, accessory, ...input }: TextInputProps & { label: string; hint?: string; ref?: Ref<TextInput>; /** A control beside the label, such as a speaker button. */ accessory?: ReactNode }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 6 }}>
-      <Txt variant="h3">{label}</Txt>
+      {accessory ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <Txt variant="h3" style={{ flexShrink: 1 }}>{label}</Txt>
+          {accessory}
+        </View>
+      ) : (
+        <Txt variant="h3">{label}</Txt>
+      )}
       {hint ? <Txt variant="muted">{hint}</Txt> : null}
       <TextInput
         accessibilityLabel={label}
@@ -362,7 +407,7 @@ export function ToggleRow({ label, description, value, onChange }: { label: stri
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ true: theme.colors.primary, false: theme.colors.muted }}
+        trackColor={{ true: theme.colors.primary, false: theme.colors.inputBorder }}
         thumbColor="#ffffff"
         {...({ activeThumbColor: '#ffffff' } as object)}
         importantForAccessibility="no-hide-descendants"
@@ -380,7 +425,7 @@ export function ProgressBar({ value, color, height = 10, label }: { value: numbe
       accessibilityRole="progressbar"
       accessibilityLabel={label}
       accessibilityValue={{ min: 0, max: 100, now: Math.round(pct * 100) }}
-      style={{ height, borderRadius: height, backgroundColor: theme.colors.alt, overflow: 'hidden' }}
+      style={{ height, borderRadius: height, backgroundColor: theme.colors.line, overflow: 'hidden' }}
     >
       <View style={{ width: `${pct * 100}%`, height: '100%', borderRadius: height, backgroundColor: color ?? theme.colors.primary }} />
     </View>
@@ -403,8 +448,8 @@ export function Row({ children, gap = 12, wrap, style }: { children: ReactNode; 
 
 export function SectionTitle({ children, action }: { children: string; action?: ReactNode }) {
   return (
-    <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
-      <Txt variant="h2">{children}</Txt>
+    <Row style={{ justifyContent: 'space-between', marginTop: 12 }}>
+      <Txt variant="section" style={{ flexShrink: 1 }}>{children}</Txt>
       {action}
     </Row>
   );
@@ -413,12 +458,91 @@ export function SectionTitle({ children, action }: { children: string; action?: 
 export function EmptyState({ icon, title, body, action }: { icon: IconName; title: string; body: string; action?: ReactNode }) {
   const theme = useTheme();
   return (
-    <Card style={{ alignItems: 'center', gap: 8, paddingVertical: 28 }}>
-      <Ionicons name={icon} size={theme.icon(36)} color={theme.colors.muted} />
-      <Txt variant="h3" center>{title}</Txt>
+    <View style={{ alignItems: 'center', gap: 8, paddingVertical: 32, paddingHorizontal: 8 }}>
+      <Ionicons name={icon} size={theme.icon(40)} color={theme.colors.muted} />
+      <Txt variant="section" center>{title}</Txt>
       <Txt variant="muted" center>{body}</Txt>
-      {action}
-    </Card>
+      {action ? <View style={{ alignSelf: 'stretch', marginTop: 8 }}>{action}</View> : null}
+    </View>
+  );
+}
+
+// ------------------------------------------------------------ grouped list
+/**
+ * An inset grouped list, like iOS Settings: one rounded surface, rows split by
+ * hairlines indented past the icon. Replaces a stack of separate bordered cards.
+ */
+export function ListGroup({ children, header, footer }: { children: ReactNode; header?: string; footer?: string }) {
+  const theme = useTheme();
+  const items = (Array.isArray(children) ? children.flat() : [children]).filter(Boolean);
+  return (
+    <View style={{ gap: 8 }}>
+      {header ? <Txt variant="section" style={{ marginTop: 12 }}>{header}</Txt> : null}
+      <View style={[styles.group, { backgroundColor: theme.colors.surface }]}>
+        {items.map((child, i) => (
+          <View key={i}>
+            {i ? <View style={[styles.separator, { backgroundColor: theme.colors.line }]} /> : null}
+            {child}
+          </View>
+        ))}
+      </View>
+      {footer ? <Txt variant="small" style={{ paddingHorizontal: 4 }}>{footer}</Txt> : null}
+    </View>
+  );
+}
+
+/** One row of a ListGroup: icon, title, optional detail and value, and a chevron when it opens something. */
+export function ListRow({ icon, title, detail, value, onPress, accessibilityLabel, accessibilityHint, tint, right, chevron = !!onPress }: { icon?: IconName; title: string; detail?: string; value?: string; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; tint?: string; right?: ReactNode; chevron?: boolean }) {
+  const theme = useTheme();
+  const c = theme.colors;
+  const body = (
+    <>
+      {icon ? <Ionicons name={icon} size={theme.icon(22)} color={tint ?? c.primary} style={{ width: theme.icon(26) }} /> : null}
+      <View style={{ flex: 1, gap: 2, paddingVertical: 2 }}>
+        <Txt variant="body" color={tint && !icon ? tint : c.ink} style={{ fontWeight: '500' }}>{title}</Txt>
+        {detail ? <Txt variant="small">{detail}</Txt> : null}
+      </View>
+      {value ? <Txt variant="muted">{value}</Txt> : null}
+      {right}
+      {chevron ? <Ionicons name="chevron-forward" size={theme.icon(18)} color={c.muted} /> : null}
+    </>
+  );
+  if (!onPress) {
+    return <View style={styles.listRow} accessible accessibilityLabel={accessibilityLabel}>{body}</View>;
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      unstable_pressDelay={60}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? [title, detail, value].filter(Boolean).join(', ')}
+      accessibilityHint={accessibilityHint}
+      android_ripple={Platform.OS === 'android' ? { color: c.alt } : undefined}
+      style={({ pressed }) => [styles.listRow, pressed && Platform.OS !== 'android' && { backgroundColor: c.surfaceSoft }]}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
+/** A heading that shows or hides what's under it, for options most people don't need. */
+export function Disclosure({ title, open, onToggle, children, summary }: { title: string; open: boolean; onToggle: () => void; children: ReactNode; summary?: string }) {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: 12 }}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={summary ? `${title}, ${summary}` : title}
+        style={({ pressed }) => [styles.disclosure, pressed && { opacity: 0.6 }]}
+      >
+        <Txt variant="h3" color={theme.colors.link} style={{ flex: 1 }}>{title}</Txt>
+        {summary && !open ? <Txt variant="muted">{summary}</Txt> : null}
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={theme.icon(18)} color={theme.colors.link} />
+      </Pressable>
+      {open ? children : null}
+    </View>
   );
 }
 
@@ -431,16 +555,20 @@ const styles = StyleSheet.create({
   readable: { width: '100%', maxWidth: READABLE_WIDTH, alignSelf: 'center' },
   pressedCard: { transform: [{ scale: 0.98 }] },
   pressedButton: { transform: [{ scale: 0.97 }] },
-  header: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginBottom: 4 },
-  card: { borderRadius: 18, padding: 18, gap: 10, borderWidth: StyleSheet.hairlineWidth },
-  button: { borderRadius: 14, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  card: { borderRadius: 16, padding: 16, gap: 10 },
+  button: { borderRadius: 12, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  iconButton: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, alignItems: 'center', justifyContent: 'center' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { minHeight: MIN_TOUCH, minWidth: 56, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  pill: { minHeight: MIN_TOUCH, minWidth: 56, paddingHorizontal: 16, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   inlineButton: { paddingHorizontal: 6, marginHorizontal: -6 },
-  input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   // The primary border is the focus ring, so the browser's own outline is dropped on web.
   inputFocused: { borderWidth: 2, paddingHorizontal: 13, paddingVertical: 11, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : null) },
   // The pressed highlight reaches a little past the text, so the row reads as one target.
+  group: { borderRadius: 16, overflow: 'hidden' },
+  separator: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 16, paddingVertical: 10 },
+  disclosure: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: MIN_TOUCH },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 12, overflow: 'hidden' },
 });

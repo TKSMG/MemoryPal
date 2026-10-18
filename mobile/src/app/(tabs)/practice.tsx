@@ -5,10 +5,8 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { parseIdeas, TECHNIQUES } from '../../core/techniques';
-import { Button, Card, Field, Pills, Row, Screen, SectionTitle, Txt } from '../../ui/components';
-import { speak } from '../../ui/feedback';
+import { Card, Field, ListGroup, ListRow, Pills, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
 import { useTheme } from '../../ui/theme';
-import { useStore } from '../../state/AppState';
 
 const PUZZLES: { kind: string; icon: keyof typeof Ionicons.glyphMap; title: string; body: string }[] = [
   { kind: 'sequence', icon: 'keypad-outline', title: 'Sequence recall', body: 'See a short run of numbers, then type it back.' },
@@ -18,7 +16,6 @@ const PUZZLES: { kind: string; icon: keyof typeof Ionicons.glyphMap; title: stri
 
 export default function Practice() {
   const theme = useTheme();
-  const store = useStore();
   const c = theme.colors;
   const [ideas, setIdeas] = useState('');
   const [technique, setTechnique] = useState(TECHNIQUES[0].key);
@@ -27,7 +24,7 @@ export default function Practice() {
   const output = items.length ? chosen.make(items) : '';
 
   return (
-    <Screen eyebrow="Practice" title="Memory gym">
+    <Screen title="Practice">
       <SectionTitle>Make a list memorable</SectionTitle>
       <Card>
         <Field
@@ -43,39 +40,29 @@ export default function Practice() {
         {output ? (
           <View style={{ backgroundColor: c.alt, borderRadius: 14, padding: 14, gap: 8 }} accessibilityLiveRegion="polite">
             <Txt variant="body">{output}</Txt>
-            <Row>
-              <Button compact label="Read aloud" icon="volume-high-outline" onPress={() => speak(output, store.accessibility.more_time)} style={{ flex: 1 }} />
+            <Row style={{ justifyContent: 'flex-end' }}>
+              <SpeakButton text={output} label="Read it aloud" />
             </Row>
           </View>
         ) : null}
       </Card>
 
-      <SectionTitle>Puzzles</SectionTitle>
-      {PUZZLES.map((puzzle) => (
-        <Card key={puzzle.kind} onPress={() => router.push(`/puzzle?kind=${puzzle.kind}` as Href)} accessibilityLabel={`${puzzle.title}. ${puzzle.body}`}>
-          <Row>
-            <Ionicons name={puzzle.icon} size={theme.icon(26)} color={c.link} />
-            <View style={{ flex: 1, gap: 2 }}>
-              <Txt variant="h3">{puzzle.title}</Txt>
-              <Txt variant="muted">{puzzle.body}</Txt>
-            </View>
-            <Ionicons name="chevron-forward" size={theme.icon(20)} color={c.muted} />
-          </Row>
-        </Card>
-      ))}
+      <ListGroup header="Puzzles">
+        {PUZZLES.map((puzzle) => (
+          <ListRow key={puzzle.kind} icon={puzzle.icon} title={puzzle.title} detail={puzzle.body} onPress={() => router.push(`/puzzle?kind=${puzzle.kind}` as Href)} />
+        ))}
+      </ListGroup>
 
-      <SectionTitle>Why these work</SectionTitle>
-      {[
-        ['Spaced practice', 'Reviewing just as something starts to fade makes it last much longer than cramming.'],
-        ['Retrieval practice', 'Trying to recall, even and especially when it is hard, is what builds memory.'],
-        ['Elaboration', 'Ask why and how. Linking a fact to things you know gives it more hooks.'],
-        ['Dual coding', 'Pair words with a picture or a sound for a second route back to the memory.'],
-      ].map(([title, body]) => (
-        <Card key={title} tone="alt">
-          <Txt variant="h3">{title}</Txt>
-          <Txt variant="muted">{body}</Txt>
-        </Card>
-      ))}
+      <ListGroup header="Why these work">
+        {[
+          ['Spaced practice', 'Reviewing just as something starts to fade makes it last much longer than cramming.'],
+          ['Retrieval practice', 'Trying to recall, especially when it is hard, is what builds memory.'],
+          ['Elaboration', 'Ask why and how. Linking a fact to what you know gives it more hooks.'],
+          ['Dual coding', 'Pair words with a picture or a sound for a second route back.'],
+        ].map(([title, body]) => (
+          <ListRow key={title} title={title} detail={body} />
+        ))}
+      </ListGroup>
     </Screen>
   );
 }

@@ -44,9 +44,10 @@ export interface Palette {
 }
 
 const LIGHT: Palette = {
-  bg: '#f6f8fc',
+  // Grouped-list grey: white groups sit on it without needing borders.
+  bg: '#f2f4f7',
   surface: '#ffffff',
-  surfaceSoft: '#eef3fb',
+  surfaceSoft: '#e7ebf1',
   alt: '#e9f1fb',
   ink: '#172033',
   muted: '#56657d',
@@ -135,7 +136,10 @@ export interface Theme {
   /** Icon size that grows with the in-app text size, so symbols stay in step with their labels. */
   icon: (size: number) => number;
   space: (units: number) => number;
+  /** Controls (buttons, fields, banners). */
   radius: number;
+  /** Groups and cards. */
+  radiusLarge: number;
   reduceMotion: boolean;
   simple: boolean;
   /** Plain-language variant when "simple language" is on. */
@@ -152,7 +156,8 @@ export function makeTheme(dark: boolean, textSize: keyof typeof TEXT_SCALE, high
     font: (size) => Math.round(size * scale),
     icon: (size) => Math.round(size * scale),
     space: (units) => units * 4,
-    radius: 14,
+    radius: 12,
+    radiusLarge: 16,
     reduceMotion,
     simple,
     plain: (normal, simpleText) => (simple ? simpleText : normal),
