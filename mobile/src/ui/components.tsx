@@ -422,6 +422,85 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
   );
 }
 
+// ------------------------------------------------------------ grouped list
+/**
+ * An inset grouped list, like iOS Settings: one rounded surface, rows split by
+ * hairlines indented past the icon. Replaces a stack of separate bordered cards.
+ */
+export function ListGroup({ children, header, footer }: { children: ReactNode; header?: string; footer?: string }) {
+  const theme = useTheme();
+  const items = (Array.isArray(children) ? children.flat() : [children]).filter(Boolean);
+  return (
+    <View style={{ gap: 8 }}>
+      {header ? <Txt variant="h3" accessibilityRole="header" style={{ marginTop: 8 }}>{header}</Txt> : null}
+      <View style={[styles.group, { backgroundColor: theme.colors.surface }]}>
+        {items.map((child, i) => (
+          <View key={i}>
+            {i ? <View style={[styles.separator, { backgroundColor: theme.colors.line }]} /> : null}
+            {child}
+          </View>
+        ))}
+      </View>
+      {footer ? <Txt variant="small" style={{ paddingHorizontal: 4 }}>{footer}</Txt> : null}
+    </View>
+  );
+}
+
+/** One row of a ListGroup: icon, title, optional detail and value, and a chevron when it opens something. */
+export function ListRow({ icon, title, detail, value, onPress, accessibilityLabel, accessibilityHint, tint, right, chevron = !!onPress }: { icon?: IconName; title: string; detail?: string; value?: string; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; tint?: string; right?: ReactNode; chevron?: boolean }) {
+  const theme = useTheme();
+  const c = theme.colors;
+  const body = (
+    <>
+      {icon ? <Ionicons name={icon} size={theme.icon(22)} color={tint ?? c.primary} style={{ width: theme.icon(26) }} /> : null}
+      <View style={{ flex: 1, gap: 2, paddingVertical: 2 }}>
+        <Txt variant="body" color={tint && !icon ? tint : c.ink} style={{ fontWeight: '500' }}>{title}</Txt>
+        {detail ? <Txt variant="small">{detail}</Txt> : null}
+      </View>
+      {value ? <Txt variant="muted">{value}</Txt> : null}
+      {right}
+      {chevron ? <Ionicons name="chevron-forward" size={theme.icon(18)} color={c.muted} /> : null}
+    </>
+  );
+  if (!onPress) {
+    return <View style={styles.listRow} accessible accessibilityLabel={accessibilityLabel}>{body}</View>;
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      unstable_pressDelay={60}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? [title, detail, value].filter(Boolean).join(', ')}
+      accessibilityHint={accessibilityHint}
+      android_ripple={Platform.OS === 'android' ? { color: c.alt } : undefined}
+      style={({ pressed }) => [styles.listRow, pressed && Platform.OS !== 'android' && { backgroundColor: c.surfaceSoft }]}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
+/** A heading that shows or hides what's under it, for options most people don't need. */
+export function Disclosure({ title, open, onToggle, children, summary }: { title: string; open: boolean; onToggle: () => void; children: ReactNode; summary?: string }) {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: 12 }}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={summary ? `${title}, ${summary}` : title}
+        style={({ pressed }) => [styles.disclosure, pressed && { opacity: 0.6 }]}
+      >
+        <Txt variant="h3" color={theme.colors.link} style={{ flex: 1 }}>{title}</Txt>
+        {summary && !open ? <Txt variant="muted">{summary}</Txt> : null}
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={theme.icon(18)} color={theme.colors.link} />
+      </Pressable>
+      {open ? children : null}
+    </View>
+  );
+}
+
 export function Icon({ name, size = 22, color }: { name: IconName; size?: number; color?: string }) {
   const theme = useTheme();
   return <Ionicons name={name} size={theme.font(size)} color={color ?? theme.colors.ink} />;
@@ -442,5 +521,9 @@ const styles = StyleSheet.create({
   // The primary border is the focus ring, so the browser's own outline is dropped on web.
   inputFocused: { borderWidth: 2, paddingHorizontal: 13, paddingVertical: 11, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : null) },
   // The pressed highlight reaches a little past the text, so the row reads as one target.
+  group: { borderRadius: 14, overflow: 'hidden' },
+  separator: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 16, paddingVertical: 10 },
+  disclosure: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: MIN_TOUCH },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 12, overflow: 'hidden' },
 });
