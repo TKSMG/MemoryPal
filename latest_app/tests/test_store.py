@@ -159,5 +159,27 @@ class TwoWindowTests(StoreTestCase):
         self.assertIn("From the other window", [card.front for card in self.store.cards])
 
 
+class DeckRenameTests(StoreTestCase):
+    def test_rename_moves_every_card_and_persists(self):
+        self.store.cards = []
+        self.store.add_cards([Card(deck="Bio", front="a", back="b"), Card(deck="Bio", front="c", back="d"), Card(deck="Art", front="e", back="f")])
+        self.assertEqual(self.store.rename_deck("Bio", "  Biology   101 "), 2)
+        decks = sorted(card.deck for card in self.reload().cards)
+        self.assertEqual(decks, ["Art", "Biology 101", "Biology 101"])
+
+    def test_blank_or_same_name_changes_nothing(self):
+        self.store.cards = []
+        self.store.add_cards([Card(deck="Bio", front="a", back="b")])
+        self.assertEqual(self.store.rename_deck("Bio", "   "), 0)
+        self.assertEqual(self.store.rename_deck("Bio", "Bio"), 0)
+        self.assertEqual(self.store.cards[0].deck, "Bio")
+
+    def test_cards_without_a_deck_rename_as_general(self):
+        self.store.cards = []
+        self.store.add_cards([Card(deck="", front="a", back="b")])
+        self.assertEqual(self.store.rename_deck("General", "Misc"), 1)
+        self.assertEqual(self.store.cards[0].deck, "Misc")
+
+
 if __name__ == "__main__":
     unittest.main()

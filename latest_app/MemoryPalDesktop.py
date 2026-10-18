@@ -64,7 +64,7 @@ from memorypal.paths import (
 from memorypal import cloud, cloud_config, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
-from memorypal import popup_geometry
+from memorypal import popup_geometry, setbuilder
 from memorypal.speech import Speaker
 from memorypal.planning import (
     STUDY_HABIT_OPTIONS,
@@ -1352,7 +1352,7 @@ class MemoryPalApp(tk.Tk):
         go.add_command(label="Back", accelerator="Command-[", command=self.go_back)
         go.add_command(label="Go to Page\u2026", accelerator="Command-K", command=self.open_page_finder)
         go.add_separator()
-        for key, label in (("dashboard", "Dashboard"), ("review", "Review"), ("capture", "Capture"), ("library", "Library"), ("stats", "Stats")):
+        for key, label in (("dashboard", "Dashboard"), ("review", "Review"), ("capture", "New Study Set"), ("library", "Library"), ("stats", "Stats")):
             go.add_command(label=label, command=lambda key=key: self.show_view(key))
         menubar.add_cascade(label="Go", menu=go)
 
@@ -2410,7 +2410,7 @@ class MemoryPalApp(tk.Tk):
             ("decks", "Decks", "De"),
             ("plan", "Study Plan", "P"),
             ("focus", "Focus", "F"),
-            ("capture", "Capture", "C"),
+            ("capture", "New Set", "C"),
             ("review", "Review", "R"),
             ("testing", "Test Lab", "T"),
             ("quiz", "Quiz", "Q"),
@@ -3008,6 +3008,10 @@ class MemoryPalApp(tk.Tk):
         self.style.map("TMenubutton", foreground=[("active", COLORS["primary"])])
         self.style.configure("Select.TMenubutton", padding=self.pad(16, 10), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 11))
         self.style.configure("Danger.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["danger"]), borderwidth=0, relief="flat", font=semibold)
+        # A quiet text button ("More options", "Remove"): accent text on the
+        # surface it sits on, a soft tile on hover, the usual focus ring.
+        self.style.configure("Link.TButton", padding=self.pad(8, 6), foreground=COLORS["primary"], borderwidth=0, relief="flat", font=semibold)
+        self.style.map("Link.TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
         # Segmented choices (Study Plan time, quiz modes): one pill per option.
         self.style.configure("Pill.TButton", padding=self.pad(14, 8), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("Pill.TButton", foreground=[("active", COLORS["primary"])])
@@ -3032,7 +3036,7 @@ class MemoryPalApp(tk.Tk):
         self.style.map("ActiveTabBar.TButton", foreground=[("active", COLORS["primary"])])
 
         # Keyboard focus is always visible (a ring inside the button).
-        for name in ("TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TabBar.TButton", "ActiveTabBar.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton"):
+        for name in ("TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TabBar.TButton", "ActiveTabBar.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton", "Link.TButton"):
             self.style.configure(name, focuscolor=self.focus_color(), focusthickness=self.focus_thickness())
         self.install_rounded_controls()
 
@@ -3056,6 +3060,7 @@ class MemoryPalApp(tk.Tk):
             "TabBar.TButton": ("TButton", (COLORS["bg"], COLORS["surface_soft"], COLORS["alt"]), COLORS["bg"]),
             "ActiveTabBar.TButton": ("TButton", (COLORS["alt"],) * 3, COLORS["bg"]),
             "TMenubutton": ("TMenubutton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
+            "Link.TButton": ("TButton", (COLORS["surface"], soft, alt), COLORS["surface"]),
             "Select.TMenubutton": ("TMenubutton", (COLORS["input"], alt, alt), COLORS["surface"]),
             "Pill.TButton": ("TButton", (COLORS["input"], self.tint(COLORS["input"], -10 if self.theme == "light" else 16), self.tint(COLORS["input"], -20 if self.theme == "light" else 26)), COLORS["surface"]),
             "PillOn.TButton": ("TButton", (COLORS["primary"], COLORS["primary_dark"], self.tint(COLORS["primary_dark"], -14)), COLORS["surface"]),
@@ -3376,10 +3381,13 @@ class MemoryPalApp(tk.Tk):
             return base
         derived = f"on{behind.lstrip('#')}.{base}"
         if derived not in self._corner_styles:
+            step = -10 if self.theme == "light" else 12
             if blends_in:
                 lifted = COLORS["surface"] if self.contrast(COLORS["surface"], behind) >= 1.12 else COLORS["bg"]
-                step = -10 if self.theme == "light" else 12
                 fills = (lifted, self.tint(lifted, step), self.tint(lifted, 2 * step))
+            elif base == "Link.TButton":
+                # Text buttons have no fill of their own: they take the surface.
+                fills = (behind, self.tint(behind, step), self.tint(behind, 2 * step))
             try:
                 self.round_style(derived, widget_class, fills, behind)
             except tk.TclError:
@@ -3869,7 +3877,7 @@ class MemoryPalApp(tk.Tk):
             "plan": "Answer a few questions and get a tailored study plan for today.",
             "stats": "Charts of your practice, what's coming up, card maturity, and achievements.",
             "focus": "A queue of due, weak and new cards to work through.",
-            "capture": "Add study bits, Q/A cards, text, image, audio, and video cues.",
+            "capture": "Name a set, then type questions and answers or paste notes to turn into cards.",
             "review": "Go through the cards that are due today, one at a time.",
             "testing": "Answer, reveal, let Smart Check compare, then rate how it went.",
             "quiz": "Self-check or multiple choice practice.",
@@ -3891,7 +3899,7 @@ class MemoryPalApp(tk.Tk):
             "dashboard": ("Today", "Dashboard"), "training": ("Practice", "Memory Gym"),
             "elder": ("Practice", "Everyday Memory"), "decks": ("Create", "Decks"),
             "plan": ("Today", "Study Plan"), "stats": ("Progress", "Stats & Streaks"),
-            "focus": ("Study", "Focus Session"), "capture": ("Create", "Capture Material"),
+            "focus": ("Study", "Focus Session"), "capture": ("Create", "New study set"),
             "review": ("Study", "Spaced Review"), "testing": ("Study", "Test Lab"),
             "quiz": ("Study", "Quick Quiz"), "shuffle": ("Study", "Repetition Path"),
             "tools": ("Practice", "Associations"), "cuelab": ("Create", "Cue Lab"),
@@ -6759,10 +6767,37 @@ class MemoryPalApp(tk.Tk):
             for panel in panels[len(chunk):]:
                 panel.configure(bg=COLORS["bg"])
 
+    def new_set_dialog(self):
+        name = self.dialog_text("New study set", "Name your set. Every card you add to it goes into this deck.")
+        if name is None:
+            return
+        name = setbuilder.clean_set_name(name)
+        if not name:
+            return
+        self.start_new_set(name)
+
+    def rename_set_dialog(self, deck):
+        new_name = self.dialog_text("Rename set", f"New name for \"{deck}\". Every card in it moves to the new name.", initial=deck)
+        if new_name is None:
+            return
+        new_name = setbuilder.clean_set_name(new_name)
+        if not new_name or new_name == deck:
+            return
+        if new_name in self.store.decks() and not self.dialog_confirm("Merge sets?", f"You already have a set called \"{new_name}\". Move the cards from \"{deck}\" into it?", "Merge sets"):
+            return
+        moved = self.store.rename_deck(deck, new_name)
+        if self.deck_filter == deck:
+            self.deck_filter = new_name
+        self.toast_message(f"Renamed to {new_name} ({moved} card{'s' if moved != 1 else ''}).")
+        self.show_view("decks")
+
     def view_decks(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         summary = self.store.deck_summary()
+        toolbar = ttk.Frame(page.inner, style="Page.TFrame")
+        toolbar.pack(fill="x", padx=(0, self.px(8)), pady=(0, self.px(12)))
+        ttk.Button(toolbar, text="New set", style="Primary.TButton", cursor="hand2", command=self.new_set_dialog).pack(side="left")
         if self.deck_filter:
             banner = self.card(page.inner, "AltCard.TFrame", 16)
             banner.pack(fill="x", padx=(0, 8), pady=(0, 12))
@@ -6772,8 +6807,8 @@ class MemoryPalApp(tk.Tk):
             empty = self.card(page.inner)
             empty.pack(fill="x", padx=(0, 8))
             ttk.Label(empty, text="No decks yet", style="H2.TLabel").pack(anchor="w")
-            ttk.Label(empty, text="Add cards in Capture to build your first deck.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 12))
-            ttk.Button(empty, text="Go to Capture", style="Primary.TButton", command=lambda: self.show_view("capture")).pack(fill="x")
+            ttk.Label(empty, text="Make a study set to start your first deck.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 12))
+            ttk.Button(empty, text="Make a study set", style="Primary.TButton", command=lambda: self.start_new_set()).pack(fill="x")
             return
         grid = ttk.Frame(page.inner, style="Page.TFrame")
         grid.pack(fill="x", padx=(0, 8))
@@ -6792,6 +6827,8 @@ class MemoryPalApp(tk.Tk):
             actions = tk.Frame(tile, bg=COLORS["surface"])
             actions.pack(fill="x")
             self.solid_button(actions, "Study this deck", lambda name=deck: self.study_deck(name), color).pack(side="left", fill="x", expand=True, padx=(0, 8))
+            ttk.Button(actions, text="Add cards", command=lambda name=deck: self.start_new_set(name)).pack(side="left", padx=(0, 8))
+            ttk.Button(actions, text="Rename", command=lambda name=deck: self.rename_set_dialog(name)).pack(side="left", padx=(0, 8))
             ttk.Button(actions, text="Library", command=lambda name=deck: self.open_deck_library(name)).pack(side="left")
 
     def study_deck(self, deck):
@@ -7352,7 +7389,7 @@ class MemoryPalApp(tk.Tk):
             empty.pack(fill="x", padx=(0, 8))
             ttk.Label(empty, text="No cards yet", style="H2.TLabel").pack(anchor="w")
             ttk.Label(empty, text="Add cards in Capture, then come back to generate cues for them.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 12))
-            ttk.Button(empty, text="Go to Capture", style="Primary.TButton", command=lambda: self.show_view("capture")).pack(fill="x")
+            ttk.Button(empty, text="Make a study set", style="Primary.TButton", command=lambda: self.start_new_set()).pack(fill="x")
             return
 
         intro = self.card(page.inner, "WarmCard.TFrame", 16)
@@ -7441,257 +7478,311 @@ class MemoryPalApp(tk.Tk):
         render()
         self.register_draft_saver("cuelab", lambda: {"pick": pick_var.get()})
 
+    def capture_draft(self):
+        """The set builder's draft, reading the older capture draft keys too."""
+        draft = dict(self.view_drafts.get("capture", {}))
+        if "items" not in draft:
+            items = [setbuilder.typed_item(item.get("prompt", ""), item.get("answer", "")) for item in draft.get("qa_items", [])]
+            items = [item for item in items if item]
+            if draft.get("chunks"):
+                items += setbuilder.notes_to_items("\n".join(draft["chunks"]), draft.get("prompt") or setbuilder.DEFAULT_PROMPT)
+            draft["items"] = items
+        draft.setdefault("name", draft.get("title", ""))
+        draft.setdefault("question", draft.get("qa_prompt", ""))
+        draft.setdefault("answer", draft.get("qa_answer", ""))
+        draft.setdefault("notes", draft.get("entry", ""))
+        return draft
+
+    def start_new_set(self, name=""):
+        """Open the set builder for a new set, optionally already named."""
+        if self.current_view == "capture":
+            self.save_current_draft()
+        pending = self.capture_draft().get("items", [])
+        if pending:
+            unsaved = setbuilder.clean_set_name(self.capture_draft().get("name")) or "an untitled set"
+            if not self.dialog_confirm("Discard unsaved cards?", f"You have {len(pending)} unsaved card{'s' if len(pending) != 1 else ''} in {unsaved}. Start a new set without them?", "Discard and start"):
+                self.show_view("capture")
+                return
+        self.view_drafts["capture"] = {"name": setbuilder.clean_set_name(name), "items": []}
+        self.pending_media = {"text_file": "", "image": "", "audio": "", "video": ""}
+        if self.current_view == "capture":
+            self.draft_savers.pop("capture", None)
+        self.show_view("capture")
+
     def view_capture(self):
-        draft = self.view_drafts.get("capture", {})
+        """Make a study set: name it, add cards, save. Everything else is under More options."""
+        draft = self.capture_draft()
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         wrapper = ttk.Frame(page.inner, style="Page.TFrame")
-        wrapper.pack(fill="both", expand=True, padx=(0, 8))
-        # Fixed 3:2 split (uniform group) instead of side-by-side pack, which
-        # let the form's widest row claim the width and push the side panel
-        # off-screen behind a horizontal scrollbar.
+        wrapper.pack(fill="both", expand=True, padx=(0, self.px(8)))
         wrapper.columnconfigure(0, weight=3, uniform="capture")
         wrapper.columnconfigure(1, weight=2, uniform="capture")
         wrapper.rowconfigure(0, weight=1)
         form = self.card(wrapper)
-        form.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
-        side = self.card(wrapper, "AltCard.TFrame")
+        form.grid(row=0, column=0, sticky="nsew", padx=(0, self.px(16)))
+        side = self.card(wrapper)
         side.grid(row=0, column=1, sticky="nsew")
+        surface = COLORS["surface"]
+        items = [dict(item) for item in draft.get("items", []) if item]
+        self.pending_media = dict(draft.get("pending_media", {"text_file": "", "image": "", "audio": "", "video": ""}))
 
-        ttk.Label(form, text="Study set builder", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(form, text="Add each fact, reminder, or idea as its own bit.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 18))
-        cue = self.card(form, "WarmCard.TFrame", 14)
-        cue.pack(fill="x", pady=(0, 14))
-        ttk.Label(cue, text="Build one clear item at a time", style="WarmH2.TLabel").pack(anchor="w")
-        ttk.Label(cue, text="Use the separate question and answer fields for cards, or add short study bits below. Media buttons attach cues to the whole set.", style="WarmCard.TLabel", wraplength=680).pack(anchor="w", pady=(4, 0))
-        ttk.Label(form, text="Title", style="CardMuted.TLabel").pack(anchor="w")
-        title = ttk.Entry(form)
-        title.insert(0, draft.get("title", "Chapter 3 key terms"))
-        title.pack(fill="x", pady=(4, 12))
-        ttk.Label(form, text="Card prompt", style="CardMuted.TLabel").pack(anchor="w")
-        prompt = ttk.Entry(form)
-        prompt.insert(0, draft.get("prompt", "What should I recall from bit {n}?"))
-        prompt.pack(fill="x", pady=(4, 12))
+        # 1. The set's name: it becomes the deck of every card made here.
+        ttk.Label(form, text="Name your set", style="H2.TLabel").pack(anchor="w")
+        self.fit_wrap(ttk.Label(form, text="Every card you add goes into this set. You can rename it later on the Decks page.", style="CardMuted.TLabel", wraplength=self.px(560)), pady=(self.px(4), self.px(10)))
+        name_row = ttk.Frame(form, style="Card.TFrame")
+        name_row.pack(fill="x")
+        name_var = tk.StringVar(value=draft.get("name", ""))
+        name_entry = ttk.Entry(name_row, textvariable=name_var, font=self.font("Segoe UI", 13))
+        name_entry.pack(side="left", fill="x", expand=True)
+        existing = self.store.decks()
+        if existing:
+            pick = tk.StringVar(value="Existing sets")
+            chooser = self.select_button(name_row, pick, existing, on_change=lambda value: (name_var.set(value), pick.set("Existing sets")))
+            chooser.configure(text="Existing sets")
+            chooser.pack(side="left", padx=(self.px(10), 0))
+            self.add_tooltip(chooser, "Add these cards to a set you already have.")
 
-        qa_items = [dict(item) for item in draft.get("qa_items", [])]
-        qa_panel = self.card(form, "AltCard.TFrame", 18)
-        qa_panel.pack(fill="x", pady=(0, 14))
-        ttk.Label(qa_panel, text="Question and answer card", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(qa_panel, text="Use this when you already know the exact prompt and answer.", style="AltMuted.TLabel", wraplength=640).pack(anchor="w", pady=(4, 10))
-        ttk.Label(qa_panel, text="Question / title", style="AltMuted.TLabel").pack(anchor="w")
-        qa_prompt = ttk.Entry(qa_panel)
-        qa_prompt.insert(0, draft.get("qa_prompt", ""))
-        qa_prompt.pack(fill="x", pady=(4, 6))
-        presets = ttk.Frame(qa_panel, style="AltCard.TFrame")
-        presets.pack(fill="x", pady=(0, 10))
-        ttk.Label(presets, text="Quick starts:", style="AltMuted.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
-        presets.columnconfigure(0, weight=1, uniform="presets")
-        presets.columnconfigure(1, weight=1, uniform="presets")
+        # 2. Cards: typed one at a time, or pasted notes split into cards.
+        ttk.Label(form, text="Add cards", style="H2.TLabel").pack(anchor="w", pady=(self.px(28), self.px(10)))
+        mode = tk.StringVar(value=draft.get("mode", "Type questions"))
+        tabs = self.pill_group(form, mode, ["Type questions", "Paste notes"], on_change=lambda _value: show_mode(), bg=surface)
+        tabs.pack(fill="x", pady=(0, self.px(14)))
+        typed_panel = ttk.Frame(form, style="Card.TFrame")
+        paste_panel = ttk.Frame(form, style="Card.TFrame")
+        modes_host_marker = ttk.Frame(form, style="Card.TFrame")
+        modes_host_marker.pack(fill="x")
 
-        def use_preset(text):
-            qa_prompt.delete(0, "end")
-            qa_prompt.insert(0, text)
-            qa_prompt.focus_set()
+        ttk.Label(typed_panel, text="Question", style="CardMuted.TLabel").pack(anchor="w")
+        question = ttk.Entry(typed_panel, font=self.font("Segoe UI", 12))
+        question.insert(0, draft.get("question", ""))
+        question.pack(fill="x", pady=(self.px(4), self.px(12)))
+        ttk.Label(typed_panel, text="Answer", style="CardMuted.TLabel").pack(anchor="w")
+        answer = self.text_box(typed_panel, 3, 12)
+        answer.insert("1.0", draft.get("answer", ""))
+        answer.pack(fill="x", pady=(self.px(4), self.px(6)))
+        self.fit_wrap(ttk.Label(typed_panel, text="Enter adds the card (Shift+Enter for a new line). Leave the answer empty for a self-check card.", style="CardMuted.TLabel", wraplength=self.px(560)), pady=(0, self.px(12)))
+        typed_actions = ttk.Frame(typed_panel, style="Card.TFrame")
+        typed_actions.pack(fill="x")
 
-        for preset_index, preset_text in enumerate(["Who is this person?", "What is this appointment?", "Where is this item kept?", "What should happen next?"]):
-            chip = ttk.Button(presets, text=preset_text, style="TButton", command=lambda t=preset_text: use_preset(t))
-            row, column = divmod(preset_index, 2)
-            chip.grid(row=row + 1, column=column, sticky="ew", padx=(0 if column == 0 else 6, 0), pady=(0, 6))
-            self.add_tooltip(chip, "Caregiver-friendly starter prompt \u2014 click to use it, then fill in the answer.")
-        qa_has_answer = tk.BooleanVar(value=draft.get("qa_has_answer", True))
-        answer_toggle = self.check_toggle(qa_panel, qa_has_answer, "This question has a saved answer", on_change=lambda _checked: update_answer_visibility(), bg=COLORS["alt"])
-        answer_toggle.pack(anchor="w", pady=(0, 8))
-        qa_answer_frame = ttk.Frame(qa_panel, style="AltCard.TFrame")
-        qa_answer_frame.pack(fill="x")
-        ttk.Label(qa_answer_frame, text="Answer", style="AltMuted.TLabel").pack(anchor="w")
-        qa_answer = self.text_box(qa_answer_frame, 3, 12)
-        qa_answer.insert("1.0", draft.get("qa_answer", ""))
-        qa_answer.pack(fill="x", pady=(4, 10))
-        qa_list = tk.Frame(qa_panel, bg=COLORS["alt"])
-        qa_list.pack(fill="x", pady=(0, 10))
+        self.fit_wrap(ttk.Label(paste_panel, text="Paste or type notes. Lines like \"Question => Answer\" (or tab-separated, as spreadsheets and Quizlet export) become that card; every other line or sentence becomes a recall card.", style="CardMuted.TLabel", wraplength=self.px(560)), pady=(0, self.px(8)))
+        notes = self.text_box(paste_panel, 8, 12)
+        notes.insert("1.0", draft.get("notes", ""))
+        notes.pack(fill="x", pady=(0, self.px(12)))
+        paste_actions = ttk.Frame(paste_panel, style="Card.TFrame")
+        paste_actions.pack(fill="x")
 
-        def update_answer_visibility():
-            if qa_has_answer.get():
-                qa_answer_frame.pack(fill="x")
+        def show_mode():
+            typed_panel.pack_forget()
+            paste_panel.pack_forget()
+            panel = typed_panel if mode.get() == "Type questions" else paste_panel
+            panel.pack(fill="x", before=modes_host_marker)
+            (question if panel is typed_panel else notes).focus_set()
+
+        # 3. More options, folded away: card prompt, question starters, cues.
+        more_open = tk.BooleanVar(value=bool(draft.get("more_open")))
+        more_toggle = ttk.Button(form, style="Link.TButton", cursor="hand2")
+        more_toggle.pack(anchor="w", pady=(self.px(24), 0))
+        more = ttk.Frame(form, style="Card.TFrame")
+        ttk.Label(more, text="Prompt for recall cards", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(12), 0))
+        prompt = ttk.Entry(more)
+        prompt.insert(0, draft.get("prompt", setbuilder.DEFAULT_PROMPT))
+        prompt.pack(fill="x", pady=(self.px(4), self.px(4)))
+        self.fit_wrap(ttk.Label(more, text="Used on the front of cards made from notes without a question. {n} is the card's number.", style="CardMuted.TLabel", wraplength=self.px(560)), pady=(0, self.px(14)))
+        ttk.Label(more, text="Question starters", style="CardMuted.TLabel").pack(anchor="w", pady=(0, self.px(6)))
+        starters = ttk.Frame(more, style="Card.TFrame")
+        starters.pack(fill="x", pady=(0, self.px(14)))
+
+        def use_starter(text):
+            mode.set("Type questions")
+            show_mode()
+            question.delete(0, "end")
+            question.insert(0, text)
+            question.focus_set()
+            question.icursor("end")
+
+        for index, starter in enumerate(["Who is this person?", "What is this appointment?", "Where is this item kept?", "What should happen next?"]):
+            chip = ttk.Button(starters, text=starter, style="Pill.TButton", cursor="hand2", command=lambda t=starter: use_starter(t))
+            row, column = divmod(index, 2)
+            chip.grid(row=row, column=column, sticky="ew", padx=(0 if column == 0 else self.px(8), 0), pady=(0, self.px(8)))
+            starters.columnconfigure(column, weight=1, uniform="starters")
+        ttk.Label(more, text="Attach a cue to every card in this set", style="CardMuted.TLabel").pack(anchor="w", pady=(0, self.px(6)))
+        cue_rows = ttk.Frame(more, style="Card.TFrame")
+        cue_rows.pack(fill="x")
+        labels = {}
+        cue_actions = [
+            ("text_file", "Note", [("Import note, PDF, Word or RTF", lambda: self.attach_media("text_file", labels, notes)), ("Save the pasted notes as a note", lambda: self.record_text_note(labels, notes)), ("Remove note", lambda: self.set_pending_media("text_file", "", labels))]),
+            ("image", "Image", [("Import image", lambda: self.attach_media("image", labels)), ("Remove image", lambda: self.set_pending_media("image", "", labels))]),
+            # Recording uses Windows' own recorder and Camera app, so the Mac
+            # offers importing only.
+            ("audio", "Audio", ([] if IS_MAC else [("Record audio", lambda: self.record_audio(labels))]) + [("Import audio", lambda: self.attach_media("audio", labels)), ("Remove audio", lambda: self.set_pending_media("audio", "", labels))]),
+            ("video", "Video", ([] if IS_MAC else [("Record video (Camera app)", lambda: self.record_video(labels))]) + [("Import video", lambda: self.attach_media("video", labels)), ("Remove video", lambda: self.set_pending_media("video", "", labels))]),
+        ]
+        for row_index, (kind, cue_label, actions) in enumerate(cue_actions):
+            button = self.cue_menu_button(cue_rows, cue_label, actions, hint=f"Attach or remove the {self.MEDIA_NAMES.get(kind, kind)} for this set.")
+            button.grid(row=row_index, column=0, sticky="ew", pady=(0, self.px(8)))
+            path = self.pending_media.get(kind)
+            labels[kind] = ttk.Label(cue_rows, text=Path(path).name if path else f"No {self.MEDIA_NAMES.get(kind, kind)} selected", style="CardMuted.TLabel")
+            labels[kind].grid(row=row_index, column=1, sticky="w", padx=(self.px(12), 0), pady=(0, self.px(8)))
+        cue_rows.columnconfigure(0, minsize=self.px(130))
+        cue_rows.columnconfigure(1, weight=1)
+
+        def show_more():
+            more_toggle.configure(text=("Hide options" if more_open.get() else "More options") + ("  ▴" if more_open.get() else "  ▾"))
+            if more_open.get():
+                more.pack(fill="x", after=more_toggle)
             else:
-                qa_answer_frame.pack_forget()
-                qa_answer.delete("1.0", "end")
+                more.pack_forget()
 
-        @self.smooth
-        def refresh_qa():
-            for child in qa_list.winfo_children():
-                child.destroy()
-            if not qa_items:
-                tk.Label(qa_list, text="No Q/A cards staged yet.", bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 11)).pack(anchor="w")
-                return
-            for index, item in enumerate(qa_items, 1):
-                answer_text = item["answer"] if item["answer"] else "self-check only"
-                text = f"{index}. {item['prompt']} -> {answer_text}"
-                tk.Label(qa_list, text=text, bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI", 11), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(0, self.px(5)))
-            self.fit_wrap_tree(qa_list)
+        more_toggle.configure(command=lambda: (more_open.set(not more_open.get()), self.smooth(show_more)()))
 
-        def add_qa():
-            item = {
-                "prompt": normalize_space(qa_prompt.get()),
-                "answer": normalize_space(qa_answer.get("1.0", "end")) if qa_has_answer.get() else "",
-            }
-            if not item["prompt"]:
-                self.toast_message("Add a question first.")
-                return
-            if qa_has_answer.get() and not item["answer"]:
-                self.toast_message("Add an answer or turn off the answer checkbox.")
-                return
-            qa_items.append(item)
-            qa_prompt.delete(0, "end")
-            qa_answer.delete("1.0", "end")
-            qa_has_answer.set(True)
-            update_answer_visibility()
-            refresh_qa()
+        # The set so far, on the right, with Save at the bottom.
+        set_title = ttk.Label(side, text="", style="H2.TLabel")
+        set_title.pack(anchor="w")
+        set_count = ttk.Label(side, text="", style="CardMuted.TLabel")
+        set_count.pack(anchor="w", pady=(self.px(4), self.px(14)))
+        listing = tk.Frame(side, bg=surface)
+        listing.pack(fill="x")
+        save_button = ttk.Button(side, text="Save set", style="Primary.TButton", cursor="hand2")
+        save_button.pack(fill="x", pady=(self.px(16), 0))
+        clear_button = ttk.Button(side, text="Clear cards", cursor="hand2")
+        clear_button.pack(fill="x", pady=(self.px(8), 0))
+        after_save = tk.Frame(side, bg=surface)
+        after_save.pack(fill="x", pady=(self.px(16), 0))
 
-        def remove_qa():
-            if qa_items:
-                qa_items.pop()
-                refresh_qa()
-
-        self.button_row(qa_panel, [("Add Q/A", add_qa, "Primary.TButton"), ("Remove Last Q/A", remove_qa, "TButton")], "AltCard.TFrame")
-        update_answer_visibility()
-        refresh_qa()
-
-        ttk.Label(form, text="Study bit", style="CardMuted.TLabel").pack(anchor="w")
-        entry = self.text_box(form, 4, 13)
-        entry.insert("1.0", draft.get("entry", ""))
-        entry.pack(fill="x", pady=(4, 10))
-        ttk.Label(form, text="Tip: paste lines like `Question => Answer` here, then use Split Paste or Make Q/A Cards.", style="CardMuted.TLabel", wraplength=680).pack(anchor="w", pady=(0, 10))
-        chunks = list(draft.get("chunks", []))
-        count_label = ttk.Label(form, text="0 study bits added", style="CardMuted.TLabel")
-        count_label.pack(anchor="w")
-        chunk_panel = tk.Frame(form, bg=COLORS["surface"])
-        chunk_panel.pack(fill="both", expand=True, pady=(8, 12))
+        def update_heading(*_args):
+            name = setbuilder.clean_set_name(name_var.get())
+            set_title.configure(text=name or "Untitled set")
+            count = len(items)
+            set_count.configure(text=f"{count} card{'s' if count != 1 else ''}" + ("" if name else ". Give the set a name to save it."))
+            save_button.configure(text=f"Save {count} card{'s' if count != 1 else ''}" if count else "Save set")
 
         @self.smooth
         def refresh():
-            for child in chunk_panel.winfo_children():
+            for child in listing.winfo_children():
                 child.destroy()
-            if not chunks:
-                tk.Label(chunk_panel, text="Add a bit or split a pasted list to build your study set.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=520, justify="left").pack(anchor="w")
-            for index, chunk in enumerate(chunks, 1):
-                row = tk.Frame(chunk_panel, bg=COLORS["alt"], padx=14, pady=12)
-                row.pack(fill="x", pady=(0, 8))
-                tk.Label(row, text=f"{index}.", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 12)).pack(side="left", anchor="n", padx=(0, 8))
-                tk.Label(row, text=chunk, bg=COLORS["alt"], fg=COLORS["ink"], wraplength=520, justify="left", font=self.font("Segoe UI", 12)).pack(side="left", fill="x", expand=True)
-            count_label.configure(text=f"{len(chunks)} study bit{'s' if len(chunks) != 1 else ''} added")
-            self.fit_wrap_tree(chunk_panel)
+            if items:
+                for child in after_save.winfo_children():
+                    child.destroy()
+            if not items:
+                self.fit_wrap(tk.Label(listing, text="Cards you add appear here. Check them, remove any you don't want, then save.", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(360), justify="left"))
+            for index, item in enumerate(items):
+                row = tk.Frame(listing, bg=surface)
+                row.pack(fill="x", pady=(0 if index == 0 else self.px(10), 0))
+                if index:
+                    tk.Frame(row, bg=COLORS["line"], height=1).pack(fill="x", pady=(0, self.px(10)))
+                body = tk.Frame(row, bg=surface)
+                body.pack(fill="x")
+                remove = ttk.Button(body, text="Remove", style="Link.TButton", cursor="hand2", command=lambda i=index: remove_item(i))
+                remove.pack(side="right", anchor="n", padx=(self.px(8), 0))
+                text = tk.Frame(body, bg=surface)
+                text.pack(side="left", fill="x", expand=True)
+                self.fit_wrap(tk.Label(text, text=item["prompt"], bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 12), wraplength=self.px(300), justify="left"))
+                self.fit_wrap(tk.Label(text, text=item["answer"] or "Self-check (no saved answer)", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(300), justify="left"), pady=(self.px(2), 0))
+            update_heading()
 
-        def add_bit():
-            raw = entry.get("1.0", "end").strip()
-            if not raw:
-                self.toast_message("Type a study bit first.")
-                return
-            chunks.append(normalize_space(raw))
-            entry.delete("1.0", "end")
-            refresh()
-
-        def split_paste():
-            bits = split_study_bits(entry.get("1.0", "end"))
-            if not bits:
-                self.toast_message("Paste a few lines or facts first.")
-                return
-            chunks.extend(normalize_space(bit) for bit in bits)
-            entry.delete("1.0", "end")
-            refresh()
-
-        def remove_last():
-            if chunks:
-                chunks.pop()
+        def remove_item(index):
+            if 0 <= index < len(items):
+                items.pop(index)
                 refresh()
 
-        self.button_row(form, [("Add Bit", add_bit, "Primary.TButton"), ("Split Paste", split_paste, "TButton"), ("Remove Last", remove_last, "TButton")])
-        ttk.Label(form, text="Attach cues", style="CardMuted.TLabel").pack(anchor="w", pady=(16, 6))
-        self.pending_media = dict(draft.get("pending_media", {"text_file": "", "image": "", "audio": "", "video": ""}))
-        labels = {
-            kind: ttk.Label(side, text=(Path(self.pending_media.get(kind, "")).name if self.pending_media.get(kind) else f"No {self.MEDIA_NAMES.get(kind, kind)} selected"), style="AltCard.TLabel", wraplength=500)
-            for kind in ("text_file", "image", "audio", "video")
-        }
-        cue_bar = ttk.Frame(form, style="Card.TFrame")
-        cue_bar.pack(fill="x")
-        cue_actions = [
-            ("NOTE", [("Import note, PDF, Word or RTF", lambda: self.attach_media("text_file", labels, entry)), ("Save current note", lambda: self.record_text_note(labels, entry)), ("Remove note", lambda: self.set_pending_media("text_file", "", labels))]),
-            ("IMG", [("Import image", lambda: self.attach_media("image", labels)), ("Remove image", lambda: self.set_pending_media("image", "", labels))]),
-            # Recording uses Windows' own recorder and Camera app, so the Mac
-            # offers importing only.
-            ("AUD", ([] if IS_MAC else [("Record audio", lambda: self.record_audio(labels))]) + [("Import audio", lambda: self.attach_media("audio", labels)), ("Remove audio", lambda: self.set_pending_media("audio", "", labels))]),
-            ("VID", ([] if IS_MAC else [("Record video (Camera app)", lambda: self.record_video(labels))]) + [("Import video", lambda: self.attach_media("video", labels)), ("Remove video", lambda: self.set_pending_media("video", "", labels))]),
-        ]
-        for index, (cue_label, actions) in enumerate(cue_actions):
-            menu_button = self.cue_menu_button(cue_bar, cue_label, actions)
-            menu_button.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else self.px(8), 0))
-            cue_bar.columnconfigure(index, weight=1, uniform="cue")
-        ttk.Label(form, text="Use the cue buttons to attach files or start recordings without adding more controls to the page.", style="CardMuted.TLabel", wraplength=680).pack(anchor="w", pady=(6, 0))
+        def add_typed(_event=None):
+            item = setbuilder.typed_item(question.get(), answer.get("1.0", "end"))
+            if item is None:
+                self.toast_message("Type a question first.")
+                question.focus_set()
+                return "break"
+            items.append(item)
+            question.delete(0, "end")
+            answer.delete("1.0", "end")
+            refresh()
+            question.focus_set()
+            return "break"
 
-        def save(make_cards=False, qa_cards=False):
-            title_text = normalize_space(title.get()) or "Captured memory material"
-            draft = entry.get("1.0", "end").strip()
-            final_chunks = list(chunks)
-            if draft:
-                final_chunks.extend(normalize_space(bit) for bit in split_study_bits(draft))
-            staged_qa = list(qa_items)
-            parsed_qa = parse_prompt_answer_lines("\n".join(final_chunks))
-            qa_lines = [f"{item['prompt']} => {item['answer'] or SELF_CHECK_ANSWER}" for item in staged_qa]
-            capture_chunks = final_chunks + qa_lines
-            if not capture_chunks and not any(self.pending_media.values()):
-                self.toast_message("Add a study bit or media cue first.")
+        def split_notes():
+            new_items = setbuilder.notes_to_items(notes.get("1.0", "end"), prompt.get())
+            if not new_items:
+                self.toast_message("Paste a few lines or facts first.")
+                notes.focus_set()
                 return
-            capture = Capture(title=title_text, notes="\n".join(capture_chunks), chunks=capture_chunks, **self.pending_media)
-            self.store.add_capture(capture)
+            items.extend(new_items)
+            notes.delete("1.0", "end")
+            refresh()
+            self.toast_message(f"Made {len(new_items)} card{'s' if len(new_items) != 1 else ''} from your notes. Check them on the right.")
+
+        def clear_items():
+            if items and not self.dialog_confirm("Clear these cards?", f"Remove the {len(items)} unsaved card{'s' if len(items) != 1 else ''} from this set? Nothing saved is changed.", "Clear cards"):
+                return
+            items.clear()
+            refresh()
+
+        ttk.Button(typed_actions, text="Add card", cursor="hand2", command=add_typed).pack(side="left")
+        ttk.Button(paste_actions, text="Split into cards", cursor="hand2", command=split_notes).pack(side="left")
+        question.bind("<Return>", lambda _event: (answer.focus_set(), "break")[1])
+        answer.bind("<Return>", add_typed)
+        answer.bind("<KP_Enter>", add_typed)
+        answer.bind("<Shift-Return>", lambda _event: None)
+
+        def show_saved(name, count):
+            for child in after_save.winfo_children():
+                child.destroy()
+            self.fit_wrap(tk.Label(after_save, text=f"Saved {count} card{'s' if count != 1 else ''} to {name}.", bg=surface, fg=COLORS["green"], font=self.font("Segoe UI Semibold", 11), wraplength=self.px(360), justify="left"))
+            ttk.Button(after_save, text="Study this set", cursor="hand2", command=lambda: self.study_deck(name)).pack(fill="x", pady=(self.px(8), 0))
+
+        def save():
+            name = setbuilder.clean_set_name(name_var.get())
+            if not name:
+                self.toast_message("Name your set first.")
+                name_entry.focus_set()
+                return
+            # Whatever is still in the boxes is part of the set too.
+            typed = setbuilder.typed_item(question.get(), answer.get("1.0", "end"))
+            if typed:
+                items.append(typed)
+            if normalize_space(notes.get("1.0", "end")):
+                items.extend(setbuilder.notes_to_items(notes.get("1.0", "end"), prompt.get()))
+            if not items and not any(self.pending_media.values()):
+                self.toast_message("Add at least one card first.")
+                return
+            chunks = [f"{item['prompt']} => {item['answer'] or SELF_CHECK_ANSWER}" if item["kind"] == "qa" else item["answer"] for item in items]
+            self.store.add_capture(Capture(title=name, notes="\n".join(chunks), chunks=chunks, **self.pending_media))
             new_cards = []
-            if qa_cards and (staged_qa or parsed_qa):
-                for index, item in enumerate(staged_qa + parsed_qa, 1):
-                    answer_text = item["answer"] or SELF_CHECK_ANSWER
-                    association = "Prompt-answer card created from separate Q/A fields." if item in staged_qa else "Prompt-answer card created from pasted study lines."
-                    new_cards.append(Card(deck=title_text, front=item["prompt"], back=answer_text, pathway=f"Capture > {title_text} > Q/A {index}", association=association, **self.pending_media))
-            elif make_cards:
-                prompt_text = normalize_space(prompt.get()) or "What should I recall from bit {n}?"
-                card_chunks = capture_chunks or [f"Use the attached media to recall {title_text}."]
-                for index, chunk in enumerate(card_chunks, 1):
-                    front = prompt_text.replace("{n}", str(index)).replace("{total}", str(len(card_chunks)))
-                    if front == prompt_text and len(card_chunks) > 1:
-                        front = f"{front} ({index}/{len(card_chunks)})"
-                    new_cards.append(Card(deck="Captured Material", front=front, back=chunk, pathway=f"Capture > {title_text} > Bit {index}", association="Use attached media as a memory cue.", **self.pending_media))
+            for index, item in enumerate(items, 1):
+                association = "Typed or pasted as a question and answer." if item["kind"] == "qa" else "Made from pasted notes."
+                new_cards.append(Card(deck=name, front=item["prompt"], back=item["answer"] or SELF_CHECK_ANSWER, pathway=f"Set > {name} > Card {index}", association=association, **self.pending_media))
+            if not new_cards:
+                new_cards.append(Card(deck=name, front=f"What does the attached cue help you remember about {name}?", back=f"Use the attached media to recall {name}.", pathway=f"Set > {name} > Cue", association="Use attached media as a memory cue.", **self.pending_media))
             # One save for the whole batch instead of one per card.
             self.store.add_cards(new_cards)
-            created = len(new_cards)
-            chunks.clear()
-            qa_items.clear()
-            entry.delete("1.0", "end")
-            qa_prompt.delete(0, "end")
-            qa_answer.delete("1.0", "end")
-            qa_has_answer.set(True)
-            update_answer_visibility()
-            refresh()
-            refresh_qa()
+            items.clear()
+            question.delete(0, "end")
+            answer.delete("1.0", "end")
+            notes.delete("1.0", "end")
             self.pending_media = {"text_file": "", "image": "", "audio": "", "video": ""}
-            self.view_drafts["capture"] = {}
             for kind, label in labels.items():
-                label.configure(text=f"No {'note/document' if kind == 'text_file' else kind} selected")
-            self.toast_message(f"Capture saved and {created} cards created." if make_cards else "Capture saved.")
+                label.configure(text=f"No {self.MEDIA_NAMES.get(kind, kind)} selected")
+            self.view_drafts["capture"] = {"name": name}
+            refresh()
+            show_saved(name, len(new_cards))
+            self.toast_message(f"Saved {len(new_cards)} card{'s' if len(new_cards) != 1 else ''} to {name}.")
 
-        ttk.Frame(form, style="Card.TFrame").pack(pady=(10, 0))
-        self.button_row(form, [("Save Capture", lambda: save(False), "Primary.TButton"), ("Make Cards", lambda: save(True), "TButton"), ("Make Q/A Cards", lambda: save(True, True), "TButton")])
-
-        ttk.Label(side, text="Chunk-based capture", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(side, text="Each bit becomes its own reusable practice item.", style="AltCard.TLabel", wraplength=500).pack(anchor="w", pady=(10, 22))
-        for label in labels.values():
-            label.pack(anchor="w", pady=(0, 10))
+        save_button.configure(command=save)
+        clear_button.configure(command=clear_items)
+        name_var.trace_add("write", update_heading)
+        show_mode()
+        show_more()
         refresh()
+        if not name_var.get():
+            name_entry.focus_set()
         self.register_draft_saver("capture", lambda: {
-            "title": title.get(),
+            "name": name_var.get(),
+            "mode": mode.get(),
             "prompt": prompt.get(),
-            "qa_prompt": qa_prompt.get(),
-            "qa_answer": qa_answer.get("1.0", "end").strip(),
-            "qa_has_answer": qa_has_answer.get(),
-            "qa_items": [dict(item) for item in qa_items],
-            "entry": entry.get("1.0", "end").strip(),
-            "chunks": list(chunks),
+            "question": question.get(),
+            "answer": answer.get("1.0", "end").strip(),
+            "notes": notes.get("1.0", "end").strip(),
+            "items": [dict(item) for item in items],
+            "more_open": more_open.get(),
             "pending_media": dict(self.pending_media),
         })
 
