@@ -134,12 +134,13 @@ def default_accessibility():
         "read_aloud": False,
         "more_time": False,
         "focus_outline": False,
+        "listen_answers": True,
     }
 
 
 ACCESSIBILITY_TOGGLES = (
     "high_contrast", "reduce_motion", "simple_language", "caregiver_mode",
-    "read_aloud", "more_time", "focus_outline",
+    "read_aloud", "more_time", "focus_outline", "listen_answers",
 )
 
 

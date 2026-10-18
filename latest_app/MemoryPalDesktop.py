@@ -64,7 +64,7 @@ from memorypal.paths import (
 from memorypal import cloud, cloud_config, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
-from memorypal import popup_geometry, setbuilder
+from memorypal import listen, popup_geometry, setbuilder
 from memorypal.speech import Speaker
 from memorypal.planning import (
     STUDY_HABIT_OPTIONS,
@@ -1261,6 +1261,8 @@ class MemoryPalApp(tk.Tk):
         self._pillow_unavailable = False
         self._font_families = None
         self.speaker = Speaker()
+        self.listener = listen.Listener()
+        self.talkback = None
         self.audio_player = media.AudioPlayer()
         self.preview_photos = {}
 
@@ -1914,6 +1916,7 @@ class MemoryPalApp(tk.Tk):
     }
     LINE_ICONS["sun"] = LINE_ICONS["dashboard"]
     LINE_ICONS["repeat"] = LINE_ICONS["syncing"]
+    LINE_ICONS["talkback"] = LINE_ICONS["mic"]
 
     # Icons drawn small get a slightly heavier stroke so they don't look faint.
     LINE_ICON_WEIGHT = {"check": 1.35}
@@ -2399,7 +2402,7 @@ class MemoryPalApp(tk.Tk):
     )
     HUB_PAGES = {
         "dashboard": ("plan",),
-        "study": ("review", "focus", "quiz", "shuffle", "testing"),
+        "study": ("review", "talkback", "focus", "quiz", "shuffle", "testing"),
         "create": ("capture", "decks", "library", "cuelab"),
         "practice": ("training", "elder", "tools", "games"),
         "stats": (),
@@ -2425,6 +2428,7 @@ class MemoryPalApp(tk.Tk):
             ("focus", "Focus", "F"),
             ("capture", "New Set", "C"),
             ("review", "Review", "R"),
+            ("talkback", "Talk-back Study", "Tb"),
             ("testing", "Test Lab", "T"),
             ("quiz", "Quiz", "Q"),
             ("shuffle", "Repetition", "Rp"),
@@ -3946,6 +3950,7 @@ class MemoryPalApp(tk.Tk):
     def nav_hint(self, key):
         return {
             "dashboard": "Today's path from your study plan, your streak and level, and study modes.",
+            "talkback": "Hands-free: each question is read aloud, you answer out loud, and you hear whether you were right.",
             "training": "Pick evidence-based study drills or gentle memory-support games.",
             "elder": "Large, calm memory support for routines, people, places, and caregiver-created prompts.",
             "decks": "Browse your decks, see per-deck mastery, and study one deck at a time.",
@@ -3976,7 +3981,7 @@ class MemoryPalApp(tk.Tk):
             "plan": ("Today", "Study Plan"), "stats": ("Progress", "Stats & Streaks"),
             "focus": ("Study", "Focus Session"), "capture": ("Create", "New study set"),
             "review": ("Study", "Spaced Review"), "testing": ("Study", "Test Lab"),
-            "quiz": ("Study", "Quick Quiz"), "shuffle": ("Study", "Repetition Path"),
+            "quiz": ("Study", "Quick Quiz"), "talkback": ("Study", "Talk-back study"), "shuffle": ("Study", "Repetition Path"),
             "tools": ("Practice", "Associations"), "cuelab": ("Create", "Cue Lab"),
             "games": ("Practice", "Puzzles"), "library": ("Create", "Library"),
             "feedback": ("Help us improve", "Send Feedback"), "settings": ("Personalize", "Settings"),
@@ -4024,7 +4029,7 @@ class MemoryPalApp(tk.Tk):
     SKELETON_PAGES = {
         "library": "list", "decks": "list", "settings": "list", "feedback": "list", "capture": "list",
         "stats": "grid", "dashboard": "grid", "training": "grid", "games": "grid", "elder": "grid", "tools": "grid",
-        "focus": "study", "review": "study", "quiz": "study", "testing": "study", "shuffle": "study",
+        "focus": "study", "review": "study", "talkback": "study", "quiz": "study", "testing": "study", "shuffle": "study",
         "cuelab": "study", "plan": "study",
     }
 
@@ -4146,6 +4151,7 @@ class MemoryPalApp(tk.Tk):
         # belongs to (Today, Study, Create, Practice, Progress), so people can
         # tell where they are without reading the rail.
         titles = self.page_titles()
+        self.stop_talkback()
         self.stop_speaking()
         self.audio_player.stop()
         self.clear_text_selection()
@@ -5941,6 +5947,8 @@ class MemoryPalApp(tk.Tk):
         if view == "focus":
             weak = len(store.weak_cards())
             return f"{weak} card{'s' if weak != 1 else ''} to strengthen" if weak else ""
+        if view == "talkback":
+            return "Answer out loud" if listen.platform_supported() else "Read aloud, answer by typing"
         if view == "library":
             count = len(store.cards)
             return f"{count} card{'s' if count != 1 else ''} saved"
@@ -6586,7 +6594,7 @@ class MemoryPalApp(tk.Tk):
                 ("elder", "Gentle review", "People, routines, and places at a calm pace.", lambda: self.show_view("elder"), COLORS["cyan"]),
                 ("games", "Daily puzzles", "Short, friendly memory games.", lambda: self.show_view("games"), COLORS["pink"]),
                 quick,
-                ("review", "Listen and practise", "Hear each question read aloud as you review.", self.read_aloud_review, COLORS["green"]),
+                ("talkback", "Talk-back study", "Hear each question, answer out loud, and move on.", lambda: self.show_view("talkback"), COLORS["green"]),
             ]),
             "caregiver": ("Picked for caregivers", [
                 ("decks", "Add a memory card", "A person, routine, place, or reminder in plain words.", lambda: self.show_view("elder"), COLORS["cyan"]),
@@ -8355,6 +8363,375 @@ class MemoryPalApp(tk.Tk):
             self.toast_message(f"Answer: {answer}")
         self.quiz_round += 1
         self.render_quiz(host)
+
+    # ------------------------------------------------------------------
+    # Talk-back study: hands-free review
+    # ------------------------------------------------------------------
+    def talkback_queue(self):
+        """Cards with saved answers: due ones first, else ones that need work."""
+        answerable = lambda cards: [card for card in cards if normalize_space(card.back) and card.back != SELF_CHECK_ANSWER]
+        due = answerable(self.store.due_cards(self.deck_filter))
+        if due:
+            return due[:20], False
+        pool = self.store.weak_cards()
+        if self.deck_filter:
+            pool = [card for card in pool if (card.deck or "General") == self.deck_filter]
+        return answerable(pool)[:10], True
+
+    def stop_talkback(self):
+        state, self.talkback = self.talkback, None
+        self.listener.stop()
+        if state is not None:
+            pulse = state.get("pulse")
+            if pulse:
+                try:
+                    self.after_cancel(pulse)
+                except tk.TclError:
+                    pass
+
+    def view_talkback(self):
+        page = ScrollFrame(self.view_host)
+        page.pack(fill="both", expand=True)
+        panel = self.card(page.inner, padding=32)
+        panel.pack(fill="both", expand=True, padx=(0, self.px(8)))
+        surface = COLORS["surface"]
+        queue, practising = self.talkback_queue()
+        if not queue:
+            ttk.Label(panel, text="Nothing to practise yet", style="H2.TLabel").pack(anchor="w")
+            self.fit_wrap(ttk.Label(panel, text="Talk-back study needs cards with saved answers. Make a study set with questions and answers, then come back.", style="CardMuted.TLabel", wraplength=self.px(640)), pady=(self.px(6), self.px(16)))
+            ttk.Button(panel, text="Make a study set", style="Primary.TButton", command=self.start_new_set).pack(anchor="w")
+            return
+        voice_wanted = bool(self.accessibility.get("listen_answers", True))
+        state = {
+            "queue": queue, "index": 0, "right": 0, "answered": 0, "paused": False,
+            # Typed answers until the recogniser is confirmed (and always off Windows).
+            "typed": True, "can_listen": False, "phase": "idle", "silences": 0,
+            "token": self.route_token, "pulse": None,
+        }
+        self.talkback = state
+
+        top = tk.Frame(panel, bg=surface)
+        top.pack(fill="x")
+        progress = tk.Label(top, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11))
+        progress.pack(side="left")
+        score = tk.Label(top, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11))
+        score.pack(side="right")
+        if practising:
+            self.fit_wrap(tk.Label(panel, text="Nothing is due right now, so this round uses cards that need more practice.", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), justify="left", wraplength=self.px(640)), pady=(self.px(4), 0))
+
+        question = tk.Label(panel, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), justify="left", anchor="w", wraplength=self.px(900))
+        self.fit_wrap(question, pady=(self.px(28), self.px(20)))
+
+        # The listening indicator: a dot (red while the microphone is open,
+        # like a recording light) with a plain status line beside it.
+        status_row = tk.Frame(panel, bg=surface)
+        status_row.pack(fill="x")
+        dot_size = self.px(14)
+        dot = tk.Canvas(status_row, width=dot_size, height=dot_size, bg=surface, highlightthickness=0)
+        dot.pack(side="left", padx=(0, self.px(10)))
+        status_icon = tk.Label(status_row, bg=surface)
+        status_icon.pack(side="left", padx=(0, self.px(8)))
+        status = tk.Label(status_row, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w", justify="left")
+        status.pack(side="left", fill="x", expand=True)
+
+        heard = tk.Label(panel, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 12), justify="left", anchor="w", wraplength=self.px(900))
+        self.fit_wrap(heard, pady=(self.px(14), 0))
+        feedback = tk.Label(panel, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), justify="left", anchor="w", wraplength=self.px(900))
+        self.fit_wrap(feedback, pady=(self.px(6), 0))
+
+        typed_row = ttk.Frame(panel, style="Card.TFrame")
+        typed_entry = ttk.Entry(typed_row, font=self.font("Segoe UI", 13))
+        typed_entry.pack(side="left", fill="x", expand=True, padx=(0, self.px(10)))
+        check_button = ttk.Button(typed_row, text="Check", style="Primary.TButton", cursor="hand2")
+        check_button.pack(side="left")
+        typed_anchor = ttk.Frame(panel, style="Card.TFrame")
+        typed_anchor.pack(fill="x", pady=(self.px(18), 0))
+
+        controls = ttk.Frame(panel, style="Card.TFrame")
+        controls.pack(fill="x", pady=(self.px(18), 0))
+        notice = tk.Label(panel, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), justify="left", anchor="w", wraplength=self.px(900))
+        self.fit_wrap(notice, pady=(self.px(16), 0))
+        hint = tk.Label(panel, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), justify="left", anchor="w", wraplength=self.px(900))
+        self.fit_wrap(hint, pady=(self.px(6), 0))
+
+        icon_size = self.px(18)
+
+        def control(text, icon, command, style="TButton"):
+            image = self.line_icon(icon, icon_size, self.on_color(COLORS["primary"]) if style == "Primary.TButton" else COLORS["ink"])
+            button = ttk.Button(controls, text=f" {text}", image=image, compound="left", style=style, cursor="hand2", command=command)
+            button._memorypal_icon = image
+            return button
+
+        def alive():
+            return self.talkback is state and state["token"] == self.route_token and panel.winfo_exists()
+
+        def later(ms, callback):
+            if alive():
+                self.after(ms, lambda: alive() and callback())
+
+        def set_status(text, kind):
+            """kind: reading, listening, typing, checking, paused, done."""
+            status.configure(text=text)
+            icon_name = {"reading": "speaker", "listening": "mic", "typing": "keyboard", "paused": "pause"}.get(kind)
+            image = self.line_icon(icon_name, icon_size, COLORS["ink"]) if icon_name else None
+            status_icon.configure(image=image or "")
+            status_icon._memorypal_icon = image
+            colour = {"listening": COLORS["danger"], "reading": COLORS["primary"], "typing": COLORS["primary"]}.get(kind, COLORS["line"])
+            draw_dot(colour)
+            if state.get("pulse"):
+                self.after_cancel(state["pulse"])
+                state["pulse"] = None
+            if kind == "listening" and not self.accessibility.get("reduce_motion"):
+                pulse(True)
+
+        def draw_dot(colour):
+            dot.delete("all")
+            dot.create_oval(1, 1, dot_size - 1, dot_size - 1, fill=colour, outline=colour)
+
+        def pulse(bright):
+            if not alive() or state["phase"] != "listening":
+                return
+            draw_dot(COLORS["danger"] if bright else self.blend_hex(surface, COLORS["danger"], 0.35))
+            state["pulse"] = self.after(520, lambda: pulse(not bright))
+
+        def card():
+            return state["queue"][state["index"]]
+
+        def update_counts():
+            total = len(state["queue"])
+            progress.configure(text=f"Card {min(state['index'] + 1, total)} of {total}")
+            score.configure(text=f"{state['right']} right of {state['answered']}" if state["answered"] else "")
+
+        def after_speech(then):
+            """Run then() once the voice has finished (never listen over it)."""
+            def wait():
+                if not alive():
+                    return
+                if self.speaker.speaking():
+                    later(150, wait)
+                else:
+                    later(self.pace(250), then)
+            wait()
+
+        def ask():
+            if not alive() or state["paused"]:
+                return
+            self.listener.stop()
+            state["phase"] = "reading"
+            state["silences"] = 0
+            update_counts()
+            question.configure(text=card().front)
+            heard.configure(text="")
+            feedback.configure(text="")
+            typed_entry.delete(0, "end")
+            set_status("Reading the question", "reading")
+            self.speak(f"Question {state['index'] + 1}. {card().front}")
+            after_speech(answer_turn)
+
+        def answer_turn():
+            if not alive() or state["paused"]:
+                return
+            if state["typed"] or not state["can_listen"]:
+                state["phase"] = "typing"
+                set_status("Type your answer, then press Enter", "typing")
+                typed_entry.focus_set()
+                return
+            seconds = 20 if self.accessibility.get("more_time") else 12
+            if not self.listener.start(max_seconds=seconds, initial_silence=seconds / 2, end_silence=1.4):
+                switch_to_typing("The microphone couldn't be started, so answers are typed for now.")
+                return
+            state["phase"] = "listening"
+            set_status("Listening. Say your answer.", "listening")
+            poll_listener()
+
+        def poll_listener():
+            if not alive() or state["phase"] != "listening":
+                return
+            result = self.listener.poll()
+            if result is None:
+                later(150, poll_listener)
+                return
+            if result.heard:
+                command = listen.spoken_command(result.text)
+                if command == "repeat":
+                    ask()
+                elif command == "skip":
+                    skip()
+                elif command == "pause":
+                    toggle_pause()
+                elif command == "dont_know":
+                    judge("", said="I don't know")
+                else:
+                    judge(result.text, said=result.text)
+                return
+            if result.status == "silence":
+                state["silences"] += 1
+                if state["silences"] >= 2:
+                    toggle_pause(message="Paused because nothing was heard. Press Resume when you're ready.")
+                    return
+                state["phase"] = "reading"
+                set_status("Didn't catch that. Listening again in a moment.", "reading")
+                self.speak("I didn't catch that.")
+                after_speech(answer_turn)
+                return
+            switch_to_typing(f"Speech recognition stopped: {result.message} Answers are typed for now.")
+
+        def switch_to_typing(message):
+            state["typed"] = True
+            self.listener.stop()
+            notice.configure(text=message)
+            refresh_controls()
+            if state["phase"] in ("listening", "typing", "reading"):
+                state["phase"] = "typing"
+                set_status("Type your answer, then press Enter", "typing")
+                typed_entry.focus_set()
+
+        def judge(answer_text, said=""):
+            if not alive() or state["phase"] not in ("listening", "typing"):
+                return
+            self.listener.stop()
+            state["phase"] = "checking"
+            current = card()
+            checked = answer_assessment(answer_text, current.back)
+            correct = checked["bucket"] in ("Good", "Easy")
+            state["answered"] += 1
+            state["right"] += 1 if correct else 0
+            self.store.schedule(current, checked["quality"], checked)
+            heard.configure(text=f"You said: {said}" if said else "")
+            if correct:
+                message = "Correct."
+                feedback.configure(text=message, fg=COLORS["green"])
+            else:
+                message = f"Not quite. The answer is {current.back}."
+                feedback.configure(text=message, fg=COLORS["ink"])
+            update_counts()
+            set_status("Checking", "checking")
+            self.speak(message)
+            after_speech(next_card)
+
+        def next_card():
+            if not alive():
+                return
+            state["index"] += 1
+            if state["index"] >= len(state["queue"]):
+                finish()
+            else:
+                ask()
+
+        def skip():
+            if not alive():
+                return
+            self.listener.stop()
+            self.stop_speaking()
+            state["paused"] = False
+            refresh_controls()
+            next_card()
+
+        def repeat():
+            if not alive():
+                return
+            self.stop_speaking()
+            state["paused"] = False
+            refresh_controls()
+            ask()
+
+        def toggle_pause(message=""):
+            if not alive():
+                return
+            state["paused"] = not state["paused"]
+            if state["paused"]:
+                self.listener.stop()
+                self.stop_speaking()
+                state["phase"] = "paused"
+                set_status(message or "Paused", "paused")
+            else:
+                ask()
+            refresh_controls()
+
+        def toggle_typing():
+            if not state["can_listen"]:
+                return
+            state["typed"] = not state["typed"]
+            notice.configure(text="")
+            refresh_controls()
+            if state["phase"] in ("listening", "typing"):
+                self.listener.stop()
+                state["phase"] = "typing" if state["typed"] else "reading"
+                answer_turn()
+
+        def check_typed(_event=None):
+            if state["phase"] != "typing":
+                return "break"
+            text = typed_entry.get()
+            judge(text, said=normalize_space(text) or "(nothing)")
+            return "break"
+
+        def finish():
+            self.listener.stop()
+            state["phase"] = "done"
+            for child in panel.winfo_children():
+                child.destroy()
+            total = state["answered"]
+            summary = f"You got {state['right']} of {total} right." if total else "Round finished."
+            ttk.Label(panel, text="Round finished", style="H2.TLabel").pack(anchor="w")
+            ttk.Label(panel, text=summary, style="Card.TLabel").pack(anchor="w", pady=(self.px(8), self.px(20)))
+            row = ttk.Frame(panel, style="Card.TFrame")
+            row.pack(anchor="w")
+            ttk.Button(row, text="Study again", style="Primary.TButton", cursor="hand2", command=lambda: self.show_view("talkback")).pack(side="left")
+            ttk.Button(row, text="Back to Study", cursor="hand2", command=lambda: self.show_view("study")).pack(side="left", padx=(self.px(10), 0))
+            self.speak(f"Round finished. {summary}")
+
+        def refresh_controls():
+            for child in controls.winfo_children():
+                child.destroy()
+            buttons = [
+                control("Resume" if state["paused"] else "Pause", "play" if state["paused"] else "pause", toggle_pause, "Primary.TButton"),
+                control("Repeat", "repeat", repeat),
+                control("Skip", "skip", skip),
+            ]
+            if state["can_listen"]:
+                buttons.append(control("Answer by voice" if state["typed"] else "Type instead", "mic" if state["typed"] else "keyboard", toggle_typing))
+            for column, button in enumerate(buttons):
+                button.grid(row=0, column=column, sticky="w", padx=(0 if column == 0 else self.px(10), 0))
+            if state["typed"]:
+                typed_row.pack(fill="x", before=typed_anchor)
+            else:
+                typed_row.pack_forget()
+            hint.configure(text="Say \"repeat\", \"skip\", \"pause\" or \"I don't know\" at any time." if state["can_listen"] and not state["typed"] else "")
+
+        check_button.configure(command=check_typed)
+        typed_entry.bind("<Return>", check_typed)
+        typed_entry.bind("<KP_Enter>", check_typed)
+
+        def recogniser_ready(available, _error=None):
+            if not alive():
+                return
+            state["can_listen"] = bool(available) and voice_wanted
+            state["typed"] = not state["can_listen"]
+            if not available and not getattr(self, "_talkback_notice_given", False):
+                # Said once per run of the app, not on every card.
+                self._talkback_notice_given = True
+                text = ("This computer has no offline speech recogniser, so type your answers. Questions and results are still read aloud."
+                        if not listen.platform_supported() else
+                        "Windows speech recognition isn't set up on this computer, so type your answers. Questions and results are still read aloud.")
+                notice.configure(text=text)
+                refresh_controls()
+                # Say it once too, since this mode is meant to be used by ear.
+                self.speak("Type your answers. I'll still read the questions and results aloud.")
+                after_speech(ask)
+                return
+            elif available and not voice_wanted:
+                notice.configure(text="Listening is turned off in Settings, so answers are typed.")
+            refresh_controls()
+            ask()
+
+        update_counts()
+        refresh_controls()
+        set_status("Getting ready", "checking")
+        if not listen.platform_supported():
+            later(50, lambda: recogniser_ready(False))
+        else:
+            self.run_in_background(self.listener.probe, recogniser_ready)
 
     def practice_text(self, source="all"):
         lines = []
@@ -10342,6 +10719,7 @@ class MemoryPalApp(tk.Tk):
             ("caregiver_mode", "Caregiver mode: hide Reset so shared data can't be wiped"),
             ("read_aloud", "Read questions and answers aloud automatically"),
             ("more_time", "More time: slower timed games, messages, and speech"),
+            ("listen_answers", "Talk-back study listens for spoken answers (Windows)"),
             ("focus_outline", "Show a bright outline on the focused button (keyboard use)"),
         ]
         for index, (key, label) in enumerate(accessibility_toggles):
