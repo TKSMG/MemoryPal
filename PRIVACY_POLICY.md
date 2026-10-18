@@ -1,6 +1,6 @@
 # MemoryPal Privacy Policy
 
-Last updated: October 15, 2026
+Last updated: October 18, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
@@ -10,6 +10,8 @@ request.
 
 - **Without an account, nothing leaves your device.** Your cards, notes, study plans,
   settings, photos and recordings are saved only on your computer or phone.
+- **AI features are optional and off until you allow them.** They need an account. Only the
+  notes or file you choose are sent, and only when you press an AI button (see "AI features").
 - **An account is optional.** It only keeps your cards in step across your devices.
 - **We don't sell your data, show ads, or use tracking or analytics tools.**
 - **Accounts are for people 13 and older.**
@@ -43,7 +45,7 @@ While you are signed in, MemoryPal keeps a copy in the cloud of:
 - a random identifier for each of your devices, used to combine review counts.
 
 **Not uploaded:** the pictures, recordings, videos and documents you attach stay only on the
-device where you added them.
+device where you added them, unless you send one to an AI feature (below).
 
 If you turn on two-step sign-in, a code for your authenticator app is stored with your
 account.
@@ -51,12 +53,33 @@ account.
 Your sign-in on each device is kept in the system's protected storage (Windows DPAPI, the
 iOS Keychain or the Android Keystore), never your password.
 
+## AI features
+
+MemoryPal can make study notes and practice questions from your notes, a PDF or a photo. This
+is optional:
+
+- It only works when you are signed in and have allowed it on the one-time AI screen. You can
+  turn it off again in Settings.
+- Only what you choose is sent: the text, or the one file, you picked for that request, plus a
+  list of your existing card questions so the AI doesn't repeat them.
+- It goes through our server (Supabase) to **Google's Gemini API**, which writes the notes or
+  questions and sends them back. Our server does not keep the text or file; it only counts how
+  many AI requests your account made each day, to apply a daily limit.
+- **We use Gemini's free tier.** Under Google's terms for unpaid use, Google may keep what is
+  sent and use it to improve its products, and people at Google may read it. Depending on where
+  you live, Google's stricter paid-service terms may apply instead. **Don't send anything
+  private or sensitive** (for example health details, ID numbers or other people's personal
+  information). See [Google's Gemini API terms](https://ai.google.dev/gemini-api/terms).
+- AI-made cards are labelled "Made with AI, check it." AI can be wrong; check cards before you
+  rely on them. You can report a bad result from the card.
+
 ## Services we use
 
 | Service | What it does | What it receives |
 |---|---|---|
 | Supabase (United States, AWS us-east-1) | Hosts accounts and the cloud copy | Your account and cloud copy, as listed above |
 | Google (Gmail) | Sends sign-in and reset codes | Your email address |
+| Google (Gemini API) | Makes notes and questions when you use an AI feature | The text or file you chose for that request, and your existing card questions. Not your email or password |
 | Cloudflare Turnstile | Checks that a person, not a bot, is signing in, creating an account or asking for an emailed code | Technical signals from the check page, such as your IP address and browser details. Not your email, password or cards |
 | GitHub Pages | Hosts that check page | Your IP address and browser details, like any website |
 | Have I Been Pwned | Checks whether a new password has appeared in a data breach | Only the first 5 characters of a scrambled (SHA-1) form of the password, never the password itself |
@@ -76,6 +99,7 @@ happens in your browser, under Google's own privacy policy.
 - To keep accounts secure: email confirmation, password checks and attempt limits (legitimate
   interests).
 - To answer feedback you send us (legitimate interests, or your consent).
+- To run AI features you turned on (your consent, which you can withdraw in Settings).
 
 ## How long we keep it
 
