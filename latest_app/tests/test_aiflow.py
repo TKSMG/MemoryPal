@@ -155,11 +155,11 @@ class StagingTests(unittest.TestCase):
         self.assertNotIn("From page", rows[0]["association"])
         self.assertEqual((rows[0]["image"], rows[0]["text_file"]), ("", ""))
 
-    def test_picture_source_goes_on_questions_about_it(self):
+    def test_picture_source_goes_on_every_card(self):
         rows = aiflow.staged_from_questions(QUESTIONS, "Biology", source="/attachments/cell.png")
-        self.assertEqual(rows[0]["image"], "/attachments/cell.png")  # has a page
-        self.assertEqual(rows[1]["image"], "/attachments/cell.png")  # "the diagram"
-        self.assertEqual(rows[2]["image"], "")
+        self.assertTrue(rows)
+        self.assertTrue(all(row["image"] == "/attachments/cell.png" for row in rows))
+        self.assertTrue(all(row["text_file"] == "" for row in rows))
 
     def test_pdf_page_picture_or_page_note(self):
         rows = aiflow.staged_from_questions(QUESTIONS, "Biology", source="/attachments/notes.pdf", pictures={2: "/attachments/notes-page2.png"})
@@ -184,10 +184,6 @@ class StagingTests(unittest.TestCase):
         self.assertTrue(note.startswith(aiflow.REPORT_CATEGORY))
         self.assertIn("Q: x", note)
         self.assertLess(len(aiflow.report_note("notes", "z" * 5000)), 1700)
-
-    def test_refers_to_picture(self):
-        self.assertTrue(aiflow.refers_to_picture("What is labelled B in the figure?"))
-        self.assertFalse(aiflow.refers_to_picture("When did the war end?"))
 
 
 class PdfPageTests(unittest.TestCase):

@@ -14,7 +14,6 @@ ai.py talks to the server; this module holds what sits around it in the app:
 Preferences live in MemoryStore.preferences (this device only, not synced).
 """
 
-import re
 import threading
 import urllib.error
 from datetime import datetime
@@ -25,13 +24,14 @@ from .core import normalize_space, today_iso
 
 CONSENT_VERSION = 1
 QUIZ_RECENT_MAX = 60
+# The server's default daily allowance (supabase/functions/ai, AI_DAILY_LIMIT).
+AI_DAILY_LIMIT = 20
+GEMINI_TERMS_URL = "https://ai.google.dev/gemini-api/terms"
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 PDF_SUFFIX = ".pdf"
 SOURCE_SUFFIXES = (PDF_SUFFIX,) + IMAGE_SUFFIXES
 SOURCE_FILETYPES = [("PDF or picture", "*.pdf *.png *.jpg *.jpeg *.webp"), ("PDF", "*.pdf"), ("Pictures", "*.png *.jpg *.jpeg *.webp")]
 REPORT_CATEGORY = "AI content report"
-# A question that points at what's in the picture ("in the diagram", "shown").
-PICTURE_WORDS = re.compile(r"\b(image|picture|photo|diagram|figure|chart|graph|map|drawing|illustrat\w*|shown|labell?ed|pictured)\b", re.IGNORECASE)
 
 
 # ------------------------------------------------------------- preferences
@@ -232,19 +232,15 @@ def source_kind(path):
     return "image" if suffix in IMAGE_SUFFIXES else ""
 
 
-def refers_to_picture(question_text):
-    return bool(PICTURE_WORDS.search(question_text or ""))
-
-
 # ------------------------------------------------------------ PDF pages
 def render_pdf_page(pdf_path, page, out_path):
     """Save page `page` (1-based) of a PDF as a PNG; returns the path or None.
 
-    MemoryPal adds no PDF renderer of its own. pypdfium2 is used when it
-    happens to be installed; otherwise, with pypdf and Pillow (both already
-    optional dependencies), the largest picture on that page is saved, which
-    covers scanned pages and slides with a figure. Pages with only text give
-    None, and the card says "From page N" with the PDF attached instead.
+    MemoryPal adds no PDF renderer of its own, so this uses only what is
+    already a dependency: pypdf finds the page's pictures and Pillow saves
+    the largest one as a PNG, which covers scanned pages and slides with a
+    figure. A page with only text gives None, and the card says "From page
+    N" with the PDF attached as its note instead.
     """
     try:
         page = int(page)
@@ -252,22 +248,6 @@ def render_pdf_page(pdf_path, page, out_path):
         return None
     if page < 1:
         return None
-    try:
-        import pypdfium2 as pdfium  # optional, never required
-    except Exception:
-        pdfium = None
-    if pdfium is not None:
-        try:
-            document = pdfium.PdfDocument(str(pdf_path))
-            try:
-                if page <= len(document):
-                    image = document[page - 1].render(scale=1.6).to_pil()
-                    image.save(out_path, "PNG")
-                    return Path(out_path)
-            finally:
-                document.close()
-        except Exception:
-            pass
     try:
         from pypdf import PdfReader
     except Exception:
@@ -310,8 +290,7 @@ def page_images(pdf_path, pages, folder, name_stem):
 def staged_from_questions(questions, deck, title="", source="", pictures=None):
     """Set-builder rows ({"prompt", "answer", "kind": "ai", ...}) from AI questions.
 
-    - picture source: a question that has a page or points at the picture
-      gets the picture as its image cue;
+    - picture source: every card made from it gets the picture as its image cue;
     - PDF source: a question from page N gets that page's picture when one
       could be saved (`pictures`), else "From page N" stays in its hook; the
       PDF is attached as its note either way.
@@ -334,7 +313,7 @@ def staged_from_questions(questions, deck, title="", source="", pictures=None):
             "image": "",
             "text_file": "",
         }
-        if kind == "image" and (page or refers_to_picture(card.front)):
+        if kind == "image":
             row["image"] = str(source)
         elif kind == "pdf":
             row["text_file"] = str(source)
