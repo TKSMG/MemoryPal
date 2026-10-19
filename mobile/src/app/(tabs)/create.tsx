@@ -5,8 +5,9 @@ import { View } from 'react-native';
 
 import { todayIso } from '../../core/dates';
 import type { Card as CardModel } from '../../core/models';
+import { isAiCard } from '../../core/questions';
 import { useStore } from '../../state/AppState';
-import { Button, Card, EmptyState, Field, ListGroup, ListRow, Pills, Row, ScreenList, SectionTitle, Txt } from '../../ui/components';
+import { AiTag, Button, Card, EmptyState, Field, ListGroup, ListRow, Pills, Row, ScreenList, SectionTitle, Txt } from '../../ui/components';
 import { relativeDay } from '../../ui/dates';
 import { useTheme } from '../../ui/theme';
 
@@ -90,20 +91,21 @@ export default function Create() {
  * memoised row re-render for that card alone.
  */
 function cardStamp(card: CardModel): string {
-  return [card.deck, card.front, card.back, card.repetitions, card.next_review, card.lapses].join('\u0000');
+  return [card.deck, card.front, card.back, card.repetitions, card.next_review, card.lapses, card.pathway].join('\u0000');
 }
 
 /** One card in the list; skipped on re-render unless what it shows changed. */
 const CardRow = memo(function CardRow({ card, leech, today }: { card: CardModel; leech: boolean; today: string; stamp: string }) {
   const c = useTheme().colors;
   return (
-    <Card onPress={() => router.push(`/card/${card.id}`)} accessibilityLabel={`${card.front}. Answer: ${card.back || 'none'}. Tap to edit.`}>
+    <Card onPress={() => router.push(`/card/${card.id}`)} accessibilityLabel={`${card.front}. Answer: ${card.back || 'none'}.${isAiCard(card) ? ' Made with AI, check it.' : ''} Tap to edit.`}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt variant="label" style={{ flexShrink: 1 }}>{card.deck}</Txt>
         <Txt variant="small">{card.repetitions ? `Next ${card.next_review <= today ? 'today' : relativeDay(card.next_review)}` : 'New'}</Txt>
       </Row>
       <Txt variant="h3">{card.front}</Txt>
       {card.back ? <Txt variant="muted" numberOfLines={3}>{card.back}</Txt> : null}
+      {isAiCard(card) ? <AiTag /> : null}
       {leech ? (
         <View style={{ backgroundColor: c.again[0], borderRadius: 10, padding: 8 }}>
           <Txt variant="small" color={c.again[1]}>{`Missed ${card.lapses} times. Try rewriting it or adding a memory hook.`}</Txt>

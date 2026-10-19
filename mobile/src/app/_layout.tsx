@@ -48,6 +48,8 @@ function RootStack() {
         <Stack.Screen name="plan" options={{ title: 'Study plan' }} />
         <Stack.Screen name="puzzle" options={{ title: 'Puzzle' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="ai" options={{ title: 'Make with AI' }} />
+        <Stack.Screen name="ai-consent" options={{ title: 'AI features', presentation: 'modal', headerLeft: () => <SheetButton label="Cancel" /> }} />
         <Stack.Screen name="account" options={{ title: 'Account & sync' }} />
       </Stack>
     </>

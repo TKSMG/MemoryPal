@@ -26,7 +26,9 @@
       },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud.",
-        "NSSpeechRecognitionUsageDescription": "MemoryPal turns your spoken answers into text to check them. Where your iPhone supports it, this happens on the device."
+        "NSSpeechRecognitionUsageDescription": "MemoryPal turns your spoken answers into text to check them. Where your iPhone supports it, this happens on the device.",
+        "NSCameraUsageDescription": "MemoryPal uses the camera when you take a photo of your notes to make study notes or questions with AI. The photo is only sent when you press an AI button.",
+        "NSPhotoLibraryUsageDescription": "MemoryPal opens your photos when you choose a picture of your notes to make study notes or questions with AI. Only the photo you pick is used."
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -50,6 +52,14 @@
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePhotosorVideos",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
             "NSPrivacyCollectedDataTypePurposes": [
@@ -100,7 +110,8 @@
       "predictiveBackGestureEnabled": false,
       "versionCode": 54,
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
       ],
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
@@ -131,6 +142,14 @@
       ],
       "expo-font",
       "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MemoryPal opens your photos when you choose a picture of your notes to make study notes or questions with AI. Only the photo you pick is used.",
+          "cameraPermission": "MemoryPal uses the camera when you take a photo of your notes to make study notes or questions with AI. The photo is only sent when you press an AI button.",
+          "microphonePermission": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud."
+        }
+      ],
       [
         "expo-speech-recognition",
         {

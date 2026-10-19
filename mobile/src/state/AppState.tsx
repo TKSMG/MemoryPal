@@ -15,9 +15,15 @@ export type ThemeChoice = 'system' | 'light' | 'dark';
 export interface DevicePrefs {
   theme: ThemeChoice;
   haptics: boolean;
+  /** Question ids ("<card id>:<type>") from the last quiz round, so the next one avoids them. */
+  quiz_recent: string[];
+  /** The person allowed AI features on the one-time AI screen (off withdraws it). */
+  ai_allowed: boolean;
+  /** When they allowed it (ISO time), or ''. */
+  ai_allowed_at: string;
 }
 
-const DEFAULT_PREFS: DevicePrefs = { theme: 'system', haptics: true };
+const DEFAULT_PREFS: DevicePrefs = { theme: 'system', haptics: true, quiz_recent: [], ai_allowed: false, ai_allowed_at: '' };
 
 /** Preferences that belong to this phone, not the profile (so a backup never changes them). */
 class PrefsStore {
@@ -30,6 +36,9 @@ class PrefsStore {
     try {
       const raw = JSON.parse(this.adapter.load() ?? '{}');
       this.prefs = { ...DEFAULT_PREFS, ...(raw && typeof raw === 'object' ? raw : {}) };
+      if (!Array.isArray(this.prefs.quiz_recent)) this.prefs.quiz_recent = [];
+      this.prefs.quiz_recent = this.prefs.quiz_recent.map(String).slice(0, 60);
+      this.prefs.ai_allowed = this.prefs.ai_allowed === true;
     } catch {
       this.prefs = { ...DEFAULT_PREFS };
     }

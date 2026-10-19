@@ -12,6 +12,12 @@ export interface Row {
   hook: string;
   /** Saves to this set instead of the one being built (everyday cards). */
   deck?: string;
+  /** AI-made rows: the card's pathway ("Made with AI > …") and note ("Made with AI, check it."). */
+  pathway?: string;
+  note?: string;
+  /** Attachments kept on this phone (a photo, or the PDF a question came from). */
+  image?: string;
+  text_file?: string;
 }
 
 let counter = 0;

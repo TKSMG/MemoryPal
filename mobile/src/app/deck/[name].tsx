@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { normalizeSpace } from '../../core/text';
+import { isAiCard } from '../../core/questions';
 import { deckCards, deleteDeck, renameDeck } from '../../features/decks';
+import { AI_TAG } from '../../features/aiHelpers';
 import { useStore } from '../../state/AppState';
-import { Button, EmptyState, Field, ListGroup, ListRow, Screen, Txt } from '../../ui/components';
+import { AiTag, Button, EmptyState, Field, ListGroup, ListRow, Screen, Txt } from '../../ui/components';
 import { confirm } from '../../ui/feedback';
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -55,8 +57,9 @@ export default function Deck() {
       <ListGroup>
         <ListRow icon="play-circle-outline" title={info.due ? `Review ${plural(info.due, 'due card')}` : 'Practise this set'} onPress={() => router.push(`/review?mode=${info.due ? 'due' : 'all'}&deck=${q}` as Href)} />
         <ListRow icon="chatbubbles-outline" title="Talk-back study" detail="Hear each question, say the answer" onPress={() => router.push(`/talkback?mode=all&deck=${q}` as Href)} />
-        <ListRow icon="list-circle-outline" title="Multiple-choice quiz" onPress={() => router.push(`/quiz?deck=${q}` as Href)} />
+        <ListRow icon="list-circle-outline" title="Quick quiz" detail="Mixed questions: pick, match, fill in" onPress={() => router.push(`/quiz?deck=${q}` as Href)} />
         <ListRow icon="add-circle-outline" title="Add cards" onPress={() => router.push(`/add?deck=${q}` as Href)} />
+        <ListRow icon="sparkles-outline" title="Make with AI" detail="Notes or questions from notes, a PDF or a photo" onPress={() => router.push(`/ai?deck=${q}` as Href)} />
       </ListGroup>
 
       <View style={{ gap: 10 }}>
@@ -66,7 +69,15 @@ export default function Deck() {
 
       <ListGroup header="Cards">
         {cards.slice(0, 200).map((card) => (
-          <ListRow key={card.id} title={card.front} detail={card.back || 'No answer (self-check)'} onPress={() => router.push(`/card/${card.id}`)} accessibilityHint="Opens the card to edit" />
+          <ListRow
+            key={card.id}
+            title={card.front}
+            detail={card.back || 'No answer (self-check)'}
+            below={isAiCard(card) ? <AiTag /> : null}
+            accessibilityLabel={[card.front, card.back || 'No answer (self-check)', isAiCard(card) ? AI_TAG : ''].filter(Boolean).join(', ')}
+            onPress={() => router.push(`/card/${card.id}`)}
+            accessibilityHint="Opens the card to edit"
+          />
         ))}
       </ListGroup>
       {cards.length > 200 ? <Txt variant="small">{`Showing the first 200 of ${cards.length}. Search in Create to find the rest.`}</Txt> : null}
