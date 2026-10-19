@@ -64,7 +64,7 @@ from memorypal.paths import (
 from memorypal import cloud, cloud_config, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
-from memorypal import listen, popup_geometry, scrolling, setbuilder
+from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme
 from memorypal.speech import Speaker
 from memorypal.planning import (
     STUDY_HABIT_OPTIONS,
@@ -1176,7 +1176,7 @@ class Tooltip:
             pady=self._px(7),
             justify="left",
             wraplength=self._px(280),
-            font=self.widget._root().font("Segoe UI", 10) if hasattr(self.widget._root(), "font") else ("Segoe UI", 10),
+            font=self.widget._root().font("Segoe UI", 11) if hasattr(self.widget._root(), "font") else ("Segoe UI", 11),
         )
         label.pack()
         # Below the widget, nudged right; flipped above or shifted left when
@@ -1277,6 +1277,7 @@ class MemoryPalApp(tk.Tk):
         self.keep_flat_buttons_still()
         self.track_focus_source()
         self._shell()
+        self.after_idle(self.theme_title_bar)
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         if IS_MAC:
             self.install_mac_menus()
@@ -2535,6 +2536,7 @@ class MemoryPalApp(tk.Tk):
         if refresh_styles:
             self._styles()
         self._shell()
+        self.after_idle(self.theme_title_bar)
         self.show_view(current, transition=False)
         if cover is None:
             return
@@ -2610,6 +2612,12 @@ class MemoryPalApp(tk.Tk):
         # width/height are the preferred size; the popup still grows to fit
         # what it holds (a fixed size clipped buttons and text at the larger
         # text sizes) and is capped to, and kept on, the screen.
+        try:
+            if top.wm_overrideredirect():
+                # A borderless popup on a same-coloured page needs an edge.
+                top.configure(highlightthickness=max(1, self.px(1)), highlightbackground=COLORS["line"], highlightcolor=COLORS["line"])
+        except tk.TclError:
+            pass
         top.update_idletasks()
         popup_width = max(width or 0, top.winfo_reqwidth(), self.px(360))
         if width:
@@ -2723,6 +2731,22 @@ class MemoryPalApp(tk.Tk):
         except (AttributeError, OSError, tk.TclError):
             pass
 
+    def theme_title_bar(self, window=None):
+        """Dark or light system title bar to match the theme (Windows 10/11
+        through DWM, macOS through Tk's appearance style); a no-op elsewhere
+        and on the borderless windows that draw their own bar."""
+        window = window or self
+        dark = self.theme == "dark"
+        try:
+            if IS_MAC:
+                windowtheme.apply_mac(window, dark)
+                return
+            if not sys.platform.startswith("win") or window.wm_overrideredirect():
+                return
+            windowtheme.apply_windows(self.window_handle(window), dark, caption=COLORS["bg"], text=COLORS["ink"], border=COLORS["line"])
+        except (tk.TclError, AttributeError):
+            pass
+
     def reveal_window(self, top, owner=None):
         """Map a window invisibly, let it lay out and paint, then show it at once.
 
@@ -2734,6 +2758,7 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             pass
         top.deiconify()
+        self.theme_title_bar(top)
         self.apply_native_owner(top)
         if owner is not None:
             top.lift(owner)
@@ -3101,7 +3126,7 @@ class MemoryPalApp(tk.Tk):
         self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["primary_dark"]))])
         self.style.configure("TMenubutton", padding=self.pad(18, 11), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
         self.style.map("TMenubutton", foreground=[("active", COLORS["primary"])])
-        self.style.configure("Select.TMenubutton", padding=self.pad(16, 10), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 11))
+        self.style.configure("Select.TMenubutton", padding=self.pad(12, 11), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 12))
         self.style.configure("Danger.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["danger"]), borderwidth=0, relief="flat", font=semibold)
         # A quiet text button ("More options", "Remove"): accent text on the
         # surface it sits on, a soft tile on hover, the usual focus ring.
@@ -3299,6 +3324,23 @@ class MemoryPalApp(tk.Tk):
         # during first-run setup and must stay rail-coloured, not light boxes.
         disabled = fills[3] if len(fills) > 3 else self.tint(COLORS["surface_soft"], 4 if self.theme == "dark" else -4)
         ring, width = self.focus_color(), self.focus_thickness()
+        if style.endswith("Select.TMenubutton"):
+            # Drawn like a text field: input fill, hairline edge, darker edge
+            # on hover, accent ring on keyboard focus.
+            line = COLORS["soft_line"] if self.theme == "light" else COLORS["line"]
+            thin = max(1, self.px(1))
+            element = self.rounded_element(
+                self.rounded_tile(COLORS["input"], bg, ring=line, ring_width=thin),
+                self.rounded_tile(COLORS["input"], bg, ring=COLORS["muted"], ring_width=thin),
+                self.rounded_tile(COLORS["input"], bg, ring=COLORS["muted"], ring_width=thin),
+                disabled=self.rounded_tile(disabled, bg),
+                focus=self.rounded_tile(COLORS["input"], bg, ring=ring, ring_width=width),
+                focus_hover=self.rounded_tile(COLORS["input"], bg, ring=ring, ring_width=width),
+                keyboard_only=True,
+            )
+            self.style.layout(style, [(element, {"sticky": "nsew", "children": self.inner_layout(widget_class)})])
+            self.set_corner_background(style, bg)
+            return
         element = self.rounded_element(
             self.rounded_tile(normal, bg), self.rounded_tile(hover, bg), self.rounded_tile(pressed, bg),
             disabled=self.rounded_tile(disabled, bg),
@@ -3546,22 +3588,28 @@ class MemoryPalApp(tk.Tk):
 
     def render_window_chrome(self, parent, title, close_command, window=None, show_minimize=True, show_fullscreen=True):
         window = window or self
-        bar = tk.Frame(parent, bg=COLORS["surface_soft"])
+        dialog = window is not self
+        # The bar is the same colour as what's under it (the tab bar, or the
+        # dialog body), like a unified macOS / Windows 11 title area.
+        chrome_bg = COLORS["surface"] if dialog else COLORS["bg"]
+        bar = tk.Frame(parent, bg=chrome_bg)
         bar.pack(fill="x")
-        grip = tk.Frame(bar, bg=COLORS["surface_soft"])
+        grip = tk.Frame(bar, bg=chrome_bg)
         grip.pack(side="left", fill="both", expand=True, padx=self.px(14))
-        icon_size = self.px(22)
-        dot = tk.Canvas(grip, width=icon_size, height=icon_size, bg=COLORS["surface_soft"], highlightthickness=0)
-        dot.pack(side="left", padx=(0, self.px(10)))
-        self.draw_chrome_icon(dot, icon_size)
-        label = tk.Label(grip, text=title, bg=COLORS["surface_soft"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 10))
-        label.pack(side="left")
+        icon_size = self.px(20)
+        dot = tk.Canvas(grip, width=icon_size, height=icon_size, bg=chrome_bg, highlightthickness=0)
+        label = tk.Label(grip, text="" if dialog else title, bg=chrome_bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10))
+        if not dialog:
+            # Dialogs show their title as a heading in the body instead.
+            dot.pack(side="left", padx=(0, self.px(10)))
+            self.draw_chrome_icon(dot, icon_size)
+            label.pack(side="left")
         for widget in (bar, grip, label, dot):
             widget.bind("<ButtonPress-1>", lambda event, w=window: self.start_drag(event, w), add="+")
             widget.bind("<B1-Motion>", self.drag_window, add="+")
             widget.bind("<ButtonRelease-1>", self.stop_drag, add="+")
 
-        controls = tk.Frame(bar, bg=COLORS["surface_soft"])
+        controls = tk.Frame(bar, bg=chrome_bg)
         controls.pack(side="right", padx=self.px(8), pady=self.px(6))
 
         def chrome_button(text, command, bg=None, fg=None, hint=""):
@@ -3570,13 +3618,16 @@ class MemoryPalApp(tk.Tk):
             # line; odd combinations land half a pixel off.
             width = self.px(38) // 2 * 2
             height = self.px(30) // 2 * 2
-            button = tk.Canvas(controls, width=width, height=height, bg=COLORS["surface_soft"], highlightthickness=0, cursor="hand2")
+            button = tk.Canvas(controls, width=width, height=height, bg=chrome_bg, highlightthickness=0, cursor="hand2")
             button.pack(side="left", padx=self.px(2))
 
             def draw(hover=False):
                 button.delete("all")
-                fill = bg or (COLORS["alt"] if hover else COLORS["surface_soft"])
-                text_color = fg or (COLORS["primary"] if hover else COLORS["muted"])
+                if bg and hover:
+                    fill, text_color = bg, fg or COLORS["white"]
+                else:
+                    fill = self.tint(chrome_bg, -9 if self.theme == "light" else 14) if hover else chrome_bg
+                    text_color = COLORS["ink"] if hover else COLORS["muted"]
                 if not self.draw_antialiased_shape(button, width, height, fill, radius=self.px(10)):
                     button.create_rectangle(0, 0, width, height, fill=fill, outline="")
                 cx = width / 2
@@ -3916,7 +3967,8 @@ class MemoryPalApp(tk.Tk):
         self.content = ttk.Frame(self.main, style="Page.TFrame")
         self.content.pack(fill="both", expand=True, padx=self.px(36), pady=(0, self.px(18)))
         self.toast_var = tk.StringVar()
-        self.toast = tk.Label(self, textvariable=self.toast_var, bg=COLORS["rail"], fg=COLORS["white"], padx=self.px(20), pady=self.px(14), font=self.font("Segoe UI Semibold", 12))
+        self.toast = tk.Label(self, textvariable=self.toast_var, bg=COLORS["rail"], fg=COLORS["white"], padx=self.px(18), pady=self.px(12), font=self.font("Segoe UI", 12),
+                              highlightthickness=max(1, self.px(1)), highlightbackground=self.tint(COLORS["rail"], 28), justify="left")
         # Invisible grips along the window edge: the cursor shows where to
         # drag, so they need no grey strip or corner square of their own.
         right_grip = tk.Frame(self, bg=COLORS["bg"], cursor="sb_h_double_arrow")
@@ -4616,15 +4668,17 @@ class MemoryPalApp(tk.Tk):
         top.configure(bg=COLORS["surface"])
         if not self.use_native_window_chrome:
             self.render_window_chrome(top, title, top.destroy, window=top, show_minimize=False, show_fullscreen=False)
-        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(22), pady=self.px(18))
+        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(24), pady=self.px(4 if not self.use_native_window_chrome else 20))
         shell.pack(fill="both", expand=True)
+        heading = tk.Label(shell, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), wraplength=self.px(width - 70), justify="left", anchor="w")
+        self.fit_wrap(heading, pady=(0, self.px(6) if body else self.px(10)))
         if body:
-            body_label = tk.Label(shell, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(width - 70), justify="left", anchor="w")
-            self.fit_wrap(body_label, pady=(self.px(6), self.px(14)))
+            body_label = tk.Label(shell, text=body, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 11), wraplength=self.px(width - 70), justify="left", anchor="w")
+            self.fit_wrap(body_label, pady=(0, self.px(12)))
         content = ttk.Frame(shell, style="Card.TFrame")
         content.pack(fill="x")
         actions = ttk.Frame(shell, style="Card.TFrame")
-        actions.pack(fill="x", pady=(self.px(18), 0))
+        actions.pack(fill="x", pady=(self.px(18), self.px(20)))
         top.dialog_owner = owner
         top.dialog_width = self.px(width)
         return top, content, actions
@@ -5070,7 +5124,8 @@ class MemoryPalApp(tk.Tk):
         top = tk.Toplevel(self)
         top.withdraw()
         top.overrideredirect(True)
-        top.configure(bg=COLORS["surface_soft"])
+        # Same surface and hairline edge as the dialogs and tooltips.
+        top.configure(bg=COLORS["surface"], highlightthickness=max(1, self.px(1)), highlightbackground=COLORS["line"], highlightcolor=COLORS["line"])
         self.own_window(top, anchor.winfo_toplevel())
         inset = self.px(6)
         font_spec = self.font("Segoe UI", 11)
@@ -5088,7 +5143,7 @@ class MemoryPalApp(tk.Tk):
             top,
             height=rows,
             width=0,  # Tk's default is 20 characters, which clipped long labels.
-            bg=COLORS["surface_soft"],
+            bg=COLORS["surface"],
             fg=COLORS["ink"],
             selectbackground=COLORS["primary"],
             selectforeground=self.on_color(COLORS["primary"]),
@@ -5264,7 +5319,7 @@ class MemoryPalApp(tk.Tk):
                     box.create_image(size / 2, size / 2, image=tick, anchor="center")
                     box._memorypal_icon = tick
             else:
-                box.create_rectangle(pad, pad, size - pad, size - pad, fill=COLORS["input"], outline=COLORS["line"], width=max(1, self.px(1)))
+                box.create_rectangle(pad, pad, size - pad, size - pad, fill=COLORS["input"], outline=COLORS["muted"], width=max(1, self.px(1)))
 
         def toggle(_event=None):
             variable.set(not variable.get())
