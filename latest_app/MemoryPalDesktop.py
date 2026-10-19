@@ -64,7 +64,7 @@ from memorypal.paths import (
 from memorypal import cloud, cloud_config, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
-from memorypal import listen, popup_geometry, setbuilder
+from memorypal import listen, popup_geometry, scrolling, setbuilder
 from memorypal.speech import Speaker
 from memorypal.planning import (
     STUDY_HABIT_OPTIONS,
@@ -508,6 +508,8 @@ class ScrollFrame(ttk.Frame):
         self._last_step = 0.0
         self._idle_after = None
         self._touchpad_time = -1.0
+        self._last_wheel_event = 0.0
+        self._glide_tau = {}
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
@@ -659,28 +661,29 @@ class ScrollFrame(ttk.Frame):
             return None
         if self._inner_box_scrolls(event.widget):
             return None  # a text box or list with its own scrollbar scrolls alone
-        if IS_MAC and self._mac_wheel(event):
-            return "break"
-        if self.horizontal and getattr(event, "state", 0) & 0x0001:
-            units = self._wheel_units(event, "x")
-            if units:
-                self._queue_wheel(units * self._wheel_step_px, axis="x")
-            return "break"
+        # Wheel notches glide (eased over ~160ms, extra notches push the same
+        # glide further); touchpad deltas are followed 1:1, since the system
+        # has already smoothed them. See memorypal/scrolling.py.
+        number = getattr(event, "num", None)
+        button = number if number in (4, 5) else None
         delta = float(getattr(event, "delta", 0) or 0)
         now = time.perf_counter()
-        if delta and getattr(event, "num", None) not in (4, 5) and delta % 120:
+        gap, self._last_wheel_event = now - self._last_wheel_event, now
+        if scrolling.is_touchpad_delta(delta, IS_MAC, button):
             self._touchpad_time = now
-        if delta and getattr(event, "num", None) not in (4, 5) and now - self._touchpad_time < 0.4:
-            # A precision touchpad sends small deltas many times a second
-            # (and the odd whole notch when moving fast). Follow each one
-            # 1:1; rounding them to wheel notches made slow two-finger
-            # scrolling go still, still, jump, and easing them made the page
-            # trail behind the fingers.
-            self._direct_scroll(-delta / 120.0 * self._wheel_step_px, axis="y")
+        root = self.winfo_toplevel()
+        pixels, tau = scrolling.wheel_motion(
+            delta, self._wheel_step_px, mac=IS_MAC, button=button, gap_s=gap,
+            since_touchpad_s=now - self._touchpad_time,
+            reduce_motion=bool(getattr(root, "accessibility", {}).get("reduce_motion")),
+        )
+        if not pixels:
             return "break"
-        units = self._wheel_units(event, "y")
-        if units:
-            self._queue_wheel(units * self._wheel_step_px, axis="y")
+        axis = "x" if self.horizontal and getattr(event, "state", 0) & 0x0001 else "y"
+        if tau <= 0:
+            self._direct_scroll(pixels, axis=axis)
+        else:
+            self._queue_wheel(pixels, axis=axis, tau=tau)
         return "break"
 
     @staticmethod
@@ -715,7 +718,7 @@ class ScrollFrame(ttk.Frame):
         self._wheel_pending[axis] = self._wheel_pending.get(axis, 0) + pixels
         self._request_frame()
 
-    def _queue_wheel(self, pixels, axis="y"):
+    def _queue_wheel(self, pixels, axis="y", tau=scrolling.NOTCH_TAU_MS):
         # A fast wheel spin delivers many events per frame; moving and
         # repainting for each one outruns the embedded widgets and tears.
         # Sum the distance and apply it once per screen refresh. Timers still
@@ -734,7 +737,8 @@ class ScrollFrame(ttk.Frame):
             return
         current, maximum = position
         base = self._wheel_targets.get(axis, current)
-        self._wheel_targets[axis] = max(0.0, min(maximum, base + pixels))
+        self._wheel_targets[axis] = scrolling.clamp_target(base, pixels, maximum)
+        self._glide_tau[axis] = tau
         self._request_frame()
 
     def _request_frame(self):
@@ -810,22 +814,18 @@ class ScrollFrame(ttk.Frame):
             remaining = target - current
             stalled = abs(current - self._glide_last.get(axis, current + 99)) < 0.5
             self._glide_last[axis] = current
-            # The last few pixels aren't visible as motion, so finish in one
-            # step rather than spending whole repaints on them.
-            if abs(remaining) <= 6 or stalled:
-                step = 0 if stalled else remaining
+            if stalled:
+                # The page couldn't move (it shrank, or hit an edge): stop.
+                step, done = 0, True
+            else:
+                # An exponential ease-out measured in time, not frames, so a
+                # notch takes the same ~160ms at 60Hz or 144Hz; it lands on
+                # the exact pixel instead of snapping the last few at once.
+                step, done = scrolling.glide_step(remaining, elapsed, self._glide_tau.get(axis, scrolling.NOTCH_TAU_MS))
+            if done:
                 self._wheel_targets.pop(axis, None)
                 self._glide_last.pop(axis, None)
-            else:
-                # About a quarter of the remaining distance per 60Hz frame's
-                # worth of time (at least a couple of pixels) gives an ease-out
-                # that settles a notch in about 130ms. Halving it each frame
-                # made a steady spin pulse fast-slow-fast as every notch
-                # restarted the curve. Measuring time rather than counting
-                # frames keeps the glide the same length at 60Hz or 144Hz.
-                step = remaining * (1 - 0.72 ** (elapsed / 16.7))
-                if abs(step) < 2:
-                    step = 2 if remaining > 0 else -2
+                self._glide_tau.pop(axis, None)
             moves[axis] = moves.get(axis, 0) + step
         for axis, pixels in moves.items():
             if pixels:
@@ -1273,6 +1273,7 @@ class MemoryPalApp(tk.Tk):
         self.configure(bg=COLORS["bg"])
         self._styles()
         self.install_text_selection()
+        self.install_smooth_box_scrolling()
         self.keep_flat_buttons_still()
         self.track_focus_source()
         self._shell()
@@ -5131,8 +5132,7 @@ class MemoryPalApp(tk.Tk):
             return None
 
         def wheel(event):
-            up = getattr(event, "num", 0) == 4 or getattr(event, "delta", 0) > 0
-            listbox.yview_scroll(-1 if up else 1, "units")
+            self._box_wheel(event)
             return "break"
 
         listbox.bind("<Motion>", hover)
@@ -5303,6 +5303,97 @@ class MemoryPalApp(tk.Tk):
             )
         except tk.TclError:
             pass  # an unusual Tk: presses just sink as before
+
+    def install_smooth_box_scrolling(self):
+        """Text boxes and lists (in pages, dialogs and dropdowns) glide on the
+        wheel like pages do, instead of jumping four lines per notch."""
+        for widget_class in ("Text", "Listbox"):
+            for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+                self.bind_class(widget_class, sequence, self._box_wheel)
+
+    def _box_wheel(self, event):
+        widget = event.widget
+        try:
+            first, last = widget.yview()
+        except (tk.TclError, ValueError, AttributeError):
+            return None
+        if first <= 0.0 and last >= 1.0:
+            return None  # nothing to scroll: let the page under it scroll
+        state = getattr(widget, "_mp_glide", None)
+        if state is None:
+            state = {"target": 0.0, "lines": 0, "after": None, "last": 0.0, "event": 0.0, "touch": -1.0, "tau": scrolling.NOTCH_TAU_MS}
+            widget._mp_glide = state
+        number = getattr(event, "num", None)
+        button = number if number in (4, 5) else None
+        delta = float(getattr(event, "delta", 0) or 0)
+        now = time.perf_counter()
+        gap, state["event"] = now - state["event"], now
+        if scrolling.is_touchpad_delta(delta, IS_MAC, button):
+            state["touch"] = now
+        try:
+            line = max(8, tkfont.Font(root=self, font=widget.cget("font")).metrics("linespace"))
+        except (tk.TclError, TypeError):
+            line = self.px(20)
+        # Three lines a notch, the platform's usual wheel step.
+        pixels, tau = scrolling.wheel_motion(delta, line * 3, mac=IS_MAC, button=button, gap_s=gap,
+                                             since_touchpad_s=now - state["touch"],
+                                             reduce_motion=bool(self.accessibility.get("reduce_motion")))
+        if not pixels:
+            return "break"
+        if isinstance(widget, tk.Listbox):
+            # Lists only move by whole rows: spread a notch's rows over frames.
+            state["remainder"] = state.get("remainder", 0.0) + pixels / line
+            rows = int(state["remainder"])
+            state["remainder"] -= rows
+            if tau <= 0:
+                widget.yview_scroll(rows, "units")
+                return "break"
+            state["lines"] += rows
+        elif tau <= 0:
+            state["target"] = 0.0
+            whole = int(round(pixels))
+            if whole:
+                widget.yview_scroll(whole, "pixels")
+            return "break"
+        else:
+            state["target"] += pixels
+            state["tau"] = tau
+        if state["after"] is None:
+            state["last"] = now - 1 / 60
+            self._box_glide(widget)
+        return "break"
+
+    def _box_glide(self, widget):
+        state = getattr(widget, "_mp_glide", None)
+        if state is None:
+            return
+        state["after"] = None
+        try:
+            if not widget.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        now = time.perf_counter()
+        elapsed = min(50.0, max(1.0, (now - state["last"]) * 1000))
+        state["last"] = now
+        busy = False
+        try:
+            if isinstance(widget, tk.Listbox):
+                rows, state["lines"] = scrolling.take_lines(state["lines"])
+                if rows:
+                    widget.yview_scroll(rows, "units")
+                busy = bool(state["lines"])
+            else:
+                step, done = scrolling.glide_step(state["target"], elapsed, state["tau"])
+                whole = int(round(step))
+                if whole:
+                    widget.yview_scroll(whole, "pixels")
+                state["target"] = 0.0 if done else state["target"] - whole
+                busy = not done
+        except tk.TclError:
+            busy = False
+        if busy:
+            state["after"] = self.after(16, lambda: self._box_glide(widget))
 
     def install_text_selection(self):
         """Let people highlight and copy any text shown in a label.
