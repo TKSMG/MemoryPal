@@ -7975,7 +7975,7 @@ class MemoryPalApp(tk.Tk):
         ai_remaining = tk.Label(ai_footer, text=self.ai_remaining_text(), bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10))
         ai_remaining.pack(side="left")
         if self.ai_notes:
-            ttk.Button(ai_footer, text="Open the last AI notes", style="Link.TButton", cursor="hand2", command=lambda: self.show_view("ainotes")).pack(side="right")
+            ttk.Button(ai_footer, text="Open the last AI notes", style="Link.TButton", cursor="hand2", width=0, command=lambda: self.show_view("ainotes")).pack(side="right")
 
         def ai_input():
             if ai_source.get() == "My notes":
@@ -8803,7 +8803,7 @@ class MemoryPalApp(tk.Tk):
         if answered:
             self.render_quiz_result(host, item, card, answered)
         else:
-            skip = ttk.Button(host, text="Skip", style="Link.TButton", cursor="hand2", command=lambda: self.next_quiz_question(host, rate=False))
+            skip = ttk.Button(host, text="Skip", style="Link.TButton", cursor="hand2", width=0, command=lambda: self.next_quiz_question(host, rate=False))
             skip.pack(anchor="w", pady=(self.px(14), 0))
             self.add_tooltip(skip, "Move on without an answer. The card's schedule doesn't change.")
 
@@ -8855,7 +8855,7 @@ class MemoryPalApp(tk.Tk):
 
         ttk.Button(row, text="Check", style="Primary.TButton", cursor="hand2", command=check).pack(side="left")
         if item.get("hint"):
-            show_hint = ttk.Button(row, text="Show a hint", style="Link.TButton", cursor="hand2",
+            show_hint = ttk.Button(row, text="Show a hint", style="Link.TButton", cursor="hand2", width=0,
                                    command=lambda: (hint.configure(text=f"Hint: {item['hint']}"), hint.pack(anchor="w", pady=(self.px(10), 0))))
             show_hint.pack(side="left", padx=(self.px(10), 0))
         entry.bind("<Return>", check)
