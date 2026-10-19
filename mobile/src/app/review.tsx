@@ -9,10 +9,11 @@ import { View } from 'react-native';
 
 import { addDays } from '../core/dates';
 import { Card as CardModel } from '../core/models';
+import { isAiCard } from '../core/questions';
 import { answerAssessment, Assessment, Bucket, describeSimply } from '../core/smartCheck';
 import { buildQueue, Mode } from '../features/queue';
 import { useStore, usePrefs } from '../state/AppState';
-import { Button, ButtonKind, Card, EmptyState, Field, IconButton, ProgressBar, Row, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../ui/components';
+import { AiTag, Button, ButtonKind, Card, EmptyState, Field, IconButton, ProgressBar, Row, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../ui/components';
 import { speak, stopSpeaking, tap } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
@@ -185,6 +186,7 @@ export default function Review() {
       <Card style={{ minHeight: 140, justifyContent: 'center' }}>
         <Txt variant="label">{theme.plain('Question', 'Try to remember')}</Txt>
         <Txt variant="h2" accessibilityRole="header">{card.front}</Txt>
+        {isAiCard(card) ? <AiTag /> : null}
       </Card>
 
       {!revealed ? (

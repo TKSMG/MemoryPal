@@ -1,9 +1,14 @@
 /** Edit a card's words, start it over, or delete it. Its schedule is kept on edit. */
 import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useEffect, useRef, useState } from 'react';
+import { Image, Linking, Platform } from 'react-native';
+
+import { isAiCard } from '../../core/questions';
+import { aiPage, cardReportText, reportMailto } from '../../features/aiHelpers';
 
 import { useStore } from '../../state/AppState';
-import { Button, Card, EmptyState, Field, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../../ui/components';
+import { AiTag, Button, Card, EmptyState, Field, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../../ui/components';
 import { relativeDay } from '../../ui/dates';
 import { confirm, notify } from '../../ui/feedback';
 
@@ -67,9 +72,32 @@ export default function EditCard() {
     }
   };
 
+  const ai = isAiCard(card);
+  const page = aiPage(card);
+  const localFile = (uri: string) => uri.startsWith('file:');
+  const report = () => {
+    Linking.openURL(reportMailto('card', cardReportText(card))).catch(() => notify('No email app', 'Email memorypal09@gmail.com to report this card.'));
+  };
+  const openPdf = () => {
+    Sharing.shareAsync(card.text_file, { mimeType: 'application/pdf', dialogTitle: page ? `Open the PDF at page ${page}` : 'Open the PDF', UTI: 'com.adobe.pdf' }).catch(() => notify('Couldn’t open the PDF', 'The file may have been removed from this phone.'));
+  };
+
   return (
     <Screen narrow>
       <Stack.Screen options={{ gestureEnabled: !dirty }} />
+      {ai ? (
+        <Card tone="warm">
+          <AiTag />
+          <Txt variant="muted">AI made this card. AI can be wrong: check the question and answer, and edit them if needed.</Txt>
+          <Button kind="ghost" compact icon="flag-outline" label="Report this card" onPress={report} hint="Opens an email to MemoryPal with this card, so you can say what is wrong" />
+        </Card>
+      ) : null}
+      {card.image && localFile(card.image) ? (
+        <Image source={{ uri: card.image }} resizeMode="contain" style={{ width: '100%', height: 220, borderRadius: 12 }} accessibilityLabel="The photo this card was made from" />
+      ) : null}
+      {card.text_file && localFile(card.text_file) && Platform.OS !== 'web' ? (
+        <Button icon="document-outline" label={page ? `Open the PDF (page ${page})` : 'Open the PDF'} onPress={openPdf} hint="The PDF this card was made from" />
+      ) : null}
       <Card tone="alt">
         <Txt variant="small">
           {card.repetitions
