@@ -4,7 +4,7 @@ import { useWindowDimensions, View } from 'react-native';
 import { WEEKDAYS, achievements, bestStreak, dailySeries, dueForecast, levelInfo, maturityBreakdown } from '../../core/progress';
 import { weekday } from '../../core/dates';
 import { useStore } from '../../state/AppState';
-import { Card, ProgressBar, Row, Screen, SectionTitle, Stat, Txt } from '../../ui/components';
+import { Card, ListGroup, ListRow, ProgressBar, Row, Screen, SectionTitle, Stat, Txt } from '../../ui/components';
 import { useTheme } from '../../ui/theme';
 
 function Bars({ values, labels, color, summary }: { values: number[]; labels: string[]; color: string; summary: string }) {
@@ -55,15 +55,15 @@ export default function Progress() {
   ];
 
   return (
-    <Screen eyebrow="Progress" title="How it's going">
+    <Screen title="Progress">
       <Card>
         <Row wrap style={{ alignItems: 'flex-start' }}>
-          <Stat value={streak} label={`day streak${best > streak ? ` (best ${best})` : ''}`} color={c.orange} />
+          <Stat value={streak} label={`day streak${best > streak ? ` (best ${best})` : ''}`} />
           <Stat value={store.practiced} label="reviews in total" />
         </Row>
-        <Txt variant="h3" color={c.violet}>Level {level.level}</Txt>
-        <ProgressBar value={level.pct} color={c.violet} label={`${level.xp} of ${level.need} XP to the next level`} />
-        <Txt variant="small">{`${level.xp} / ${level.need} XP · 10 XP for every review`}</Txt>
+        <Txt variant="h3">Level {level.level}</Txt>
+        <ProgressBar value={level.pct} label={`${level.xp} of ${level.need} XP to the next level`} />
+        <Txt variant="small">{`${level.xp} of ${level.need} XP. Each review earns 10.`}</Txt>
       </Card>
 
       <SectionTitle>Last two weeks</SectionTitle>
@@ -74,7 +74,7 @@ export default function Progress() {
           color={c.primary}
           summary={`${weekTotal} reviews in the last 7 days.`}
         />
-        <Txt variant="muted">{weekTotal ? `${weekTotal} reviews in the last 7 days.` : 'No reviews this week yet — even five minutes counts.'}</Txt>
+        <Txt variant="muted">{weekTotal ? `${weekTotal} reviews in the last 7 days.` : 'No reviews this week yet. Even five minutes counts.'}</Txt>
       </Card>
 
       <SectionTitle>Coming up</SectionTitle>
@@ -82,7 +82,7 @@ export default function Progress() {
         <Bars
           values={forecast.map(([, count]) => count)}
           labels={forecast.map(([day], i) => (i === 0 ? 'Today' : WEEKDAYS[weekday(day)].slice(0, dayLength)))}
-          color={c.orange}
+          color={c.primary}
           summary={`Cards due over the next 7 days: ${forecast.map(([, count]) => count).join(', ')}.`}
         />
         <Txt variant="muted">Cards due each day this week. Today includes anything overdue.</Txt>
@@ -101,20 +101,23 @@ export default function Progress() {
             </Row>
           ))}
         </Row>
-        <Txt variant="muted">Mature cards come back three weeks or more apart — a good sign they’re in long-term memory.</Txt>
+        <Txt variant="muted">Mature cards come back three weeks or more apart, a good sign they’re in long-term memory.</Txt>
       </Card>
 
       <SectionTitle>{`Badges · ${earned} of ${badges.length}`}</SectionTitle>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+      <ListGroup>
         {badges.map((badge) => (
-          <Card key={badge.key} style={{ flexBasis: '46%', flexGrow: 1 }}>
-            <Txt variant="title">{badge.done ? badge.icon : '🔒'}</Txt>
-            <Txt variant="h3">{badge.title}</Txt>
-            <Txt variant="small">{badge.body}</Txt>
-            {!badge.done ? <ProgressBar value={badge.current / badge.target} color={c.orange} height={6} label={`${badge.current} of ${badge.target}`} /> : <Txt variant="label" color={c.green}>Earned</Txt>}
-          </Card>
+          <ListRow
+            key={badge.key}
+            icon={badge.done ? 'ribbon' : 'lock-closed-outline'}
+            tint={badge.done ? c.primary : c.muted}
+            title={badge.title}
+            detail={badge.body}
+            value={badge.done ? 'Earned' : `${badge.current} of ${badge.target}`}
+            accessibilityLabel={`${badge.title}. ${badge.body}. ${badge.done ? 'Earned' : `${badge.current} of ${badge.target}`}`}
+          />
         ))}
-      </View>
+      </ListGroup>
     </Screen>
   );
 }

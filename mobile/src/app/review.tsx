@@ -9,37 +9,13 @@ import { View } from 'react-native';
 
 import { addDays } from '../core/dates';
 import { Card as CardModel } from '../core/models';
+import { isAiCard } from '../core/questions';
 import { answerAssessment, Assessment, Bucket, describeSimply } from '../core/smartCheck';
-import { MemoryStore } from '../core/store';
+import { buildQueue, Mode } from '../features/queue';
 import { useStore, usePrefs } from '../state/AppState';
-import { Button, ButtonKind, Card, EmptyState, Field, IconButton, ProgressBar, Row, Screen, Txt } from '../ui/components';
+import { AiTag, Button, ButtonKind, Card, EmptyState, Field, IconButton, ProgressBar, Row, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../ui/components';
 import { speak, stopSpeaking, tap } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
-
-type Mode = 'due' | 'weak' | 'new' | 'quick' | 'gentle' | 'all';
-
-function buildQueue(store: MemoryStore, mode: Mode, deck: string | null): CardModel[] {
-  const inDeck = (card: CardModel) => !deck || (card.deck || 'General') === deck;
-  const due = store.dueCards(deck);
-  switch (mode) {
-    case 'weak':
-      return store.weakCards().filter(inDeck).slice(0, 20);
-    case 'new':
-      return store.cards.filter((card) => card.repetitions === 0 && card.lapses === 0 && inDeck(card)).slice(0, 20);
-    case 'quick': {
-      const extra = store.weakCards().filter((card) => inDeck(card) && !due.includes(card));
-      return [...due, ...extra].slice(0, 10);
-    }
-    case 'gentle': {
-      const everyday = due.filter((card) => card.deck === 'Everyday Memory');
-      return (everyday.length ? everyday : due).slice(0, 8);
-    }
-    case 'all':
-      return store.cards.filter(inDeck);
-    default:
-      return due;
-  }
-}
 
 const RATINGS: { bucket: Bucket; quality: number; kind: ButtonKind; label: string; simple: string }[] = [
   { bucket: 'Again', quality: 1, kind: 'again', label: 'Again', simple: 'Not yet' },
@@ -92,6 +68,7 @@ export default function Review() {
     if (card && readAloud) speak(card.front, slow);
     return stopSpeaking;
   }, [card?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useStopSpeechOnLeave();
 
   if (!queue.length) {
     return (
@@ -116,7 +93,7 @@ export default function Review() {
     const missed = results.filter((r) => r.quality < 3);
     const tomorrow = store.dueCards(null, addDays(1)).length;
     return (
-      <Screen title="Session done" eyebrow="Well done">
+      <Screen title="Session done">
         <Card tone="alt">
           {/* One row per number: three narrow columns broke words apart at large text sizes. */}
           {([
@@ -140,10 +117,13 @@ export default function Review() {
           <Card>
             <Txt variant="h3">Worth another look</Txt>
             {missed.map(({ card: item }) => (
-              <View key={item.id} style={{ gap: 2 }}>
-                <Txt variant="body">{item.front}</Txt>
-                <Txt variant="small">{item.back}</Txt>
-              </View>
+              <Row key={item.id} style={{ alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt variant="body">{item.front}</Txt>
+                  <Txt variant="small">{item.back}</Txt>
+                </View>
+                <SpeakButton text={`${item.front}. ${item.back}`} label={`Read aloud: ${item.front}`} />
+              </Row>
             ))}
           </Card>
         ) : null}
@@ -197,7 +177,7 @@ export default function Review() {
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt variant="label" style={{ flex: 1 }}>{`Card ${index + 1} of ${queue.length}${card.deck ? ` · ${card.deck}` : ''}`}</Txt>
         <Row gap={8}>
-          <IconButton icon="volume-high-outline" label="Read the question aloud" onPress={() => speak(card.front, slow)} />
+          <SpeakButton text={card.front} label="Read the question aloud" />
           <IconButton icon="create-outline" label="Edit this card" onPress={() => router.push(`/card/${card.id}`)} />
         </Row>
       </Row>
@@ -206,6 +186,7 @@ export default function Review() {
       <Card style={{ minHeight: 140, justifyContent: 'center' }}>
         <Txt variant="label">{theme.plain('Question', 'Try to remember')}</Txt>
         <Txt variant="h2" accessibilityRole="header">{card.front}</Txt>
+        {isAiCard(card) ? <AiTag /> : null}
       </Card>
 
       {!revealed ? (
@@ -232,13 +213,14 @@ export default function Review() {
           <Card tone="alt">
             <Row style={{ justifyContent: 'space-between' }}>
               <Txt variant="label">{theme.plain('Answer', 'The answer')}</Txt>
-              {hasAnswer ? <IconButton icon="volume-high-outline" label="Read the answer aloud" onPress={() => speak(card.back, slow)} /> : null}
+              {hasAnswer ? <SpeakButton text={card.back} label="Read the answer aloud" /> : null}
             </Row>
             <Txt variant="h3">{hasAnswer ? card.back : 'No saved answer. Use this as a self-check, then rate yourself.'}</Txt>
             {card.association ? (
               <Row style={{ alignItems: 'flex-start' }}>
                 <Ionicons name="bulb-outline" size={theme.icon(20)} color={c.link} />
                 <Txt variant="muted" style={{ flex: 1 }}>{card.association}</Txt>
+                <SpeakButton text={card.association} label="Read the memory hook aloud" />
               </Row>
             ) : null}
           </Card>
