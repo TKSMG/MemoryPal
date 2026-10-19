@@ -13,6 +13,7 @@ import { answerAssessment } from '../src/core/smartCheck';
 import { MemoryStore, normalizeStudyPlan } from '../src/core/store';
 import { payloadFromRecords, planSync, recordsFromPayload, Records, Remote } from '../src/core/sync';
 import { acronym, chunkMap, linkChain, palace, parseIdeas, pegList, story } from '../src/core/techniques';
+import { answerKind, buildQuiz, cardQuestion, clozeCandidates, isGenericFront, listItems, noteQuestions, questionForBit, QuestionType, QuizCard, Rng } from '../src/core/questions';
 import { parsePromptAnswerLines, splitStudyBits, textTokens } from '../src/core/text';
 
 type Spec = (typeof fixtures.plan_cards)[number];
@@ -155,5 +156,32 @@ describe('parity with the desktop logic', () => {
     expect(store.weakCards().map((card) => card.id)).toEqual(p.weak_order);
     expect(store.deckSummary()).toEqual(p.deck_summary);
     expect(achievements(store).map((badge) => [badge.key, badge.current, badge.done])).toEqual(p.badges);
+  });
+  test('quiz questions: same generator, same questions for the same seed', () => {
+    const q = fixtures.questions;
+    for (const item of q.rng) {
+      const r = new Rng(item.seed);
+      expect(item.uints.map(() => r.nextUint())).toEqual(item.uints);
+      const r2 = new Rng(item.seed);
+      expect([1, 2, 3, 7, 10, 100, 1000].map((n) => r2.below(n))).toEqual(item.below);
+      expect(new Rng(item.seed).shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])).toEqual(item.shuffle);
+    }
+    const cards = q.cards as unknown as QuizCard[];
+    for (const [i, item] of q.quizzes.entries()) {
+      const pool = (item as { cards?: string }).cards === 'small' ? cards.slice(0, 2) : cards;
+      const quiz = buildQuiz(pool, item.count, new Rng(item.seed), { recentIds: item.recent, types: (item.types ?? undefined) as QuestionType[] | undefined, today: q.today });
+      expect({ i, quiz }).toEqual({ i, quiz: item.quiz });
+    }
+    for (const item of q.singles) {
+      const card = cards.find((c) => c.id === item.card)!;
+      const index = cards.indexOf(card);
+      expect({ ...item, question: cardQuestion(card, item.type as QuestionType, cards, new Rng(index * 7 + item.type.length)) }).toEqual(item);
+    }
+    for (const item of q.notes) expect(noteQuestions(item.text)).toEqual(item.questions);
+    for (const item of q.bits) expect({ bit: item.bit, question: questionForBit(item.bit) }).toEqual(item);
+    for (const item of q.lists) expect(listItems(item.text)).toEqual(item.items);
+    for (const item of q.kinds) expect(answerKind(item.text)).toBe(item.kind);
+    for (const item of q.cloze) expect(clozeCandidates(item.text, 'What is photosynthesis?')).toEqual(item.candidates);
+    for (const item of q.generic) expect(isGenericFront(item.front, item.back, item.deck)).toBe(item.generic);
   });
 });

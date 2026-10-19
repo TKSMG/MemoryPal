@@ -61,6 +61,10 @@ class Speaker:
             self.process = None
             return False
 
+    def speaking(self):
+        """True while something is still being read aloud."""
+        return self.process is not None and self.process.poll() is None
+
     def stop(self):
         if self.process is not None and self.process.poll() is None:
             try:

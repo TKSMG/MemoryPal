@@ -67,11 +67,10 @@ export default function Welcome() {
       <Row gap={14} style={{ marginTop: 8 }}>
         <Image source={require('../../assets/icon.png')} style={{ width: 56, height: 56, borderRadius: 14 }} accessibilityIgnoresInvertColors accessible={false} />
         <View style={{ flex: 1 }}>
-          <Txt variant="label" color={theme.colors.link}>Welcome to MemoryPal</Txt>
-          <Txt variant="title">Let’s set things up</Txt>
+          <Txt variant="title">Welcome</Txt>
         </View>
       </Row>
-      <Txt variant="muted">Three quick questions so the app fits you. You can change any of this later in Settings.</Txt>
+      <Txt variant="muted">Three quick questions so MemoryPal fits you. You can change any of this later in Settings.</Txt>
 
       <Txt variant="h2">1. Who will be using MemoryPal?</Txt>
       <View accessibilityRole="radiogroup" accessibilityLabel="Who will be using MemoryPal?" style={{ gap: 16 }}>

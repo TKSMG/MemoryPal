@@ -6,6 +6,7 @@ import { Linking } from 'react-native';
 import { legalLinks } from '../cloud/client';
 import { persona } from '../core/personas';
 import { TextSize } from '../core/store';
+import { AI_DAILY_LIMIT } from '../features/aiHelpers';
 import { exportBackup, pickBackup } from '../state/backup';
 import { ThemeChoice, usePrefs, useStore, useSync } from '../state/AppState';
 import { Button, Card, Pills, Row, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
@@ -95,6 +96,17 @@ export default function Settings() {
         <ToggleRow label="Higher contrast" description="Stronger text and borders." value={a.high_contrast} onChange={(value) => store.setAccessibility({ high_contrast: value })} />
         <ToggleRow label="Reduce motion" description="No sliding screen transitions." value={a.reduce_motion} onChange={(value) => store.setAccessibility({ reduce_motion: value })} />
         <ToggleRow label="Gentle vibrations" description="A light tap when you answer." value={prefs.haptics} onChange={(value) => setPrefs({ haptics: value })} />
+      </Card>
+
+      <SectionTitle>AI features</SectionTitle>
+      <Card>
+        <ToggleRow
+          label="AI notes and questions"
+          description={prefs.ai_allowed ? 'On. Only what you choose is sent, when you press an AI button.' : 'Off. Nothing is sent to an AI.'}
+          value={prefs.ai_allowed}
+          onChange={(value) => (value ? router.push('/ai-consent') : setPrefs({ ai_allowed: false, ai_allowed_at: '' }))}
+        />
+        <Txt variant="small">{`Needs a MemoryPal account. Each account can make up to ${AI_DAILY_LIMIT} AI requests a day. AI goes through MemoryPal’s server to Google’s Gemini API (free tier, so Google may keep and read what is sent). Turning this off stops all AI requests.`}</Txt>
       </Card>
 
       <SectionTitle>Appearance</SectionTitle>

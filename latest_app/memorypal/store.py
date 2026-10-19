@@ -7,6 +7,7 @@ from dataclasses import asdict
 from datetime import date, timedelta
 
 from . import paths
+from .aiflow import normalize_preferences
 from .core import add_days, now_label, today_iso
 from .models import Card, Capture, FeedbackEntry, sample_cards
 
@@ -58,6 +59,7 @@ def default_payload():
         "feedback": [],
         "onboarding": default_onboarding(),
         "study_plan": {},
+        "preferences": normalize_preferences(None),
     }
 
 
@@ -134,12 +136,13 @@ def default_accessibility():
         "read_aloud": False,
         "more_time": False,
         "focus_outline": False,
+        "listen_answers": True,
     }
 
 
 ACCESSIBILITY_TOGGLES = (
     "high_contrast", "reduce_motion", "simple_language", "caregiver_mode",
-    "read_aloud", "more_time", "focus_outline",
+    "read_aloud", "more_time", "focus_outline", "listen_answers",
 )
 
 
@@ -281,8 +284,11 @@ class MemoryStore:
         self.feedback = []
         self.onboarding = default_onboarding()
         self.study_plan = {}
+        # This device's own choices (AI consent, quiz history): saved, never synced.
+        self.preferences = normalize_preferences(None)
         self.last_action = None
         self._file_stamp = None
+        self._loaded_preferences = normalize_preferences(None)
         self._loaded_onboarding = default_onboarding()
         self._loaded_practiced = 0
         self._loaded_activity = {}
@@ -338,6 +344,7 @@ class MemoryStore:
         self.feedback = load_items(as_list(raw.get("feedback")), FeedbackEntry.from_dict)
         self.onboarding = normalize_onboarding(raw.get("onboarding"))
         self.study_plan = normalize_study_plan(raw.get("study_plan"))
+        self.preferences = normalize_preferences(raw.get("preferences"))
 
     def remember_loaded_state(self, payload=None):
         self._loaded_practiced = self.practiced
@@ -347,6 +354,7 @@ class MemoryStore:
         self._loaded_accessibility = dict(self.accessibility)
         self._loaded_onboarding = dict(self.onboarding)
         self._loaded_study_plan = normalize_study_plan(self.study_plan)
+        self._loaded_preferences = normalize_preferences(self.preferences)
         if payload is None:
             self._loaded_cards = self.item_snapshot(self.cards)
             self._loaded_captures = self.item_snapshot(self.captures)
@@ -382,6 +390,7 @@ class MemoryStore:
             "feedback": [asdict(entry) for entry in self.feedback],
             "onboarding": dict(self.onboarding),
             "study_plan": normalize_study_plan(self.study_plan),
+            "preferences": normalize_preferences(self.preferences),
         }
 
     def merge_items(self, local_items, existing_items, loaded_items=None):
@@ -453,6 +462,8 @@ class MemoryStore:
             merged["onboarding"] = normalize_onboarding(existing.get("onboarding"))
         if normalize_study_plan(self.study_plan) == self._loaded_study_plan and "study_plan" in existing:
             merged["study_plan"] = normalize_study_plan(existing.get("study_plan"))
+        if normalize_preferences(self.preferences) == self._loaded_preferences and "preferences" in existing:
+            merged["preferences"] = normalize_preferences(existing.get("preferences"))
         return merged
 
     @staticmethod
@@ -493,6 +504,9 @@ class MemoryStore:
         self.feedback = load_items(as_list(payload.get("feedback")), FeedbackEntry.from_dict)
         self.onboarding = normalize_onboarding(payload.get("onboarding"))
         self.study_plan = normalize_study_plan(payload.get("study_plan"))
+        # Synced payloads never carry this device's preferences: keep ours.
+        if "preferences" in payload:
+            self.preferences = normalize_preferences(payload.get("preferences"))
         self.remember_loaded_state()
 
     def file_stamp(self):
@@ -700,6 +714,25 @@ class MemoryStore:
                 setattr(card, name, (value or "General") if name == "deck" else value)
         self.save()
 
+    def rename_deck(self, old_name, new_name):
+        """Move every card in deck old_name to new_name with one save.
+
+        Renaming onto an existing deck merges the two. Returns how many
+        cards moved (0 when the name is blank or unchanged).
+        """
+        old_name = str(old_name or "").strip() or "General"
+        new_name = " ".join(str(new_name or "").split())
+        if not new_name or new_name == old_name:
+            return 0
+        moved = 0
+        for card in self.cards:
+            if (card.deck or "General") == old_name:
+                card.deck = new_name
+                moved += 1
+        if moved:
+            self.save()
+        return moved
+
     def delete_cards(self, ids):
         """Remove cards by id with one save. Returns how many were removed."""
         ids = set(ids)
@@ -815,5 +848,7 @@ class MemoryStore:
         self.feedback = []
         self.onboarding = default_onboarding()
         self.study_plan = {}
+        # This device's own choices (AI consent, quiz history): saved, never synced.
+        self.preferences = normalize_preferences(None)
         self.last_action = None
         self.save(merge_existing=False)
