@@ -8130,9 +8130,9 @@ class MemoryPalApp(tk.Tk):
                     tk.Frame(row, bg=COLORS["line"], height=1).pack(fill="x", pady=(0, self.px(10)))
                 body = tk.Frame(row, bg=surface)
                 body.pack(fill="x")
-                remove = ttk.Button(body, text="Remove", style="Link.TButton", cursor="hand2", command=lambda i=index: remove_item(i))
+                remove = ttk.Button(body, text="Remove", style="Link.TButton", cursor="hand2", width=0, command=lambda i=index: remove_item(i))
                 remove.pack(side="right", anchor="n", padx=(self.px(2), 0))
-                edit = ttk.Button(body, text="Edit", style="Link.TButton", cursor="hand2", command=lambda i=index: edit_item(i))
+                edit = ttk.Button(body, text="Edit", style="Link.TButton", cursor="hand2", width=0, command=lambda i=index: edit_item(i))
                 edit.pack(side="right", anchor="n", padx=(self.px(2), 0))
                 self.speak_button(body, f"{item['prompt']}. {item['answer'] or ''}", compact=True).pack(side="right", anchor="n", padx=(self.px(8), 0))
                 text = tk.Frame(body, bg=surface)
@@ -8976,7 +8976,7 @@ class MemoryPalApp(tk.Tk):
         self.add_tooltip(chip, "An AI wrote this from your notes or file. AI can be wrong: check it before you rely on it.")
         if not report:
             return row
-        report = ttk.Button(row, text="Report", style="Link.TButton", cursor="hand2",
+        report = ttk.Button(row, text="Report", style="Link.TButton", cursor="hand2", width=0,
                             command=lambda: self.report_ai_content(kind, content() if callable(content) else content))
         report.pack(side="left", padx=(self.px(6), 0))
         self.add_tooltip(report, "Tell the MemoryPal team this AI content is wrong or inappropriate. Opens Send Feedback with it filled in; nothing is sent until you press Send.")
@@ -9014,11 +9014,13 @@ class MemoryPalApp(tk.Tk):
         )
         surface = COLORS["surface"]
         wrap = self.px(600 - 70)
+        # Same five points, in the same words, as the phone (AiConsent.tsx).
         points = (
-            ("What is sent", "Only what you choose, when you press an AI button: the text or the one file you picked, plus a list of your existing card questions so the AI doesn't repeat them."),
-            ("Who gets it", "It goes through MemoryPal's server to Google's Gemini API, which writes the notes or questions. Our server doesn't keep the text or file; it only counts requests for the daily limit."),
-            ("Google may keep it", "MemoryPal uses Gemini's free tier. Google may keep what is sent, use it to improve its products, and people at Google may read it. Don't send anything private or sensitive, such as health details, ID numbers or other people's personal information."),
-            ("Check the results", "AI can be wrong. AI-made cards are labelled “Made with AI, check it.” and you can report a bad result."),
+            ("What is sent", "Only what you choose for each request: the text, or the one PDF or picture, plus your existing card questions so the AI doesn't repeat them. Nothing is sent until you press an AI button."),
+            ("Who gets it", "It goes through MemoryPal's server to Google's Gemini API, which writes the notes or questions. Our server doesn't keep the text or file; it only counts your requests for the daily limit."),
+            ("What Google may do", "We use Gemini's free tier. Google may keep what is sent, use it to improve its products, and people at Google may read it."),
+            ("Don't send private things", "No health details, ID numbers, passwords or other people's personal information."),
+            ("Check what it makes", f"AI can be wrong. AI cards are labelled \u201cMade with AI, check it\u201d, and you can report a bad result. You need a MemoryPal account, and each account gets up to {aiflow.AI_DAILY_LIMIT} AI requests a day."),
         )
         for title, body in points:
             block = tk.Frame(content, bg=surface)
@@ -9027,11 +9029,12 @@ class MemoryPalApp(tk.Tk):
             self.fit_wrap(tk.Label(block, text=body, bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=wrap, justify="left", anchor="w"), pady=(self.px(2), 0))
         footer = tk.Frame(content, bg=surface)
         footer.pack(fill="x", pady=(self.px(4), 0))
-        if cloud_config.PRIVACY_URL:
-            link = tk.Label(footer, text="Read the privacy policy", bg=surface, fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2")
-            link.pack(side="left")
-            self.keyboard_link(link, lambda _event: open_web_page(cloud_config.PRIVACY_URL))
-        tk.Label(footer, text="You can turn AI off any time in Settings.", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="right")
+        links = [("Privacy policy", cloud_config.PRIVACY_URL), ("Google's Gemini API terms", aiflow.GEMINI_TERMS_URL)]
+        for index, (text, url) in enumerate((text, url) for text, url in links if url):
+            link = tk.Label(footer, text=text, bg=surface, fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2")
+            link.pack(side="left", padx=(0 if index == 0 else self.px(16), 0))
+            self.keyboard_link(link, lambda _event, address=url: open_web_page(address))
+        tk.Label(content, text="You can turn AI off again at any time in Settings.", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(8), 0))
 
         def finish(value):
             result["value"] = value
@@ -9381,7 +9384,7 @@ class MemoryPalApp(tk.Tk):
 
         self.check_toggle(card, enabled, "Use AI notes and questions", on_change=changed, fit=True).pack(fill="x", pady=(0, self.px(10)))
         remaining = self.ai_remaining_text()
-        limit = "Each account can make a limited number of AI requests a day; the count starts again every day."
+        limit = f"Each account can make up to {aiflow.AI_DAILY_LIMIT} AI requests a day; the count starts again every day."
         self.fit_wrap(ttk.Label(card, text=f"{limit} {remaining}." if remaining and not remaining.endswith(".") else f"{limit} {remaining}".strip(), style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(0, self.px(4)))
         if cloud_config.PRIVACY_URL:
             link = tk.Label(card, text="How AI uses your data (privacy policy)", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
