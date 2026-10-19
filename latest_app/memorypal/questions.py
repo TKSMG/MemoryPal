@@ -450,10 +450,11 @@ def make_question(entry, kind, pool, rng):
         at = rng.below(len(items))
         answer = items[at]
         if at == 0:
-            prompt = f"{entry['front']} \u2014 which comes first?"
+            prompt = f"{entry['front']}: which comes first?"
         else:
-            prompt = f"{entry['front']} \u2014 what comes after \u201c{items[at - 1]}\u201d?"
-        wrong = pick_distractors(answer, [(item, entry["deck"]) for item in items], 3, rng, entry["deck"])
+            prompt = f"{entry['front']}: what comes after \u201c{items[at - 1]}\u201d?"
+        before = items[at - 1] if at else None
+        wrong = pick_distractors(answer, [(item, entry["deck"]) for item in items if item != before], 3, rng, entry["deck"])
         if len(wrong) < 2:
             return None
         options, index = with_answer(answer, wrong, rng)

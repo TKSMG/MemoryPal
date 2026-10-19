@@ -485,8 +485,9 @@ export function makeQuestion(entry: PoolEntry, type: QuestionType, pool: Pool, r
     if (items.length < 3) return null;
     const at = rng.below(items.length);
     const answer = items[at];
-    const prompt = at === 0 ? `${entry.front} — which comes first?` : `${entry.front} — what comes after “${items[at - 1]}”?`;
-    const wrong = pickDistractors(answer, items.map((item) => [item, entry.deck]), 3, rng, entry.deck);
+    const prompt = at === 0 ? `${entry.front}: which comes first?` : `${entry.front}: what comes after “${items[at - 1]}”?`;
+    const before = at ? items[at - 1] : null;
+    const wrong = pickDistractors(answer, items.filter((item) => item !== before).map((item) => [item, entry.deck]), 3, rng, entry.deck);
     if (wrong.length < 2) return null;
     const [options, index] = withAnswer(answer, wrong, rng);
     return question(entry, type, prompt, answer, { options, answer_index: index, context: entry.front });
