@@ -136532,7 +136532,7 @@
    ]
   ]
  },
- "today_check": "2026-10-18",
+ "today_check": "2026-10-19",
  "questions": {
   "today": "2026-10-18",
   "rng": [
@@ -137573,13 +137573,12 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “nucleus”?",
+      "prompt": "Parts of a cell: what comes after “nucleus”?",
       "answer": "membrane",
       "options": [
+       "ribosome",
        "cytoplasm",
-       "nucleus",
-       "membrane",
-       "ribosome"
+       "membrane"
       ],
       "answer_index": 2,
       "typed": false,
@@ -137596,9 +137595,9 @@
       "answer": "energy",
       "options": [
        "energy",
+       "powerhouse",
        "process",
-       "releases",
-       "carbon"
+       "water"
       ],
       "answer_index": 0,
       "typed": false,
@@ -137614,12 +137613,12 @@
       "prompt": "Which one goes with “1066”?",
       "answer": "Battle of Hastings",
       "options": [
+       "Capital of France",
+       "Parts of a cell",
        "Battle of Hastings",
-       "Metres in a kilometre",
-       "What is retrieval practice?",
-       "Capital of France"
+       "Capital of Germany"
       ],
-      "answer_index": 0,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -137633,9 +137632,9 @@
       "prompt": "Match each one with what goes with it.",
       "answer": "Rome",
       "options": [
-       "Mercury, Venus, Earth and Mars",
-       "Rome",
        "Paris",
+       "Rome",
+       "Mercury, Venus, Earth and Mars",
        "Madrid"
       ],
       "answer_index": 1,
@@ -137646,16 +137645,16 @@
         "Rome"
        ],
        [
-        "Capital of Spain",
-        "Madrid"
+        "Capital of France",
+        "Paris"
        ],
        [
         "Planets nearest the sun",
         "Mercury, Venus, Earth and Mars"
        ],
        [
-        "Capital of France",
-        "Paris"
+        "Capital of Spain",
+        "Madrid"
        ]
       ],
       "context": "",
@@ -137666,15 +137665,15 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Earth”?",
-      "answer": "Mars",
+      "prompt": "Planets nearest the sun: which comes first?",
+      "answer": "Mercury",
       "options": [
-       "Venus",
-       "Mercury",
+       "Mars",
        "Earth",
-       "Mars"
+       "Mercury",
+       "Venus"
       ],
-      "answer_index": 3,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
@@ -138445,7 +138444,7 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — which comes first?",
+      "prompt": "Planets nearest the sun: which comes first?",
       "answer": "Mercury",
       "options": [
        "Earth",
@@ -138673,7 +138672,7 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — which comes first?",
+      "prompt": "Planets nearest the sun: which comes first?",
       "answer": "Mercury",
       "options": [
        "Earth",
@@ -138766,32 +138765,45 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “membrane”?",
+      "prompt": "Parts of a cell: what comes after “membrane”?",
       "answer": "cytoplasm",
       "options": [
        "nucleus",
-       "membrane",
        "ribosome",
        "cytoplasm"
       ],
-      "answer_index": 3,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
       "hint": ""
      },
      {
-      "id": "mem-rp:choice",
+      "id": "mem-rp:cloze",
       "card_id": "mem-rp",
       "deck": "Memory Techniques",
+      "type": "cloze",
+      "prompt": "Fill in the blank: Trying to recall the answer before _____ or revealing it.",
+      "answer": "rereading",
+      "options": [],
+      "answer_index": -1,
+      "typed": true,
+      "pairs": [],
+      "context": "What is retrieval practice?",
+      "hint": "r________"
+     },
+     {
+      "id": "his-hast:choice",
+      "card_id": "his-hast",
+      "deck": "History",
       "type": "choice",
-      "prompt": "What is retrieval practice?",
-      "answer": "Trying to recall the answer before rereading or revealing it.",
+      "prompt": "Battle of Hastings",
+      "answer": "1066",
       "options": [
-       "The powerhouse of the cell that releases energy from food",
-       "Reviewing information at increasing intervals so recall strengthens over time.",
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "Trying to recall the answer before rereading or revealing it."
+       "Elba",
+       "1945",
+       "1919",
+       "1066"
       ],
       "answer_index": 3,
       "typed": false,
@@ -138800,50 +138812,36 @@
       "hint": ""
      },
      {
-      "id": "his-hast:reverse",
-      "card_id": "his-hast",
-      "deck": "History",
-      "type": "reverse",
-      "prompt": "Which one goes with “1066”?",
-      "answer": "Battle of Hastings",
-      "options": [
-       "What is retrieval practice?",
-       "Battle of Hastings",
-       "Planets nearest the sun",
-       "What is spaced repetition?"
-      ],
-      "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "",
-      "hint": ""
-     },
-     {
-      "id": "bio-same:cloze",
+      "id": "bio-same:truefalse",
       "card_id": "bio-same",
       "deck": "Biology",
-      "type": "cloze",
-      "prompt": "Fill in the blank: the powerhouse of the _____ that releases energy from food",
-      "answer": "cell",
-      "options": [],
-      "answer_index": -1,
-      "typed": true,
-      "pairs": [],
-      "context": "Powerhouse?",
-      "hint": "c___"
-     },
-     {
-      "id": "mem-sr:truefalse",
-      "card_id": "mem-sr",
-      "deck": "Memory Techniques",
       "type": "truefalse",
-      "prompt": "True or false? The answer to “What is spaced repetition?” is “Reviewing information at increasing intervals so recall strengthens over time.”.",
+      "prompt": "True or false? The answer to “Powerhouse?” is “the powerhouse of the cell that releases energy from food”.",
       "answer": "True",
       "options": [
        "True",
        "False"
       ],
       "answer_index": 0,
+      "typed": false,
+      "pairs": [],
+      "context": "Powerhouse?",
+      "hint": ""
+     },
+     {
+      "id": "mem-sr:cloze",
+      "card_id": "mem-sr",
+      "deck": "Memory Techniques",
+      "type": "cloze",
+      "prompt": "Fill in the blank: Reviewing _____ at increasing intervals so recall strengthens over time.",
+      "answer": "information",
+      "options": [
+       "rereading",
+       "reviewing",
+       "intervals",
+       "information"
+      ],
+      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "What is spaced repetition?",
@@ -138857,12 +138855,12 @@
       "prompt": "Which one goes with “1919”?",
       "answer": "When did this happen? The Treaty of Versailles was signed.",
       "options": [
+       "When did World War II end?",
        "When did this happen? The Treaty of Versailles was signed.",
        "Fill in the blank: Napoleon was exiled to the island of _____",
-       "When did World War II end?",
        "Battle of Hastings"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -138957,15 +138955,14 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Venus”?",
+      "prompt": "Planets nearest the sun: what comes after “Venus”?",
       "answer": "Earth",
       "options": [
-       "Earth",
+       "Mercury",
        "Mars",
-       "Venus",
-       "Mercury"
+       "Earth"
       ],
-      "answer_index": 0,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
@@ -138981,10 +138978,10 @@
       "options": [
        "1945",
        "3.14",
-       "1,000",
-       "Trying to recall the answer before rereading or revealing it."
+       "1919",
+       "1,000"
       ],
-      "answer_index": 2,
+      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -138998,10 +138995,29 @@
       "prompt": "Which one goes with “Rome”?",
       "answer": "Capital of Italy",
       "options": [
-       "Planets nearest the sun",
        "Capital of Germany",
-       "Capital of Italy",
-       "Capital of France"
+       "Capital of Spain",
+       "Capital of France",
+       "Capital of Italy"
+      ],
+      "answer_index": 3,
+      "typed": false,
+      "pairs": [],
+      "context": "",
+      "hint": ""
+     },
+     {
+      "id": "his-gen:choice",
+      "card_id": "his-gen",
+      "deck": "History",
+      "type": "choice",
+      "prompt": "Fill in the blank: Napoleon was exiled to the island of _____",
+      "answer": "Elba",
+      "options": [
+       "Madrid",
+       "Berlin",
+       "Elba",
+       "Rome"
       ],
       "answer_index": 2,
       "typed": false,
@@ -139010,35 +139026,23 @@
       "hint": ""
      },
      {
-      "id": "his-gen:truefalse",
-      "card_id": "his-gen",
-      "deck": "History",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “Fill in the blank: Napoleon was exiled to the island of _____” is “1919”.",
-      "answer": "False",
-      "options": [
-       "True",
-       "False"
-      ],
-      "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "Fill in the blank: Napoleon was exiled to the island of _____",
-      "hint": ""
-     },
-     {
       "id": "bio-ps:cloze",
       "card_id": "bio-ps",
       "deck": "Biology",
       "type": "cloze",
-      "prompt": "Fill in the blank: The _____ plants use to turn light, water, and carbon dioxide into food.",
-      "answer": "process",
-      "options": [],
-      "answer_index": -1,
-      "typed": true,
+      "prompt": "Fill in the blank: The process _____ use to turn light, water, and carbon dioxide into food.",
+      "answer": "plants",
+      "options": [
+       "food",
+       "cytoplasm",
+       "ribosome",
+       "plants"
+      ],
+      "answer_index": 3,
+      "typed": false,
       "pairs": [],
       "context": "What is photosynthesis?",
-      "hint": "p______"
+      "hint": ""
      }
     ]
    },
@@ -140043,15 +140047,14 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “cytoplasm”?",
+      "prompt": "Parts of a cell: what comes after “cytoplasm”?",
       "answer": "ribosome",
       "options": [
        "nucleus",
-       "cytoplasm",
        "ribosome",
        "membrane"
       ],
-      "answer_index": 2,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
@@ -140065,12 +140068,12 @@
       "prompt": "When did this happen? The Treaty of Versailles was signed.",
       "answer": "1919",
       "options": [
-       "Elba",
-       "1945",
        "1066",
-       "1919"
+       "1919",
+       "1945",
+       "Elba"
       ],
-      "answer_index": 3,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -140081,15 +140084,14 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
-      "answer": "Venus",
+      "prompt": "Planets nearest the sun: what comes after “Venus”?",
+      "answer": "Earth",
       "options": [
-       "Earth",
        "Mercury",
-       "Venus",
+       "Earth",
        "Mars"
       ],
-      "answer_index": 2,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
@@ -140102,17 +140104,12 @@
       "type": "cloze",
       "prompt": "Fill in the blank: the powerhouse of the cell that releases _____ from food",
       "answer": "energy",
-      "options": [
-       "cell",
-       "dioxide",
-       "energy",
-       "cytoplasm"
-      ],
-      "answer_index": 2,
-      "typed": false,
+      "options": [],
+      "answer_index": -1,
+      "typed": true,
       "pairs": [],
       "context": "Powerhouse?",
-      "hint": ""
+      "hint": "e_____"
      }
     ]
    },
@@ -141188,7 +141185,7 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — which comes first?",
+      "prompt": "Planets nearest the sun: which comes first?",
       "answer": "Mercury",
       "options": [
        "Venus",
@@ -141243,15 +141240,14 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “nucleus”?",
+      "prompt": "Parts of a cell: what comes after “nucleus”?",
       "answer": "membrane",
       "options": [
-       "nucleus",
        "membrane",
        "cytoplasm",
        "ribosome"
       ],
-      "answer_index": 1,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
@@ -141262,73 +141258,51 @@
       "card_id": "bio-ps",
       "deck": "Biology",
       "type": "cloze",
-      "prompt": "Fill in the blank: The _____ plants use to turn light, water, and carbon dioxide into food.",
-      "answer": "process",
-      "options": [
-       "nucleus",
-       "powerhouse",
-       "carbon",
-       "process"
-      ],
-      "answer_index": 3,
-      "typed": false,
+      "prompt": "Fill in the blank: The process plants use to turn light, water, and carbon _____ into food.",
+      "answer": "dioxide",
+      "options": [],
+      "answer_index": -1,
+      "typed": true,
       "pairs": [],
       "context": "What is photosynthesis?",
-      "hint": ""
+      "hint": "d______"
      },
      {
-      "id": "his-hast:match",
+      "id": "his-hast:reverse",
       "card_id": "his-hast",
       "deck": "History",
-      "type": "match",
-      "prompt": "Match each one with what goes with it.",
-      "answer": "1066",
+      "type": "reverse",
+      "prompt": "Which one goes with “1066”?",
+      "answer": "Battle of Hastings",
       "options": [
-       "1,000",
-       "1945",
-       "Mercury, Venus, Earth and Mars",
-       "1066"
-      ],
-      "answer_index": 3,
-      "typed": false,
-      "pairs": [
-       [
-        "When did World War II end?",
-        "1945"
-       ],
-       [
-        "Planets nearest the sun",
-        "Mercury, Venus, Earth and Mars"
-       ],
-       [
-        "Battle of Hastings",
-        "1066"
-       ],
-       [
-        "Metres in a kilometre",
-        "1,000"
-       ]
-      ],
-      "context": "",
-      "hint": ""
-     },
-     {
-      "id": "bio-same:choice",
-      "card_id": "bio-same",
-      "deck": "Biology",
-      "type": "choice",
-      "prompt": "Powerhouse?",
-      "answer": "the powerhouse of the cell that releases energy from food",
-      "options": [
-       "the powerhouse of the cell that releases energy from food",
-       "Trying to recall the answer before rereading or revealing it.",
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "Reviewing information at increasing intervals so recall strengthens over time."
+       "Battle of Hastings",
+       "Metres in a kilometre",
+       "Parts of a cell",
+       "Capital of Germany"
       ],
       "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "",
+      "hint": ""
+     },
+     {
+      "id": "bio-same:cloze",
+      "card_id": "bio-same",
+      "deck": "Biology",
+      "type": "cloze",
+      "prompt": "Fill in the blank: the powerhouse of the cell that _____ energy from food",
+      "answer": "releases",
+      "options": [
+       "energy",
+       "cytoplasm",
+       "membrane",
+       "releases"
+      ],
+      "answer_index": 3,
+      "typed": false,
+      "pairs": [],
+      "context": "Powerhouse?",
       "hint": ""
      }
     ]
@@ -141491,15 +141465,14 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
       "answer": "Venus",
       "options": [
-       "Venus",
-       "Mercury",
        "Mars",
+       "Venus",
        "Earth"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
@@ -142045,87 +142018,71 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “membrane”?",
+      "prompt": "Parts of a cell: what comes after “membrane”?",
       "answer": "cytoplasm",
       "options": [
-       "ribosome",
-       "nucleus",
        "cytoplasm",
-       "membrane"
+       "ribosome",
+       "nucleus"
       ],
-      "answer_index": 2,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
       "hint": ""
      },
      {
-      "id": "mem-sr:cloze",
+      "id": "mem-sr:choice",
       "card_id": "mem-sr",
       "deck": "Memory Techniques",
-      "type": "cloze",
-      "prompt": "Fill in the blank: Reviewing information at _____ intervals so recall strengthens over time.",
-      "answer": "increasing",
-      "options": [],
-      "answer_index": -1,
-      "typed": true,
-      "pairs": [],
-      "context": "What is spaced repetition?",
-      "hint": "i_________"
-     },
-     {
-      "id": "geo-pl:match",
-      "card_id": "geo-pl",
-      "deck": "Geography",
-      "type": "match",
-      "prompt": "Match each one with what goes with it.",
-      "answer": "Mercury, Venus, Earth and Mars",
+      "type": "choice",
+      "prompt": "What is spaced repetition?",
+      "answer": "Reviewing information at increasing intervals so recall strengthens over time.",
       "options": [
-       "Rome",
-       "Paris",
-       "Mercury, Venus, Earth and Mars",
-       "Madrid"
+       "The process plants use to turn light, water, and carbon dioxide into food.",
+       "The powerhouse of the cell that releases energy from food",
+       "Reviewing information at increasing intervals so recall strengthens over time.",
+       "Trying to recall the answer before rereading or revealing it."
       ],
       "answer_index": 2,
       "typed": false,
-      "pairs": [
-       [
-        "Capital of Italy",
-        "Rome"
-       ],
-       [
-        "Planets nearest the sun",
-        "Mercury, Venus, Earth and Mars"
-       ],
-       [
-        "Capital of Spain",
-        "Madrid"
-       ],
-       [
-        "Capital of France",
-        "Paris"
-       ]
-      ],
+      "pairs": [],
       "context": "",
       "hint": ""
      },
      {
-      "id": "bio-same:choice",
-      "card_id": "bio-same",
-      "deck": "Biology",
-      "type": "choice",
-      "prompt": "Powerhouse?",
-      "answer": "the powerhouse of the cell that releases energy from food",
+      "id": "geo-pl:order",
+      "card_id": "geo-pl",
+      "deck": "Geography",
+      "type": "order",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
+      "answer": "Venus",
       "options": [
-       "Trying to recall the answer before rereading or revealing it.",
-       "the powerhouse of the cell that releases energy from food",
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "Reviewing information at increasing intervals so recall strengthens over time."
+       "Mars",
+       "Venus",
+       "Earth"
       ],
       "answer_index": 1,
       "typed": false,
       "pairs": [],
-      "context": "",
+      "context": "Planets nearest the sun",
+      "hint": ""
+     },
+     {
+      "id": "bio-same:truefalse",
+      "card_id": "bio-same",
+      "deck": "Biology",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “Powerhouse?” is “The process plants use to turn light, water, and carbon dioxide into food.”.",
+      "answer": "False",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 1,
+      "typed": false,
+      "pairs": [],
+      "context": "Powerhouse?",
       "hint": ""
      },
      {
@@ -142136,12 +142093,12 @@
       "prompt": "Which one goes with “Rome”?",
       "answer": "Capital of Italy",
       "options": [
-       "Capital of France",
        "Capital of Italy",
        "Capital of Spain",
+       "Capital of France",
        "Planets nearest the sun"
       ],
-      "answer_index": 1,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -142270,87 +142227,71 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “membrane”?",
+      "prompt": "Parts of a cell: what comes after “membrane”?",
       "answer": "cytoplasm",
       "options": [
-       "ribosome",
-       "nucleus",
        "cytoplasm",
-       "membrane"
+       "ribosome",
+       "nucleus"
       ],
-      "answer_index": 2,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
       "hint": ""
      },
      {
-      "id": "mem-sr:cloze",
+      "id": "mem-sr:choice",
       "card_id": "mem-sr",
       "deck": "Memory Techniques",
-      "type": "cloze",
-      "prompt": "Fill in the blank: Reviewing information at _____ intervals so recall strengthens over time.",
-      "answer": "increasing",
-      "options": [],
-      "answer_index": -1,
-      "typed": true,
-      "pairs": [],
-      "context": "What is spaced repetition?",
-      "hint": "i_________"
-     },
-     {
-      "id": "geo-pl:match",
-      "card_id": "geo-pl",
-      "deck": "Geography",
-      "type": "match",
-      "prompt": "Match each one with what goes with it.",
-      "answer": "Mercury, Venus, Earth and Mars",
+      "type": "choice",
+      "prompt": "What is spaced repetition?",
+      "answer": "Reviewing information at increasing intervals so recall strengthens over time.",
       "options": [
-       "Rome",
-       "Paris",
-       "Mercury, Venus, Earth and Mars",
-       "Madrid"
+       "The process plants use to turn light, water, and carbon dioxide into food.",
+       "The powerhouse of the cell that releases energy from food",
+       "Reviewing information at increasing intervals so recall strengthens over time.",
+       "Trying to recall the answer before rereading or revealing it."
       ],
       "answer_index": 2,
       "typed": false,
-      "pairs": [
-       [
-        "Capital of Italy",
-        "Rome"
-       ],
-       [
-        "Planets nearest the sun",
-        "Mercury, Venus, Earth and Mars"
-       ],
-       [
-        "Capital of Spain",
-        "Madrid"
-       ],
-       [
-        "Capital of France",
-        "Paris"
-       ]
-      ],
+      "pairs": [],
       "context": "",
       "hint": ""
      },
      {
-      "id": "bio-same:choice",
-      "card_id": "bio-same",
-      "deck": "Biology",
-      "type": "choice",
-      "prompt": "Powerhouse?",
-      "answer": "the powerhouse of the cell that releases energy from food",
+      "id": "geo-pl:order",
+      "card_id": "geo-pl",
+      "deck": "Geography",
+      "type": "order",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
+      "answer": "Venus",
       "options": [
-       "Trying to recall the answer before rereading or revealing it.",
-       "the powerhouse of the cell that releases energy from food",
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "Reviewing information at increasing intervals so recall strengthens over time."
+       "Mars",
+       "Venus",
+       "Earth"
       ],
       "answer_index": 1,
       "typed": false,
       "pairs": [],
-      "context": "",
+      "context": "Planets nearest the sun",
+      "hint": ""
+     },
+     {
+      "id": "bio-same:truefalse",
+      "card_id": "bio-same",
+      "deck": "Biology",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “Powerhouse?” is “The process plants use to turn light, water, and carbon dioxide into food.”.",
+      "answer": "False",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 1,
+      "typed": false,
+      "pairs": [],
+      "context": "Powerhouse?",
       "hint": ""
      },
      {
@@ -142361,12 +142302,12 @@
       "prompt": "Which one goes with “Rome”?",
       "answer": "Capital of Italy",
       "options": [
-       "Capital of France",
        "Capital of Italy",
        "Capital of Spain",
+       "Capital of France",
        "Planets nearest the sun"
       ],
-      "answer_index": 1,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -142377,13 +142318,13 @@
       "card_id": "his-bit",
       "deck": "History",
       "type": "truefalse",
-      "prompt": "True or false? The answer to “When did this happen? The Treaty of Versailles was signed.” is “1919”.",
-      "answer": "True",
+      "prompt": "True or false? The answer to “When did this happen? The Treaty of Versailles was signed.” is “1945”.",
+      "answer": "False",
       "options": [
        "True",
        "False"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "When did this happen? The Treaty of Versailles was signed.",
@@ -142397,32 +142338,51 @@
       "prompt": "Which one goes with “Elba”?",
       "answer": "Fill in the blank: Napoleon was exiled to the island of _____",
       "options": [
-       "When did World War II end?",
-       "Fill in the blank: Napoleon was exiled to the island of _____",
+       "Battle of Hastings",
        "When did this happen? The Treaty of Versailles was signed.",
-       "Battle of Hastings"
+       "When did World War II end?",
+       "Fill in the blank: Napoleon was exiled to the island of _____"
       ],
-      "answer_index": 1,
+      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "",
       "hint": ""
      },
      {
-      "id": "num-pi:truefalse",
+      "id": "num-pi:match",
       "card_id": "num-pi",
       "deck": "Maths",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “Pi to two places” is “1,000”.",
-      "answer": "False",
+      "type": "match",
+      "prompt": "Match each one with what goes with it.",
+      "answer": "3.14",
       "options": [
-       "True",
-       "False"
+       "1945",
+       "1,000",
+       "3.14",
+       "Berlin"
       ],
-      "answer_index": 1,
+      "answer_index": 2,
       "typed": false,
-      "pairs": [],
-      "context": "Pi to two places",
+      "pairs": [
+       [
+        "Capital of Germany",
+        "Berlin"
+       ],
+       [
+        "Metres in a kilometre",
+        "1,000"
+       ],
+       [
+        "When did World War II end?",
+        "1945"
+       ],
+       [
+        "Pi to two places",
+        "3.14"
+       ]
+      ],
+      "context": "",
       "hint": ""
      },
      {
@@ -142434,8 +142394,8 @@
       "answer": "dioxide",
       "options": [
        "dioxide",
-       "energy",
-       "releases",
+       "water",
+       "cell",
        "carbon"
       ],
       "answer_index": 0,
@@ -142452,21 +142412,21 @@
       "prompt": "Match each one with what goes with it.",
       "answer": "1066",
       "options": [
-       "Madrid",
+       "1,000",
        "1945",
        "1066",
-       "Paris"
+       "Rome"
       ],
       "answer_index": 2,
       "typed": false,
       "pairs": [
        [
-        "Capital of France",
-        "Paris"
+        "Metres in a kilometre",
+        "1,000"
        ],
        [
-        "Capital of Spain",
-        "Madrid"
+        "Capital of Italy",
+        "Rome"
        ],
        [
         "Battle of Hastings",
@@ -142488,12 +142448,12 @@
       "prompt": "What is retrieval practice?",
       "answer": "Trying to recall the answer before rereading or revealing it.",
       "options": [
-       "Reviewing information at increasing intervals so recall strengthens over time.",
-       "Trying to recall the answer before rereading or revealing it.",
        "The powerhouse of the cell that releases energy from food",
-       "The process plants use to turn light, water, and carbon dioxide into food."
+       "The process plants use to turn light, water, and carbon dioxide into food.",
+       "Trying to recall the answer before rereading or revealing it.",
+       "Reviewing information at increasing intervals so recall strengthens over time."
       ],
-      "answer_index": 1,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -142507,29 +142467,29 @@
       "prompt": "Match each one with what goes with it.",
       "answer": "1,000",
       "options": [
+       "1,000",
+       "1945",
        "3.14",
-       "Rome",
-       "Paris",
-       "1,000"
+       "nucleus; membrane; cytoplasm; ribosome"
       ],
-      "answer_index": 3,
+      "answer_index": 0,
       "typed": false,
       "pairs": [
        [
-        "Capital of Italy",
-        "Rome"
-       ],
-       [
         "Metres in a kilometre",
         "1,000"
+       ],
+       [
+        "When did World War II end?",
+        "1945"
        ],
        [
         "Pi to two places",
         "3.14"
        ],
        [
-        "Capital of France",
-        "Paris"
+        "Parts of a cell",
+        "nucleus; membrane; cytoplasm; ribosome"
        ]
       ],
       "context": "",
@@ -143604,54 +143564,53 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
       "answer": "Venus",
       "options": [
-       "Mars",
        "Venus",
-       "Mercury",
-       "Earth"
+       "Earth",
+       "Mars"
       ],
-      "answer_index": 1,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
       "hint": ""
      },
      {
-      "id": "num-pi:choice",
+      "id": "num-pi:truefalse",
       "card_id": "num-pi",
       "deck": "Maths",
-      "type": "choice",
-      "prompt": "Pi to two places",
-      "answer": "3.14",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “Pi to two places” is “1,000”.",
+      "answer": "False",
       "options": [
-       "Trying to recall the answer before rereading or revealing it.",
-       "3.14",
-       "1,000",
-       "Berlin"
+       "True",
+       "False"
+      ],
+      "answer_index": 1,
+      "typed": false,
+      "pairs": [],
+      "context": "Pi to two places",
+      "hint": ""
+     },
+     {
+      "id": "his-bit:choice",
+      "card_id": "his-bit",
+      "deck": "History",
+      "type": "choice",
+      "prompt": "When did this happen? The Treaty of Versailles was signed.",
+      "answer": "1919",
+      "options": [
+       "1945",
+       "1919",
+       "1066",
+       "Elba"
       ],
       "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "",
-      "hint": ""
-     },
-     {
-      "id": "his-bit:truefalse",
-      "card_id": "his-bit",
-      "deck": "History",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “When did this happen? The Treaty of Versailles was signed.” is “1919”.",
-      "answer": "True",
-      "options": [
-       "True",
-       "False"
-      ],
-      "answer_index": 0,
-      "typed": false,
-      "pairs": [],
-      "context": "When did this happen? The Treaty of Versailles was signed.",
       "hint": ""
      },
      {
@@ -143662,12 +143621,12 @@
       "prompt": "Which one goes with “Elba”?",
       "answer": "Fill in the blank: Napoleon was exiled to the island of _____",
       "options": [
-       "Battle of Hastings",
-       "Fill in the blank: Napoleon was exiled to the island of _____",
        "When did this happen? The Treaty of Versailles was signed.",
-       "When did World War II end?"
+       "Battle of Hastings",
+       "When did World War II end?",
+       "Fill in the blank: Napoleon was exiled to the island of _____"
       ],
-      "answer_index": 1,
+      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -143681,12 +143640,12 @@
       "prompt": "Fill in the blank: the powerhouse of the cell that releases _____ from food",
       "answer": "energy",
       "options": [
-       "plants",
-       "energy",
-       "light",
-       "food"
+       "nucleus",
+       "food",
+       "process",
+       "energy"
       ],
-      "answer_index": 1,
+      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "Powerhouse?",
@@ -143697,15 +143656,14 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “nucleus”?",
-      "answer": "membrane",
+      "prompt": "Parts of a cell: what comes after “membrane”?",
+      "answer": "cytoplasm",
       "options": [
-       "membrane",
-       "cytoplasm",
        "ribosome",
-       "nucleus"
+       "nucleus",
+       "cytoplasm"
       ],
-      "answer_index": 0,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
@@ -144474,15 +144432,14 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
       "answer": "Venus",
       "options": [
+       "Earth",
        "Mars",
-       "Venus",
-       "Mercury",
-       "Earth"
+       "Venus"
       ],
-      "answer_index": 1,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
@@ -144496,12 +144453,12 @@
       "prompt": "Fill in the blank: Reviewing _____ at increasing intervals so recall strengthens over time.",
       "answer": "information",
       "options": [
+       "time",
        "information",
-       "revealing",
-       "answer",
-       "over"
+       "rereading",
+       "reviewing"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "What is spaced repetition?",
@@ -144515,12 +144472,12 @@
       "prompt": "Match each one with what goes with it.",
       "answer": "1066",
       "options": [
+       "1066",
        "Mercury, Venus, Earth and Mars",
-       "nucleus; membrane; cytoplasm; ribosome",
-       "1945",
-       "1066"
+       "1,000",
+       "1945"
       ],
-      "answer_index": 3,
+      "answer_index": 0,
       "typed": false,
       "pairs": [
        [
@@ -144528,8 +144485,8 @@
         "1945"
        ],
        [
-        "Parts of a cell",
-        "nucleus; membrane; cytoplasm; ribosome"
+        "Metres in a kilometre",
+        "1,000"
        ],
        [
         "Planets nearest the sun",
@@ -144544,17 +144501,17 @@
       "hint": ""
      },
      {
-      "id": "num-pi:reverse",
+      "id": "num-pi:choice",
       "card_id": "num-pi",
       "deck": "Maths",
-      "type": "reverse",
-      "prompt": "Which one goes with “3.14”?",
-      "answer": "Pi to two places",
+      "type": "choice",
+      "prompt": "Pi to two places",
+      "answer": "3.14",
       "options": [
-       "Battle of Hastings",
-       "Capital of France",
-       "Metres in a kilometre",
-       "Pi to two places"
+       "The powerhouse of the cell that releases energy from food",
+       "Madrid",
+       "1,000",
+       "3.14"
       ],
       "answer_index": 3,
       "typed": false,
@@ -144702,15 +144659,14 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
       "answer": "Venus",
       "options": [
+       "Earth",
        "Mars",
-       "Venus",
-       "Mercury",
-       "Earth"
+       "Venus"
       ],
-      "answer_index": 1,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
@@ -144724,12 +144680,12 @@
       "prompt": "Fill in the blank: Reviewing _____ at increasing intervals so recall strengthens over time.",
       "answer": "information",
       "options": [
+       "time",
        "information",
-       "revealing",
-       "answer",
-       "over"
+       "rereading",
+       "reviewing"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "What is spaced repetition?",
@@ -144743,12 +144699,12 @@
       "prompt": "Match each one with what goes with it.",
       "answer": "1066",
       "options": [
+       "1066",
        "Mercury, Venus, Earth and Mars",
-       "nucleus; membrane; cytoplasm; ribosome",
-       "1945",
-       "1066"
+       "1,000",
+       "1945"
       ],
-      "answer_index": 3,
+      "answer_index": 0,
       "typed": false,
       "pairs": [
        [
@@ -144756,8 +144712,8 @@
         "1945"
        ],
        [
-        "Parts of a cell",
-        "nucleus; membrane; cytoplasm; ribosome"
+        "Metres in a kilometre",
+        "1,000"
        ],
        [
         "Planets nearest the sun",
@@ -144772,17 +144728,17 @@
       "hint": ""
      },
      {
-      "id": "num-pi:reverse",
+      "id": "num-pi:choice",
       "card_id": "num-pi",
       "deck": "Maths",
-      "type": "reverse",
-      "prompt": "Which one goes with “3.14”?",
-      "answer": "Pi to two places",
+      "type": "choice",
+      "prompt": "Pi to two places",
+      "answer": "3.14",
       "options": [
-       "Battle of Hastings",
-       "Capital of France",
-       "Metres in a kilometre",
-       "Pi to two places"
+       "The powerhouse of the cell that releases energy from food",
+       "Madrid",
+       "1,000",
+       "3.14"
       ],
       "answer_index": 3,
       "typed": false,
@@ -144791,146 +144747,144 @@
       "hint": ""
      },
      {
-      "id": "mem-rp:choice",
+      "id": "mem-rp:cloze",
       "card_id": "mem-rp",
       "deck": "Memory Techniques",
-      "type": "choice",
-      "prompt": "What is retrieval practice?",
-      "answer": "Trying to recall the answer before rereading or revealing it.",
-      "options": [
-       "Reviewing information at increasing intervals so recall strengthens over time.",
-       "Trying to recall the answer before rereading or revealing it.",
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "The powerhouse of the cell that releases energy from food"
-      ],
-      "answer_index": 1,
-      "typed": false,
+      "type": "cloze",
+      "prompt": "Fill in the blank: _____ to recall the answer before rereading or revealing it.",
+      "answer": "Trying",
+      "options": [],
+      "answer_index": -1,
+      "typed": true,
       "pairs": [],
-      "context": "",
-      "hint": ""
+      "context": "What is retrieval practice?",
+      "hint": "T_____"
      },
      {
-      "id": "bio-cells:order",
+      "id": "bio-cells:reverse",
       "card_id": "bio-cells",
       "deck": "Biology",
-      "type": "order",
-      "prompt": "Parts of a cell — what comes after “cytoplasm”?",
-      "answer": "ribosome",
+      "type": "reverse",
+      "prompt": "Which one goes with “nucleus; membrane; cytoplasm; ribosome”?",
+      "answer": "Parts of a cell",
       "options": [
-       "nucleus",
-       "cytoplasm",
-       "ribosome",
-       "membrane"
-      ],
-      "answer_index": 2,
-      "typed": false,
-      "pairs": [],
-      "context": "Parts of a cell",
-      "hint": ""
-     },
-     {
-      "id": "num-km:truefalse",
-      "card_id": "num-km",
-      "deck": "Maths",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “Metres in a kilometre” is “3.14”.",
-      "answer": "False",
-      "options": [
-       "True",
-       "False"
+       "Battle of Hastings",
+       "Parts of a cell",
+       "What is photosynthesis?",
+       "Capital of France"
       ],
       "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "Metres in a kilometre",
-      "hint": ""
-     },
-     {
-      "id": "his-bit:reverse",
-      "card_id": "his-bit",
-      "deck": "History",
-      "type": "reverse",
-      "prompt": "Which one goes with “1919”?",
-      "answer": "When did this happen? The Treaty of Versailles was signed.",
-      "options": [
-       "When did World War II end?",
-       "Battle of Hastings",
-       "Fill in the blank: Napoleon was exiled to the island of _____",
-       "When did this happen? The Treaty of Versailles was signed."
-      ],
-      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "",
       "hint": ""
      },
      {
-      "id": "geo-it:match",
-      "card_id": "geo-it",
-      "deck": "Geography",
+      "id": "num-km:match",
+      "card_id": "num-km",
+      "deck": "Maths",
       "type": "match",
       "prompt": "Match each one with what goes with it.",
-      "answer": "Rome",
+      "answer": "1,000",
       "options": [
        "Rome",
-       "Paris",
-       "Berlin",
-       "Mercury, Venus, Earth and Mars"
+       "1,000",
+       "3.14",
+       "1066"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [
-       [
-        "Capital of Germany",
-        "Berlin"
-       ],
-       [
-        "Planets nearest the sun",
-        "Mercury, Venus, Earth and Mars"
-       ],
        [
         "Capital of Italy",
         "Rome"
        ],
        [
-        "Capital of France",
-        "Paris"
+        "Pi to two places",
+        "3.14"
+       ],
+       [
+        "Battle of Hastings",
+        "1066"
+       ],
+       [
+        "Metres in a kilometre",
+        "1,000"
        ]
       ],
       "context": "",
       "hint": ""
      },
      {
-      "id": "bio-ps:cloze",
-      "card_id": "bio-ps",
-      "deck": "Biology",
-      "type": "cloze",
-      "prompt": "Fill in the blank: The _____ plants use to turn light, water, and carbon dioxide into food.",
-      "answer": "process",
-      "options": [],
-      "answer_index": -1,
-      "typed": true,
+      "id": "his-bit:truefalse",
+      "card_id": "his-bit",
+      "deck": "History",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “When did this happen? The Treaty of Versailles was signed.” is “1919”.",
+      "answer": "True",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 0,
+      "typed": false,
       "pairs": [],
-      "context": "What is photosynthesis?",
-      "hint": "p______"
+      "context": "When did this happen? The Treaty of Versailles was signed.",
+      "hint": ""
      },
      {
-      "id": "his-gen:choice",
-      "card_id": "his-gen",
-      "deck": "History",
-      "type": "choice",
-      "prompt": "Fill in the blank: Napoleon was exiled to the island of _____",
-      "answer": "Elba",
+      "id": "geo-it:reverse",
+      "card_id": "geo-it",
+      "deck": "Geography",
+      "type": "reverse",
+      "prompt": "Which one goes with “Rome”?",
+      "answer": "Capital of Italy",
       "options": [
-       "Madrid",
-       "Rome",
-       "Berlin",
-       "Elba"
+       "Capital of Germany",
+       "Capital of Italy",
+       "Capital of France",
+       "Planets nearest the sun"
       ],
-      "answer_index": 3,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "",
+      "hint": ""
+     },
+     {
+      "id": "bio-ps:choice",
+      "card_id": "bio-ps",
+      "deck": "Biology",
+      "type": "choice",
+      "prompt": "What is photosynthesis?",
+      "answer": "The process plants use to turn light, water, and carbon dioxide into food.",
+      "options": [
+       "The process plants use to turn light, water, and carbon dioxide into food.",
+       "Trying to recall the answer before rereading or revealing it.",
+       "Reviewing information at increasing intervals so recall strengthens over time.",
+       "The powerhouse of the cell that releases energy from food"
+      ],
+      "answer_index": 0,
+      "typed": false,
+      "pairs": [],
+      "context": "",
+      "hint": ""
+     },
+     {
+      "id": "his-gen:truefalse",
+      "card_id": "his-gen",
+      "deck": "History",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “Fill in the blank: Napoleon was exiled to the island of _____” is “Elba”.",
+      "answer": "True",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 0,
+      "typed": false,
+      "pairs": [],
+      "context": "Fill in the blank: Napoleon was exiled to the island of _____",
       "hint": ""
      }
     ]
@@ -146043,15 +145997,14 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “membrane”?",
+      "prompt": "Parts of a cell: what comes after “membrane”?",
       "answer": "cytoplasm",
       "options": [
-       "nucleus",
        "cytoplasm",
-       "membrane",
+       "nucleus",
        "ribosome"
       ],
-      "answer_index": 1,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
@@ -146065,29 +146018,29 @@
       "prompt": "Match each one with what goes with it.",
       "answer": "Rome",
       "options": [
-       "Berlin",
        "Mercury, Venus, Earth and Mars",
+       "Madrid",
        "Rome",
-       "Paris"
+       "Berlin"
       ],
       "answer_index": 2,
       "typed": false,
       "pairs": [
        [
-        "Planets nearest the sun",
-        "Mercury, Venus, Earth and Mars"
-       ],
-       [
         "Capital of Italy",
         "Rome"
+       ],
+       [
+        "Capital of Spain",
+        "Madrid"
        ],
        [
         "Capital of Germany",
         "Berlin"
        ],
        [
-        "Capital of France",
-        "Paris"
+        "Planets nearest the sun",
+        "Mercury, Venus, Earth and Mars"
        ]
       ],
       "context": "",
@@ -146098,45 +146051,26 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
-      "answer": "Venus",
+      "prompt": "Planets nearest the sun: which comes first?",
+      "answer": "Mercury",
       "options": [
        "Mercury",
-       "Venus",
        "Mars",
-       "Earth"
+       "Earth",
+       "Venus"
       ],
-      "answer_index": 1,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
       "hint": ""
      },
      {
-      "id": "his-hast:choice",
+      "id": "his-hast:truefalse",
       "card_id": "his-hast",
       "deck": "History",
-      "type": "choice",
-      "prompt": "Battle of Hastings",
-      "answer": "1066",
-      "options": [
-       "1066",
-       "Elba",
-       "1945",
-       "1919"
-      ],
-      "answer_index": 0,
-      "typed": false,
-      "pairs": [],
-      "context": "",
-      "hint": ""
-     },
-     {
-      "id": "bio-ps:truefalse",
-      "card_id": "bio-ps",
-      "deck": "Biology",
       "type": "truefalse",
-      "prompt": "True or false? The answer to “What is photosynthesis?” is “The powerhouse of the cell that releases energy from food”.",
+      "prompt": "True or false? The answer to “Battle of Hastings” is “1919”.",
       "answer": "False",
       "options": [
        "True",
@@ -146145,7 +146079,26 @@
       "answer_index": 1,
       "typed": false,
       "pairs": [],
-      "context": "What is photosynthesis?",
+      "context": "Battle of Hastings",
+      "hint": ""
+     },
+     {
+      "id": "bio-ps:choice",
+      "card_id": "bio-ps",
+      "deck": "Biology",
+      "type": "choice",
+      "prompt": "What is photosynthesis?",
+      "answer": "The process plants use to turn light, water, and carbon dioxide into food.",
+      "options": [
+       "The process plants use to turn light, water, and carbon dioxide into food.",
+       "Trying to recall the answer before rereading or revealing it.",
+       "Reviewing information at increasing intervals so recall strengthens over time.",
+       "The powerhouse of the cell that releases energy from food"
+      ],
+      "answer_index": 0,
+      "typed": false,
+      "pairs": [],
+      "context": "",
       "hint": ""
      },
      {
@@ -146153,19 +146106,14 @@
       "card_id": "mem-rp",
       "deck": "Memory Techniques",
       "type": "cloze",
-      "prompt": "Fill in the blank: _____ to recall the answer before rereading or revealing it.",
-      "answer": "Trying",
-      "options": [
-       "answer",
-       "Trying",
-       "over",
-       "strengthens"
-      ],
-      "answer_index": 1,
-      "typed": false,
+      "prompt": "Fill in the blank: Trying to recall the answer before _____ or revealing it.",
+      "answer": "rereading",
+      "options": [],
+      "answer_index": -1,
+      "typed": true,
       "pairs": [],
       "context": "What is retrieval practice?",
-      "hint": ""
+      "hint": "r________"
      },
      {
       "id": "num-pi:reverse",
@@ -146175,12 +146123,12 @@
       "prompt": "Which one goes with “3.14”?",
       "answer": "Pi to two places",
       "options": [
+       "Parts of a cell",
        "Metres in a kilometre",
-       "Pi to two places",
-       "Capital of Germany",
-       "What is retrieval practice?"
+       "Capital of Spain",
+       "Pi to two places"
       ],
-      "answer_index": 1,
+      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -146361,7 +146309,7 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — which comes first?",
+      "prompt": "Parts of a cell: which comes first?",
       "answer": "nucleus",
       "options": [
        "ribosome",
@@ -146977,7 +146925,7 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — which comes first?",
+      "prompt": "Parts of a cell: which comes first?",
       "answer": "nucleus",
       "options": [
        "nucleus",
@@ -147183,7 +147131,7 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — which comes first?",
+      "prompt": "Parts of a cell: which comes first?",
       "answer": "nucleus",
       "options": [
        "nucleus",
@@ -147350,15 +147298,14 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
       "answer": "Venus",
       "options": [
        "Mars",
-       "Earth",
-       "Mercury",
-       "Venus"
+       "Venus",
+       "Earth"
       ],
-      "answer_index": 3,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
@@ -147372,29 +147319,29 @@
       "prompt": "Match each one with what goes with it.",
       "answer": "Rome",
       "options": [
-       "Madrid",
-       "Berlin",
        "Mercury, Venus, Earth and Mars",
-       "Rome"
+       "Rome",
+       "Berlin",
+       "Paris"
       ],
-      "answer_index": 3,
+      "answer_index": 1,
       "typed": false,
       "pairs": [
        [
-        "Planets nearest the sun",
-        "Mercury, Venus, Earth and Mars"
-       ],
-       [
-        "Capital of Germany",
-        "Berlin"
+        "Capital of France",
+        "Paris"
        ],
        [
         "Capital of Italy",
         "Rome"
        ],
        [
-        "Capital of Spain",
-        "Madrid"
+        "Capital of Germany",
+        "Berlin"
+       ],
+       [
+        "Planets nearest the sun",
+        "Mercury, Venus, Earth and Mars"
        ]
       ],
       "context": "",
@@ -147508,7 +147455,7 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — which comes first?",
+      "prompt": "Parts of a cell: which comes first?",
       "answer": "nucleus",
       "options": [
        "cytoplasm",
@@ -148234,13 +148181,12 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Venus”?",
+      "prompt": "Planets nearest the sun: what comes after “Venus”?",
       "answer": "Earth",
       "options": [
        "Mercury",
-       "Venus",
-       "Earth",
-       "Mars"
+       "Mars",
+       "Earth"
       ],
       "answer_index": 2,
       "typed": false,
@@ -148457,13 +148403,12 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Venus”?",
+      "prompt": "Planets nearest the sun: what comes after “Venus”?",
       "answer": "Earth",
       "options": [
        "Mercury",
-       "Venus",
-       "Earth",
-       "Mars"
+       "Mars",
+       "Earth"
       ],
       "answer_index": 2,
       "typed": false,
@@ -148476,35 +148421,37 @@
       "card_id": "bio-same",
       "deck": "Biology",
       "type": "cloze",
-      "prompt": "Fill in the blank: the powerhouse of the cell that releases _____ from food",
-      "answer": "energy",
+      "prompt": "Fill in the blank: the powerhouse of the _____ that releases energy from food",
+      "answer": "cell",
       "options": [
-       "cytoplasm",
-       "nucleus",
-       "energy",
-       "ribosome"
+       "cell",
+       "dioxide",
+       "powerhouse",
+       "carbon"
       ],
-      "answer_index": 2,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Powerhouse?",
       "hint": ""
      },
      {
-      "id": "mem-rp:truefalse",
+      "id": "mem-rp:choice",
       "card_id": "mem-rp",
       "deck": "Memory Techniques",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “What is retrieval practice?” is “Trying to recall the answer before rereading or revealing it.”.",
-      "answer": "True",
+      "type": "choice",
+      "prompt": "What is retrieval practice?",
+      "answer": "Trying to recall the answer before rereading or revealing it.",
       "options": [
-       "True",
-       "False"
+       "Trying to recall the answer before rereading or revealing it.",
+       "Reviewing information at increasing intervals so recall strengthens over time.",
+       "The powerhouse of the cell that releases energy from food",
+       "The process plants use to turn light, water, and carbon dioxide into food."
       ],
       "answer_index": 0,
       "typed": false,
       "pairs": [],
-      "context": "What is retrieval practice?",
+      "context": "",
       "hint": ""
      },
      {
@@ -148527,22 +148474,20 @@
       "hint": ""
      },
      {
-      "id": "bio-ps:choice",
+      "id": "bio-ps:truefalse",
       "card_id": "bio-ps",
       "deck": "Biology",
-      "type": "choice",
-      "prompt": "What is photosynthesis?",
-      "answer": "The process plants use to turn light, water, and carbon dioxide into food.",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “What is photosynthesis?” is “The process plants use to turn light, water, and carbon dioxide into food.”.",
+      "answer": "True",
       "options": [
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "The powerhouse of the cell that releases energy from food",
-       "Reviewing information at increasing intervals so recall strengthens over time.",
-       "Trying to recall the answer before rereading or revealing it."
+       "True",
+       "False"
       ],
       "answer_index": 0,
       "typed": false,
       "pairs": [],
-      "context": "",
+      "context": "What is photosynthesis?",
       "hint": ""
      },
      {
@@ -148550,15 +148495,14 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — which comes first?",
-      "answer": "nucleus",
+      "prompt": "Parts of a cell: what comes after “membrane”?",
+      "answer": "cytoplasm",
       "options": [
        "nucleus",
        "cytoplasm",
-       "membrane",
        "ribosome"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
@@ -148581,8 +148525,8 @@
       "typed": false,
       "pairs": [
        [
-        "Planets nearest the sun",
-        "Mercury, Venus, Earth and Mars"
+        "Capital of Spain",
+        "Madrid"
        ],
        [
         "Capital of Italy",
@@ -148593,8 +148537,8 @@
         "Paris"
        ],
        [
-        "Capital of Spain",
-        "Madrid"
+        "Planets nearest the sun",
+        "Mercury, Venus, Earth and Mars"
        ]
       ],
       "context": "",
@@ -148605,14 +148549,19 @@
       "card_id": "mem-sr",
       "deck": "Memory Techniques",
       "type": "cloze",
-      "prompt": "Fill in the blank: Reviewing information at _____ intervals so recall strengthens over time.",
-      "answer": "increasing",
-      "options": [],
-      "answer_index": -1,
-      "typed": true,
+      "prompt": "Fill in the blank: Reviewing information at increasing intervals so recall _____ over time.",
+      "answer": "strengthens",
+      "options": [
+       "information",
+       "strengthens",
+       "rereading",
+       "trying"
+      ],
+      "answer_index": 1,
+      "typed": false,
       "pairs": [],
       "context": "What is spaced repetition?",
-      "hint": "i_________"
+      "hint": ""
      }
     ]
    },
@@ -148775,12 +148724,11 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Venus”?",
+      "prompt": "Planets nearest the sun: what comes after “Venus”?",
       "answer": "Earth",
       "options": [
-       "Venus",
-       "Earth",
        "Mercury",
+       "Earth",
        "Mars"
       ],
       "answer_index": 1,
@@ -148794,13 +148742,13 @@
       "card_id": "bio-same",
       "deck": "Biology",
       "type": "cloze",
-      "prompt": "Fill in the blank: the powerhouse of the _____ that releases energy from food",
-      "answer": "cell",
+      "prompt": "Fill in the blank: the powerhouse of the cell that _____ energy from food",
+      "answer": "releases",
       "options": [
-       "cell",
-       "membrane",
-       "water",
-       "ribosome"
+       "releases",
+       "energy",
+       "dioxide",
+       "turn"
       ],
       "answer_index": 0,
       "typed": false,
@@ -149403,71 +149351,70 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
       "answer": "Venus",
       "options": [
-       "Earth",
        "Venus",
-       "Mars",
-       "Mercury"
+       "Earth",
+       "Mars"
       ],
-      "answer_index": 1,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
       "hint": ""
      },
      {
-      "id": "num-pi:truefalse",
+      "id": "num-pi:match",
       "card_id": "num-pi",
       "deck": "Maths",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “Pi to two places” is “1,000”.",
-      "answer": "False",
-      "options": [
-       "True",
-       "False"
-      ],
-      "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "Pi to two places",
-      "hint": ""
-     },
-     {
-      "id": "his-hast:match",
-      "card_id": "his-hast",
-      "deck": "History",
       "type": "match",
       "prompt": "Match each one with what goes with it.",
-      "answer": "1066",
+      "answer": "3.14",
       "options": [
-       "Berlin",
-       "1066",
        "Mercury, Venus, Earth and Mars",
-       "1945"
+       "Paris",
+       "3.14",
+       "1,000"
       ],
-      "answer_index": 1,
+      "answer_index": 2,
       "typed": false,
       "pairs": [
-       [
-        "When did World War II end?",
-        "1945"
-       ],
-       [
-        "Battle of Hastings",
-        "1066"
-       ],
        [
         "Planets nearest the sun",
         "Mercury, Venus, Earth and Mars"
        ],
        [
-        "Capital of Germany",
-        "Berlin"
+        "Capital of France",
+        "Paris"
+       ],
+       [
+        "Pi to two places",
+        "3.14"
+       ],
+       [
+        "Metres in a kilometre",
+        "1,000"
        ]
       ],
       "context": "",
+      "hint": ""
+     },
+     {
+      "id": "his-hast:truefalse",
+      "card_id": "his-hast",
+      "deck": "History",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “Battle of Hastings” is “1066”.",
+      "answer": "True",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 0,
+      "typed": false,
+      "pairs": [],
+      "context": "Battle of Hastings",
       "hint": ""
      }
     ]
@@ -149631,71 +149578,70 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
       "answer": "Venus",
       "options": [
-       "Earth",
        "Venus",
-       "Mars",
-       "Mercury"
+       "Earth",
+       "Mars"
       ],
-      "answer_index": 1,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
       "hint": ""
      },
      {
-      "id": "num-pi:truefalse",
+      "id": "num-pi:match",
       "card_id": "num-pi",
       "deck": "Maths",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “Pi to two places” is “1,000”.",
-      "answer": "False",
-      "options": [
-       "True",
-       "False"
-      ],
-      "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "Pi to two places",
-      "hint": ""
-     },
-     {
-      "id": "his-hast:match",
-      "card_id": "his-hast",
-      "deck": "History",
       "type": "match",
       "prompt": "Match each one with what goes with it.",
-      "answer": "1066",
+      "answer": "3.14",
       "options": [
-       "Berlin",
-       "1066",
        "Mercury, Venus, Earth and Mars",
-       "1945"
+       "Paris",
+       "3.14",
+       "1,000"
       ],
-      "answer_index": 1,
+      "answer_index": 2,
       "typed": false,
       "pairs": [
-       [
-        "When did World War II end?",
-        "1945"
-       ],
-       [
-        "Battle of Hastings",
-        "1066"
-       ],
        [
         "Planets nearest the sun",
         "Mercury, Venus, Earth and Mars"
        ],
        [
-        "Capital of Germany",
-        "Berlin"
+        "Capital of France",
+        "Paris"
+       ],
+       [
+        "Pi to two places",
+        "3.14"
+       ],
+       [
+        "Metres in a kilometre",
+        "1,000"
        ]
       ],
       "context": "",
+      "hint": ""
+     },
+     {
+      "id": "his-hast:truefalse",
+      "card_id": "his-hast",
+      "deck": "History",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “Battle of Hastings” is “1066”.",
+      "answer": "True",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 0,
+      "typed": false,
+      "pairs": [],
+      "context": "Battle of Hastings",
       "hint": ""
      },
      {
@@ -149706,12 +149652,12 @@
       "prompt": "Which one goes with “1919”?",
       "answer": "When did this happen? The Treaty of Versailles was signed.",
       "options": [
+       "Fill in the blank: Napoleon was exiled to the island of _____",
        "When did this happen? The Treaty of Versailles was signed.",
-       "When did World War II end?",
        "Battle of Hastings",
-       "Fill in the blank: Napoleon was exiled to the island of _____"
+       "When did World War II end?"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -149722,13 +149668,13 @@
       "card_id": "bio-ps",
       "deck": "Biology",
       "type": "cloze",
-      "prompt": "Fill in the blank: The process plants use to turn light, water, and carbon _____ into food.",
-      "answer": "dioxide",
+      "prompt": "Fill in the blank: The _____ plants use to turn light, water, and carbon dioxide into food.",
+      "answer": "process",
       "options": [
-       "ribosome",
+       "turn",
+       "cytoplasm",
        "process",
-       "dioxide",
-       "carbon"
+       "dioxide"
       ],
       "answer_index": 2,
       "typed": false,
@@ -149737,34 +149683,17 @@
       "hint": ""
      },
      {
-      "id": "geo-it:truefalse",
+      "id": "geo-it:choice",
       "card_id": "geo-it",
       "deck": "Geography",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “Capital of Italy” is “Berlin”.",
-      "answer": "False",
-      "options": [
-       "True",
-       "False"
-      ],
-      "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "Capital of Italy",
-      "hint": ""
-     },
-     {
-      "id": "bio-same:choice",
-      "card_id": "bio-same",
-      "deck": "Biology",
       "type": "choice",
-      "prompt": "Powerhouse?",
-      "answer": "the powerhouse of the cell that releases energy from food",
+      "prompt": "Capital of Italy",
+      "answer": "Rome",
       "options": [
-       "Trying to recall the answer before rereading or revealing it.",
-       "Reviewing information at increasing intervals so recall strengthens over time.",
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "the powerhouse of the cell that releases energy from food"
+       "Madrid",
+       "Paris",
+       "Berlin",
+       "Rome"
       ],
       "answer_index": 3,
       "typed": false,
@@ -149773,19 +149702,35 @@
       "hint": ""
      },
      {
+      "id": "bio-same:truefalse",
+      "card_id": "bio-same",
+      "deck": "Biology",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “Powerhouse?” is “the powerhouse of the cell that releases energy from food”.",
+      "answer": "True",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 0,
+      "typed": false,
+      "pairs": [],
+      "context": "Powerhouse?",
+      "hint": ""
+     },
+     {
       "id": "bio-cells:order",
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “nucleus”?",
+      "prompt": "Parts of a cell: what comes after “nucleus”?",
       "answer": "membrane",
       "options": [
        "cytoplasm",
-       "nucleus",
-       "ribosome",
-       "membrane"
+       "membrane",
+       "ribosome"
       ],
-      "answer_index": 3,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
@@ -149799,12 +149744,12 @@
       "prompt": "Fill in the blank: _____ to recall the answer before rereading or revealing it.",
       "answer": "Trying",
       "options": [
+       "revealing",
        "Trying",
-       "recall",
-       "over",
-       "information"
+       "intervals",
+       "recall"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "What is retrieval practice?",
@@ -149818,12 +149763,12 @@
       "prompt": "Which one goes with “Elba”?",
       "answer": "Fill in the blank: Napoleon was exiled to the island of _____",
       "options": [
-       "Fill in the blank: Napoleon was exiled to the island of _____",
        "When did this happen? The Treaty of Versailles was signed.",
        "When did World War II end?",
-       "Battle of Hastings"
+       "Battle of Hastings",
+       "Fill in the blank: Napoleon was exiled to the island of _____"
       ],
-      "answer_index": 0,
+      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -149937,53 +149882,35 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Mercury”?",
+      "prompt": "Planets nearest the sun: what comes after “Mercury”?",
       "answer": "Venus",
       "options": [
-       "Venus",
-       "Mercury",
+       "Earth",
        "Mars",
-       "Earth"
+       "Venus"
       ],
-      "answer_index": 0,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
       "hint": ""
      },
      {
-      "id": "num-pi:match",
+      "id": "num-pi:reverse",
       "card_id": "num-pi",
       "deck": "Maths",
-      "type": "match",
-      "prompt": "Match each one with what goes with it.",
-      "answer": "3.14",
+      "type": "reverse",
+      "prompt": "Which one goes with “3.14”?",
+      "answer": "Pi to two places",
       "options": [
-       "Rome",
-       "1,000",
-       "nucleus; membrane; cytoplasm; ribosome",
-       "3.14"
+       "Metres in a kilometre",
+       "Pi to two places",
+       "Capital of Italy",
+       "Parts of a cell"
       ],
-      "answer_index": 3,
+      "answer_index": 1,
       "typed": false,
-      "pairs": [
-       [
-        "Capital of Italy",
-        "Rome"
-       ],
-       [
-        "Metres in a kilometre",
-        "1,000"
-       ],
-       [
-        "Parts of a cell",
-        "nucleus; membrane; cytoplasm; ribosome"
-       ],
-       [
-        "Pi to two places",
-        "3.14"
-       ]
-      ],
+      "pairs": [],
       "context": "",
       "hint": ""
      },
@@ -149995,12 +149922,12 @@
       "prompt": "Battle of Hastings",
       "answer": "1066",
       "options": [
+       "Elba",
        "1945",
        "1919",
-       "1066",
-       "Elba"
+       "1066"
       ],
-      "answer_index": 2,
+      "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "",
@@ -150011,13 +149938,13 @@
       "card_id": "his-bit",
       "deck": "History",
       "type": "truefalse",
-      "prompt": "True or false? The answer to “When did this happen? The Treaty of Versailles was signed.” is “1919”.",
-      "answer": "True",
+      "prompt": "True or false? The answer to “When did this happen? The Treaty of Versailles was signed.” is “1945”.",
+      "answer": "False",
       "options": [
        "True",
        "False"
       ],
-      "answer_index": 0,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "When did this happen? The Treaty of Versailles was signed.",
@@ -150608,49 +150535,31 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Earth”?",
+      "prompt": "Planets nearest the sun: what comes after “Earth”?",
       "answer": "Mars",
       "options": [
        "Mercury",
-       "Mars",
        "Venus",
-       "Earth"
+       "Mars"
       ],
-      "answer_index": 1,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
       "hint": ""
      },
      {
-      "id": "geo-it:truefalse",
+      "id": "geo-it:reverse",
       "card_id": "geo-it",
       "deck": "Geography",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “Capital of Italy” is “Madrid”.",
-      "answer": "False",
+      "type": "reverse",
+      "prompt": "Which one goes with “Rome”?",
+      "answer": "Capital of Italy",
       "options": [
-       "True",
-       "False"
-      ],
-      "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "Capital of Italy",
-      "hint": ""
-     },
-     {
-      "id": "mem-sr:choice",
-      "card_id": "mem-sr",
-      "deck": "Memory Techniques",
-      "type": "choice",
-      "prompt": "What is spaced repetition?",
-      "answer": "Reviewing information at increasing intervals so recall strengthens over time.",
-      "options": [
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "Reviewing information at increasing intervals so recall strengthens over time.",
-       "Trying to recall the answer before rereading or revealing it.",
-       "The powerhouse of the cell that releases energy from food"
+       "Capital of France",
+       "Capital of Italy",
+       "Planets nearest the sun",
+       "Capital of Germany"
       ],
       "answer_index": 1,
       "typed": false,
@@ -150659,17 +150568,34 @@
       "hint": ""
      },
      {
-      "id": "his-bit:reverse",
+      "id": "mem-sr:truefalse",
+      "card_id": "mem-sr",
+      "deck": "Memory Techniques",
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “What is spaced repetition?” is “Trying to recall the answer before rereading or revealing it.”.",
+      "answer": "False",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 1,
+      "typed": false,
+      "pairs": [],
+      "context": "What is spaced repetition?",
+      "hint": ""
+     },
+     {
+      "id": "his-bit:choice",
       "card_id": "his-bit",
       "deck": "History",
-      "type": "reverse",
-      "prompt": "Which one goes with “1919”?",
-      "answer": "When did this happen? The Treaty of Versailles was signed.",
+      "type": "choice",
+      "prompt": "When did this happen? The Treaty of Versailles was signed.",
+      "answer": "1919",
       "options": [
-       "When did World War II end?",
-       "Battle of Hastings",
-       "Fill in the blank: Napoleon was exiled to the island of _____",
-       "When did this happen? The Treaty of Versailles was signed."
+       "1066",
+       "1945",
+       "Elba",
+       "1919"
       ],
       "answer_index": 3,
       "typed": false,
@@ -150814,26 +150740,44 @@
       "card_id": "geo-pl",
       "deck": "Geography",
       "type": "order",
-      "prompt": "Planets nearest the sun — what comes after “Earth”?",
+      "prompt": "Planets nearest the sun: what comes after “Earth”?",
       "answer": "Mars",
       "options": [
        "Mercury",
-       "Mars",
        "Venus",
-       "Earth"
+       "Mars"
       ],
-      "answer_index": 1,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "Planets nearest the sun",
       "hint": ""
      },
      {
-      "id": "geo-it:truefalse",
+      "id": "geo-it:reverse",
       "card_id": "geo-it",
       "deck": "Geography",
+      "type": "reverse",
+      "prompt": "Which one goes with “Rome”?",
+      "answer": "Capital of Italy",
+      "options": [
+       "Capital of France",
+       "Capital of Italy",
+       "Planets nearest the sun",
+       "Capital of Germany"
+      ],
+      "answer_index": 1,
+      "typed": false,
+      "pairs": [],
+      "context": "",
+      "hint": ""
+     },
+     {
+      "id": "mem-sr:truefalse",
+      "card_id": "mem-sr",
+      "deck": "Memory Techniques",
       "type": "truefalse",
-      "prompt": "True or false? The answer to “Capital of Italy” is “Madrid”.",
+      "prompt": "True or false? The answer to “What is spaced repetition?” is “Trying to recall the answer before rereading or revealing it.”.",
       "answer": "False",
       "options": [
        "True",
@@ -150842,40 +150786,21 @@
       "answer_index": 1,
       "typed": false,
       "pairs": [],
-      "context": "Capital of Italy",
+      "context": "What is spaced repetition?",
       "hint": ""
      },
      {
-      "id": "mem-sr:choice",
-      "card_id": "mem-sr",
-      "deck": "Memory Techniques",
-      "type": "choice",
-      "prompt": "What is spaced repetition?",
-      "answer": "Reviewing information at increasing intervals so recall strengthens over time.",
-      "options": [
-       "The process plants use to turn light, water, and carbon dioxide into food.",
-       "Reviewing information at increasing intervals so recall strengthens over time.",
-       "Trying to recall the answer before rereading or revealing it.",
-       "The powerhouse of the cell that releases energy from food"
-      ],
-      "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "",
-      "hint": ""
-     },
-     {
-      "id": "his-bit:reverse",
+      "id": "his-bit:choice",
       "card_id": "his-bit",
       "deck": "History",
-      "type": "reverse",
-      "prompt": "Which one goes with “1919”?",
-      "answer": "When did this happen? The Treaty of Versailles was signed.",
+      "type": "choice",
+      "prompt": "When did this happen? The Treaty of Versailles was signed.",
+      "answer": "1919",
       "options": [
-       "When did World War II end?",
-       "Battle of Hastings",
-       "Fill in the blank: Napoleon was exiled to the island of _____",
-       "When did this happen? The Treaty of Versailles was signed."
+       "1066",
+       "1945",
+       "Elba",
+       "1919"
       ],
       "answer_index": 3,
       "typed": false,
@@ -150884,17 +150809,19 @@
       "hint": ""
      },
      {
-      "id": "mem-rp:truefalse",
+      "id": "mem-rp:cloze",
       "card_id": "mem-rp",
       "deck": "Memory Techniques",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “What is retrieval practice?” is “Trying to recall the answer before rereading or revealing it.”.",
-      "answer": "True",
+      "type": "cloze",
+      "prompt": "Fill in the blank: Trying to recall the answer before _____ or revealing it.",
+      "answer": "rereading",
       "options": [
-       "True",
-       "False"
+       "increasing",
+       "time",
+       "rereading",
+       "reviewing"
       ],
-      "answer_index": 0,
+      "answer_index": 2,
       "typed": false,
       "pairs": [],
       "context": "What is retrieval practice?",
@@ -150908,25 +150835,25 @@
       "prompt": "Match each one with what goes with it.",
       "answer": "1066",
       "options": [
-       "1,000",
-       "Rome",
        "1066",
+       "Mercury, Venus, Earth and Mars",
+       "Berlin",
        "1945"
       ],
-      "answer_index": 2,
+      "answer_index": 0,
       "typed": false,
       "pairs": [
        [
-        "Metres in a kilometre",
-        "1,000"
-       ],
-       [
-        "Capital of Italy",
-        "Rome"
+        "Planets nearest the sun",
+        "Mercury, Venus, Earth and Mars"
        ],
        [
         "When did World War II end?",
         "1945"
+       ],
+       [
+        "Capital of Germany",
+        "Berlin"
        ],
        [
         "Battle of Hastings",
@@ -150941,87 +150868,91 @@
       "card_id": "bio-cells",
       "deck": "Biology",
       "type": "order",
-      "prompt": "Parts of a cell — what comes after “cytoplasm”?",
-      "answer": "ribosome",
+      "prompt": "Parts of a cell: what comes after “membrane”?",
+      "answer": "cytoplasm",
       "options": [
-       "membrane",
        "cytoplasm",
-       "ribosome",
-       "nucleus"
+       "nucleus",
+       "ribosome"
       ],
-      "answer_index": 2,
+      "answer_index": 0,
       "typed": false,
       "pairs": [],
       "context": "Parts of a cell",
       "hint": ""
      },
      {
-      "id": "num-km:choice",
+      "id": "num-km:reverse",
       "card_id": "num-km",
       "deck": "Maths",
-      "type": "choice",
-      "prompt": "Metres in a kilometre",
-      "answer": "1,000",
+      "type": "reverse",
+      "prompt": "Which one goes with “1,000”?",
+      "answer": "Metres in a kilometre",
       "options": [
-       "1945",
-       "3.14",
-       "1,000",
-       "1919"
+       "Pi to two places",
+       "Metres in a kilometre",
+       "Battle of Hastings",
+       "What is photosynthesis?"
       ],
-      "answer_index": 2,
+      "answer_index": 1,
       "typed": false,
       "pairs": [],
       "context": "",
       "hint": ""
      },
      {
-      "id": "bio-ps:cloze",
+      "id": "bio-ps:truefalse",
       "card_id": "bio-ps",
       "deck": "Biology",
-      "type": "cloze",
-      "prompt": "Fill in the blank: The process _____ use to turn light, water, and carbon dioxide into food.",
-      "answer": "plants",
-      "options": [],
-      "answer_index": -1,
-      "typed": true,
+      "type": "truefalse",
+      "prompt": "True or false? The answer to “What is photosynthesis?” is “The process plants use to turn light, water, and carbon dioxide into food.”.",
+      "answer": "True",
+      "options": [
+       "True",
+       "False"
+      ],
+      "answer_index": 0,
+      "typed": false,
       "pairs": [],
       "context": "What is photosynthesis?",
-      "hint": "p_____"
+      "hint": ""
      },
      {
-      "id": "num-pi:reverse",
+      "id": "num-pi:choice",
       "card_id": "num-pi",
       "deck": "Maths",
-      "type": "reverse",
-      "prompt": "Which one goes with “3.14”?",
-      "answer": "Pi to two places",
+      "type": "choice",
+      "prompt": "Pi to two places",
+      "answer": "3.14",
       "options": [
-       "Planets nearest the sun",
-       "Metres in a kilometre",
-       "Capital of Italy",
-       "Pi to two places"
+       "1,000",
+       "3.14",
+       "The powerhouse of the cell that releases energy from food",
+       "Berlin"
+      ],
+      "answer_index": 1,
+      "typed": false,
+      "pairs": [],
+      "context": "",
+      "hint": ""
+     },
+     {
+      "id": "his-gen:reverse",
+      "card_id": "his-gen",
+      "deck": "History",
+      "type": "reverse",
+      "prompt": "Which one goes with “Elba”?",
+      "answer": "Fill in the blank: Napoleon was exiled to the island of _____",
+      "options": [
+       "When did World War II end?",
+       "When did this happen? The Treaty of Versailles was signed.",
+       "Battle of Hastings",
+       "Fill in the blank: Napoleon was exiled to the island of _____"
       ],
       "answer_index": 3,
       "typed": false,
       "pairs": [],
       "context": "",
-      "hint": ""
-     },
-     {
-      "id": "his-gen:truefalse",
-      "card_id": "his-gen",
-      "deck": "History",
-      "type": "truefalse",
-      "prompt": "True or false? The answer to “Fill in the blank: Napoleon was exiled to the island of _____” is “1919”.",
-      "answer": "False",
-      "options": [
-       "True",
-       "False"
-      ],
-      "answer_index": 1,
-      "typed": false,
-      "pairs": [],
-      "context": "Fill in the blank: Napoleon was exiled to the island of _____",
       "hint": ""
      }
     ]
@@ -152254,15 +152185,14 @@
      "card_id": "geo-pl",
      "deck": "Geography",
      "type": "order",
-     "prompt": "Planets nearest the sun — what comes after “Venus”?",
+     "prompt": "Planets nearest the sun: what comes after “Venus”?",
      "answer": "Earth",
      "options": [
       "Mars",
-      "Venus",
-      "Mercury",
-      "Earth"
+      "Earth",
+      "Mercury"
      ],
-     "answer_index": 3,
+     "answer_index": 1,
      "typed": false,
      "pairs": [],
      "context": "Planets nearest the sun",
@@ -153152,15 +153082,14 @@
      "card_id": "bio-cells",
      "deck": "Biology",
      "type": "order",
-     "prompt": "Parts of a cell — what comes after “cytoplasm”?",
+     "prompt": "Parts of a cell: what comes after “cytoplasm”?",
      "answer": "ribosome",
      "options": [
-      "cytoplasm",
       "ribosome",
-      "nucleus",
-      "membrane"
+      "membrane",
+      "nucleus"
      ],
-     "answer_index": 1,
+     "answer_index": 0,
      "typed": false,
      "pairs": [],
      "context": "Parts of a cell",
