@@ -12,7 +12,7 @@ import { AccessibilityInfo, Animated, Easing, Platform, View } from 'react-nativ
 import { answerAssessment } from '../core/smartCheck';
 import { buildQueue, Mode } from '../features/queue';
 import { makeEars, prepareRecognition } from '../features/recognition';
-import { Snapshot, TalkbackSession, Voice } from '../features/talkback';
+import { Snapshot, TalkbackSession, talkCards, Voice } from '../features/talkback';
 import { useStore } from '../state/AppState';
 import { Button, EmptyState, Field, ProgressBar, Row, Screen, Txt } from '../ui/components';
 import { speakAsync, stopSpeaking } from '../ui/feedback';
@@ -86,7 +86,7 @@ export default function Talkback() {
   const slow = store.accessibility.more_time;
 
   // Answered cards only: a card with no saved answer has nothing to check against.
-  const queue = useMemo(() => buildQueue(store, (params.mode as Mode) || 'due', params.deck || null).filter((card) => card.back.trim()), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const queue = useMemo(() => talkCards(buildQueue(store, (params.mode as Mode) || 'due', params.deck || null).filter((card) => card.back.trim())), []); // eslint-disable-line react-hooks/exhaustive-deps
   const snap = useSyncExternalStore(session?.subscribe ?? noop, session?.getSnapshot ?? (() => IDLE), session?.getSnapshot ?? (() => IDLE));
 
   useEffect(() => session?.setScreenReader(screenReader), [session, screenReader]);
