@@ -10,6 +10,8 @@
  * result are announced, and the person moves on with the buttons, so the app
  * never talks over VoiceOver or TalkBack.
  */
+import { BLANK, buildQuiz, Rng } from '../core/questions';
+import type { QuizCard } from '../core/questions';
 import type { Assessment } from '../core/smartCheck';
 
 export interface TalkCard {
@@ -287,4 +289,17 @@ export class TalkbackSession {
       results: this.results,
     };
   }
+}
+
+/**
+ * Spoken questions from the quiz engine: a typed-answer question for each
+ * card (its question, or a fill-in-the-blank from a longer answer), due and
+ * weak cards first. The id stays the card's, so the rating goes to it.
+ */
+export function talkCards(cards: QuizCard[], seed = Date.now()): TalkCard[] {
+  return buildQuiz(cards, cards.length, new Rng(seed), { types: ['recall', 'cloze'] }).map((q) => ({
+    id: q.card_id,
+    front: q.prompt.split(BLANK).join('(blank)'),
+    back: q.answer,
+  }));
 }

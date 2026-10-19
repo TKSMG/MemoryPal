@@ -3,16 +3,18 @@
  * question and answer rows, or paste notes or a list and edit the rows it
  * makes before saving. Memory hooks and everyday cards sit under More options.
  */
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { Href, router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { nowLabel } from '../core/dates';
 import { newCard, uid } from '../core/models';
 import { normalizeSpace, splitStudyBits } from '../core/text';
+import { sendNotesToAi, takeRowsForBuilder } from '../features/aiHandoff';
+import { aiPage } from '../features/aiHelpers';
 import { blankRow, hasContent, readyRows, Row, splitPasted } from '../features/setBuilder';
 import { useStore } from '../state/AppState';
-import { Button, Card, Disclosure, Field, IconButton, MIN_TOUCH, Pills, Row as HRow, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
+import { AiTag, Button, Card, Disclosure, Field, IconButton, ListGroup, ListRow, MIN_TOUCH, Pills, Row as HRow, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
 import { confirm, notify } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
@@ -54,6 +56,7 @@ export default function Add() {
   const [a, setA] = useState('');
   const [b, setB] = useState('');
   const [saved, setSaved] = useState('');
+  const [aiMessage, setAiMessage] = useState('');
 
   const decks = store.decks();
   const ready = readyRows(rows);
@@ -84,6 +87,22 @@ export default function Add() {
   const append = (extra: Row[]) => {
     setSaved('');
     setRows((list) => [...list.filter(hasContent), ...extra]);
+  };
+
+  // Rows made on the Make with AI screen arrive when this screen is shown again.
+  useFocusEffect(
+    useCallback(() => {
+      const { rows: made, message } = takeRowsForBuilder();
+      if (!made.length) return;
+      setSaved('');
+      setRows((list) => [...list.filter(hasContent), ...made]);
+      setAiMessage(message);
+    }, []),
+  );
+
+  const openAi = () => {
+    sendNotesToAi([pasted.trim(), notes.trim()].filter(Boolean).join('\n\n'));
+    router.push(`/ai?from=add&deck=${encodeURIComponent(name)}` as Href);
   };
 
   const split = () => {
@@ -120,8 +139,22 @@ export default function Add() {
     if (fromNotes) {
       store.addCapture({ id: uid(), title: name, notes: notes.trim(), chunks: splitStudyBits(notes), text_file: '', image: '', audio: '', video: '', created_at: nowLabel() });
     }
-    store.addCards(ready.map((row) => newCard({ deck: row.deck || name, front: row.front, back: row.back, association: row.hook, pathway: fromNotes ? `Capture > ${name}` : '' })));
+    store.addCards(
+      ready.map((row) =>
+        newCard({
+          deck: row.deck || name,
+          front: row.front,
+          back: row.back,
+          association: row.hook || row.note || '',
+          // AI rows keep their "Made with AI > …" pathway (it labels the card); the set name follows any rename.
+          pathway: row.pathway ? row.pathway.replace(/ > .*$/, ` > ${name}`) : fromNotes ? `Capture > ${name}` : '',
+          image: row.image || '',
+          text_file: row.text_file || '',
+        }),
+      ),
+    );
     leaving.current = false;
+    setAiMessage('');
     setSaved(`${plural(ready.length, 'card')} saved to ${name}.`);
     setRows([blankRow()]);
     setNotes('');
@@ -140,12 +173,23 @@ export default function Add() {
         </View>
       ) : null}
 
+      {aiMessage ? (
+        <View accessibilityLiveRegion="polite" style={{ backgroundColor: theme.colors.review[0], borderRadius: theme.radius, padding: 14 }}>
+          <Txt variant="body" color={theme.colors.review[1]}>{aiMessage}</Txt>
+        </View>
+      ) : null}
+
       <SectionTitle action={<Txt variant="muted" accessibilityLiveRegion="polite">{ready.length ? `${plural(ready.length, 'card')} ready` : 'No cards yet'}</Txt>}>Cards</SectionTitle>
 
       {rows.map((row, i) => (
         <Card key={row.key}>
           <HRow style={{ justifyContent: 'space-between', minHeight: MIN_TOUCH }}>
-            <Txt variant="label">{row.deck ? `Card ${i + 1}, goes to ${row.deck}` : `Card ${i + 1}`}</Txt>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Txt variant="label">{row.deck ? `Card ${i + 1}, goes to ${row.deck}` : `Card ${i + 1}`}</Txt>
+              {row.pathway ? <AiTag /> : null}
+              {row.image ? <Txt variant="small">The photo is attached to this card.</Txt> : null}
+              {row.text_file ? <Txt variant="small">{aiPage({ association: row.note ?? '' }) ? `The PDF is attached, page ${aiPage({ association: row.note ?? '' })}.` : 'The PDF is attached.'}</Txt> : null}
+            </View>
             {rows.length > 1 || hasContent(row) ? <IconButton icon="trash-outline" label={`Remove card ${i + 1}`} onPress={() => remove(row.key)} /> : null}
           </HRow>
           <Field label="Question" value={row.front} onChangeText={(value) => update(row.key, { front: value })} multiline placeholder="What is photosynthesis?" style={{ minHeight: 52 }} />
@@ -157,6 +201,10 @@ export default function Add() {
       ))}
 
       <Button label="Add a card" icon="add" onPress={() => append([blankRow()])} />
+
+      <ListGroup footer="Make notes or questions from your notes, a PDF or a photo. AI can be wrong, so check what it makes.">
+        <ListRow icon="sparkles-outline" title="Make with AI" detail="From notes, a PDF or a photo" onPress={openAi} />
+      </ListGroup>
 
       <Disclosure title="Paste notes or a list" open={pasteOpen} onToggle={() => setPasteOpen((value) => !value)}>
         <Field

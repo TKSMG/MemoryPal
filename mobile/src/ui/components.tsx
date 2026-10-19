@@ -467,6 +467,18 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
   );
 }
 
+/** The visible "Made with AI, check it" tag on AI-made cards and notes. */
+export function AiTag({ label = 'Made with AI, check it' }: { label?: string }) {
+  const theme = useTheme();
+  const [bg, fg] = theme.colors.review;
+  return (
+    <View accessible accessibilityLabel={label} style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, backgroundColor: bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
+      <Ionicons name="sparkles-outline" size={theme.icon(13)} color={fg} />
+      <Txt variant="label" color={fg}>{label}</Txt>
+    </View>
+  );
+}
+
 // ------------------------------------------------------------ grouped list
 /**
  * An inset grouped list, like iOS Settings: one rounded surface, rows split by
@@ -492,7 +504,7 @@ export function ListGroup({ children, header, footer }: { children: ReactNode; h
 }
 
 /** One row of a ListGroup: icon, title, optional detail and value, and a chevron when it opens something. */
-export function ListRow({ icon, title, detail, value, onPress, accessibilityLabel, accessibilityHint, tint, right, chevron = !!onPress }: { icon?: IconName; title: string; detail?: string; value?: string; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; tint?: string; right?: ReactNode; chevron?: boolean }) {
+export function ListRow({ icon, title, detail, value, onPress, accessibilityLabel, accessibilityHint, tint, right, below, chevron = !!onPress }: { icon?: IconName; title: string; detail?: string; value?: string; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; tint?: string; right?: ReactNode; /** Shown under the detail, such as an AI tag. */ below?: ReactNode; chevron?: boolean }) {
   const theme = useTheme();
   const c = theme.colors;
   const body = (
@@ -501,6 +513,7 @@ export function ListRow({ icon, title, detail, value, onPress, accessibilityLabe
       <View style={{ flex: 1, gap: 2, paddingVertical: 2 }}>
         <Txt variant="body" color={tint && !icon ? tint : c.ink} style={{ fontWeight: '500' }}>{title}</Txt>
         {detail ? <Txt variant="small">{detail}</Txt> : null}
+        {below}
       </View>
       {value ? <Txt variant="muted">{value}</Txt> : null}
       {right}
