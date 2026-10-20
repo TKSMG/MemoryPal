@@ -20,6 +20,10 @@ python -m pip install -e ".[documents,image-previews,media,speech]"
 
 Speech-to-text is optional. `SpeechRecognition` supports the prototype transcription flow, and microphone dictation may also need `PyAudio`, which can require a normal Windows Python setup. The default recognizer used in the prototype may need an internet connection.
 
+Talk-back study does not use those packages. On Windows it listens through the speech recogniser built into Windows (System.Speech, driven through PowerShell by `latest_app\memorypal\listen.py`), offline and with nothing to install, so the default build supports it as is. On macOS and Linux it reads questions aloud and takes typed answers.
+
+AI notes and questions need no extra Python packages either: `latest_app\memorypal\ai.py` uses only the standard library to call the Supabase `ai` function. When AI questions come from a PDF, the desktop uses `pypdf` (the `documents` extra) and `Pillow` to save the picture on that page for the card. Both are already in `requirements-build.txt` and the build scripts, and without them the card says which page it came from instead. The AI function itself is deployed to Supabase, not built with the app (see `CLOUD_SYNC_SETUP.md`).
+
 The default tester build intentionally stays lighter than the full optional desktop setup. File imports, document notes, image previews, and the main memory tools are kept in the normal package path; desktop audio recording, webcam recording, speech recognition, and offline text-to-speech should be treated as optional extras unless a media-enabled build is made on purpose.
 
 For low-end tester machines, keep using the normal app-folder build instead of a self-extracting one-file EXE. The app-folder build avoids unpacking work on every launch, keeps optional media libraries out of startup, and lets MemoryPal load its checked-in icon/logo assets directly.
@@ -264,6 +268,8 @@ Accounts and cloud sync stay off until a Supabase project is set up. Follow `CLO
 ## Mobile App
 
 The phone app is the React Native + Expo project in `mobile/`. `mobile/README.md` covers running it with Expo Go, the tests, and the parity checks against the desktop logic.
+
+The phone uses `expo-speech-recognition` (Talk-back listening), `expo-image-picker` (Take a photo and Choose a photo in Make with AI), `expo-document-picker` (Choose a PDF) and `expo-network` (the offline check before an AI request). Their permission texts for the microphone, speech recognition, camera and photos are set in the plugins section of `mobile\app.json`, and Android's `RECORD_AUDIO` and `CAMERA` permissions are listed there too. `expo-speech-recognition` is a native module that Expo Go does not include, so try Talk-back listening in a real build: the `Build Phone Apps` workflow (`.github/workflows/build-mobile.yml`, which runs `npx expo prebuild`), or `npx expo run:android` / `npx expo run:ios`.
 
 Its icons are drawn from the same logo code as the desktop. After a logo change, run `python tools\mobile_icons.py` to rewrite `mobile\assets\`. The app name, bundle identifiers (`app.memorypal.mobile`), icons and splash screen are set in `mobile\app.json`.
 
