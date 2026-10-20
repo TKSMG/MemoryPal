@@ -1,6 +1,6 @@
 # MemoryPal Mobile
 
-The iPhone and Android version of MemoryPal, built with React Native and Expo (SDK 57) in TypeScript. It replaces the earlier Kivy prototype in `../mobile_app/`.
+The iPhone and Android version of MemoryPal, built with React Native and Expo (SDK 57) in TypeScript. It replaces the earlier Kivy prototype in `../development_versions/kivy_mobile_prototype/`.
 
 ## Try it on your phone
 
@@ -57,7 +57,7 @@ npm test
 
 ## Data
 
-Cards and progress use the desktop's JSON format (same snake_case fields), so a backup moves freely between the two apps. Settings → Save a backup / Load a backup. Phone-only preferences (appearance, vibrations) are stored separately and are never part of a backup. Signed-in phones also sync with the cloud (Settings → Account & sync): see `src/cloud/` and `../CLOUD_SYNC_SETUP.md`. The sign-in token lives in expo-secure-store (Keychain / Keystore), or `sessionStorage` on the web.
+Cards and progress use the desktop's JSON format (same snake_case fields), so a backup moves freely between the two apps. Settings → Save a backup / Load a backup. Phone-only preferences (appearance, vibrations) are stored separately and are never part of a backup. Signed-in phones also sync with the cloud (Settings → Account & sync): see `src/cloud/` and `../docs/CLOUD_SYNC_SETUP.md`. The sign-in token lives in expo-secure-store (Keychain / Keystore), or `sessionStorage` on the web.
 
 ## Icons
 
