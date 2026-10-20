@@ -2,7 +2,7 @@
 
 These run on the person's device to give quick, friendly feedback. The real
 limits are enforced by the server (Supabase Auth's rate limits and password
-policy, see CLOUD_SYNC_SETUP.md), because anything on a device can be
+policy, see docs/CLOUD_SYNC_SETUP.md), because anything on a device can be
 bypassed. mobile/src/core/security.ts is a line-by-line port (parity tests).
 """
 

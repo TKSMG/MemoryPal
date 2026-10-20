@@ -1,5 +1,5 @@
 /**
- * Design tokens, shared with the desktop design system (DESIGN_NOTES.md):
+ * Design tokens, shared with the desktop design system (docs/DESIGN_NOTES.md):
  * every text/background pair meets WCAG AA, filled controls pick their text
  * colour by contrast, and sizes respect both the in-app text size and the
  * phone's own font-size setting.
