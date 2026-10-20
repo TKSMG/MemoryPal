@@ -33,3 +33,21 @@ Thumbs.db
 MemoryPalData/
 attachments/
 memorypal-data.json
+
+# Keys, signing files and local notes must never be committed (the repo is public).
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.p8
+*.pfx
+*.pem
+*.key
+*.mobileprovision
+supabase/.temp/
+supabase/.env
+CLAUDE.md
+.claude/
+HANDOFF.md
