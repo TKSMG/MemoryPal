@@ -19,8 +19,8 @@ const SUPABASE_URL = env("SUPABASE_URL").replace(/\/+$/, "");
 const PUBLIC_KEY = env("SUPABASE_ANON_KEY") || env("SUPABASE_PUBLISHABLE_KEY");
 const SERVICE_KEY = env("SUPABASE_SERVICE_ROLE_KEY") || env("SUPABASE_SECRET_KEY");
 const GEMINI_KEY = env("GEMINI_API_KEY");
-const GEMINI_MODEL = env("GEMINI_MODEL", "gemini-2.5-flash").trim() || "gemini-2.5-flash";
-const DAILY_LIMIT = Math.max(1, Math.trunc(Number(env("AI_DAILY_LIMIT", "20"))) || 20);
+const GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3.5-flash-lite").trim() || "gemini-3.5-flash-lite";
+const DAILY_LIMIT = Math.max(1, Math.trunc(Number(env("AI_DAILY_LIMIT", "10"))) || 10);
 const GEMINI_TIMEOUT_MS = 100_000;
 // The base64 of an 8 MB file plus some text, with room to spare.
 const MAX_BODY_BYTES = 12 * 1024 * 1024;

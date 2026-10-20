@@ -7,7 +7,7 @@ the apps.
 
 - Only signed-in people can use it. Accounts with two-step sign-in must have finished the
   second step, the same rule the database uses.
-- Each person gets a daily allowance (default 20 requests a day, counted in UTC). A request
+- Each person gets a daily allowance (default 10 requests a day, counted in UTC). A request
   that fails because Gemini is busy or broken is not counted.
 - Accepted files: PDF, PNG, JPEG, WEBP and HEIC, up to 8 MB.
 - Gemini answers in JSON that has to match a schema, and the function checks and trims the
@@ -40,7 +40,7 @@ supabase login
 supabase link --project-ref <your-project-ref>
 supabase secrets set GEMINI_API_KEY=<your key>
 # optional:
-supabase secrets set GEMINI_MODEL=gemini-2.5-flash AI_DAILY_LIMIT=20
+supabase secrets set GEMINI_MODEL=gemini-3.5-flash-lite AI_DAILY_LIMIT=10
 supabase functions deploy ai
 ```
 
@@ -67,8 +67,8 @@ signed in.
 | Secret | Default | What it does |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | (required) | Key from aistudio.google.com |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | The Gemini model ID. Newer free models can be used by changing this; check the exact ID on <https://ai.google.dev/gemini-api/docs/models> |
-| `AI_DAILY_LIMIT` | `20` | Requests per person per day |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | The Gemini model ID. Flash-Lite is the default because its free tier allows about 500 requests a day for the whole key (the Flash models allow about 20). Check current limits in AI Studio under Rate limits, and exact IDs on <https://ai.google.dev/gemini-api/docs/models> |
+| `AI_DAILY_LIMIT` | `10` | Requests per person per day. The free tier's daily allowance is shared by everyone, so keep this well below it |
 
 ## 4. Check it works
 

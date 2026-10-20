@@ -140,6 +140,14 @@ The script creates a `MemoryPal.app` bundle, a compressed `.dmg`, and a zipped a
 
 ## Current Features
 
+- AI notes, mixed quizzes, talk-back and simpler set building (desktop and phone):
+  - Make with AI turns typed notes, a PDF or a photo of a page into study notes or practice questions. It runs through MemoryPal's Supabase Edge Function `ai` to Google Gemini (free tier, Gemini 3.5 Flash-Lite by default), so no AI key ships in the apps. It needs a signed-in account and internet, allows 10 requests per person per day, asks for consent once, and can be turned off in Settings. Questions arrive as cards to check, edit or remove before saving. Everything AI makes is labelled "Made with AI, check it" with a Report link. On the free tier Google may keep and review what is sent (see `PRIVACY_POLICY.md`). Set-up steps are in `supabase/functions/ai/README.md`.
+  - Quizzes mix seven question types: pick the answer, reverse (which question goes with this answer), fill in the blank, true or false, match the pairs, what comes next in a list, and type the answer. The next round avoids the questions you just had. Both apps build questions with the same seeded logic (`latest_app/memorypal/questions.py`, `mobile/src/core/questions.ts`), checked by the parity fixtures.
+  - Talk-back study is hands-free: each question is read aloud, you answer out loud, and you hear whether you were right. The phone listens with its own speech recognition. On Windows, the desktop uses the recogniser built into Windows, offline, with no extra packages. On Mac and Linux, and wherever the microphone isn't available, questions are still read aloud and you type the answers.
+  - A read-aloud button on every card, question, answer and note, on both apps.
+  - Building a set is two steps: name the set, then add cards by typing them, pasting notes, or using Make with AI. On the desktop, Decks has New set and Rename set; on the phone, a set's page can rename or delete it.
+  - Desktop: dropdowns fit their longest label and stay on screen, dialogs grow to fit their text, the mouse wheel glides smoothly (touchpads follow your fingers), the system title bar matches the light or dark theme, and dialogs, dropdowns and fields are calmer and bordered.
+  - Phone: new permission requests for the microphone and speech recognition (Talk-back) and the camera (Take a photo in Make with AI). Each is asked only when you use that feature. Choosing a photo uses the system picker.
 - Accounts and cloud sync (desktop and phone), once a Supabase project is set up (`CLOUD_SYNC_SETUP.md`):
   - Email + password accounts, confirmed with a 6-digit email code; forgotten passwords are reset the same way.
   - Cards, reviews, streaks and settings sync automatically between computers and phones, merging changes made on both rather than overwriting.

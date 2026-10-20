@@ -399,3 +399,19 @@ This build is packaged as release 0.48.5.
 - The Privacy Policy lists Cloudflare Turnstile and GitHub Pages (October 15, 2026).
 
 This build is packaged as release 0.49.0.
+
+## v87 - AI Notes, Varied Quizzes and Talk-Back
+
+- Make with AI: turn typed notes, a PDF or a photo of a page into study notes or practice questions, through MemoryPal's own server (a Supabase Edge Function) to Google's Gemini API. It needs an account, asks permission first, can be turned off in Settings, labels everything it makes "Made with AI, check it", and has a Report link. The Gemini key stays on the server.
+- Quizzes mix question types (multiple choice, the other way round, fill the gap, true or false, match, put in order, recall), built by the same seeded logic on desktop and phone and checked by parity tests.
+- Talk-back: hear each question and answer out loud, hands-free (phone speech recognition; Windows speech on the desktop, typed answers elsewhere). Read aloud on every card.
+- A simpler set builder, and New and Rename set.
+- Desktop: dropdowns and dialogs no longer clip their text, the scroll wheel glides like the touchpad, the title bar follows the theme, and dialogs, pop-ups and fields share the new look.
+- The Privacy Policy and Terms have an AI section (October 18, 2026).
+
+## v88 - AI Defaults and Docs
+
+- AI uses Gemini 3.5 Flash-Lite by default (about 500 free requests a day for the whole key, against about 20 for the Flash models) and allows 10 requests per person a day; both apps say 10.
+- The README, testing checklist, tester guide, sync setup and build notes cover the new features.
+
+This build is packaged as release 0.50.0.
