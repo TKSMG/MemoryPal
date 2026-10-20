@@ -25,7 +25,7 @@ from .core import normalize_space, today_iso
 CONSENT_VERSION = 1
 QUIZ_RECENT_MAX = 60
 # The server's default daily allowance (supabase/functions/ai, AI_DAILY_LIMIT).
-AI_DAILY_LIMIT = 20
+AI_DAILY_LIMIT = 10
 GEMINI_TERMS_URL = "https://ai.google.dev/gemini-api/terms"
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 PDF_SUFFIX = ".pdf"
