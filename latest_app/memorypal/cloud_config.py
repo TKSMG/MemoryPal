@@ -1,4 +1,4 @@
-"""Where the MemoryPal cloud lives (Supabase). See CLOUD_SYNC_SETUP.md.
+"""Where the MemoryPal cloud lives (Supabase). See docs/CLOUD_SYNC_SETUP.md.
 
 Both values are safe to ship inside the app: the publishable key only
 allows what the database's Row Level Security rules permit (each person
