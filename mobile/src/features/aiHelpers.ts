@@ -11,7 +11,7 @@ import { isAiCard } from '../core/questions';
 import { blankRow, Row } from './setBuilder';
 
 /** Matches the server's default AI_DAILY_LIMIT (supabase/functions/ai). */
-export const AI_DAILY_LIMIT = 20;
+export const AI_DAILY_LIMIT = 10;
 export const AI_TAG = 'Made with AI, check it';
 export const REPORT_EMAIL = 'memorypal09@gmail.com';
 

@@ -174,7 +174,6 @@ export function geminiBody(request: AiRequest): Record<string, unknown> {
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: request.action === "notes" ? NOTES_SCHEMA : QUESTIONS_SCHEMA,
-      temperature: request.action === "notes" ? 0.3 : 0.6,
       maxOutputTokens: 8192,
     },
   };

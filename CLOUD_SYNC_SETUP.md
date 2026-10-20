@@ -80,6 +80,31 @@ python -m unittest discover -s latest_app\tests -p test_cloud_sync.py
 $env:PYTHONIOENCODING="utf-8"; python tools\parity\sync_interop.py   # desktop <-> phone through a local fake server
 ```
 
+## AI notes and questions
+
+Make with AI (study notes and practice questions from notes, a PDF or a photo) uses the
+same project. The apps call a Supabase Edge Function named `ai`, which calls Google Gemini,
+so the Gemini key stays on the server and never goes in the apps. Until the function is
+deployed, the AI buttons say AI isn't ready yet and everything else keeps working.
+
+The full steps are in [`supabase/functions/ai/README.md`](supabase/functions/ai/README.md).
+In short:
+
+1. Run [`supabase/migrations/2026-10-18-ai-usage.sql`](supabase/migrations/2026-10-18-ai-usage.sql)
+   in the SQL Editor. It adds the per-person daily counter. New projects get it from
+   `schema.sql`.
+2. Get a free Gemini API key from <https://aistudio.google.com> and add it as the secret
+   `GEMINI_API_KEY`.
+3. Optional secrets: `GEMINI_MODEL` (default `gemini-3.5-flash-lite`) and `AI_DAILY_LIMIT`
+   (default `10` requests per person per day). The free tier's daily allowance is shared
+   by everyone using the key, so keep the per-person limit well below it.
+4. Deploy with `supabase functions deploy ai`, or paste `index.ts` and `logic.ts` into the
+   dashboard's editor.
+
+On Gemini's free tier Google may keep, use and review what people send. The apps' consent
+screen and `PRIVACY_POLICY.md` say so; if you move the key's Google Cloud project to the paid
+tier, update both.
+
 ## Before launch
 
 - **A domain and custom SMTP** (Authentication → Emails → SMTP Settings), for example Resend,
