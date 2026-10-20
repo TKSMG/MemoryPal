@@ -251,6 +251,11 @@ export class CloudClient {
     }
   }
 
+  /** Remove this account's synced records once they have moved to the person's own drive. */
+  async deleteSyncRecords(session: Session) {
+    await this.request('POST', '/rest/v1/rpc/delete_my_sync_records', { body: {}, token: session.accessToken });
+  }
+
   async deleteAccount(session: Session) {
     await this.request('POST', '/rest/v1/rpc/delete_my_account', { body: {}, token: session.accessToken });
   }

@@ -458,6 +458,64 @@ def question_cases():
     }
 
 
+def drive_cases():
+    """Syncing through device files: reading them, picking each record's newest copy, stamping and writing back."""
+    import random
+
+    from memorypal import sync
+
+    rng = random.Random(42)
+    devices = ["laptop", "phone", "tablet"]
+    values = [{"id": "a", "back": "one"}, {"id": "a", "back": "two"}, {"id": "a", "back": "three", "repetitions": 2}, None]
+    cases = []
+    for _ in range(60):
+        files = []
+        for device in devices:
+            records = {}
+            for key in ("card:a", "card:b", "capture:c", "settings:profile"):
+                if rng.random() < 0.6:
+                    ms = 1_800_000_000_000 + rng.randint(0, 5) * 1000
+                    records[key] = [f"{ms:013d}:{rng.randint(0, 2):06d}:{device}", rng.choice(values)]
+            files.append({"format": 1, "device": device, "records": records})
+        own = sync.entries_of(files[0])
+        others = [sync.entries_of(content) for content in files[1:]]
+        remote, stamps = sync.remote_from_files([own] + others)
+        base = {key: data for key, data in remote.items() if data is not None and rng.random() < 0.5}
+        local = dict(base)
+        if rng.random() < 0.7:
+            local["card:a"] = rng.choice(values[:3])
+        if rng.random() < 0.3:
+            local.pop("card:b", None)
+        plan = sync.plan_sync(local, base, remote)
+        now_ms = 1_800_000_000_000 + rng.randint(-3, 8) * 1000
+        stamp = sync.next_stamp(sync.newest_stamp(stamps), "laptop", now_ms)
+        cases.append({
+            "files": files, "local": local, "base": base, "now_ms": now_ms,
+            "remote": remote, "stamps": stamps, "push": plan.push, "stamp": stamp,
+            "entries_after": sync.entries_after(own, plan, remote, stamps, stamp),
+        })
+    hostile = [
+        {"records": {"card:a": ["0000000001000:000000:x", {"ok": 1}], "card:b": ["1000:0:x", {}], "card:c": ["0000000001000:000000:", {}],
+                     "card:d": ["0000000001000:00000a:x", {}], "card:e": ["0000000001000:000000:x", [1]], "card:f": ["0000000001000:000000:x"],
+                     "__proto__": ["0000000001000:000000:x", {}], "constructor": ["0000000001000:000000:x", {}], "evil:g": ["0000000001000:000000:x", {}],
+                     "card:h": ["0000000001000:000000:a:b", None], "card:i": [12, {}], "card:j": "nope"}},
+        {"records": []},
+        {"records": None},
+        [],
+        "text",
+        None,
+    ]
+    stamps = [
+        ("", "d", 5000), ("0000000005000:000003:b", "a", 1000), ("0000000005000:000003:b", "a", 5000),
+        ("0000000005000:000003:b", "a", 5001), ("garbage", "a", 7), ("0000000005000:999999:b", "a", 4000), ("", "x", 1800000000123.9),
+    ]
+    return {
+        "cases": cases,
+        "hostile": [{"content": content, "entries": sync.entries_of(content)} for content in hostile],
+        "stamps": [{"newest": newest, "device": device, "now_ms": now, "stamp": sync.next_stamp(newest, device, now)} for newest, device, now in stamps],
+    }
+
+
 def main():
     specs = card_specs()
     sessions, multi = plan_cases(specs)
@@ -468,6 +526,7 @@ def main():
         "hostile": hostile_cases(),
         "sync_plans": sync_plans,
         "sync_conversion": sync_conversion,
+        "drive": drive_cases(),
         "generated_for": "latest_app/memorypal",
         "smart_check": smart_check_cases(),
         "split": [{"raw": raw, "bits": split_study_bits(raw)} for raw in TEXTS],

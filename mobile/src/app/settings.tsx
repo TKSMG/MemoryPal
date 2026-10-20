@@ -61,10 +61,13 @@ export default function Settings() {
   };
 
   const doReset = async () => {
-    const body = sync.account.signedIn
-      ? `This clears this phone and brings back the welcome screen. Your cards and progress are still in your account (${sync.account.email}) and come back the next time it syncs. To remove them everywhere, delete your account in Account & sync.`
-      : 'This deletes all cards and progress on this phone and brings back the welcome screen. It cannot be undone.';
-    if (await confirm('Start over?', body, sync.account.signedIn ? 'Clear this phone' : 'Delete everything', true)) {
+    const account = sync.account;
+    const body = account.usesDrive && account.drive
+      ? `This clears this phone and brings back the welcome screen. Your cards and progress are still in your Google Drive (${account.drive.email}) and come back the next time it syncs.`
+      : account.signedIn && !account.usesDrive
+        ? `This clears this phone and brings back the welcome screen. Your cards and progress are still in your account (${account.email}) and come back the next time it syncs. To remove them everywhere, delete your account in Account & sync.`
+        : 'This deletes all cards and progress on this phone and brings back the welcome screen. It cannot be undone.';
+    if (await confirm('Start over?', body, account.canSync ? 'Clear this phone' : 'Delete everything', true)) {
       sync.account.startOver();
       store.reset();
       router.replace('/welcome');
@@ -75,13 +78,15 @@ export default function Settings() {
     <Screen>
       <SectionTitle>Account & sync</SectionTitle>
       <Card onPress={() => router.push('/account')} accessibilityLabel="Account and sync" accessibilityHint="Sign in to keep your cards on all your devices">
-        <Txt variant="h3">{sync.account.signedIn ? sync.account.email : 'Use MemoryPal on all your devices'}</Txt>
+        <Txt variant="h3">{sync.account.canSync ? sync.account.syncEmail : 'Use MemoryPal on all your devices'}</Txt>
         <Txt variant="muted">
-          {!sync.configured
+          {!sync.configured && !sync.account.usesDrive
             ? "Sync isn't set up in this copy yet."
-            : sync.account.signedIn
+            : sync.account.canSync
               ? sync.syncing ? 'Syncing…' : sync.error || (sync.account.state.last_synced ? `Last synced ${sync.account.state.last_synced}` : 'Not synced yet')
-              : 'Sign in or create an account to keep your cards, reviews and settings in step with your computer.'}
+              : sync.account.usesDrive
+                ? 'Connect Google Drive to keep your cards, reviews and settings in step with your computer.'
+                : 'Sign in or create an account to keep your cards, reviews and settings in step with your computer.'}
         </Txt>
       </Card>
 
