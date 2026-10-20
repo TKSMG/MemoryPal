@@ -494,3 +494,60 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 ## Mobile Version Note
 
 A separate production mobile version is still needed later. The Kivy prototype in `mobile_app/` is a starting point, but the finished app should use native phone APIs for the microphone, camera, file picker, storage permissions, and large touch controls instead of copying the desktop Tkinter interface directly.
+
+## Milestone files (moved from the README)
+
+- Pointer-aware page scrolling plus keyboard scrolling with Page Up, Page Down, Home, and End, with extra bottom room so final controls stay reachable after scaling.
+- Saves are written atomically and merge with existing local data so two open MemoryPal windows keep newly added cards, captures, feedback, and newer review progress.
+- Build scripts check for a Tkinter-capable Python before packaging, with PyInstaller as the current stable Windows app-folder path and Nuitka kept as an alternate script to revisit.
+- Build scripts generate the MemoryPal `.ico` during packaging, pass it to Nuitka or PyInstaller, and bundle the reusable icon assets into the app folder.
+- Inno Setup installer script and command file for making a user-friendly Windows setup file.
+- The latest desktop build separates core paths, models, storage, planning, and study helpers into `latest_app/memorypal/`.
+
+## Development History
+
+The `development_versions/` folder contains standalone milestone prototypes that show the feature path of the project. They are not exact saved snapshots from every tiny edit, but each file represents a real stage in how the app grew.
+
+The latest milestone file is:
+
+```text
+development_versions/MemoryPal_v29_beta_page_draft_preservation.py
+development_versions/MemoryPal_v30_beta_profiles_planning_stats.py
+development_versions/MemoryPal_v31_beta_repetition_player_polish.py
+development_versions/MemoryPal_v32_beta_collapsible_nav_document_notes.py
+development_versions/MemoryPal_v33_release_candidate.py
+development_versions/MemoryPal_v34_beta_modern_dialogs.py
+development_versions/MemoryPal_v35_test_speech_to_text.py
+development_versions/MemoryPal_v44_beta_memory_gym_fades.py
+development_versions/MemoryPal_v45_beta_memory_games.py
+development_versions/MemoryPal_v46_beta_fullscreen_icon_polish.py
+development_versions/MemoryPal_v47_beta_custom_navigation_stats.py
+development_versions/MemoryPal_v48_beta_stable_transitions_soft_themes.py
+development_versions/MemoryPal_v49_beta_no_reload_focus_nav.py
+development_versions/MemoryPal_v50_beta_nav_alignment_antialias.py
+development_versions/MemoryPal_v51_beta_soft_fade_logo_polish.py
+development_versions/MemoryPal_v52_beta_capture_scroll_resize_fade.py
+development_versions/MemoryPal_v53_beta_element_fade_logo_fix.py
+development_versions/MemoryPal_v54_beta_logo_assets.py
+development_versions/MemoryPal_v55_beta_testing_feedback_installer.py
+development_versions/MemoryPal_v56_beta_safe_saves_fast_build.py
+development_versions/MemoryPal_v57_beta_motion_startup_icon_polish.py
+development_versions/MemoryPal_v58_beta_clean_startup_release_prep.py
+development_versions/MemoryPal_v59_beta_transition_launch_polish.py
+development_versions/MemoryPal_v60_beta_stable_motion_followup.py
+development_versions/MemoryPal_v61_beta_fixed_rail_fullscreen_stability.py
+development_versions/MemoryPal_v62_beta_concurrent_save_stability.py
+development_versions/MemoryPal_v63_beta_header_release_polish.py
+development_versions/MemoryPal_v64_beta_low_end_readiness.py
+development_versions/MemoryPal_v65_beta_macos_packaging.py
+development_versions/MemoryPal_v66_beta_accessibility_elder_support.py
+v67 beta - onboarding, read aloud, and planning (live app only; see VERSION_JOURNAL.md)
+v68 beta - dashboard, charts, navigation, media, and new logo (live app only; see VERSION_JOURNAL.md)
+v69 beta - in-app feedback sending, resize outline, and smoothness fixes (live app only; see VERSION_JOURNAL.md)
+assets/memorypal.ico
+assets/memorypal-logo-preview.png
+assets/memorypal-logo.svg
+latest_app/memorypal/
+latest_app/MemoryPalDesktop.py
+```
+

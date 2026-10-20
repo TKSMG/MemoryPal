@@ -11,13 +11,13 @@ You don't need a domain to build or test this. You will want one before a public
 ## 1. Create the project
 
 1. Create a free project at supabase.com. Pick the region closest to your users.
-2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql) and run it.
+2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](../supabase/schema.sql) and run it.
    It creates the `sync_records` table, its Row Level Security policies (people can read and
    write only their own rows, and two-step accounts need the second step), a storage
    allowance per person (20,000 records or 25 MB, far above real use), and the
    `delete_my_account()` function used by "Delete account". The script is safe to run again
    after it changes; rerun it whenever `schema.sql` is updated. An existing project can
-   instead run just the newer changes in [`supabase/migrations/`](supabase/migrations).
+   instead run just the newer changes in [`supabase/migrations/`](../supabase/migrations).
 3. Open **Project Settings → API keys** and copy the **Project URL** and the **publishable
    key** (`sb_publishable_...`). Never put the secret / service-role key in either app.
 
@@ -87,10 +87,10 @@ same project. The apps call a Supabase Edge Function named `ai`, which calls Goo
 so the Gemini key stays on the server and never goes in the apps. Until the function is
 deployed, the AI buttons say AI isn't ready yet and everything else keeps working.
 
-The full steps are in [`supabase/functions/ai/README.md`](supabase/functions/ai/README.md).
+The full steps are in [`supabase/functions/ai/README.md`](../supabase/functions/ai/README.md).
 In short:
 
-1. Run [`supabase/migrations/2026-10-18-ai-usage.sql`](supabase/migrations/2026-10-18-ai-usage.sql)
+1. Run [`supabase/migrations/2026-10-18-ai-usage.sql`](../supabase/migrations/2026-10-18-ai-usage.sql)
    in the SQL Editor. It adds the per-person daily counter. New projects get it from
    `schema.sql`.
 2. Get a free Gemini API key from <https://aistudio.google.com> and add it as the secret
@@ -111,8 +111,8 @@ tier, update both.
   Postmark or Amazon SES with your domain, so codes arrive reliably and aren't capped at 2
   an hour.
 - **A privacy policy and terms** page on that domain. App stores require one for any app with
-  accounts. Drafts written from what the app does are in [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
-  and [`TERMS_OF_USE.md`](TERMS_OF_USE.md). Fill in the bracketed parts and have them reviewed,
+  accounts. Drafts written from what the app does are in [`PRIVACY_POLICY.md`](../PRIVACY_POLICY.md)
+  and [`TERMS_OF_USE.md`](../TERMS_OF_USE.md). Fill in the bracketed parts and have them reviewed,
   publish them, then put their addresses in `cloud_config.py` (`TERMS_URL`, `PRIVACY_URL`) and
   `mobile/app.json` (`expo.extra.termsUrl`, `privacyUrl`). The sign-up screens link to them.
 - **CAPTCHA** stops bots from mass-creating accounts. The apps open a Cloudflare Turnstile

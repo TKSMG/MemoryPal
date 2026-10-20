@@ -207,7 +207,7 @@ MemoryPal\                               portable app folder (fallback, run Memo
 TESTER_START_HERE.md                     install steps, what to try, how to send feedback
 TESTING_CHECKLIST.md                     full checklist for thorough testers
 README.md                                feature overview
-notes\MemoryPal_Memory_Techniques.md     background on the memory techniques
+MemoryPal_Memory_Techniques.md           background on the memory techniques
 ```
 
 `BUILDING_APP.md`, `DESIGN_NOTES.md`, source code, and `development_versions\` are for developers and stay out of the tester package.
@@ -273,4 +273,4 @@ The phone uses `expo-speech-recognition` (Talk-back listening), `expo-image-pick
 
 Its icons are drawn from the same logo code as the desktop. After a logo change, run `python tools\mobile_icons.py` to rewrite `mobile\assets\`. The app name, bundle identifiers (`app.memorypal.mobile`), icons and splash screen are set in `mobile\app.json`.
 
-The older Kivy prototype in `mobile_app/` is kept as history only and is not built any more.
+The older Kivy prototype in `development_versions/kivy_mobile_prototype/` is kept as history only and is not built any more.

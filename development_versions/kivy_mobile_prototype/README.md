@@ -18,7 +18,7 @@ The desktop app should stay in Tkinter for the PC version. The mobile app needs 
 ## Run Locally
 
 ```powershell
-python -m pip install -r ..\requirements-mobile.txt
+python -m pip install -r requirements-mobile.txt
 python MemoryPalMobile.py
 ```
 

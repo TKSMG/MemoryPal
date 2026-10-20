@@ -1,0 +1,142 @@
+# MemoryPal features in detail
+
+The full feature list, newest first. The [README](../README.md) has the short version; [development_versions/VERSION_JOURNAL.md](../development_versions/VERSION_JOURNAL.md) says what changed in each release.
+
+- AI notes, mixed quizzes, talk-back and simpler set building (desktop and phone):
+  - Make with AI turns typed notes, a PDF or a photo of a page into study notes or practice questions. It runs through MemoryPal's Supabase Edge Function `ai` to Google Gemini (free tier, Gemini 3.5 Flash-Lite by default), so no AI key ships in the apps. It needs a signed-in account and internet, allows 10 requests per person per day, asks for consent once, and can be turned off in Settings. Questions arrive as cards to check, edit or remove before saving. Everything AI makes is labelled "Made with AI, check it" with a Report link. On the free tier Google may keep and review what is sent (see `PRIVACY_POLICY.md`). Set-up steps are in `supabase/functions/ai/README.md`.
+  - Quizzes mix seven question types: pick the answer, reverse (which question goes with this answer), fill in the blank, true or false, match the pairs, what comes next in a list, and type the answer. The next round avoids the questions you just had. Both apps build questions with the same seeded logic (`latest_app/memorypal/questions.py`, `mobile/src/core/questions.ts`), checked by the parity fixtures.
+  - Talk-back study is hands-free: each question is read aloud, you answer out loud, and you hear whether you were right. The phone listens with its own speech recognition. On Windows, the desktop uses the recogniser built into Windows, offline, with no extra packages. On Mac and Linux, and wherever the microphone isn't available, questions are still read aloud and you type the answers.
+  - A read-aloud button on every card, question, answer and note, on both apps.
+  - Building a set is two steps: name the set, then add cards by typing them, pasting notes, or using Make with AI. On the desktop, Decks has New set and Rename set; on the phone, a set's page can rename or delete it.
+  - Desktop: dropdowns fit their longest label and stay on screen, dialogs grow to fit their text, the mouse wheel glides smoothly (touchpads follow your fingers), the system title bar matches the light or dark theme, and dialogs, dropdowns and fields are calmer and bordered.
+  - Phone: new permission requests for the microphone and speech recognition (Talk-back) and the camera (Take a photo in Make with AI). Each is asked only when you use that feature. Choosing a photo uses the system picker.
+- Accounts and cloud sync (desktop and phone), once a Supabase project is set up (`CLOUD_SYNC_SETUP.md`):
+  - Email + password accounts, confirmed with a 6-digit email code; forgotten passwords are reset the same way.
+  - Cards, reviews, streaks and settings sync automatically between computers and phones, merging changes made on both rather than overwriting.
+  - Optional two-step sign-in with an authenticator app.
+  - Password strength meter, refusal of common and breached passwords, and a growing wait after repeated wrong passwords or codes.
+  - Sign-in tokens kept in Windows DPAPI, the iOS Keychain or the Android Keystore. Delete account removes the account and its cloud copy.
+  - Without a project, both apps keep working fully offline as before.
+- New phone app (`mobile/`, React Native + Expo) for iPhone and Android:
+  - Five simple tabs: Today, Study, Create, Practice, Progress.
+  - Review with Smart Check, plain-language results, undo, skip-for-today, and an end-of-session summary.
+  - Multiple-choice quiz, adaptive memory puzzles, and memory-technique generators.
+  - Study plans, charts and badges, everyday-memory cards, and read aloud.
+  - Large-text and high-contrast modes, and full screen-reader labels.
+  - Backups use the desktop's file format, so cards move between the two.
+- The phone app's study logic is checked against the desktop's by parity tests on hundreds of cases.
+- The navigation rail spreads the pages evenly over its height instead of bunching them at the top, and Settings is pinned at the bottom under a divider.
+- Smart Check hints show real words ("increasing") instead of word stems ("increas").
+
+- Page switches, scrolling, fullscreen, focus mode, resizing, theme and text-size changes, and startup each appear as one finished frame, with no tearing, white flashes, or elements painting in one by one. Scrolling shows only fully drawn frames. `tools/render_check/render_probe.py` measures this by recording the window at screen rate.
+- Rounded controls use opaque, pre-blended tiles, keeping startup at about 1.5s and page switches fast.
+
+- New logo: a lowercase "m" drawn as one line of two arches, with an amber recall dot, on a flat blue tile. It replaces the gradient, sparkle, and bead design.
+- Page titles, headings, and stat numbers now show at their designed sizes. A global font setting had been drawing them all as body text.
+- Rounded buttons, dropdowns, choice pills, and text fields across the app. Text fields always show an edge, so it's clear where to type.
+- All text and button colours meet WCAG AA contrast in light and dark mode. Bright dark-mode buttons use dark text instead of white.
+- Keyboard focus is always visible as a solid amber ring.
+- The navigation rail shows every page on a normal laptop screen instead of six at a time. The active page is a calm filled pill, and each page title names its area (Today, Study, Create, Practice, Progress).
+- Cards can be edited, reset to new ("Learn again"), or deleted from Library. Library shows 60 cards at a time with Show more, so large collections stay fast.
+- Import asks before replacing a profile, shows how many cards the backup holds, and saves a copy of the current data first. Reset all data lives only in Settings.
+- Every save keeps a `.bak` of the previous file. A damaged data file is set aside and the last good save is loaded, instead of opening as an empty profile.
+- A card deleted in one window is no longer brought back by a second open window.
+- Profile names that would share a data folder (for example "My Profile" and "my-profile") are refused.
+- Smart Check no longer accepts a wrong number ("1954" for "1945") or a flipped meaning ("reversible" for "not reversible") as close enough.
+- Pasted notes keep leading years and decimals ("1945 …", "3.14"). Tab-separated Quizlet or spreadsheet lines import as cards.
+- Multi-day plans no longer count today's backlog again on every later day.
+- Successful reviews always grow the interval; load-spreading can no longer shrink it.
+- Peg lists read naturally ("a bundle of sticks").
+- Document import refuses decompression bombs and oversized files instead of freezing.
+- PowerShell is always run from its full system path.
+
+- Feedback can be sent to the MemoryPal team straight from the Feedback Log: Send Feedback Now posts the waiting notes through FormSubmit (no mail account needed), Email Feedback opens the tester's own mail app or Gmail with the report filled in, and Save Feedback File writes a text report to attach. Notes are marked as sent so they are not sent twice. Reports include the notes plus Windows version, text size, and theme, never the profile name or study cards, and nothing is sent unless the person presses a button.
+- Dragging the custom resize edges shows a Windows-style outline of the new size; the window resizes once when the mouse is released.
+- In-page updates (adding rows, showing a new section) swap in finished in one frame, using the same snapshot method as page switches, so sections no longer flash or jump.
+- Popups become the active window so typing goes to them straight away, stay above the main window, and hand focus back when closed.
+- Flat buttons no longer nudge their text when pressed.
+- Text in labels can be highlighted and copied (drag, double-click for a word, triple-click for a line, Ctrl+C).
+- New MemoryPal logo: a cleaner connected "memory path" M on a blue-to-violet tile, with mint and amber recall nodes and a small spark. The same design is used for the app/taskbar icon, title strip, navigation rail, installer, macOS icon, and the `assets/` exports; tiny sizes use a simplified mark so it stays crisp at 16-32px.
+- Ctrl+K page finder opens a searchable list of every page and common action; a Back button in the header (or Alt+Left) returns to the previous page.
+- App-styled dropdown lists replace the stock Tk menus.
+- Theme, text-size, and accessibility changes rebuild the whole interface under a screen snapshot and swap it in one frame, so there is no white or half-drawn flash. Popups are laid out invisibly and appear already finished instead of fading in.
+- Dashboard is built around today: the saved study plan's steps for today (tick them off as you go), a greeting and best next action, a progress strip with streak, level and XP, persona-picked study modes (Quick 10, Deep study, Exam cram, Gentle review, and more), and the next badge to earn.
+- Study Plan can be saved with Make this my plan; minute plans repeat daily and day/week plans follow the right day of the multi-day schedule. Plans can include Pomodoro-style rest breaks with a break timer, a capped Learn new cards step, an Explain it back step, and a short Wrap up.
+- Stats page now shows charts: the last 30 days, cards coming up over two weeks, card maturity, how recent answers went, weekday rhythm, the activity calendar, deck mastery, and achievement badges with progress.
+- Audio can be recorded with a live level meter and played back without extra packages; videos are recorded through the Windows Camera app and pulled in automatically; image previews support JPEG, PNG, GIF, BMP, TIFF, WebP, and HEIC through Windows; spoken cues can be saved as audio files.
+- Document import reads `.rtf`, handles Notepad encodings (UTF-8, UTF-16, ANSI), keeps tabs and line breaks from `.docx`, and reads ordinary PDFs with a built-in reader when `pypdf` is not installed. Scanned PDFs get a clear message instead of an error.
+- Saving only merges with the data file when another window has actually written to it, which makes normal saves faster; undo now correctly lowers review counts after a merge.
+- The logo is drawn once at 256px and cached on disk, so startup does not redraw it at every size.
+- First-run Welcome screen asks who is using MemoryPal (studying, everyday memory, helping someone else, or just exploring), then sets the navigation order, text size, calmer accessibility defaults, and read-aloud choice to match.
+- Guided tour for each persona walks through the pages that person will use most, and can be replayed or redone from Settings > Welcome & tour. Existing profiles skip the Welcome screen automatically.
+- Finishing or skipping the Welcome screen, and moving between tour steps, build the new layout under a screen snapshot and swap it in one frame (the same calculation-gap method used for window resizing), so no white or half-styled frames flash on Windows.
+- Offline Read aloud uses the voice built into the operating system (Windows System.Speech, macOS `say`, or Linux `espeak`), with no extra packages. Questions and answers can be read automatically, and card text is passed on standard input so it cannot break the command.
+- More time accessibility setting doubles timed displays in puzzles and messages and slows the read-aloud voice.
+- Multi-day Study Plan projects which cards will be due on each day, schedules new material on expanding review days (2, 4, 7, 14, 21, 30), grows heavy review days instead of using a fixed block, and makes the day before a test a light confidence pass.
+- Review scheduling now separates Review, Good, and Easy steps, gives partial credit when an overdue card is still remembered, spreads cards learned together across nearby days, and caps intervals at one year.
+- Smart Check scores typed answers against the saved answer only, so a correct answer is no longer marked down for not repeating the question.
+- Association generators give every idea its own peg, memory-palace spot, or story scene; long lists continue with distinct twists (golden, frozen, garden, garage) instead of reusing the same hook.
+- Acronym builder also suggests an acrostic sentence.
+- Unit test suite in `latest_app/tests/` for the support package.
+- Modern Tkinter desktop interface with a soft app header, local-save status, styled cue menus, hover feedback, and steadier page reveals.
+- Header controls are split into status and action zones, with the active profile shown as a compact numbered profile chip on the top-right edge.
+- Dashboard action cards reflow across wide, normal, and scaled windows so the bottom rows stay reachable instead of feeling clipped.
+- Low-end readiness pass reduces repeated custom-chrome redraw work and caches optional graphics lookups so slower Windows PCs and future Mac builds do less work at launch.
+- macOS packaging support adds a native-chrome guard for Mac, a Mac build script, and a GitHub Actions workflow for Intel and Apple Silicon tester artifacts.
+- Page switches use a same-window reveal over the page panel, so the header and content fade in together without dimming the whole app shell or fighting the Windows compositor.
+- Fullscreen and focus mode use a same-window cover while the operating system resizes the app, avoiding root-window opacity changes that can freeze Tkinter on Windows.
+- The left navigation rail stays expanded for a steadier desktop layout.
+- App-styled modal dialogs for profile names, recording lengths, alerts, confirmations, and errors.
+- Refreshed generated MemoryPal app icon for the Windows title/taskbar icon, custom title strip, packaged executable, and exported project assets.
+- The mobile prototype also uses in-app validation and confirmation modals instead of silent or system-style feedback.
+- Expanded left navigation rail with clear labels, hover hints, and its own scroll area for smaller screens.
+- Settings page can reorder the main navigation pages per profile.
+- Settings page for theme, navigation, profiles, daily goal, storage, backups, reset, focus mode, and true fullscreen.
+- Accessibility settings for larger text, higher contrast, reduced motion, simpler wording, caregiver mode, and a senior-friendly layout preset.
+- Everyday Memory page for older adults and caregivers, with a Today board, gentle review, starter cards, and person/routine/place/reminder card creation.
+- Settings stays pinned at the bottom of the navigation rail so the header has more room for status and profile controls.
+- Window controls separate true fullscreen from borderless focus mode: F11 and the Settings fullscreen control use true fullscreen, while the titlebar square and Settings focus control use borderless focus mode.
+- Windowed page changes, theme changes, and interface rebuilds use matching same-theme covers to hide redraw flashes without the older strip-opening effect.
+- Fullscreen and focus changes preserve the active page instead of rebuilding the interface.
+- Custom window resizing applies after the user releases the resize grip, then reveals the settled layout without fading the whole app window.
+- Custom titlebar, navigation, and button shapes use Pillow-backed antialiasing when available, with a built-in smoothed fallback for source runs without Pillow.
+- The titlebar and left navigation use the same generated MemoryPal logo artwork.
+- The generated logo renders directly through Tk, so the rail mark and titlebar mark stay consistent even without Pillow.
+- The desktop launcher now relies on the split `latest_app/memorypal/` package instead of carrying a second stale copy of models, storage, parsing, and planning code.
+- Profile config reads, generated logo pixels, and antialiased UI shapes are cached so normal shell rebuilds do less repeat work.
+- The custom borderless titlebar restore path is debounced so fullscreen/focus changes and startup do not repeatedly force expensive idle redraws.
+- File dialogs, CSV export, browser opening, desktop recording, webcam recording, and text-to-speech load only when those features are used.
+- The header and navigation logo load from the checked-in PNG asset during startup, with generated pixels kept as a fallback.
+- The main desktop window is resizable from the right edge, bottom edge, and corner while keeping the custom app chrome and DPI-scaled title bar controls.
+- More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
+- Separate local profiles, so different learners or study areas can keep independent data.
+- Local saves merge newly added cards, captures, feedback, review counters, and newer saved card progress so two open windows are less likely to overwrite each other's work.
+- App data uses a platform-correct local data folder with non-destructive migration from the older home-folder location.
+- Dark and light appearance modes.
+- In-progress page drafts for Capture, Repetition, Test Lab, Quiz, Associations, and Puzzles while switching sections.
+- Study Plan page that builds a short session plan from time, goal, deck choice, and preferred study habits.
+- Stats page with daily goal editing, streaks, activity heatmap, and upcoming review preview.
+- Stats page includes weekly pace, active-day count, best-day signal, weak-card count, daily goal, streaks, and heatmap.
+- Feedback Log page for tester ratings, bug notes, confusing moments, accessibility comments, and spreadsheet (CSV) export.
+- Focus queue for due, weak, and fresh cards.
+- Dashboard next-step recommendations, mastery progress, due/learning/mastered chips, and a small daily-action prompt.
+- Memory Gym page with separate student-study and everyday-memory practice paths.
+- Everyday Memory keeps routines, people, places, familiar cues, and caregiver-created cards in the normal review system.
+- Chunk-based capture, with each study bit stored separately.
+- Capture has horizontal scrolling for the two-column set builder, so the right-side captured/cue panel remains reachable on smaller or scaled windows.
+- Note/document imports for `.txt`, `.md`, `.csv`, `.rtf`, `.docx`, and text-based PDFs.
+- Imported note/document text can be extracted into the study bit box and turned into decks/cards.
+- Separate question/title and answer boxes for prompt-answer cards.
+- Optional self-check cards without a saved answer.
+- Text, image, audio, and video cues attached to study material where useful.
+- Text previews, image previews when supported, and clear play/open buttons for audio or video cues.
+- Compact resource strips on major study pages so attached notes, audio, images, and videos stay reachable while planning or practicing.
+- Compact cue menus for text, image, audio, and video imports or recordings.
+- Test Lab for focused answering, revealing, Smart Check, bucket highlighting, and review scheduling.
+- Review quality shortcuts, skip-for-today, undo last rating, and leech warnings for repeatedly missed cards.
+- Smart Check for close-enough typed responses, with cleaner key-cue feedback for proper nouns and common terms.
+- Repetition Path with separate prompt and answer fields, staged items, a focused round player, and the clarified pattern: `5`, `5-4`, `5-4-3`, then `3-2-1`.
+- Quick Quiz with self-check and multiple-choice modes.
+- Association tools for acronyms, mini-stories, peg lists, memory palace routes, chunk maps, link chains, and practical technique plans.
+- Technique planning for retrieval practice, spaced practice, interleaving, elaboration, concrete examples, dual coding, and spaced retrieval.
+- Puzzles for Sequence Recall, Word Recall, Pair Recall, Missing Item, Visual Search, N-Back Lite, Category Sort, and Routine Recall practice.
