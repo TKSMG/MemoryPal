@@ -43,7 +43,7 @@ FRIENDLY = {
     "second_step": "Finish two-step sign-in first: enter the code from your authenticator app.",
     "limit_reached": "You've used today's AI requests. They reset tomorrow, and everything else keeps working.",
     "file_too_large": "That file is larger than 8 MB. Try a smaller file, or a few pages at a time.",
-    "unsupported_file": "AI notes can read PDFs and PNG, JPEG, WEBP or HEIC pictures.",
+    "unsupported_file": "AI notes can read PDFs and PNG, JPEG or WEBP pictures.",
     "bad_request": "Add some notes or choose a file first.",
     "blocked": "This material can't be used for AI study notes.",
     "busy": "The AI is busy right now. Wait a minute and try again.",
