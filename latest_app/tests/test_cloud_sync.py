@@ -2,11 +2,13 @@
 
 import base64
 import copy
+import io
 import json
 import os
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -88,6 +90,17 @@ class AccountTests(unittest.TestCase):
         with self.assertRaises(cloud.CloudError) as caught:
             self.client.sign_up("new@example.com", "short")
         self.assertIn("at least 10", caught.exception.message)
+
+    def test_rate_limits_are_explained(self):
+        def error(status, body):
+            return cloud.CloudClient.error_from(urllib.error.HTTPError("u", status, "x", {}, io.BytesIO(json.dumps(body).encode())))
+
+        too_soon = error(429, {"error_code": "over_email_send_rate_limit", "msg": "For security purposes, you can only request this after 42 seconds."})
+        self.assertEqual(too_soon.code, "email_too_soon")
+        self.assertIn("Wait 42 seconds", too_soon.message)
+        self.assertEqual(error(429, {"error_code": "over_email_send_rate_limit", "msg": "Email rate limit exceeded"}).code, "over_email_send_rate_limit")
+        self.assertEqual(error(429, {"error_code": "over_request_rate_limit"}).code, "over_request_rate_limit")
+        self.assertEqual(error(429, {}).code, "rate_limited")
 
     def test_password_reset_by_code(self):
         self.client.sign_up(EMAIL, PASSWORD)
