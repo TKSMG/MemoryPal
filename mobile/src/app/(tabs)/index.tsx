@@ -21,13 +21,13 @@ type SyncInfo = ReturnType<typeof useSync>;
 
 /** The account button doubles as a quiet sync status light. */
 function syncIcon(sync: SyncInfo): IconName {
-  if (!sync.account.signedIn) return 'person-circle-outline';
+  if (!sync.account.canSync) return 'person-circle-outline';
   if (sync.syncing) return 'sync-outline';
   return sync.error ? 'cloud-offline-outline' : 'cloud-done-outline';
 }
 
 function syncLabel(sync: SyncInfo): string {
-  if (!sync.account.signedIn) return 'Account: sign in to sync';
+  if (!sync.account.canSync) return sync.account.usesDrive ? 'Account & sync: connect Google Drive to sync' : 'Account: sign in to sync';
   if (sync.syncing) return 'Account & sync: syncing';
   return sync.error ? `Account & sync: ${sync.error}` : 'Account & sync: up to date';
 }

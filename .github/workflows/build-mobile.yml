@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_UPLOAD_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      # Google Drive sync (mobile/app.config.js); empty keeps the MemoryPal cloud.
+      GOOGLE_IOS_CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
     defaults:
       run:
         working-directory: mobile
@@ -88,6 +90,8 @@ jobs:
   build-ios:
     name: Build iOS
     runs-on: macos-26
+    env:
+      GOOGLE_IOS_CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
     defaults:
       run:
         working-directory: mobile

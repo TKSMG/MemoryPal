@@ -5,6 +5,9 @@ MemoryPal's accounts and sync run on [Supabase](https://supabase.com): email + p
 sync records protected by Row Level Security. Until a project is configured, both apps work
 exactly as before, fully offline, and the account screens say sync isn't set up.
 
+**Cards can now sync through each person's own Google Drive instead**, leaving Supabase with
+accounts only. That is switched on per build; see [GOOGLE_DRIVE_SYNC.md](GOOGLE_DRIVE_SYNC.md).
+
 You don't need a domain to build or test this. You will want one before a public launch (see
 "Before launch").
 

@@ -11,7 +11,7 @@ import { sequenceRatio } from '../src/core/py';
 import { AttemptLimiter, accountAgeCheck, characterClasses, passwordProblems, passwordStrength, predictable, waitMessage } from '../src/core/security';
 import { answerAssessment } from '../src/core/smartCheck';
 import { MemoryStore, normalizeStudyPlan } from '../src/core/store';
-import { payloadFromRecords, planSync, recordsFromPayload, Records, Remote } from '../src/core/sync';
+import { Entries, entriesAfter, entriesOf, newestStamp, nextStamp, payloadFromRecords, planSync, recordsFromPayload, Records, Remote, remoteFromFiles } from '../src/core/sync';
 import { acronym, chunkMap, linkChain, palace, parseIdeas, pegList, story } from '../src/core/techniques';
 import { answerKind, buildQuiz, cardQuestion, clozeCandidates, isGenericFront, listItems, noteQuestions, questionForBit, QuestionType, QuizCard, Rng } from '../src/core/questions';
 import { parsePromptAnswerLines, splitStudyBits, textTokens } from '../src/core/text';
@@ -97,6 +97,20 @@ describe('parity with the desktop logic', () => {
       const plan = planSync(item.local as Records, item.base as Records, item.remote as Remote);
       expect({ case: i, push: plan.push, apply: plan.apply, final: plan.final }).toEqual({ case: i, push: item.push, apply: item.apply, final: item.final });
     }
+  });
+
+  test('drive files are read, combined, stamped and written back the same way', () => {
+    const d = fixtures.drive;
+    for (const [i, item] of d.cases.entries()) {
+      const [own, ...others] = (item.files as unknown[]).map((content) => entriesOf(content));
+      const [remote, stamps] = remoteFromFiles([own, ...others]);
+      const plan = planSync(item.local as Records, item.base as Records, remote);
+      const stamp = nextStamp(newestStamp(stamps), 'laptop', item.now_ms);
+      expect({ i, remote, stamps, push: plan.push, stamp, after: entriesAfter(own, plan, remote, stamps, stamp) })
+        .toEqual({ i, remote: item.remote, stamps: item.stamps, push: item.push, stamp: item.stamp, after: item.entries_after as unknown as Entries });
+    }
+    for (const [i, item] of d.hostile.entries()) expect({ i, entries: entriesOf(item.content) }).toEqual({ i, entries: item.entries });
+    for (const item of d.stamps) expect(nextStamp(item.newest, item.device, item.now_ms)).toBe(item.stamp);
   });
 
   test('password checks and strength scores match', () => {
