@@ -22,6 +22,7 @@ export const ERRORS = {
   bad_request: 400,
   blocked: 422,
   busy: 503,
+  busy_today: 503,
   provider_error: 502,
   not_configured: 500,
 } as const;
@@ -295,4 +296,59 @@ export function cleanQuestions(raw: unknown, count = MAX_QUESTIONS, avoid: strin
 export function providerError(status: number): AiError {
   if (status === 429) return new AiError("busy", "The AI is busy right now. Try again in a minute.");
   return new AiError("provider_error", "The AI service had a problem. Try again later.");
+}
+
+export interface Limits {
+  /** Requests per person per day (UTC), at least 1. */
+  daily: number;
+  /** Requests per person per minute; 0 is off. */
+  perMinute: number;
+  /** Requests for everyone together per day (Pacific time, when Gemini resets); 0 is off. */
+  totalDaily: number;
+  /** Requests for everyone together per minute; 0 is off. */
+  totalPerMinute: number;
+}
+
+/**
+ * Limits from the function's secrets. The defaults keep the whole app inside
+ * Gemini's free tier for Flash-Lite (about 500 requests a day and 15 a minute
+ * for the key), with some room for retries and testing.
+ */
+export function limitsFrom(env: (name: string) => string | undefined): Limits {
+  const number = (name: string, fallback: number, least: number) => {
+    const raw = (env(name) ?? "").trim();
+    const value = raw === "" ? NaN : Math.trunc(Number(raw));
+    return Number.isFinite(value) ? Math.max(least, value) : fallback;
+  };
+  return {
+    daily: number("AI_DAILY_LIMIT", 10, 1),
+    perMinute: number("AI_PER_MINUTE", 3, 0),
+    totalDaily: number("AI_TOTAL_DAILY_LIMIT", 450, 0),
+    totalPerMinute: number("AI_TOTAL_PER_MINUTE", 14, 0),
+  };
+}
+
+/** Seconds until the next whole minute, for Retry-After. */
+export function secondsToNextMinute(now: Date): number {
+  return 60 - now.getUTCSeconds();
+}
+
+/**
+ * Read ai_usage_take_limited's answer: the person's count today, or the
+ * AiError for the limit it hit. Codes stay ones that 0.50.0 apps already
+ * understand where possible ("busy" says to wait a minute).
+ */
+export function takeResult(answer: unknown, limits: Limits): number {
+  const result = answer && typeof answer === "object" ? (answer as Record<string, unknown>) : {};
+  if (typeof result.used === "number") return result.used;
+  switch (result.refused) {
+    case "minute":
+      throw new AiError("busy", "That's a lot of AI requests in a row. Wait a minute and try again.");
+    case "total_minute":
+      throw new AiError("busy", "The AI is busy right now. Try again in a minute.");
+    case "total_daily":
+      throw new AiError("busy_today", "The AI has had a lot of requests today and is paused until tomorrow. Everything else keeps working.");
+    default:
+      throw new AiError("limit_reached", `You've used today's ${limits.daily} AI requests. Try again tomorrow.`);
+  }
 }

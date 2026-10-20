@@ -2,8 +2,8 @@
 // Google Gemini, for signed-in people only, with a daily allowance each.
 //
 // The Gemini key stays here (secret GEMINI_API_KEY); the apps never see it.
-// See README.md for deploying it and supabase/migrations/2026-10-18-ai-usage.sql
-// for the ai_usage table it counts requests in.
+// See README.md for deploying it, and supabase/migrations/2026-10-18-ai-usage.sql
+// and 2026-10-20-ai-rate-limits.sql for the tables it counts requests in.
 //
 // POST /functions/v1/ai   Authorization: Bearer <the person's access token>
 //   { "action": "notes" | "questions", "text"?: string,
@@ -12,7 +12,7 @@
 // -> 200 { "ok": true, "action", "result": Notes | { "questions": Question[] }, "remaining": number }
 // -> 4xx/5xx { "ok": false, "error": code, "message": text }
 
-import { AiError, cleanNotes, cleanQuestions, ERRORS, geminiBody, modelJson, parseRequest, providerError } from "./logic.ts";
+import { AiError, cleanNotes, cleanQuestions, ERRORS, geminiBody, limitsFrom, modelJson, parseRequest, providerError, secondsToNextMinute, takeResult } from "./logic.ts";
 
 const env = (name: string, fallback = "") => Deno.env.get(name) ?? fallback;
 const SUPABASE_URL = env("SUPABASE_URL").replace(/\/+$/, "");
@@ -20,7 +20,7 @@ const PUBLIC_KEY = env("SUPABASE_ANON_KEY") || env("SUPABASE_PUBLISHABLE_KEY");
 const SERVICE_KEY = env("SUPABASE_SERVICE_ROLE_KEY") || env("SUPABASE_SECRET_KEY");
 const GEMINI_KEY = env("GEMINI_API_KEY");
 const GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3.5-flash-lite").trim() || "gemini-3.5-flash-lite";
-const DAILY_LIMIT = Math.max(1, Math.trunc(Number(env("AI_DAILY_LIMIT", "10"))) || 10);
+const LIMITS = limitsFrom((name) => Deno.env.get(name));
 const GEMINI_TIMEOUT_MS = 100_000;
 // The base64 of an 8 MB file plus some text, with room to spare.
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
@@ -31,12 +31,13 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function reply(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+function reply(status: number, body: unknown, extra: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store", ...extra } });
 }
 
 function failure(error: AiError): Response {
-  return reply(ERRORS[error.code] ?? 500, { ok: false, error: error.code, message: error.message });
+  const extra: Record<string, string> = error.code === "busy" ? { "Retry-After": String(secondsToNextMinute(new Date())) } : {};
+  return reply(ERRORS[error.code] ?? 500, { ok: false, error: error.code, message: error.message }, extra);
 }
 
 /** The signed-in person behind the access token, checked by Supabase Auth. */
@@ -68,8 +69,33 @@ async function rpc(name: string, args: Record<string, unknown>): Promise<unknown
     headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify(args),
   });
+  if (response.status === 404) throw new MissingFunction();
   if (!response.ok) throw new AiError("provider_error", "The daily allowance couldn't be checked.");
   return response.json().catch(() => null);
+}
+
+class MissingFunction extends Error {}
+
+/** Count one request against every limit; the person's count today, or AiError. */
+async function takeAllowance(userId: string): Promise<number> {
+  try {
+    return takeResult(
+      await rpc("ai_usage_take_limited", {
+        p_user: userId,
+        p_daily: LIMITS.daily,
+        p_per_minute: LIMITS.perMinute,
+        p_total_daily: LIMITS.totalDaily,
+        p_total_per_minute: LIMITS.totalPerMinute,
+      }),
+      LIMITS,
+    );
+  } catch (error) {
+    if (!(error instanceof MissingFunction)) throw error;
+  }
+  // 2026-10-20-ai-rate-limits.sql hasn't been run yet: only the daily allowance applies.
+  console.error("ai_usage_take_limited is missing; run supabase/migrations/2026-10-20-ai-rate-limits.sql");
+  const used = await rpc("ai_usage_take", { p_user: userId, p_limit: LIMITS.daily });
+  return takeResult(typeof used === "number" ? { used } : { refused: "daily" }, LIMITS);
 }
 
 async function gemini(body: Record<string, unknown>): Promise<unknown> {
@@ -115,14 +141,13 @@ Deno.serve(async (request) => {
     }
     const input = parseRequest(body);
 
-    const used = await rpc("ai_usage_take", { p_user: userId, p_limit: DAILY_LIMIT });
-    if (typeof used !== "number") throw new AiError("limit_reached", `You've used today's ${DAILY_LIMIT} AI requests. Try again tomorrow.`);
+    const used = await takeAllowance(userId);
     charged = true;
 
     const answer = modelJson(await gemini(geminiBody(input)));
     const pdf = input.file?.mime_type === "application/pdf";
     const result = input.action === "notes" ? cleanNotes(answer) : { questions: cleanQuestions(answer, input.count, input.avoid, pdf) };
-    return reply(200, { ok: true, action: input.action, result, remaining: Math.max(0, DAILY_LIMIT - used) });
+    return reply(200, { ok: true, action: input.action, result, remaining: Math.max(0, LIMITS.daily - used) });
   } catch (error) {
     const aiError = error instanceof AiError ? error : new AiError("provider_error", "Something went wrong. Try again later.");
     if (!(error instanceof AiError)) console.error("ai", error);

@@ -88,3 +88,14 @@ test('signing out ends the session on the server even before any sync', async ()
   expect(cloud.client.signedOut).toEqual(['a']);
   expect(relaunched.signedIn).toBe(false);
 });
+
+describe('rate limits', () => {
+  test('are explained, with the wait when Supabase gives one', () => {
+    const tooSoon = CloudClient.errorFrom(429, { error_code: 'over_email_send_rate_limit', msg: 'For security purposes, you can only request this after 42 seconds.' });
+    expect(tooSoon.code).toBe('email_too_soon');
+    expect(tooSoon.message).toContain('Wait 42 seconds');
+    expect(CloudClient.errorFrom(429, { error_code: 'over_email_send_rate_limit', msg: 'Email rate limit exceeded' }).code).toBe('over_email_send_rate_limit');
+    expect(CloudClient.errorFrom(429, { error_code: 'over_request_rate_limit' }).code).toBe('over_request_rate_limit');
+    expect(CloudClient.errorFrom(429, {}).code).toBe('rate_limited');
+  });
+});

@@ -83,6 +83,7 @@ describe('AI requests', () => {
       [401, { ok: false, error: 'not_signed_in' }, 'not_signed_in'],
       [429, { ok: false, error: 'limit_reached' }, 'limit_reached'],
       [503, { ok: false, error: 'busy' }, 'busy'],
+      [503, { ok: false, error: 'busy_today' }, 'busy_today'],
       [413, 'not json', 'file_too_large'],
       [415, { ok: false, error: 'unsupported_file' }, 'unsupported_file'],
       [502, { ok: false, error: 'provider_error' }, 'provider_error'],
