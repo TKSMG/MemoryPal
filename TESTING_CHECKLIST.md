@@ -6,6 +6,8 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 
 - Run `python -m unittest discover -s latest_app\tests` and confirm every test passes.
 - Confirm the test run does not create or change anything in `%LOCALAPPDATA%\MemoryPal`.
+- In `mobile/`, run `npm test` and confirm the parity tests (including the quiz questions) pass. After changing `questions.py`, run `python tools\parity\make_fixtures.py` first.
+- If Deno is installed, run `deno test supabase/functions/ai/logic_test.ts` and confirm the AI function's checks pass.
 
 ## Welcome And Tour
 
@@ -33,6 +35,79 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - On a PC with no voice installed, confirm a calm "Read aloud isn't available on this computer" message appears instead of a crash.
 - Turn on More time and confirm timed puzzle displays and messages stay on screen about twice as long, and read aloud is slower.
 - Confirm no console window flashes when read aloud starts in the packaged app.
+
+## AI Notes And Questions
+
+These need a Supabase project with the `ai` function deployed (see `supabase/functions/ai/README.md`) and a signed-in account. Not yet tried against the live server.
+
+- Signed out, open the set builder, choose Make with AI, and press Make notes. Confirm a "Sign in to use AI" message offers Sign in, Create an account and Not now, and nothing is sent. On the phone, confirm Make with AI shows "Sign in to use AI" with a button to sign in or create an account.
+- In a build with no cloud project set up, confirm Make with AI says "AI isn't ready yet" (desktop) or "AI isn't available yet" (phone) instead of an error.
+- Signed in, use Make with AI for the first time and confirm the one-time AI screen appears, explaining what is sent, who gets it (Google's Gemini API through MemoryPal's server), that Google may keep and read it on the free tier, and the 10-a-day limit. Confirm the Privacy policy and Gemini API terms links open.
+- Press Not now on the AI screen and confirm nothing is sent and AI stays off in Settings. Use Make with AI again and confirm the AI screen asks again.
+- Press Allow and confirm a short message says AI is on. Confirm Settings > AI features shows "Use AI notes and questions" (desktop) or "AI notes and questions" (phone) switched on.
+- Type or paste a short paragraph, press Make notes, and confirm a "this can take up to a minute" style wait, then study notes with a title, sections, bullets and key terms. On the desktop, press Cancel during the wait and confirm "Cancelled. Nothing was added."
+- On the notes, confirm the "Made with AI, check it" label, Read aloud, Save notes, and Make questions from these notes all work. Confirm saved notes appear in the Library (desktop) or stay on the phone.
+- Press Make questions and confirm the questions arrive as cards in the set builder to check, edit or remove before saving. Save the set and confirm each card keeps the "Made with AI, check it" label in the Library and in quizzes.
+- Desktop: choose A PDF or picture, then Choose a file, and try a text PDF, a scanned PDF and a PNG or JPEG photo of a page. Confirm cards made from a picture show that picture, and cards from a PDF say which page they came from (with the page's picture when the page has one).
+- Phone: try Choose a PDF, Take a photo and Choose a photo, then Make notes and Make questions with each. Confirm the camera permission is asked only the first time you take a photo, and that refusing it shows a calm message suggesting Choose a photo instead. Not yet tried on a real phone.
+- Choose a file over 8 MB and confirm "That file is larger than 8 MB" instead of a send. On the desktop, choose a file that isn't a PDF or picture and confirm "That file can't be used".
+- Press Report on an AI card or AI notes. On the desktop, confirm Feedback Log opens with an "AI content report" note filled in and nothing is sent until you press a send button. On the phone, confirm an email to MemoryPal opens with the notes filled in (or a "No email app" message).
+- Watch the "AI uses left today" count go down after each request. Use all 10 and confirm the next request shows "You've used today's AI requests. They reset tomorrow" and the rest of the app keeps working.
+- Turn Wi-Fi off and press Make notes. Confirm a calm offline message ("Couldn't reach the MemoryPal cloud" on the desktop, "Needs internet" on the phone) and that nothing is lost.
+- Turn AI off in Settings and confirm Make with AI asks for consent again before anything is sent. Turn it back on and confirm the AI screen appears again.
+- With a two-step account that hasn't entered its authenticator code, confirm AI asks you to finish signing in first.
+- Send material Gemini refuses or wait for a busy period, and confirm "This material can't be used" or "The AI is busy right now" instead of a crash, and that a busy failure doesn't use up one of the 10 requests.
+
+## Quiz Question Types
+
+- Make a set with at least six cards: some short answers, a few sentence answers ("The heart pumps blood around the body"), one answer that is a numbered or comma list, and one with a year.
+- Start a Quick Quiz (desktop) or Quiz (phone) and confirm the round mixes question types: pick the answer, which question goes with this answer, fill in the blank, true or false, match the pairs, what comes next, and type the answer.
+- For fill in the blank, confirm a key word (often a year or name) is blanked from a sentence and the blank can be picked or typed.
+- For true or false, confirm both true and false statements appear across a few rounds and the false ones use an answer from the same set.
+- For match the pairs, confirm three or four short pairs can be matched, and a round with a wrong pairing counts as missed.
+- For what comes next, confirm the question never offers the item already named in the question.
+- For type the answer, confirm Smart Check accepts close answers, and Show a hint and I don't know work (phone).
+- Finish a round, start another, and confirm the questions you just had come last or are avoided. Confirm the answers were saved to each card's review schedule.
+- On the desktop, switch the set chooser between one set and All sets and confirm the quiz uses only that set.
+- With too few cards that have answers, confirm "Nothing to quiz yet" (desktop) or "Add a few more cards" (phone) instead of an empty quiz.
+- Confirm AI-made cards in a quiz still show "Made with AI, check it".
+
+## Talk-Back And Read Aloud
+
+- Confirm every card, question, answer and note has one read-aloud button: Test Lab, Review, Quick Quiz, Library, the set builder and AI notes on the desktop; review, quiz and AI notes on the phone. Pressing it again while speaking stops the voice.
+- Desktop (Windows): open Study > Talk-back study. Confirm each question is read aloud ("Question 1 ..."), the status then says "Listening. Say your answer.", and saying the answer gives "Correct." or "Not quite. The answer is ...". Not yet tried on a real Windows PC with a microphone.
+- Desktop (Windows): say "I don't know" and confirm the answer is given and the card counts as missed. Stay silent and confirm "Didn't catch that", then a pause with a Resume button after repeated silence.
+- Desktop (Windows): with no microphone or no speech recogniser installed, confirm Talk-back switches to typed answers with a short message instead of failing.
+- Desktop (Mac and Linux): confirm Talk-back reads each question aloud and asks you to type the answer, then press Enter. Not yet tried on a real Mac.
+- Desktop: with no due cards, confirm Talk-back uses cards that need more practice and says so. With no cards that have answers, confirm "Nothing to practise yet".
+- Desktop: finish a round and confirm "Round finished" with your score read aloud, plus Study again and Back to Study.
+- Phone: start Talk-back and confirm the microphone and speech-recognition permissions are asked the first time. Answer out loud and confirm the result is spoken and the card is rated. Not yet tried on a real phone.
+- Phone: refuse the microphone permission and confirm the message says questions will be read and you can type the answer.
+- Phone: with a screen reader (VoiceOver or TalkBack) on, confirm the screen reader announces the questions and the app's own voice stays quiet.
+- Leave the Talk-back page in the middle of a question and confirm the voice and microphone stop.
+
+## Set Builder
+
+- Desktop: on Decks press New set, name it, and confirm the set builder opens with that name. Phone: start a new set from Create.
+- Confirm the set builder asks for a set name first; "Existing sets" (desktop) or "Your sets" (phone) fills in a set you already have.
+- Try to add cards without a name and confirm "Name your set first".
+- Type questions: type a question and answer and press Enter (desktop) or Add a card (phone). Leave the answer empty and confirm a self-check card is made.
+- Paste notes: paste "Capital of France :: Paris", "Question => Answer", a tab-separated line and a plain sentence, then split them. Confirm each question line becomes that card and each other line becomes a recall card.
+- Make with AI: confirm the third choice opens the AI options described above.
+- Remove or edit a card before saving and confirm only the saved set reaches the Library.
+- With unsaved cards, start a new set and confirm "Discard unsaved cards?" (desktop) or "Discard these cards?" (phone) asks first.
+- Desktop: on Decks, use Rename set and confirm every card moves to the new name. Phone: open a set and rename it, then delete a test set and confirm its cards are removed after the warning.
+
+## Dialogs, Dropdowns And Title Bar
+
+- Open dropdowns with long labels (deck chooser, note menus, set chooser) near the right and bottom edges of the screen and confirm each list fits its longest label, stays fully on screen, and opens above its button when there is no room below.
+- Open dialogs with long messages (consent, sign in, discard, rename) at Large and Extra Large text and confirm no text is cut off; the dialog grows to fit.
+- Confirm dialogs and dropdowns have a thin border and the same look in light and dark mode, and select fields look like text fields.
+- With a mouse wheel, scroll a long page, a text box, the Library list and a dropdown and confirm each notch glides smoothly instead of jumping, and a fast spin keeps gliding without stutter.
+- With a Windows precision touchpad, scroll the same places and confirm the page follows your fingers directly without lagging behind.
+- Mac: try a mouse wheel and a trackpad and confirm the wheel glides and the trackpad follows your fingers. Not yet tried on a real Mac.
+- Windows 10/11: open a window that uses the system title bar (such as a dialog) and switch between light and dark theme. Confirm the title bar matches the theme (exact colours on Windows 11). Not yet tried on real Windows hardware.
+- Mac: confirm the title bar follows the app's light or dark theme.
 
 ## First Run
 

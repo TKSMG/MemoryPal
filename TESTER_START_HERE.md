@@ -40,6 +40,9 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 6. **Associations** - paste 12 or more items and try Peg list and Memory palace.
 7. **Puzzles** - play one or two games.
 8. **Settings** - try Large text, Higher contrast, and More time.
+9. **Quick Quiz** - play a round and notice the different kinds of question: pick the answer, fill in the blank, true or false, match the pairs, what comes next, and type the answer. A second round should give different questions.
+10. **Talk-back study** (under Study) - hear each question, say your answer out loud, and hear whether you were right. Say "I don't know" to hear the answer. If there is no microphone, type the answer instead.
+11. **Make with AI** (optional, needs an account) - start a new set, choose Make with AI, and paste a paragraph of notes or choose a PDF or a picture of a page. Try Make notes and Make questions. Check what it makes: AI cards are labelled "Made with AI, check it", and Report tells us about a bad result.
 
 ## 4. Send feedback
 
@@ -60,6 +63,8 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 
 - Read aloud uses the voice built into Windows. It needs no internet connection, but some cut-down Windows installs have no voice.
 - Audio recording and playback use Windows' built-in tools. Video is recorded with the Windows Camera app and then brought into MemoryPal.
-- Speech-to-text dictation is not included in the tester build.
+- Talk-back study listens with the speech recogniser built into Windows, offline. It needs a microphone, and some cut-down Windows installs have no recogniser; then you type your answers instead. On a Mac it reads the questions aloud and you type the answers.
+- AI notes and questions are off until you allow them. They need a MemoryPal account and an internet connection, and each account can make 10 AI requests a day. What you send goes through MemoryPal's server to Google's Gemini (free tier), where Google may keep and review it, so don't send private information. You can turn AI off in **Settings**. If this build has no cloud set up, AI says it isn't ready yet.
+- AI can be wrong. Please check AI notes and cards before relying on them.
 - If your taskbar or desktop still shows the old MemoryPal icon after updating, sign out and back in; Windows caches icons.
 - The Mac version is a separate download.
