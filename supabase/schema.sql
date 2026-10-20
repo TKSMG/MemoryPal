@@ -188,6 +188,29 @@ $$;
 revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
 
+-- Moving to Google Drive: once a profile's records are in the person's own
+-- drive, the apps remove them from here. Only the caller's own rows, and
+-- for an account with an authenticator app only after its code.
+create or replace function public.delete_my_sync_records()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not signed in';
+  end if;
+  if coalesce(auth.jwt()->>'aal', 'aal1') <> 'aal2' and private.has_verified_second_step() then
+    raise exception 'second step required' using errcode = '42501';
+  end if;
+  delete from public.sync_records where user_id = auth.uid();
+end;
+$$;
+
+revoke all on function public.delete_my_sync_records() from public, anon;
+grant execute on function public.delete_my_sync_records() to authenticated;
+
 -- AI notes and questions: a daily allowance per person (also in
 -- supabase/migrations/2026-10-18-ai-usage.sql). Only the "ai" Edge Function
 -- writes it, with the service role; Row Level Security is on with no policies.

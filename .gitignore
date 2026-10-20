@@ -51,3 +51,4 @@ supabase/.env
 CLAUDE.md
 .claude/
 HANDOFF.md
+latest_app/memorypal/google_client.py

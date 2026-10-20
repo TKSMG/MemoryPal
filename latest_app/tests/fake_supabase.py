@@ -173,6 +173,10 @@ class FakeSupabase:
             for key in [k for k in self.rows if k[0] == user_id]:
                 del self.rows[key]
             return None
+        if path == "/rest/v1/rpc/delete_my_sync_records":
+            for key in [k for k in self.rows if k[0] == user_id]:
+                del self.rows[key]
+            return None
         if path.startswith("/rest/v1/") and self.has_verified_factor(user_id) and self.aal != "aal2":
             # The restrictive policy in schema.sql: two-step accounts need aal2.
             raise self.error(request, 403, "42501", "new row violates row-level security policy")

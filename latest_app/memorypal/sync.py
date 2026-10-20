@@ -239,3 +239,91 @@ def apply_plan(payload, local, plan):
         else:
             records[key] = data
     return payload_from_records(payload, records)
+
+
+# ------------------------------------------------- syncing through a drive
+# With a file store (Google Drive) every device writes only its own file:
+# all its records, each with a stamp saying when that version was made.
+# Building "remote" takes each record's newest copy across all files, so a
+# device that hasn't synced for a while can't undo newer changes, and no
+# two devices ever write the same file. Deletions stay in the files as
+# tombstones (data None) so they reach devices that were away.
+
+FILE_PREFIX = "memorypal-"
+FILE_FORMAT = 1
+STAMP_DIGITS = (13, 6)
+
+
+def file_name(device_id):
+    return f"{FILE_PREFIX}{device_id}.json"
+
+
+def stamp_parts(stamp):
+    """(milliseconds, counter) of a stamp, or None when it isn't one."""
+    parts = stamp.split(":", 2) if isinstance(stamp, str) else []
+    if len(parts) != 3 or not parts[2] or not all(
+        len(part) == size and part.isdigit() for part, size in zip(parts, STAMP_DIGITS)
+    ):
+        return None
+    return int(parts[0]), int(parts[1])
+
+
+def next_stamp(newest, device_id, now_ms):
+    """A stamp newer than `newest` (the newest stamp seen anywhere).
+
+    Normally it is the clock time; a device whose clock runs behind still
+    moves past what it has seen, by counting up from it.
+    """
+    seen = stamp_parts(newest) or (0, 0)
+    ms, count = (int(now_ms), 0) if int(now_ms) > seen[0] else (seen[0], seen[1] + 1)
+    return f"{ms:0{STAMP_DIGITS[0]}d}:{count:0{STAMP_DIGITS[1]}d}:{device_id}"
+
+
+def entries_of(content):
+    """The records a device file holds, key -> [stamp, data|None]; anything malformed is skipped."""
+    records = content.get("records") if isinstance(content, dict) else None
+    entries = {}
+    if not isinstance(records, dict):
+        return entries
+    for key, entry in records.items():
+        if not known_key(key) or not isinstance(entry, list) or len(entry) != 2:
+            continue
+        stamp, data = entry
+        if stamp_parts(stamp) is None or not (data is None or isinstance(data, dict)):
+            continue
+        entries[key] = [stamp, data]
+    return entries
+
+
+def remote_from_files(files):
+    """Each record's newest copy across the device files: (remote, stamps).
+
+    `files` are the parsed entries of every device file, this device's own
+    included (its copy is what the others are measured against).
+    """
+    remote, stamps = {}, {}
+    for entries in files:
+        for key, (stamp, data) in entries.items():
+            if key not in stamps or stamp > stamps[key]:
+                stamps[key], remote[key] = stamp, data
+    return remote, stamps
+
+
+def newest_stamp(stamps):
+    return max(stamps.values(), default="")
+
+
+def entries_after(own, plan, remote, stamps, stamp):
+    """This device's file after a sync: what it sent gets the new stamp,
+    what it took from other devices keeps theirs, the rest is unchanged."""
+    entries = {key: list(entry) for key, entry in own.items() if known_key(key)}
+    for key, data in remote.items():
+        if key not in plan.push:
+            entries[key] = [stamps[key], data]
+    for key, data in plan.push.items():
+        entries[key] = [stamp, data]
+    return entries
+
+
+def file_content(device_id, entries, stamp):
+    return {"format": FILE_FORMAT, "device": device_id, "written": stamp, "records": entries}
