@@ -70317,6 +70317,8449 @@
    "nav_order": []
   }
  },
+ "drive": {
+  "cases": [
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000000000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000005000:000002:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {},
+    "now_ms": 1800000007000,
+    "remote": {
+     "card:b": null,
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:b": "1800000005000:000002:phone",
+     "capture:c": "1800000004000:000001:phone",
+     "settings:profile": "1800000000000:000000:laptop",
+     "card:a": "1800000004000:000002:phone"
+    },
+    "push": {
+     "card:a": {
+      "back": "one",
+      "id": "a",
+      "repetitions": 2
+     }
+    },
+    "stamp": "1800000007000:000000:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000005000:000002:phone",
+      null
+     ],
+     "capture:c": [
+      "1800000004000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000000000:000000:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:a": [
+      "1800000007000:000000:laptop",
+      {
+       "back": "one",
+       "id": "a",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {}
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000007000,
+    "remote": {
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "capture:c": "1800000005000:000000:laptop",
+     "card:a": "1800000003000:000002:tablet",
+     "card:b": "1800000002000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000007000:000000:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000005000:000000:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:a": [
+      "1800000003000:000002:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000002000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000000000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000003000:000001:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000001000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000001000:000002:tablet",
+        null
+       ],
+       "capture:c": [
+        "1800000000000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000004000,
+    "remote": {
+     "card:b": null,
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:b": "1800000003000:000001:phone",
+     "card:a": "1800000004000:000001:tablet",
+     "capture:c": "1800000001000:000000:phone"
+    },
+    "push": {},
+    "stamp": "1800000004000:000002:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000003000:000001:phone",
+      null
+     ],
+     "card:a": [
+      "1800000004000:000001:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000001000:000000:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000000:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000001000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000000000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:a": "1800000005000:000002:phone",
+     "capture:c": "1800000002000:000002:laptop",
+     "settings:profile": "1800000004000:000000:tablet",
+     "card:b": "1800000001000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000002000:000002:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000004000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000001000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000003000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000002:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000005000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1799999997000,
+    "remote": {
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "capture:c": "1800000004000:000001:tablet",
+     "settings:profile": "1800000003000:000002:laptop",
+     "card:a": "1800000004000:000001:phone",
+     "card:b": "1800000005000:000002:tablet"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": null
+    },
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000004000:000001:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000003000:000002:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:a": [
+      "1800000005000:000003:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000005000:000003:laptop",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000001000:000001:laptop",
+        null
+       ],
+       "capture:c": [
+        "1800000001000:000002:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000003000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000003000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000000:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000001000:000001:tablet",
+        null
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1799999997000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:b": "1800000003000:000002:phone",
+     "capture:c": "1800000001000:000002:laptop",
+     "settings:profile": "1800000003000:000001:laptop",
+     "card:a": "1800000005000:000001:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000003000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000001000:000002:laptop",
+      null
+     ],
+     "settings:profile": [
+      "1800000003000:000001:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:a": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000000000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000003000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000000000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000005000:000002:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000000000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:b": "1800000002000:000000:tablet",
+     "capture:c": "1800000004000:000000:tablet",
+     "card:a": "1800000005000:000002:tablet",
+     "settings:profile": "1800000004000:000001:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000002000:000000:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:a": [
+      "1800000005000:000002:tablet",
+      null
+     ],
+     "settings:profile": [
+      "1800000004000:000001:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000001000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000000000:000000:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000000000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000001000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000001000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000007000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:a": "1800000005000:000001:phone",
+     "capture:c": "1800000004000:000002:laptop",
+     "card:b": "1800000001000:000002:phone",
+     "settings:profile": "1800000001000:000001:tablet"
+    },
+    "push": {},
+    "stamp": "1800000007000:000000:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000002:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000001000:000002:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000001000:000001:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000001000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000002:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000005000:000001:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000000000:000000:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000003000:000002:tablet",
+        null
+       ],
+       "capture:c": [
+        "1800000000000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000002:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1799999997000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": null,
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000002000:000000:tablet",
+     "settings:profile": "1800000002000:000002:tablet",
+     "card:b": "1800000005000:000001:phone",
+     "capture:c": "1800000000000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000002000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000002000:000002:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000005000:000001:phone",
+      null
+     ],
+     "capture:c": [
+      "1800000000000:000000:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000001000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000001000:000000:phone",
+        null
+       ],
+       "card:b": [
+        "1800000005000:000001:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000005000:000000:tablet",
+        null
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000001000,
+    "remote": {
+     "card:b": null,
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": null
+    },
+    "stamps": {
+     "card:b": "1800000005000:000001:phone",
+     "capture:c": "1800000004000:000001:laptop",
+     "card:a": "1800000001000:000000:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000005000:000001:phone",
+      null
+     ],
+     "capture:c": [
+      "1800000004000:000001:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:a": [
+      "1800000001000:000000:phone",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000005000:000000:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000000000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000004000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000007000,
+    "remote": {
+     "capture:c": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "capture:c": "1800000005000:000000:laptop",
+     "settings:profile": "1800000004000:000001:phone",
+     "card:b": "1800000004000:000002:tablet"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamp": "1800000007000:000000:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000005000:000000:laptop",
+      null
+     ],
+     "settings:profile": [
+      "1800000004000:000001:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000004000:000002:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:a": [
+      "1800000007000:000000:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000002000:000002:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000002:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000005000:000000:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000001000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000007000,
+    "remote": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "capture:c": "1800000005000:000002:tablet",
+     "settings:profile": "1800000005000:000001:laptop",
+     "card:a": "1800000005000:000001:phone",
+     "card:b": "1800000005000:000000:tablet"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamp": "1800000007000:000000:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000005000:000002:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000005000:000000:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:a": [
+      "1800000007000:000000:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000005000:000002:laptop",
+        null
+       ],
+       "card:b": [
+        "1800000001000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "capture:c": [
+        "1800000005000:000002:phone",
+        null
+       ],
+       "settings:profile": [
+        "1800000001000:000000:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {},
+    "now_ms": 1799999999000,
+    "remote": {
+     "card:a": null,
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": null,
+     "settings:profile": null
+    },
+    "stamps": {
+     "card:a": "1800000005000:000002:laptop",
+     "card:b": "1800000001000:000000:laptop",
+     "capture:c": "1800000005000:000002:phone",
+     "settings:profile": "1800000001000:000000:phone"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000003:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000001000:000000:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000002:phone",
+      null
+     ],
+     "settings:profile": [
+      "1800000001000:000000:phone",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000002000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000001:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000001000:000001:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000000:tablet",
+        null
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000008000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": null,
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:b": "1800000002000:000002:phone",
+     "settings:profile": "1800000005000:000000:tablet",
+     "card:a": "1800000005000:000001:phone",
+     "capture:c": "1800000001000:000001:phone"
+    },
+    "push": {},
+    "stamp": "1800000008000:000000:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000002000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000000:tablet",
+      null
+     ],
+     "card:a": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "capture:c": [
+      "1800000001000:000001:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000000:laptop",
+        null
+       ],
+       "card:b": [
+        "1800000003000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000002:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "settings:profile": [
+        "1800000003000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000000:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000002000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000001:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000003000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1799999998000,
+    "remote": {
+     "card:a": null,
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000000:laptop",
+     "card:b": "1800000003000:000001:laptop",
+     "capture:c": "1800000005000:000002:laptop",
+     "settings:profile": "1800000003000:000002:phone"
+    },
+    "push": {
+     "card:b": null
+    },
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000000:laptop",
+      null
+     ],
+     "card:b": [
+      "1800000005000:000003:laptop",
+      null
+     ],
+     "capture:c": [
+      "1800000005000:000002:laptop",
+      null
+     ],
+     "settings:profile": [
+      "1800000003000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {}
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000000000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000003000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000006000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000002:tablet",
+     "card:b": "1800000003000:000002:phone",
+     "capture:c": "1800000002000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000006000:000000:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000002:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000003000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000002000:000000:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000002000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000000000:000001:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000002000:000002:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {},
+    "base": {},
+    "now_ms": 1800000008000,
+    "remote": {
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": null,
+     "card:b": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "capture:c": "1800000005000:000001:phone",
+     "card:a": "1800000000000:000001:phone",
+     "card:b": "1800000002000:000002:tablet",
+     "settings:profile": "1800000005000:000002:tablet"
+    },
+    "push": {},
+    "stamp": "1800000008000:000000:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:a": [
+      "1800000000000:000001:phone",
+      null
+     ],
+     "card:b": [
+      "1800000002000:000002:tablet",
+      null
+     ],
+     "settings:profile": [
+      "1800000005000:000002:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000003000:000000:laptop",
+        null
+       ],
+       "capture:c": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000000:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000002000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000001000:000002:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000000000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000002000,
+    "remote": {
+     "card:a": null,
+     "card:b": null,
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": null
+    },
+    "stamps": {
+     "card:a": "1800000005000:000001:tablet",
+     "card:b": "1800000003000:000000:laptop",
+     "capture:c": "1800000005000:000001:laptop",
+     "settings:profile": "1800000002000:000000:laptop"
+    },
+    "push": {},
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000001:tablet",
+      null
+     ],
+     "card:b": [
+      "1800000003000:000000:laptop",
+      null
+     ],
+     "capture:c": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000002000:000000:laptop",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:laptop",
+        null
+       ],
+       "capture:c": [
+        "1800000002000:000002:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000004000,
+    "remote": {
+     "card:a": null,
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000001:laptop",
+     "capture:c": "1800000005000:000001:phone",
+     "settings:profile": "1800000004000:000000:tablet",
+     "card:b": "1800000005000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000001:laptop",
+      null
+     ],
+     "capture:c": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000004000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000000000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000003000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000000000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000003000:000001:tablet",
+        null
+       ],
+       "capture:c": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000003000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000000000:000002:phone",
+     "card:b": "1800000004000:000001:phone",
+     "settings:profile": "1800000003000:000002:phone",
+     "capture:c": "1800000004000:000000:tablet"
+    },
+    "push": {
+     "card:b": null
+    },
+    "stamp": "1800000004000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000000000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000004000:000002:laptop",
+      null
+     ],
+     "settings:profile": [
+      "1800000003000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000000:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000002000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {}
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000001000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000004000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000001:laptop",
+     "card:b": "1800000002000:000002:laptop",
+     "settings:profile": "1800000005000:000000:laptop"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamp": "1800000005000:000001:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000002000:000002:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000000:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000000:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000001000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "capture:c": [
+        "1800000000000:000000:phone",
+        null
+       ],
+       "settings:profile": [
+        "1800000003000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000003000:000000:tablet",
+        null
+       ],
+       "capture:c": [
+        "1800000002000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000005000,
+    "remote": {
+     "card:a": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": null
+    },
+    "stamps": {
+     "card:a": "1800000004000:000000:laptop",
+     "settings:profile": "1800000003000:000001:phone",
+     "capture:c": "1800000002000:000001:tablet",
+     "card:b": "1800000003000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000000:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000000:laptop",
+      null
+     ],
+     "settings:profile": [
+      "1800000003000:000001:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "capture:c": [
+      "1800000002000:000001:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000003000:000000:tablet",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000000000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000003000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000004000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000005000:000002:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000000000:000002:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000000000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000004000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:a": "1800000005000:000002:tablet",
+     "card:b": "1800000003000:000002:laptop",
+     "settings:profile": "1800000005000:000001:phone",
+     "capture:c": "1800000004000:000000:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000002:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000003000:000002:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000000:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000004000:000000:laptop",
+        null
+       ],
+       "capture:c": [
+        "1800000004000:000002:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000003000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000002:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000004000:000001:tablet",
+        null
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000008000,
+    "remote": {
+     "card:b": null,
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:b": "1800000004000:000001:tablet",
+     "capture:c": "1800000004000:000002:laptop",
+     "card:a": "1800000003000:000001:tablet"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamp": "1800000008000:000000:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000004000:000001:tablet",
+      null
+     ],
+     "capture:c": [
+      "1800000004000:000002:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:a": [
+      "1800000008000:000000:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000003000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000000000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000001:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {}
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1799999997000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": null
+    },
+    "stamps": {
+     "card:a": "1800000004000:000001:phone",
+     "card:b": "1800000000000:000000:laptop",
+     "capture:c": "1800000005000:000000:phone",
+     "settings:profile": "1800000002000:000001:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000001:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000000000:000000:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000000:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000002000:000001:phone",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000000000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000000:phone",
+        null
+       ],
+       "settings:profile": [
+        "1800000001000:000000:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000002:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000001000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:b": "1800000005000:000001:laptop",
+     "settings:profile": "1800000001000:000000:phone",
+     "card:a": "1800000005000:000001:phone",
+     "capture:c": "1800000002000:000001:tablet"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "settings:profile": [
+      "1800000001000:000000:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "capture:c": [
+      "1800000002000:000001:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:a": [
+      "1800000005000:000002:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000002000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000003000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {}
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000008000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:b": "1800000005000:000001:phone",
+     "capture:c": "1800000005000:000002:phone",
+     "settings:profile": "1800000004000:000001:laptop"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamp": "1800000008000:000000:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000004000:000001:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:a": [
+      "1800000008000:000000:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000000000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000002000:000001:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000001000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "settings:profile": [
+        "1800000002000:000000:tablet",
+        null
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000008000,
+    "remote": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": null
+    },
+    "stamps": {
+     "capture:c": "1800000001000:000002:phone",
+     "settings:profile": "1800000003000:000000:laptop",
+     "card:b": "1800000002000:000001:phone"
+    },
+    "push": {},
+    "stamp": "1800000008000:000000:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000001000:000002:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000003000:000000:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000002000:000001:phone",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000004000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000000:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000000000:000002:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000003000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1799999999000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:b": "1800000005000:000001:phone",
+     "settings:profile": "1800000004000:000002:phone",
+     "card:a": "1800000005000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:a": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000002000:000002:laptop",
+        null
+       ],
+       "card:b": [
+        "1800000005000:000000:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "capture:c": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000001000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000005000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000000:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000001000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000005000,
+    "remote": {
+     "card:a": null,
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000002000:000002:laptop",
+     "card:b": "1800000005000:000001:tablet",
+     "capture:c": "1800000005000:000001:phone",
+     "settings:profile": "1800000001000:000002:tablet"
+    },
+    "push": {
+     "card:b": null
+    },
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000002000:000002:laptop",
+      null
+     ],
+     "card:b": [
+      "1800000005000:000002:laptop",
+      null
+     ],
+     "capture:c": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "settings:profile": [
+      "1800000001000:000002:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000001000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000001000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000002000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000000:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000005000:000000:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000002000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000004000,
+    "remote": {
+     "card:a": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000005000:000000:tablet",
+     "settings:profile": "1800000002000:000000:laptop",
+     "card:b": "1800000002000:000002:tablet",
+     "capture:c": "1800000002000:000000:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000001:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000000:tablet",
+      null
+     ],
+     "settings:profile": [
+      "1800000002000:000000:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000002000:000002:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000002000:000000:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000000000:000001:laptop",
+        null
+       ],
+       "capture:c": [
+        "1800000000000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000001000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000008000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:b": "1800000004000:000001:phone",
+     "capture:c": "1800000005000:000000:tablet",
+     "settings:profile": "1800000005000:000002:phone",
+     "card:a": "1800000004000:000002:phone"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamp": "1800000008000:000000:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000004000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:a": [
+      "1800000008000:000000:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000001000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000004000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "capture:c": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000003000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000002000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000001:tablet",
+     "card:b": "1800000004000:000002:laptop",
+     "settings:profile": "1800000005000:000001:laptop",
+     "capture:c": "1800000004000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000001:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000004000:000002:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000001000:000002:laptop",
+        null
+       ],
+       "card:b": [
+        "1800000005000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000000:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000002000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000001:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000001000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000000000:000001:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000001000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": null
+    },
+    "stamps": {
+     "card:a": "1800000002000:000002:phone",
+     "card:b": "1800000005000:000002:laptop",
+     "capture:c": "1800000004000:000000:phone",
+     "settings:profile": "1800000005000:000001:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000002000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000005000:000002:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000000:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000001:phone",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000000000:000000:laptop",
+        null
+       ],
+       "capture:c": [
+        "1800000003000:000002:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000000:phone",
+        null
+       ],
+       "card:b": [
+        "1800000000000:000001:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000005000:000002:phone",
+        null
+       ],
+       "settings:profile": [
+        "1800000003000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000000000:000000:tablet",
+        null
+       ],
+       "capture:c": [
+        "1800000004000:000000:tablet",
+        null
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {},
+    "now_ms": 1800000007000,
+    "remote": {
+     "card:a": null,
+     "capture:c": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": null
+    },
+    "stamps": {
+     "card:a": "1800000005000:000000:phone",
+     "capture:c": "1800000005000:000002:phone",
+     "settings:profile": "1800000005000:000001:laptop",
+     "card:b": "1800000000000:000001:phone"
+    },
+    "push": {},
+    "stamp": "1800000007000:000000:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000000:phone",
+      null
+     ],
+     "capture:c": [
+      "1800000005000:000002:phone",
+      null
+     ],
+     "settings:profile": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000000000:000001:phone",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "capture:c": [
+        "1800000005000:000001:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000004000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000006000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": null
+    },
+    "stamps": {
+     "card:a": "1800000004000:000000:laptop",
+     "card:b": "1800000005000:000000:laptop",
+     "capture:c": "1800000005000:000001:phone"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamp": "1800000006000:000000:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000006000:000000:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000005000:000000:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000001:phone",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000000000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000002:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000003000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000002000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000001000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000002000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "settings:profile": null,
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000002:phone",
+     "card:b": "1800000004000:000002:phone",
+     "settings:profile": "1800000000000:000002:laptop",
+     "capture:c": "1800000003000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000004000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "settings:profile": [
+      "1800000000000:000002:laptop",
+      null
+     ],
+     "capture:c": [
+      "1800000003000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000005000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000000000:000002:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000002:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000002:phone",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {},
+    "now_ms": 1800000001000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:b": "1800000005000:000002:laptop",
+     "capture:c": "1800000005000:000002:phone",
+     "settings:profile": "1800000005000:000002:laptop",
+     "card:a": "1800000005000:000001:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000005000:000002:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000002:phone",
+      null
+     ],
+     "settings:profile": [
+      "1800000005000:000002:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:a": [
+      "1800000005000:000001:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000001000:000001:laptop",
+        null
+       ],
+       "card:b": [
+        "1800000001000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000000000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "capture:c": [
+        "1800000001000:000000:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "capture:c": [
+        "1800000003000:000000:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000000:tablet",
+        null
+       ]
+      }
+     }
+    ],
+    "local": {},
+    "base": {},
+    "now_ms": 1800000000000,
+    "remote": {
+     "card:a": null,
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": null,
+     "settings:profile": null
+    },
+    "stamps": {
+     "card:a": "1800000001000:000001:laptop",
+     "card:b": "1800000001000:000000:laptop",
+     "capture:c": "1800000003000:000000:tablet",
+     "settings:profile": "1800000005000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000001:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000001000:000001:laptop",
+      null
+     ],
+     "card:b": [
+      "1800000001000:000000:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000003000:000000:tablet",
+      null
+     ],
+     "settings:profile": [
+      "1800000005000:000000:tablet",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000002000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000004000:000001:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000003000:000000:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000000:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000000000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000001000:000001:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000003000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {},
+    "base": {},
+    "now_ms": 1800000003000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": null,
+     "capture:c": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000003000:000000:phone",
+     "card:b": "1800000004000:000001:laptop",
+     "capture:c": "1800000002000:000000:phone",
+     "settings:profile": "1800000003000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000004000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000003000:000000:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000004000:000001:laptop",
+      null
+     ],
+     "capture:c": [
+      "1800000002000:000000:phone",
+      null
+     ],
+     "settings:profile": [
+      "1800000003000:000000:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000001000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000000000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000002000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000001000:000000:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000001:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000003000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {},
+    "now_ms": 1800000000000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": null
+    },
+    "stamps": {
+     "card:a": "1800000001000:000001:laptop",
+     "card:b": "1800000002000:000001:phone",
+     "settings:profile": "1800000004000:000000:phone",
+     "capture:c": "1800000001000:000001:tablet"
+    },
+    "push": {},
+    "stamp": "1800000004000:000001:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000001000:000001:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000002000:000001:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "settings:profile": [
+      "1800000004000:000000:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000001000:000001:tablet",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000001000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000002000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000003000:000000:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000000000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000000000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000001:tablet",
+        null
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000001000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": null
+    },
+    "stamps": {
+     "card:a": "1800000001000:000002:laptop",
+     "card:b": "1800000005000:000002:phone",
+     "capture:c": "1800000005000:000001:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000001000:000002:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000001:tablet",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000001000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000000000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000002000:000001:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000001000:000001:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1799999999000,
+    "remote": {
+     "card:a": null,
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000001000:000001:tablet",
+     "capture:c": "1800000004000:000001:laptop",
+     "settings:profile": "1800000005000:000000:laptop",
+     "card:b": "1800000004000:000001:tablet"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamp": "1800000005000:000001:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000001:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000000:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000004000:000001:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:b": [
+        "1800000000000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000002:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000000000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000001000,
+    "remote": {
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:b": "1800000004000:000002:phone",
+     "settings:profile": "1800000005000:000000:laptop",
+     "card:a": "1800000000000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000001:laptop",
+    "entries_after": {
+     "card:b": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000000:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:a": [
+      "1800000000000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000000000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000003000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000002:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000004000:000001:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000001000:000000:phone",
+        null
+       ],
+       "card:b": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "settings:profile": [
+        "1800000002000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {},
+    "base": {},
+    "now_ms": 1800000002000,
+    "remote": {
+     "card:a": null,
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": null,
+     "settings:profile": null
+    },
+    "stamps": {
+     "card:a": "1800000001000:000000:phone",
+     "card:b": "1800000005000:000001:phone",
+     "capture:c": "1800000002000:000002:laptop",
+     "settings:profile": "1800000004000:000001:laptop"
+    },
+    "push": {},
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000001000:000000:phone",
+      null
+     ],
+     "card:b": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000002000:000002:laptop",
+      null
+     ],
+     "settings:profile": [
+      "1800000004000:000001:laptop",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000000000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000003000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000002000:000001:phone",
+        null
+       ],
+       "card:b": [
+        "1800000003000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000002000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000000:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000001000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000002:tablet",
+     "card:b": "1800000003000:000002:phone",
+     "capture:c": "1800000004000:000000:tablet",
+     "settings:profile": "1800000005000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000002:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000003000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000000:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000000000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000001000:000002:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000004000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": null
+    },
+    "stamps": {
+     "card:a": "1800000004000:000002:phone",
+     "settings:profile": "1800000005000:000002:tablet",
+     "capture:c": "1800000000000:000000:phone",
+     "card:b": "1800000001000:000002:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000002:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000000000:000000:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000001000:000002:tablet",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000000000:000000:laptop",
+        null
+       ],
+       "card:b": [
+        "1800000003000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000002000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000003000:000000:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000001000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000003000:000002:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000001000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000001:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000002000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1799999997000,
+    "remote": {
+     "card:a": null,
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:a": "1800000003000:000002:tablet",
+     "card:b": "1800000003000:000000:laptop",
+     "settings:profile": "1800000005000:000001:laptop",
+     "capture:c": "1800000003000:000000:phone"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000002:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000003000:000000:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000003000:000000:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:laptop",
+        null
+       ],
+       "card:b": [
+        "1800000000000:000000:laptop",
+        null
+       ],
+       "capture:c": [
+        "1800000002000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000003000:000000:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000002000:000000:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000000:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1799999999000,
+    "remote": {
+     "card:a": null,
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000002:laptop",
+     "card:b": "1800000002000:000000:tablet",
+     "capture:c": "1800000004000:000001:phone",
+     "settings:profile": "1800000000000:000001:phone"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamp": "1800000004000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000003:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000002000:000000:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000000000:000001:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000004000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000002:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000000000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000002000:000002:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000002:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000000:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000008000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000004000:000001:laptop",
+     "card:b": "1800000004000:000002:laptop",
+     "capture:c": "1800000004000:000002:laptop",
+     "settings:profile": "1800000005000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000008000:000000:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000004000:000001:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000004000:000002:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000002:laptop",
+      null
+     ],
+     "settings:profile": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000001000:000002:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:phone",
+        null
+       ],
+       "card:b": [
+        "1800000001000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000001000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000002000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000002000,
+    "remote": {
+     "card:a": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "card:a": "1800000005000:000001:phone",
+     "settings:profile": "1800000003000:000001:tablet",
+     "card:b": "1800000002000:000001:tablet",
+     "capture:c": "1800000005000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000001:phone",
+      null
+     ],
+     "settings:profile": [
+      "1800000003000:000001:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000002000:000001:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000002000:000002:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000002:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000004000:000001:phone",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:b": [
+        "1800000003000:000001:tablet",
+        null
+       ],
+       "capture:c": [
+        "1800000001000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "now_ms": 1800000000000,
+    "remote": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "capture:c": "1800000004000:000002:phone",
+     "settings:profile": "1800000005000:000002:phone",
+     "card:b": "1800000004000:000001:phone"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000004000:000001:phone",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:a": [
+      "1800000005000:000003:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000001000:000000:laptop",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000003000:000002:phone",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000000000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000000000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": null
+    },
+    "stamps": {
+     "card:a": "1800000005000:000000:laptop",
+     "card:b": "1800000001000:000000:laptop",
+     "settings:profile": "1800000005000:000001:laptop",
+     "capture:c": "1800000003000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000000:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000001000:000000:laptop",
+      null
+     ],
+     "settings:profile": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000003000:000002:phone",
+      null
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:laptop",
+        null
+       ],
+       "card:b": [
+        "1800000000000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000001000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000003000:000000:phone",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000002000:000002:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "card:b": [
+        "1800000000000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000002:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "now_ms": 1800000004000,
+    "remote": {
+     "card:a": null,
+     "card:b": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000005000:000001:laptop",
+     "card:b": "1800000000000:000001:tablet",
+     "capture:c": "1800000005000:000002:tablet",
+     "settings:profile": "1800000005000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000001:laptop",
+      null
+     ],
+     "card:b": [
+      "1800000000000:000001:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000002:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000004000:000001:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000000000:000002:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000002000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000001000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000000:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000007000,
+    "remote": {
+     "capture:c": null,
+     "card:b": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     }
+    },
+    "stamps": {
+     "capture:c": "1800000005000:000000:tablet",
+     "card:b": "1800000000000:000002:phone",
+     "settings:profile": "1800000004000:000002:phone",
+     "card:a": "1800000001000:000000:tablet"
+    },
+    "push": {},
+    "stamp": "1800000007000:000000:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000005000:000000:tablet",
+      null
+     ],
+     "card:b": [
+      "1800000000000:000002:phone",
+      null
+     ],
+     "settings:profile": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:a": [
+      "1800000001000:000000:tablet",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "capture:c": [
+        "1800000000000:000002:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:b": [
+        "1800000000000:000000:phone",
+        null
+       ],
+       "capture:c": [
+        "1800000003000:000000:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "capture:c": [
+        "1800000003000:000001:tablet",
+        null
+       ],
+       "settings:profile": [
+        "1800000005000:000002:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {},
+    "now_ms": 1800000003000,
+    "remote": {
+     "capture:c": null,
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:b": null
+    },
+    "stamps": {
+     "capture:c": "1800000003000:000001:tablet",
+     "settings:profile": "1800000005000:000002:tablet",
+     "card:b": "1800000000000:000000:phone"
+    },
+    "push": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "capture:c": [
+      "1800000003000:000001:tablet",
+      null
+     ],
+     "settings:profile": [
+      "1800000005000:000002:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "card:b": [
+      "1800000000000:000000:phone",
+      null
+     ],
+     "card:a": [
+      "1800000005000:000003:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000005000:000002:laptop",
+        null
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000001000:000000:phone",
+        null
+       ],
+       "card:b": [
+        "1800000002000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000005000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "settings:profile": [
+        "1800000000000:000000:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000005000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000000000:000001:tablet",
+        null
+       ],
+       "capture:c": [
+        "1800000001000:000000:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000000:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {},
+    "now_ms": 1800000005000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "settings:profile": null,
+     "card:b": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000005000:000002:tablet",
+     "settings:profile": "1800000005000:000002:laptop",
+     "card:b": "1800000002000:000000:phone",
+     "capture:c": "1800000005000:000001:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000002:tablet",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "settings:profile": [
+      "1800000005000:000002:laptop",
+      null
+     ],
+     "card:b": [
+      "1800000002000:000000:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000005000:000001:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000002000:000001:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "card:b": [
+        "1800000004000:000002:laptop",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000003000:000000:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "settings:profile": [
+        "1800000003000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000001000:000002:tablet",
+        null
+       ],
+       "card:b": [
+        "1800000001000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {},
+    "now_ms": 1800000002000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:b": {
+      "id": "a",
+      "back": "two"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000002000:000001:laptop",
+     "card:b": "1800000004000:000002:laptop",
+     "settings:profile": "1800000003000:000001:phone"
+    },
+    "push": {},
+    "stamp": "1800000004000:000003:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000002000:000001:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:b": [
+      "1800000004000:000002:laptop",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "settings:profile": [
+      "1800000003000:000001:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "settings:profile": [
+        "1800000005000:000000:laptop",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000005000:000002:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000002:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000002000:000001:phone",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000001000:000002:tablet",
+        {
+         "id": "a",
+         "back": "one"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "base": {
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "now_ms": 1800000003000,
+    "remote": {
+     "settings:profile": {
+      "id": "a",
+      "back": "one"
+     },
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     },
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "settings:profile": "1800000005000:000000:laptop",
+     "card:a": "1800000005000:000002:phone",
+     "capture:c": "1800000004000:000002:phone"
+    },
+    "push": {},
+    "stamp": "1800000005000:000003:laptop",
+    "entries_after": {
+     "settings:profile": [
+      "1800000005000:000000:laptop",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "card:a": [
+      "1800000005000:000002:phone",
+      {
+       "id": "a",
+       "back": "one"
+      }
+     ],
+     "capture:c": [
+      "1800000004000:000002:phone",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   },
+   {
+    "files": [
+     {
+      "format": 1,
+      "device": "laptop",
+      "records": {
+       "card:a": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000004000:000001:laptop",
+        null
+       ],
+       "capture:c": [
+        "1800000005000:000001:laptop",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "phone",
+      "records": {
+       "card:a": [
+        "1800000003000:000000:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "capture:c": [
+        "1800000004000:000002:phone",
+        null
+       ],
+       "settings:profile": [
+        "1800000001000:000001:phone",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     },
+     {
+      "format": 1,
+      "device": "tablet",
+      "records": {
+       "card:a": [
+        "1800000001000:000001:tablet",
+        {
+         "id": "a",
+         "back": "three",
+         "repetitions": 2
+        }
+       ],
+       "card:b": [
+        "1800000003000:000002:tablet",
+        null
+       ],
+       "capture:c": [
+        "1800000005000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ],
+       "settings:profile": [
+        "1800000004000:000001:tablet",
+        {
+         "id": "a",
+         "back": "two"
+        }
+       ]
+      }
+     }
+    ],
+    "local": {
+     "card:a": {
+      "id": "a",
+      "back": "one"
+     }
+    },
+    "base": {},
+    "now_ms": 1799999998000,
+    "remote": {
+     "card:a": {
+      "id": "a",
+      "back": "three",
+      "repetitions": 2
+     },
+     "card:b": null,
+     "capture:c": {
+      "id": "a",
+      "back": "two"
+     },
+     "settings:profile": {
+      "id": "a",
+      "back": "two"
+     }
+    },
+    "stamps": {
+     "card:a": "1800000005000:000001:laptop",
+     "card:b": "1800000004000:000001:laptop",
+     "capture:c": "1800000005000:000001:tablet",
+     "settings:profile": "1800000004000:000001:tablet"
+    },
+    "push": {},
+    "stamp": "1800000005000:000002:laptop",
+    "entries_after": {
+     "card:a": [
+      "1800000005000:000001:laptop",
+      {
+       "id": "a",
+       "back": "three",
+       "repetitions": 2
+      }
+     ],
+     "card:b": [
+      "1800000004000:000001:laptop",
+      null
+     ],
+     "capture:c": [
+      "1800000005000:000001:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ],
+     "settings:profile": [
+      "1800000004000:000001:tablet",
+      {
+       "id": "a",
+       "back": "two"
+      }
+     ]
+    }
+   }
+  ],
+  "hostile": [
+   {
+    "content": {
+     "records": {
+      "card:a": [
+       "0000000001000:000000:x",
+       {
+        "ok": 1
+       }
+      ],
+      "card:b": [
+       "1000:0:x",
+       {}
+      ],
+      "card:c": [
+       "0000000001000:000000:",
+       {}
+      ],
+      "card:d": [
+       "0000000001000:00000a:x",
+       {}
+      ],
+      "card:e": [
+       "0000000001000:000000:x",
+       [
+        1
+       ]
+      ],
+      "card:f": [
+       "0000000001000:000000:x"
+      ],
+      "__proto__": [
+       "0000000001000:000000:x",
+       {}
+      ],
+      "constructor": [
+       "0000000001000:000000:x",
+       {}
+      ],
+      "evil:g": [
+       "0000000001000:000000:x",
+       {}
+      ],
+      "card:h": [
+       "0000000001000:000000:a:b",
+       null
+      ],
+      "card:i": [
+       12,
+       {}
+      ],
+      "card:j": "nope"
+     }
+    },
+    "entries": {
+     "card:a": [
+      "0000000001000:000000:x",
+      {
+       "ok": 1
+      }
+     ],
+     "card:h": [
+      "0000000001000:000000:a:b",
+      null
+     ]
+    }
+   },
+   {
+    "content": {
+     "records": []
+    },
+    "entries": {}
+   },
+   {
+    "content": {
+     "records": null
+    },
+    "entries": {}
+   },
+   {
+    "content": [],
+    "entries": {}
+   },
+   {
+    "content": "text",
+    "entries": {}
+   },
+   {
+    "content": null,
+    "entries": {}
+   }
+  ],
+  "stamps": [
+   {
+    "newest": "",
+    "device": "d",
+    "now_ms": 5000,
+    "stamp": "0000000005000:000000:d"
+   },
+   {
+    "newest": "0000000005000:000003:b",
+    "device": "a",
+    "now_ms": 1000,
+    "stamp": "0000000005000:000004:a"
+   },
+   {
+    "newest": "0000000005000:000003:b",
+    "device": "a",
+    "now_ms": 5000,
+    "stamp": "0000000005000:000004:a"
+   },
+   {
+    "newest": "0000000005000:000003:b",
+    "device": "a",
+    "now_ms": 5001,
+    "stamp": "0000000005001:000000:a"
+   },
+   {
+    "newest": "garbage",
+    "device": "a",
+    "now_ms": 7,
+    "stamp": "0000000000007:000000:a"
+   },
+   {
+    "newest": "0000000005000:999999:b",
+    "device": "a",
+    "now_ms": 4000,
+    "stamp": "0000000005000:1000000:a"
+   },
+   {
+    "newest": "",
+    "device": "x",
+    "now_ms": 1800000000123.9,
+    "stamp": "1800000000123:000000:x"
+   }
+  ]
+ },
  "generated_for": "latest_app/memorypal",
  "smart_check": [
   {
@@ -136532,7 +144975,7 @@
    ]
   ]
  },
- "today_check": "2026-10-19",
+ "today_check": "2026-10-20",
  "questions": {
   "today": "2026-10-18",
   "rng": [

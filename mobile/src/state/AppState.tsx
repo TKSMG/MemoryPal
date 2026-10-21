@@ -110,9 +110,9 @@ export class SyncController {
     });
   }
 
-  /** Signed in with automatic sync on. */
+  /** Signed in (or Google Drive connected) with automatic sync on. */
   private get autoReady() {
-    return this.account.signedIn && this.account.state.auto_sync;
+    return this.account.canSync && this.account.state.auto_sync;
   }
 
   get auto() {
@@ -122,11 +122,12 @@ export class SyncController {
   setAuto(value: boolean) {
     this.account.setOption({ auto_sync: value });
     this.changed();
-    if (value && this.account.signedIn) this.syncSoon(0);
+    if (value && this.account.canSync) this.syncSoon(0);
   }
 
   /** The first-launch sign-in page shows until someone signs in or chooses to go on without. */
   get needsSignInPrompt() {
+    if (this.account.usesDrive) return this.account.restored && !this.account.drive && !this.account.state.account_prompted;
     return this.configured && this.account.restored && !this.account.signedIn && !this.account.state.account_prompted;
   }
 
@@ -162,7 +163,7 @@ export class SyncController {
 
   /** Sync now; resolves to an error message, or '' when everything is in step. */
   async syncNow(mode?: 'merge' | 'replace'): Promise<string> {
-    if (this.syncing || !this.configured || !this.account.signedIn) return this.error;
+    if (this.syncing || !this.account.canSync) return this.error;
     if (mode === 'replace') {
       // Keep a copy of this phone's data before it's swapped for the account's.
       keyAdapter('memorypal-before-account-switch').save(JSON.stringify(this.store.payload()));
@@ -201,7 +202,8 @@ export class SyncController {
   private askAboutOtherAccount() {
     if (this.asking) return;
     this.asking = true;
-    const email = this.account.email || 'this account';
+    const email = this.account.syncEmail || 'this account';
+    const usesDrive = this.account.usesDrive;
     const done = () => {
       this.asking = false;
     };
@@ -211,7 +213,9 @@ export class SyncController {
       [
         { text: `Use ${email}'s cards`, onPress: () => { done(); this.syncNow('replace').catch(() => undefined); } },
         { text: `Add this phone's cards to ${email}`, onPress: () => { done(); this.syncNow('merge').catch(() => undefined); } },
-        { text: 'Sign out', style: 'cancel', onPress: () => { done(); this.signOut().catch(() => undefined); } },
+        usesDrive
+          ? { text: 'Disconnect', style: 'cancel', onPress: () => { done(); this.disconnectDrive().catch(() => undefined); } }
+          : { text: 'Sign out', style: 'cancel', onPress: () => { done(); this.signOut().catch(() => undefined); } },
       ],
       { cancelable: false },
     );
@@ -223,6 +227,20 @@ export class SyncController {
     // syncNow marks itself as syncing before telling screens, so the
     // first-launch page waits for the account's data before moving on.
     await this.syncNow();
+    this.changed();
+  }
+
+  /** Connect Google Drive (Google's own sign-in sheet), then sync straight away. */
+  async connectDrive() {
+    await this.account.connectDrive();
+    this.account.setOption({ account_prompted: true });
+    await this.syncNow();
+    this.changed();
+  }
+
+  async disconnectDrive() {
+    await this.account.disconnectDrive();
+    this.error = '';
     this.changed();
   }
 

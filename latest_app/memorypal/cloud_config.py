@@ -24,3 +24,15 @@ PRIVACY_URL = "https://github.com/TKSMG/MemoryPal/blob/main/PRIVACY_POLICY.md"
 # can't mass-create accounts. Empty turns the check off. The
 # MEMORYPAL_CAPTCHA_URL environment variable overrides it ("" turns it off).
 CAPTCHA_URL = "https://tksmg.github.io/MemoryPal/verify/"
+
+# Google Drive sync (latest_app/memorypal/drive.py): the OAuth client of type
+# "Desktop app" in MemoryPal's Google Cloud project. The release build writes
+# both values into google_client.py (kept out of the repository) from the
+# GOOGLE_DESKTOP_CLIENT_ID variable and GOOGLE_DESKTOP_CLIENT_SECRET secret.
+# Empty means this copy keeps syncing through the MemoryPal cloud. The
+# MEMORYPAL_GOOGLE_CLIENT_ID / MEMORYPAL_GOOGLE_CLIENT_SECRET environment
+# variables override them for testing.
+try:
+    from .google_client import CLIENT_ID as GOOGLE_DESKTOP_CLIENT_ID, CLIENT_SECRET as GOOGLE_DESKTOP_CLIENT_SECRET
+except ImportError:
+    GOOGLE_DESKTOP_CLIENT_ID = GOOGLE_DESKTOP_CLIENT_SECRET = ""

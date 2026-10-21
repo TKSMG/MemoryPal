@@ -62,7 +62,7 @@ from memorypal.paths import (
     rename_profile,
     switch_active_profile_paths,
 )
-from memorypal import cloud, cloud_config, onboarding, progress, security, techniques
+from memorypal import cloud, cloud_config, drive, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
 from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme
@@ -5938,6 +5938,8 @@ class MemoryPalApp(tk.Tk):
 
     def needs_sign_in_prompt(self):
         """Until someone signs in or chooses to go on without an account."""
+        if self.account.uses_drive():
+            return not self.account.drive.linked and not self.account.state.account_prompted
         return cloud.configured() and not self.account.signed_in and not self.account.state.account_prompted
 
     def mark_sign_in_prompted(self):
@@ -5964,24 +5966,32 @@ class MemoryPalApp(tk.Tk):
         if not self.draw_memorypal_logo(mark, mark_size):
             self.draw_chrome_icon(mark, mark_size)
         tk.Label(card, text="Welcome to MemoryPal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 22)).pack()
+        uses_drive = self.account.uses_drive()
         tk.Label(
             card,
-            text="Sign in to keep your cards, progress and settings on all your devices: this computer, your phone and more.",
+            text=(
+                "Connect Google Drive to keep your cards, progress and settings on all your devices: this computer, your phone and more. "
+                "They're kept in your own Google Drive, in a private folder only MemoryPal can open."
+                if uses_drive else
+                "Sign in to keep your cards, progress and settings on all your devices: this computer, your phone and more."
+            ),
             bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(440), justify="center",
         ).pack(pady=(self.px(6), self.px(22)))
         buttons = tk.Frame(card, bg=COLORS["surface"])
         buttons.pack(fill="x")
         buttons.columnconfigure(0, weight=1)
-        for row, (label, command, style_name) in enumerate((
-            ("Sign in", lambda: self.open_account_dialog("sign_in"), "Primary.TButton"),
-            ("Create an account", lambda: self.open_account_dialog("create"), "TButton"),
-        )):
+        choices = (
+            (("Connect Google Drive", self.connect_drive, "Primary.TButton"),) if uses_drive else
+            (("Sign in", lambda: self.open_account_dialog("sign_in"), "Primary.TButton"),
+             ("Create an account", lambda: self.open_account_dialog("create"), "TButton"))
+        )
+        for row, (label, command, style_name) in enumerate(choices):
             self.row_button(buttons, label, command, style_name).grid(row=row, column=0, sticky="ew", pady=(0, self.px(10)))
-        skip = tk.Label(card, text="Continue without an account", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2", takefocus=1)
+        skip = tk.Label(card, text="Continue without syncing" if uses_drive else "Continue without an account", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2", takefocus=1)
         skip.pack(pady=(self.px(8), 0))
         self.keyboard_link(skip, lambda _event: self.continue_without_account())
-        self.add_tooltip(skip, "Your cards stay on this computer. You can sign in later from Settings.")
-        tk.Label(card, text="You can sign in or out any time in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(pady=(self.px(10), 0))
+        self.add_tooltip(skip, "Your cards stay on this computer. You can connect Google Drive later from Settings." if uses_drive else "Your cards stay on this computer. You can sign in later from Settings.")
+        tk.Label(card, text="You can connect or disconnect any time in Settings." if uses_drive else "You can sign in or out any time in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(pady=(self.px(10), 0))
 
     def view_welcome(self):
         page = ScrollFrame(self.view_host)
@@ -10952,13 +10962,13 @@ class MemoryPalApp(tk.Tk):
 
     def auto_sync_ready(self):
         """Signed in, with automatic sync on (the default)."""
-        return cloud.configured() and self.account.signed_in and self.account.state.auto_sync
+        return self.account.can_sync and self.account.state.auto_sync
 
     def set_auto_sync(self, value):
         state = self.account.state
         state.auto_sync = bool(value)
         state.save()
-        if state.auto_sync and self.account.signed_in:
+        if state.auto_sync and self.account.can_sync:
             self.schedule_sync(0)
         elif self._sync_timer:
             try:
@@ -11042,7 +11052,7 @@ class MemoryPalApp(tk.Tk):
         if self._syncing:
             self._changed_during_sync = True
             return
-        if not cloud.configured() or not self.account.signed_in:
+        if not self.account.can_sync:
             return
         self._syncing = True
         self._changed_during_sync = False
@@ -11107,11 +11117,11 @@ class MemoryPalApp(tk.Tk):
                 message = error.message if isinstance(error, cloud.CloudError) else f"Sync stopped: {error}"
                 self.sync_status = message
                 self.refresh_account_card()
-                if manual or not account.signed_in:
-                    # Signed out by the server (or two-step turned on elsewhere): say so once.
+                if manual or not account.can_sync:
+                    # Signed out by the server, Drive access taken back, or two-step turned on elsewhere: say so once.
                     self.dialog_alert("Couldn't sync", message, "error")
             changed = self._changed_during_sync and error is None
-            if changed and account.signed_in:
+            if changed and account.can_sync:
                 self.schedule_sync(self.SYNC_AFTER_CHANGE_MS)
             elif self.auto_sync_ready():
                 self.schedule_sync(self.SYNC_EVERY_MS)
@@ -11134,17 +11144,19 @@ class MemoryPalApp(tk.Tk):
 
     def choose_account_merge(self):
         """This profile last synced with another account: ask before mixing the two."""
-        email = self.account.email or "this account"
+        email = self.account.sync_email or "this account"
         choice = self.dialog_choice(
             "Different account",
             f"This profile's cards and progress came from a different account than {email}.\n\n"
             f"Use {email}'s cards: this profile switches to that account's cards and progress. "
             "A copy of what's here now is saved in the profile folder first.\n\n"
             f"Add these cards to {email}: both sets end up together in that account.",
-            [("replace", f"Use {email}'s cards"), ("merge", "Add these cards"), ("cancel", "Sign out")],
+            [("replace", f"Use {email}'s cards"), ("merge", "Add these cards"), ("cancel", "Disconnect" if self.account.uses_drive() else "Sign out")],
         )
         if choice in ("replace", "merge"):
             self.sync_now(manual=True, mode=choice)
+        elif self.account.uses_drive():
+            self.run_in_background(self.account.drive.disconnect, lambda _r, _e: None)
         else:
             try:
                 self.account.sign_out()
@@ -11157,9 +11169,12 @@ class MemoryPalApp(tk.Tk):
 
     def sync_chip_text(self):
         """(icon, text) for the header sync chip; empty text hides it."""
-        if not cloud.configured():
+        if self.account.uses_drive():
+            if not self.account.drive.linked:
+                return "cloud", "Not syncing"
+        elif not cloud.configured():
             return "", ""
-        if not self.account.signed_in:
+        elif not self.account.signed_in:
             return "cloud", "Not signed in"
         if self._syncing:
             return "syncing", "Syncing\u2026"
@@ -11193,6 +11208,8 @@ class MemoryPalApp(tk.Tk):
             label.configure(text=self.account_status_text())
 
     def account_status_text(self):
+        if self.account.uses_drive():
+            return self.drive_status_text()
         if not cloud.configured():
             return "Sync isn't set up in this copy of MemoryPal yet."
         if not self.account.signed_in:
@@ -11203,22 +11220,95 @@ class MemoryPalApp(tk.Tk):
         mode = "Syncs automatically." if self.account.state.auto_sync else "Automatic sync is off."
         return f"Signed in as {self.account.email}. {mode} " + (f"Last synced {last}." if last else "Not synced yet.")
 
-    def render_account_card(self, parent):
+    def drive_status_text(self):
+        link = self.account.drive
+        if not link.linked:
+            return "Connect Google Drive to keep your cards, progress and settings on all your devices: this computer, your phone, and more. They're kept in your own Google Drive, in a private folder only MemoryPal can open."
+        if self.sync_status:
+            return f"Syncing with Google Drive ({link.email}). {self.sync_status}"
+        last = self.account.state.last_synced
+        mode = "Syncs automatically." if self.account.state.auto_sync else "Automatic sync is off."
+        return f"Syncing with Google Drive ({link.email}). {mode} " + (f"Last synced {last}." if last else "Not synced yet.")
+
+    def connect_drive(self):
+        """Connect Google Drive in the browser, then sync straight away."""
+        account = self.account
+        self.toast_message("Finish connecting Google Drive in your browser.")
+
+        def done(link, error):
+            if account is not self.account:
+                return
+            if error is not None:
+                self.dialog_alert("Google Drive isn't connected", getattr(error, "message", str(error)), "error")
+                return
+            self.mark_sign_in_prompted()
+            self.toast_message(f"Google Drive connected ({link.get('email') or 'your account'}). Your cards are syncing.")
+            if self.current_view == "settings":
+                self.show_view("settings")
+            elif self.current_view == "signin":
+                self.show_view(self.start_view())
+            self.sync_now()
+
+        self.run_in_background(account.drive.connect, done)
+
+    def disconnect_drive(self):
+        if not self.dialog_confirm(
+            "Disconnect Google Drive?",
+            "Your cards stay on this computer and in your Google Drive; this computer just stops syncing until you connect again.",
+            "Disconnect",
+        ):
+            return
+        account = self.account
+        self.sync_status = ""
+        self.run_in_background(account.drive.disconnect, lambda _r, _e: (self.toast_message("Google Drive disconnected."), self.show_view("settings") if self.current_view == "settings" else None))
+
+    def render_sync_options(self, card):
+        auto = tk.BooleanVar(value=self.account.state.auto_sync)
+        auto.trace_add("write", lambda *_args: self.set_auto_sync(auto.get()))
+        self.check_toggle(card, auto, "Sync automatically: a few seconds after each change, when you come back to MemoryPal, and every few minutes", fit=True).pack(fill="x", pady=(0, self.px(12)))
+        self._auto_sync_var = auto
+        ttk.Label(card, text="Cards, reviews, streaks and settings sync. Pictures, recordings and attached files stay on the computer that has them.", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(0, self.px(12)))
+
+    def render_drive_card(self, parent):
         card = self.card(parent, "Card.TFrame", 22)
         card.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        ttk.Label(card, text="Account & sync", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(card, text="Sync with Google Drive", style="H2.TLabel").pack(anchor="w")
         self._account_status_label = ttk.Label(card, text=self.account_status_text(), style="CardMuted.TLabel", wraplength=self.px(1040))
         self.fit_wrap(self._account_status_label, pady=(4, 12))
+        if self.account.drive.linked:
+            self.render_sync_options(card)
+            self.button_row(card, [
+                ("Sync now", lambda: self.sync_now(manual=True), "TButton"),
+                ("Disconnect", self.disconnect_drive, "TButton"),
+            ])
+        else:
+            self.button_row(card, [("Connect Google Drive", self.connect_drive, "Primary.TButton")])
+
+    def member_status_text(self):
+        """The MemoryPal account line when cards sync through Google Drive."""
+        if not cloud.configured():
+            return "Accounts aren't set up in this copy of MemoryPal yet."
+        if not self.account.signed_in:
+            return "A MemoryPal account lets you make study notes and questions with AI. Your cards don't need one: they sync through Google Drive."
+        return f"Signed in as {self.account.email}. Your account is used for AI notes and questions; your cards sync through Google Drive."
+
+    def render_account_card(self, parent):
+        uses_drive = self.account.uses_drive()
+        if uses_drive:
+            self.render_drive_card(parent)
+        card = self.card(parent, "Card.TFrame", 22)
+        card.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(card, text="MemoryPal account" if uses_drive else "Account & sync", style="H2.TLabel").pack(anchor="w")
+        status = ttk.Label(card, text=self.member_status_text() if uses_drive else self.account_status_text(), style="CardMuted.TLabel", wraplength=self.px(1040))
+        if not uses_drive:
+            self._account_status_label = status
+        self.fit_wrap(status, pady=(4, 12))
         if not cloud.configured():
             return
         if self.account.signed_in:
-            auto = tk.BooleanVar(value=self.account.state.auto_sync)
-            auto.trace_add("write", lambda *_args: self.set_auto_sync(auto.get()))
-            self.check_toggle(card, auto, "Sync automatically: a few seconds after each change, when you come back to MemoryPal, and every few minutes", fit=True).pack(fill="x", pady=(0, self.px(12)))
-            self._auto_sync_var = auto
-            ttk.Label(card, text="Cards, reviews, streaks and settings sync. Pictures, recordings and attached files stay on the computer that has them.", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(0, self.px(12)))
-            self.button_row(card, [
-                ("Sync now", lambda: self.sync_now(manual=True), "TButton"),
+            if not uses_drive:
+                self.render_sync_options(card)
+            self.button_row(card, ([] if uses_drive else [("Sync now", lambda: self.sync_now(manual=True), "TButton")]) + [
                 ("Two-step sign-in", self.open_two_step_manager, "TButton"),
                 ("Sign out", self.sign_out_account, "TButton"),
                 ("Delete account", self.delete_cloud_account, "TButton"),
@@ -11264,6 +11354,8 @@ class MemoryPalApp(tk.Tk):
             return
         self.account.remember(session)
         self.mark_sign_in_prompted()
+        if self.account.uses_drive() and not self.account.drive.linked:
+            message = message.replace(" Your cards are syncing.", "")
         self.toast_message(message)
         if self.current_view == "settings":
             self.show_view("settings")
@@ -11639,7 +11731,9 @@ class MemoryPalApp(tk.Tk):
         )
 
     def sign_out_account(self):
-        if not self.dialog_confirm("Sign out?", "Your cards stay on this computer; they just stop syncing until you sign in again.", "Sign out"):
+        body = ("Your cards stay on this computer and keep syncing through Google Drive." if self.account.uses_drive()
+                else "Your cards stay on this computer; they just stop syncing until you sign in again.")
+        if not self.dialog_confirm("Sign out?", body, "Sign out"):
             return
         account = self.account
         self.run_in_background(account.sign_out, lambda _r, _e: (self.toast_message("Signed out."), self.show_view("settings") if self.current_view == "settings" else None))
@@ -11647,7 +11741,9 @@ class MemoryPalApp(tk.Tk):
     def delete_cloud_account(self):
         if not self.dialog_confirm(
             "Delete your account?",
-            "This permanently deletes your MemoryPal account and the cloud copy of your cards on every device. The cards on this computer stay here. This can't be undone.",
+            ("This permanently deletes your MemoryPal account. Your cards stay on this computer and in your Google Drive. This can't be undone."
+             if self.account.uses_drive() else
+             "This permanently deletes your MemoryPal account and the cloud copy of your cards on every device. The cards on this computer stay here. This can't be undone."),
             "Delete account", destructive=True,
         ):
             return
@@ -11657,7 +11753,7 @@ class MemoryPalApp(tk.Tk):
             if error is not None:
                 self.dialog_alert("Couldn't delete the account", getattr(error, "message", str(error)), "error")
                 return
-            self.toast_message("Your account and its cloud copy were deleted.")
+            self.toast_message("Your account was deleted." if account.uses_drive() else "Your account and its cloud copy were deleted.")
             if self.current_view == "settings":
                 self.show_view("settings")
 
@@ -12038,7 +12134,10 @@ class MemoryPalApp(tk.Tk):
 
     def reset_data(self):
         body = "Clear local data and restore sample cards?"
-        if self.account.signed_in:
+        if self.account.uses_drive() and self.account.drive.linked:
+            body = (f"This clears this profile on this computer. Your cards and progress are still in your Google Drive "
+                    f"({self.account.drive.email}) and come back the next time it syncs.")
+        elif self.account.signed_in and not self.account.uses_drive():
             body = (f"This clears this profile on this computer. Your cards and progress are still in your account "
                     f"({self.account.email}) and come back the next time it syncs. To remove them everywhere, "
                     "delete your account in Settings.")
