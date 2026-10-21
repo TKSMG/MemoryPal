@@ -66,8 +66,8 @@ describe('AI error text', () => {
 
 describe('AI card labels and rows', () => {
   const questions: AiQuestion[] = [
-    { type: 'short', question: 'What pumps blood?', answer: 'The heart', options: [], page: 3 },
-    { type: 'truefalse', question: 'Veins carry blood to the heart.', answer: 'True', options: ['True', 'False'], page: null },
+    { type: 'short', question: 'What pumps blood?', answer: 'The heart', options: [], context: '', page: 3 },
+    { type: 'truefalse', question: 'Veins carry blood to the heart.', answer: 'True', options: ['True', 'False'], context: '', page: null },
   ];
 
   test('AI cards carry the tag; the person’s own cards do not', () => {

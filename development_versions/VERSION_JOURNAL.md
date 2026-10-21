@@ -427,3 +427,10 @@ This build is packaged as release 0.50.0.
 - The phone syncs on return to the app at most once a minute.
 
 This build is packaged as release 0.51.0.
+
+## v91 - AI That Follows Your Pattern
+
+- Make with AI has an optional "How should it look?" box: describe the layout or focus in your own words, such as one line per date, and the notes and questions follow it.
+- AI questions name their topic so they make sense on their own, and each AI card quotes the sentence its answer came from. The phone's Talk-back screen no longer crashes in Expo Go.
+
+This build is packaged as release 0.52.0.

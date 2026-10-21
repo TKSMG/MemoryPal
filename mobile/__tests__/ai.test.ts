@@ -43,13 +43,21 @@ describe('AI requests', () => {
     expect(notesText(notes)).toContain('- Cell :: Unit of life');
   });
 
+  test('the learner style is sent only when given', async () => {
+    const { calls, fetcher } = fakeFetch(200, { ok: true, result: { title: 'T', sections: [], key_terms: [] } });
+    await makeNotes('t', { text: 'Dates', style: '  one line per date:\n year, then event ' }, { fetcher });
+    expect(JSON.parse(String(calls[0].init.body)).style).toBe('one line per date: year, then event');
+    await makeNotes('t', { text: 'Dates', style: '   ' }, { fetcher });
+    expect(JSON.parse(String(calls[1].init.body))).not.toHaveProperty('style');
+  });
+
   test('questions: file, count and avoid are sent; bad questions are dropped', async () => {
     const { calls, fetcher } = fakeFetch(200, {
       ok: true,
       remaining: 3,
       result: {
         questions: [
-          { type: 'short', question: 'What is a cell?', answer: 'Unit of life', page: 2 },
+          { type: 'short', question: 'What is a cell?', answer: 'Unit of life', page: 2, context: ' A cell is the   unit of life. ' },
           { type: 'choice', question: 'Powerhouse?', answer: 'Mitochondria', options: ['Nucleus', 'mitochondria', 'Ribosome', 'Golgi', 'Wall'] },
           { type: 'choice', question: 'Too few?', answer: 'A', options: ['B'] },
           { type: 'truefalse', question: 'Cells have walls', answer: 'FALSE' },
@@ -75,6 +83,9 @@ describe('AI requests', () => {
     expect([made[0].card.front, made[0].card.back, made[0].card.deck]).toEqual(['What is a cell?', 'Unit of life', 'Biology']);
     expect(isAiCard(made[0].card)).toBe(true);
     expect(made[0].card.association).toContain('page 2');
+    expect(result.questions[0].context).toBe('A cell is the unit of life.');
+    expect(made[0].card.association).toContain('Source: "A cell is the unit of life."');
+    expect(made[1].card.association).not.toContain('Source');
     expect(made[2].card.front).toBe('True or false: Cells have walls');
   });
 
@@ -123,6 +134,6 @@ describe('AI requests', () => {
   test('parseQuestions tolerates junk', () => {
     expect(parseQuestions(null)).toEqual([]);
     expect(parseQuestions({ questions: 'nope' })).toEqual([]);
-    expect(parseQuestions([{ type: 'short', question: 'Q', answer: 'A', page: 0 }])).toEqual([{ type: 'short', question: 'Q', answer: 'A', options: [], page: null }]);
+    expect(parseQuestions([{ type: 'short', question: 'Q', answer: 'A', page: 0 }])).toEqual([{ type: 'short', question: 'Q', answer: 'A', options: [], context: '', page: null }]);
   });
 });
