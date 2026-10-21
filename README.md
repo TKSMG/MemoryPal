@@ -4,7 +4,7 @@
 
 I built MemoryPal as a desktop memory trainer for learners, older adults, and anyone who benefits from calm, structured recall practice. The main idea was to put several useful memory techniques in one place without making the program feel heavy or complicated.
 
-MemoryPal now comes as a Python/Tkinter desktop app for Windows and macOS and a React Native phone app for iPhone and Android. An optional account keeps them in sync.
+MemoryPal now comes as a Python/Tkinter desktop app for Windows and macOS and a React Native phone app for iPhone and Android. They sync through each person's own Google Drive, and an optional MemoryPal account turns on AI.
 
 ## Download
 
@@ -19,7 +19,7 @@ Installers for every platform are on the [latest release](https://github.com/TKS
 - **Memory techniques**: acronyms, stories, peg lists, memory palaces, chunk maps and link chains, plus memory puzzles.
 - **Study plans and progress**: daily goals, streaks, charts and badges.
 - **Made for everyone**: larger text, a simpler-language mode, extra time, high contrast and screen-reader support.
-- **Private by default**: everything except AI and sync works offline, and nothing leaves the device without an account.
+- **Private by default**: everything except AI and sync works offline. Sync goes through your own Google Drive, never MemoryPal's servers.
 
 Every feature is listed in [docs/FEATURES.md](docs/FEATURES.md), and each release's changes are in [development_versions/VERSION_JOURNAL.md](development_versions/VERSION_JOURNAL.md).
 
@@ -42,7 +42,8 @@ Every feature is listed in [docs/FEATURES.md](docs/FEATURES.md), and each releas
 ## Documentation
 
 - [docs/BUILDING_APP.md](docs/BUILDING_APP.md): building the desktop app, installer and tester package
-- [docs/CLOUD_SYNC_SETUP.md](docs/CLOUD_SYNC_SETUP.md): setting up Supabase for accounts, sync and AI
+- [docs/GOOGLE_DRIVE_SYNC.md](docs/GOOGLE_DRIVE_SYNC.md): how cards sync through Google Drive, and the Google Cloud setup
+- [docs/CLOUD_SYNC_SETUP.md](docs/CLOUD_SYNC_SETUP.md): setting up Supabase for accounts and AI
 - [supabase/functions/ai/README.md](supabase/functions/ai/README.md): deploying the AI function
 - [docs/DESIGN_NOTES.md](docs/DESIGN_NOTES.md): the design system shared by both apps
 - [docs/TESTING_CHECKLIST.md](docs/TESTING_CHECKLIST.md): the full manual test pass
