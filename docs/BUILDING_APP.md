@@ -265,6 +265,8 @@ If the script says no usable desktop Python was found, install Python 3.11 or ne
 
 Accounts and cloud sync stay off until a Supabase project is set up. Follow `CLOUD_SYNC_SETUP.md`, then put the project URL and publishable key into `latest_app\memorypal\cloud_config.py` (desktop) and `mobile\app.json` under `expo.extra` (phone) before building. Never put the secret / service_role key in either file. Builds made with the fields empty run fully offline.
 
+Google Drive sync needs the Google sign-in clients (`GOOGLE_DRIVE_SYNC.md`). CI writes them from the repository variables `GOOGLE_DESKTOP_CLIENT_ID` and `GOOGLE_IOS_CLIENT_ID` and the secret `GOOGLE_DESKTOP_CLIENT_SECRET`. For a local desktop build, set `MEMORYPAL_GOOGLE_CLIENT_ID` (and `MEMORYPAL_GOOGLE_CLIENT_SECRET`) in the environment, or create the git-ignored `latest_app\memorypal\google_client.py` with `CLIENT_ID = "..."` and `CLIENT_SECRET = "..."`. For a local phone build, set `GOOGLE_IOS_CLIENT_ID` before `npx expo prebuild`. A build without them syncs through Supabase like 0.50.0, and won't see Drive-synced cards.
+
 ## Mobile App
 
 The phone app is the React Native + Expo project in `mobile/`. `mobile/README.md` covers running it with Expo Go, the tests, and the parity checks against the desktop logic.

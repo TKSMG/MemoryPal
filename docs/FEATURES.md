@@ -10,12 +10,16 @@ The full feature list, newest first. The [README](../README.md) has the short ve
   - Building a set is two steps: name the set, then add cards by typing them, pasting notes, or using Make with AI. On the desktop, Decks has New set and Rename set; on the phone, a set's page can rename or delete it.
   - Desktop: dropdowns fit their longest label and stay on screen, dialogs grow to fit their text, the mouse wheel glides smoothly (touchpads follow your fingers), the system title bar matches the light or dark theme, and dialogs, dropdowns and fields are calmer and bordered.
   - Phone: new permission requests for the microphone and speech recognition (Talk-back) and the camera (Take a photo in Make with AI). Each is asked only when you use that feature. Choosing a photo uses the system picker.
-- Accounts and cloud sync (desktop and phone), once a Supabase project is set up (`CLOUD_SYNC_SETUP.md`):
+- Google Drive sync (desktop and phone, from 0.51.0), once the Google sign-in clients are set (`GOOGLE_DRIVE_SYNC.md`):
+  - Settings > Account & sync > Connect Google Drive, and the first-launch page offers it too. Cards, reviews, streaks and settings sync through a hidden MemoryPal folder in the person's own Drive (`drive.appdata` only), merging changes made on both rather than overwriting.
+  - Each device writes only its own file; a device that was away can't undo newer changes, and deletes reach every device.
+  - The first Drive sync of a signed-in profile moves its cards off the MemoryPal cloud and deletes them there.
+  - Disconnect stops syncing; the Drive copy stays until removed in Google Drive's Manage apps.
+- MemoryPal accounts (desktop and phone), once a Supabase project is set up (`CLOUD_SYNC_SETUP.md`). Needed for AI; before 0.51.0 they also synced cards:
   - Email + password accounts, confirmed with a 6-digit email code; forgotten passwords are reset the same way.
-  - Cards, reviews, streaks and settings sync automatically between computers and phones, merging changes made on both rather than overwriting.
   - Optional two-step sign-in with an authenticator app.
   - Password strength meter, refusal of common and breached passwords, and a growing wait after repeated wrong passwords or codes.
-  - Sign-in tokens kept in Windows DPAPI, the iOS Keychain or the Android Keystore. Delete account removes the account and its cloud copy.
+  - Sign-in tokens kept in Windows DPAPI, the iOS Keychain or the Android Keystore. Delete account removes the account and any old cloud copy of cards.
   - Without a project, both apps keep working fully offline as before.
 - New phone app (`mobile/`, React Native + Expo) for iPhone and Android:
   - Five simple tabs: Today, Study, Create, Practice, Progress.

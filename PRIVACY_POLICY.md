@@ -1,6 +1,6 @@
 # MemoryPal Privacy Policy
 
-Last updated: October 18, 2026
+Last updated: October 21, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
@@ -8,14 +8,17 @@ request.
 
 ## The short version
 
-- **Without an account, nothing leaves your device.** Your cards, notes, study plans,
-  settings, photos and recordings are saved only on your computer or phone.
+- **Unless you connect Google Drive or use an AI feature, nothing leaves your device.** Your
+  cards, notes, study plans, settings, photos and recordings are saved on your computer or phone.
+- **Sync goes through your own Google Drive, not our servers.** If you connect Google Drive, your
+  cards are kept in a hidden MemoryPal folder in your own Google account (see "Syncing with
+  Google Drive").
 - **AI features are optional and off until you allow them.** They need an account. Only the
   notes or file you choose are sent, and only when you press an AI button (see "AI features").
-- **An account is optional.** It only keeps your cards in step across your devices.
+- **A MemoryPal account is optional.** It is only needed for AI features.
 - **We don't sell your data, show ads, or use tracking or analytics tools.**
 - **Accounts are for people 13 and older.**
-- **You can delete your account at any time** in the app, which removes your cloud copy.
+- **You can disconnect Google Drive or delete your account at any time** in the app.
 
 ## What is stored on your device
 
@@ -26,9 +29,38 @@ stays there until you delete it, and uninstalling the desktop app does not remov
 phone or tablet it is kept in the app's own private storage and is removed when you uninstall
 the app.
 
-## If you create an account
+## Syncing with Google Drive
 
-To create an account we ask for:
+You can connect a Google account under **Settings > Account & sync** to keep your cards in step
+across your computer and phone. When you do:
+
+- You sign in on Google's own page or sheet. MemoryPal asks only for permission to use **its own
+  hidden app folder** in your Google Drive (Google calls this `drive.appdata`) and to see your
+  Google email address, so the app can show which account is connected. MemoryPal **cannot see
+  or change any of your other Drive files.**
+- MemoryPal saves there: your cards and notes (the text you typed or imported), your review
+  history and study progress, your MemoryPal settings, and a random identifier for each of your
+  devices. Each device writes one file.
+- **Not uploaded:** the pictures, recordings, videos and documents you attach stay only on the
+  device where you added them.
+- The files go **directly between your device and Google**. They never pass through our servers
+  and we cannot read them. Google stores them under its own
+  [Privacy Policy](https://policies.google.com/privacy), and they count toward your Google storage.
+- On the desktop, the Google sign-in is kept in the system's protected storage (Windows DPAPI or
+  the Mac Keychain). On a phone, Google's own sign-in keeps it; MemoryPal keeps only the
+  account's id and email address.
+- **Disconnect Google Drive** in the app stops syncing and signs MemoryPal out of Google. It
+  leaves the files in your Drive. To remove them, open Google Drive on the web, then
+  **Settings > Manage apps > MemoryPal > Delete hidden app data**.
+
+**Moving from the MemoryPal cloud.** Earlier versions kept a copy of your cards on our servers
+(Supabase) while you were signed in. The first time a signed-in device syncs with Google Drive,
+it copies those cards into your Drive and then **deletes them from our servers**. Older app
+versions that have not been updated still sync through our servers until you update them.
+
+## If you create a MemoryPal account
+
+A MemoryPal account is only needed for AI features. To create one we ask for:
 
 - **Your email address**, to sign you in and to send one-time codes that confirm the account or
   reset the password.
@@ -37,15 +69,8 @@ To create an account we ask for:
   happens on your device. **Your birth date is never stored or sent.** We keep only a record
   that the check passed, plus the version and time you accepted these terms.
 
-While you are signed in, MemoryPal keeps a copy in the cloud of:
-
-- your cards and notes (the text you typed or imported),
-- your review history and study progress,
-- your MemoryPal settings,
-- a random identifier for each of your devices, used to combine review counts.
-
-**Not uploaded:** the pictures, recordings, videos and documents you attach stay only on the
-device where you added them, unless you send one to an AI feature (below).
+Your account no longer holds your cards: they sync through Google Drive (above). Our servers
+keep only the account itself, your AI consent and a daily count of AI requests.
 
 If you turn on two-step sign-in, a code for your authenticator app is stored with your
 account.
@@ -77,7 +102,8 @@ is optional:
 
 | Service | What it does | What it receives |
 |---|---|---|
-| Supabase (United States, AWS us-east-1) | Hosts accounts and the cloud copy | Your account and cloud copy, as listed above |
+| Supabase (United States, AWS us-east-1) | Hosts MemoryPal accounts and the AI request counter (and, for older app versions only, the old cloud copy of cards) | Your account details, as listed above |
+| Google (Drive API and Google sign-in) | Stores your synced cards in your own Drive, if you connect it | Your synced cards, settings and review history, and your Google account's id and email. We don't receive any of it |
 | Google (Gmail) | Sends sign-in and reset codes | Your email address |
 | Google (Gemini API) | Makes notes and questions when you use an AI feature | The text or file you chose for that request, and your existing card questions. Not your email or password |
 | Cloudflare Turnstile | Checks that a person, not a bot, is signing in, creating an account or asking for an emailed code | Technical signals from the check page, such as your IP address and browser details. Not your email, password or cards |
@@ -95,7 +121,7 @@ happens in your browser, under Google's own privacy policy.
 
 ## Why we use your information (legal bases)
 
-- To provide the account and sync you asked for (performance of a contract).
+- To provide the account and Google Drive sync you asked for (performance of a contract).
 - To keep accounts secure: email confirmation, password checks and attempt limits (legitimate
   interests).
 - To answer feedback you send us (legitimate interests, or your consent).
@@ -103,21 +129,23 @@ happens in your browser, under Google's own privacy policy.
 
 ## How long we keep it
 
-Your cloud copy is kept while you have an account. **Delete account** in the app removes the
-account and its cloud copy straight away. Feedback emails are kept for as long as they are useful for fixing
+Your account is kept until you delete it. **Delete account** in the app removes it (and any old
+cloud copy of cards on our servers) straight away. Cards in your Google Drive stay there until you
+remove them as described in "Syncing with Google Drive". Feedback emails are kept for as long as they are useful for fixing
 problems, then deleted.
 
 ## Deleting your account
 
-You can delete your account and its cloud copy yourself at any time:
+You can delete your MemoryPal account yourself at any time:
 
 - **Phone or tablet:** Settings, then **Account & sync**, then **Delete account**.
 - **Desktop:** Settings, then **Account & sync**, then **Delete account**.
 
 If you can no longer open the app, email memorypal09@gmail.com from the address you signed up with
-and ask us to delete your account. We will delete the account and its cloud copy within 30
-days and tell you when it is done. Cards saved only on your devices are not affected; remove
-them by uninstalling the app or deleting its data folder.
+and ask us to delete your account. We will delete the account within 30 days and tell you when
+it is done. Cards on your devices and in your Google Drive are not affected; remove them by
+uninstalling the app or deleting its data folder, and in Google Drive under **Settings > Manage
+apps > MemoryPal > Delete hidden app data**.
 
 ## Your rights
 
@@ -125,7 +153,8 @@ You can:
 
 - **See and export your data.** Export a backup from the app at any time.
 - **Correct it.** Edit your cards in the app.
-- **Delete it.** Use Delete account in the app, or ask us.
+- **Delete it.** Use Delete account in the app, or ask us. Remove the Google Drive copy in Google
+  Drive's settings (above).
 - **Object or complain.** Contact us. In the EU or UK you can also complain to your data
   protection authority. In California and other US states with privacy laws, you have the
   rights those laws give, and we don't sell or share personal information for advertising.
@@ -147,7 +176,7 @@ authorities as the law requires.
 
 ## Where your data is processed
 
-Our hosting provider stores the cloud copy in the United States. If that is outside your country, it is
+Our hosting provider stores MemoryPal accounts in the United States. If that is outside your country, it is
 protected by our hosting provider's data processing agreement, which includes the EU standard contractual clauses.
 
 ## Changes

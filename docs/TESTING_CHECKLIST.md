@@ -58,6 +58,20 @@ These need a Supabase project with the `ai` function deployed (see `supabase/fun
 - With a two-step account that hasn't entered its authenticator code, confirm AI asks you to finish signing in first.
 - Send material Gemini refuses or wait for a busy period, and confirm "This material can't be used" or "The AI is busy right now" instead of a crash, and that a busy failure doesn't use up one of the 10 requests.
 
+## Google Drive Sync
+
+Needs a 0.51.0 or newer build and a Google account listed as a test user on the Google consent screen (while it says Testing).
+
+- First launch: the welcome page offers Connect Google Drive and Continue without syncing. Connect opens Google's page (desktop: your browser; phone: Google's sheet). It should ask only for MemoryPal's own app data, not all of Drive.
+- After connecting, Settings > Account & sync shows "Sync with Google Drive" with your Google email, Sync now and Disconnect.
+- Add a card on the desktop, press Sync now, then Sync now on the phone (same Google account). The card appears. Edit it on the phone, sync both, and confirm the edit reaches the desktop.
+- Delete a card on one device and sync both. It is gone on both.
+- Review a card offline on both devices, then sync both. The review counts add up and nothing is lost.
+- Connect a different Google account on one device. The "other account" prompt offers to merge or replace.
+- Disconnect, then reconnect. Cards are still there.
+- Signed in to an old MemoryPal account with cards in the cloud: after the first Drive sync the cards are in Drive, and an older app version signed in to that account no longer gets them.
+- Android APK from GitHub Releases: if connecting fails with DEVELOPER_ERROR, see GOOGLE_DRIVE_SYNC.md (second Android client).
+
 ## Quiz Question Types
 
 - Make a set with at least six cards: some short answers, a few sentence answers ("The heart pumps blood around the body"), one answer that is a numbered or comma list, and one with a year.
