@@ -43,6 +43,22 @@ jobs:
           fi
           tail -3 "$RUNNER_TEMP/tests.log"
 
+      # Google Drive sync: the "Desktop app" OAuth client from MemoryPal's
+      # Google Cloud project (repository variable GOOGLE_DESKTOP_CLIENT_ID and
+      # secret GOOGLE_DESKTOP_CLIENT_SECRET). Without them the app keeps
+      # syncing through the MemoryPal cloud.
+      - name: Write Google sign-in config
+        shell: bash
+        env:
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+        run: |
+          if [ -z "$GOOGLE_CLIENT_ID" ]; then
+            echo "GOOGLE_DESKTOP_CLIENT_ID isn't set: this build syncs through the MemoryPal cloud."
+            exit 0
+          fi
+          python -c "import os; open('latest_app/memorypal/google_client.py', 'w').write(f'CLIENT_ID = {os.environ[\"GOOGLE_CLIENT_ID\"].strip()!r}\nCLIENT_SECRET = {os.environ[\"GOOGLE_CLIENT_SECRET\"].strip()!r}\n')"
+
       - name: Build MemoryPal
         shell: cmd
         run: build_windows.cmd

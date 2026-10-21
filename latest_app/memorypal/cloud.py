@@ -333,6 +333,10 @@ class CloudClient:
         except CloudError:
             pass  # signing out locally still works when offline
 
+    def delete_sync_records(self, session):
+        """Remove this account's synced records once they have moved to the person's own drive."""
+        self.request("POST", "/rest/v1/rpc/delete_my_sync_records", {}, token=session.access_token)
+
     def delete_account(self, session):
         self.request("POST", "/rest/v1/rpc/delete_my_account", {}, token=session.access_token)
 
@@ -489,11 +493,11 @@ class TokenStore:
     the profile folder keeps the sign-in).
     """
 
-    def __init__(self, folder):
-        self.path = Path(folder) / "account.bin"
+    def __init__(self, folder, name="account.bin"):
+        self.path = Path(folder) / name
 
     def save(self, session):
-        raw = json.dumps(session.to_dict()).encode("utf-8")
+        raw = json.dumps(session if isinstance(session, dict) else session.to_dict()).encode("utf-8")
         if sys.platform.startswith("win"):
             blob = b"DPAPI1" + _dpapi(raw, True)
         elif sys.platform == "darwin" and self._save_to_keychain(raw):
@@ -570,7 +574,12 @@ class TokenStore:
 
 
 class SyncState:
-    """Per profile: device id, account it syncs with, pull position, and the last synced records."""
+    """Per profile: device id, account it syncs with, pull position, and the last synced records.
+
+    With Google Drive sync it also keeps the Google account, this device's
+    file there (its id and records with their stamps) and the versions of
+    the files already read.
+    """
 
     def __init__(self, folder):
         self.path = Path(folder) / "sync-state.json"
@@ -581,6 +590,12 @@ class SyncState:
         self.last_synced = ""
         self.auto_sync = True  # sync on its own after changes and every few minutes
         self.account_prompted = False  # the first-launch sign-in page was answered
+        self.drive_user = ""
+        self.drive_file = ""
+        self.drive_seen = {}
+        self.entries = {}
+        self.moved_user = ""  # the MemoryPal account whose records were merged into the drive
+        self.cloud_cleanup = False  # ... and still need removing from the MemoryPal cloud
         self.load()
 
     def load(self):
@@ -597,6 +612,12 @@ class SyncState:
         self.last_synced = str(raw.get("last_synced") or "")
         self.auto_sync = raw.get("auto_sync") is not False
         self.account_prompted = bool(raw.get("account_prompted"))
+        self.drive_user = str(raw.get("drive_user") or "")
+        self.drive_file = str(raw.get("drive_file") or "")
+        self.drive_seen = raw.get("drive_seen") if isinstance(raw.get("drive_seen"), dict) else {}
+        self.entries = sync.entries_of({"records": raw.get("entries")})
+        self.moved_user = str(raw.get("moved_user") or "")
+        self.cloud_cleanup = bool(raw.get("cloud_cleanup"))
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -604,6 +625,8 @@ class SyncState:
         temp.write_text(json.dumps({
             "device_id": self.device_id, "user_id": self.user_id, "cursor": self.cursor, "base": self.base,
             "last_synced": self.last_synced, "auto_sync": self.auto_sync, "account_prompted": self.account_prompted,
+            "drive_user": self.drive_user, "drive_file": self.drive_file, "drive_seen": self.drive_seen,
+            "entries": self.entries, "moved_user": self.moved_user, "cloud_cleanup": self.cloud_cleanup,
         }), encoding="utf-8")
         os.replace(temp, self.path)
 
@@ -621,16 +644,28 @@ class SyncState:
             self.cursor = None
             self.base = {}
 
+    def use_drive(self, user_id):
+        """The same for a Google account: a new Drive starts with a fresh file for this device."""
+        if user_id != self.drive_user:
+            self.drive_user = user_id
+            self.drive_file = ""
+            self.drive_seen = {}
+            self.entries = {}
+            self.base = {}
+
 
 class Account:
     """The sign-in for one profile: keeps the session fresh and remembers it securely."""
 
     SIGNED_OUT_CODES = ("refresh_token_not_found", "refresh_token_already_used", "session_not_found", "unauthorized", "invalid_grant")
 
-    def __init__(self, folder, client=None):
+    def __init__(self, folder, client=None, drive_link=None):
+        from . import drive
+
         self.client = client or CloudClient()
         self.tokens = TokenStore(folder)
         self.state = SyncState(folder)
+        self.drive = drive_link or drive.DriveLink(folder)
         self.saved = self.tokens.load()
         self.session = None
         # Bumped by forget(), so a refresh that finishes after Sign out
@@ -707,8 +742,55 @@ class Account:
         self.state.use_account("")
         self.state.save()
 
-    def sync(self, read_payload, write_payload, on_ui=None, mode=None):
-        return sync_profile(self.client, self.active_session(), self.state, read_payload, write_payload, on_ui, mode=mode)
+    @staticmethod
+    def uses_drive():
+        """Sync goes through Google Drive when this build has it set up; the
+        MemoryPal cloud then only keeps the account itself."""
+        from . import drive
+
+        return drive.configured()
+
+    @property
+    def can_sync(self):
+        if self.uses_drive():
+            return self.drive.linked
+        return configured() and self.signed_in
+
+    @property
+    def sync_email(self):
+        """The account the cards sync with."""
+        return self.drive.email if self.uses_drive() else self.email
+
+    def sync(self, read_payload, write_payload, on_ui=None, mode=None, files=None):
+        if not self.uses_drive():
+            return sync_profile(self.client, self.active_session(), self.state, read_payload, write_payload, on_ui, mode=mode)
+        from . import drive
+
+        if not self.drive.linked:
+            raise drive.drive_error("drive_not_linked")
+        account_user = self.session.user_id if self.session else (self.saved or {}).get("user_id", "")
+        moving = configured() and self.signed_in and account_user != self.state.moved_user
+        if moving:
+            # Moving to Google Drive: bring this profile up to date with the
+            # MemoryPal cloud one last time, then merge everything into the
+            # drive as if new, so nothing only the cloud had is lost.
+            sync_profile(self.client, self.active_session(), self.state, read_payload, write_payload, on_ui, mode=mode)
+            self.state.base = {}
+            mode = None  # an account choice above was about the MemoryPal cloud
+        result = drive.sync_files(files or self.drive.files(), self.state, self.drive.user_id, read_payload, write_payload, on_ui, mode=mode)
+        if moving or self.state.cloud_cleanup:
+            # The records are in the drive now: remove them from the MemoryPal
+            # cloud (tried again after later syncs until it works).
+            if moving:
+                self.state.moved_user = account_user
+                self.state.cloud_cleanup = True
+            try:
+                self.client.delete_sync_records(self.active_session())
+                self.state.cloud_cleanup = False
+            except CloudError:
+                pass
+            self.state.save()
+        return result
 
 
 OVERLAP_SECONDS = 120
@@ -730,6 +812,29 @@ def pull_since(cursor):
     except ValueError:
         return None
     return (moment - timedelta(seconds=OVERLAP_SECONDS)).isoformat()
+
+
+def merge_into(remote, state, read_payload, write_payload, on_ui=None, mode=None):
+    """Merge `remote` into this profile and return the plan (what to send, the new base).
+
+    Reading, merging and writing the local data happen together in one step
+    on the UI thread (see sync_profile).
+    """
+    on_ui = on_ui or (lambda fn: fn())
+
+    def merge_locally():
+        payload = read_payload()
+        if mode == "replace":
+            # Start from an empty profile (settings stay until the account's
+            # own arrive), so only the account's records end up here.
+            payload = dict(payload, cards=[], captures=[], activity={}, practiced=0)
+        local = sync.records_from_payload(payload, state.device_id, state.base)
+        plan = sync.plan_sync(local, state.base, remote)
+        if plan.apply or mode == "replace":
+            write_payload(sync.apply_plan(payload, local, plan))
+        return plan
+
+    return on_ui(merge_locally)
 
 
 def sync_profile(client, session, state, read_payload, write_payload, on_ui=None, now_label=None, mode=None):
@@ -758,20 +863,7 @@ def sync_profile(client, session, state, read_payload, write_payload, on_ui=None
         remote[key] = data
         if updated_at and (cursor is None or updated_at > cursor):
             cursor = updated_at
-
-    def merge_locally():
-        payload = read_payload()
-        if mode == "replace":
-            # Start from an empty profile (settings stay until the account's
-            # own arrive), so only the account's records end up here.
-            payload = dict(payload, cards=[], captures=[], activity={}, practiced=0)
-        local = sync.records_from_payload(payload, state.device_id, state.base)
-        plan = sync.plan_sync(local, state.base, remote)
-        if plan.apply or mode == "replace":
-            write_payload(sync.apply_plan(payload, local, plan))
-        return plan
-
-    plan = on_ui(merge_locally)
+    plan = merge_into(remote, state, read_payload, write_payload, on_ui, mode)
     if plan.push:
         client.push(session, plan.push)
     state.base = plan.final

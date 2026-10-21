@@ -109,9 +109,11 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
 
   // On the first-launch page, signing in moves straight on to the setup
   // questions (or to Today when the account already brought them along).
+  const usesDrive = account.usesDrive;
+  const linked = Boolean(account.drive);
   useEffect(() => {
-    if (intro && account.signedIn && !sync.syncing) router.replace(onboarded ? '/' : '/welcome');
-  }, [intro, account.signedIn, sync.syncing, onboarded]);
+    if (intro && (usesDrive ? linked : account.signedIn) && !sync.syncing) router.replace(onboarded ? '/' : '/welcome');
+  }, [intro, usesDrive, linked, account.signedIn, sync.syncing, onboarded]);
 
   const continueWithout = () => {
     sync.markPrompted();
@@ -239,17 +241,34 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
     notify('Two-step sign-in is on', "You'll need your authenticator code when you sign in on a new device.");
   });
 
+  const connectDrive = () => run(async () => {
+    await sync.connectDrive();
+    if (sync.error) setError(sync.error);
+  });
+
+  const disconnectDrive = async () => {
+    if (await confirm('Disconnect Google Drive?', 'Your cards stay on this phone and in your Google Drive; this phone just stops syncing until you connect again.', 'Disconnect')) {
+      run(() => sync.disconnectDrive());
+    }
+  };
+
   const signOut = async () => {
-    if (await confirm('Sign out?', 'Your cards stay on this phone; they just stop syncing until you sign in again.', 'Sign out')) {
+    const body = usesDrive
+      ? 'Your cards stay on this phone and keep syncing through Google Drive.'
+      : 'Your cards stay on this phone; they just stop syncing until you sign in again.';
+    if (await confirm('Sign out?', body, 'Sign out')) {
       await sync.signOut();
     }
   };
 
   const deleteAccount = async () => {
-    if (!(await confirm('Delete your account?', 'This permanently deletes your MemoryPal account and the cloud copy of your cards on every device. The cards on this phone stay here. This cannot be undone.', 'Delete account', true))) return;
+    const body = usesDrive
+      ? 'This permanently deletes your MemoryPal account. Your cards stay on this phone and in your Google Drive. This cannot be undone.'
+      : 'This permanently deletes your MemoryPal account and the cloud copy of your cards on every device. The cards on this phone stay here. This cannot be undone.';
+    if (!(await confirm('Delete your account?', body, 'Delete account', true))) return;
     run(async () => {
       await sync.deleteAccount();
-      notify('Account deleted', 'Your account and its cloud copy were deleted.');
+      notify('Account deleted', usesDrive ? 'Your account was deleted.' : 'Your account and its cloud copy were deleted.');
     });
   };
 
@@ -259,7 +278,65 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
     </View>
   ) : null;
 
-  if (!sync.configured) {
+  const syncNowButton = (
+    <Button label={sync.syncing ? 'Syncing…' : 'Sync now'} icon="sync" disabled={sync.syncing} onPress={async () => {
+      const problem = await sync.syncNow();
+      if (problem) notify("Couldn't sync", problem);
+    }} />
+  );
+  const autoToggle = (
+    <Card>
+      <ToggleRow
+        label="Sync automatically"
+        description="A few seconds after each change, when you open MemoryPal, and every few minutes. Turn off to sync only when you tap Sync now."
+        value={sync.auto}
+        onChange={(value) => sync.setAuto(value)}
+      />
+    </Card>
+  );
+  const driveCards = usesDrive ? (
+    linked ? (
+      <>
+        <Card tone="alt">
+          <Txt variant="label">Syncing with Google Drive</Txt>
+          <Txt variant="h2">{account.drive?.email || 'Your Google account'}</Txt>
+          <View accessibilityLiveRegion="polite">
+            <Txt variant="muted">{syncStatus(sync.syncing, sync.error, sync.auto, account.state.last_synced)}</Txt>
+          </View>
+          {syncNowButton}
+        </Card>
+        {autoToggle}
+        <Card>
+          <Txt variant="body">Connect the same Google account on your computer and other devices: cards, reviews, streaks and settings stay in step automatically.</Txt>
+          <Txt variant="small">They’re kept in a private folder in your Google Drive that only MemoryPal can open. Photos, recordings and attached files stay on the device that has them.</Txt>
+          <Button label="Disconnect Google Drive" icon="cloud-offline-outline" disabled={busy} onPress={disconnectDrive} />
+        </Card>
+      </>
+    ) : (
+      <Card>
+        <Txt variant="h3">Sync with Google Drive</Txt>
+        <Txt variant="muted">Keep your cards, progress and settings on all your devices. They’re kept in your own Google Drive, in a private folder only MemoryPal can open.</Txt>
+        <Button kind="primary" icon="logo-google" label={busy ? 'Connecting…' : 'Connect Google Drive'} disabled={busy} onPress={connectDrive} />
+      </Card>
+    )
+  ) : null;
+
+  if (usesDrive && intro && !linked) {
+    return (
+      <Screen narrow>
+        <View style={{ alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 8 }}>
+          <Image source={require('../../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 18 }} accessibilityIgnoresInvertColors accessible={false} />
+          <Txt variant="title" center>MemoryPal</Txt>
+          <Txt variant="muted" center>Connect Google Drive to keep your cards, progress and settings on all your devices.</Txt>
+        </View>
+        {driveCards}
+        {errorBox}
+        <Button kind="ghost" label="Continue without syncing" hint="Your cards stay on this phone. You can connect Google Drive later from Settings." onPress={continueWithout} />
+      </Screen>
+    );
+  }
+
+  if (!sync.configured && !usesDrive) {
     return (
       <Screen narrow>
         <Card>
@@ -298,6 +375,28 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
     );
   }
 
+  if (account.signedIn && usesDrive) {
+    const twoStepOn = Boolean(account.session?.factors.length);
+    return (
+      <Screen narrow>
+        {driveCards}
+        <Card tone="alt">
+          <Txt variant="label">MemoryPal account</Txt>
+          <Txt variant="h2">{account.email}</Txt>
+          <Txt variant="muted">Your account is used for AI notes and questions; your cards sync through Google Drive.</Txt>
+        </Card>
+        <Card>
+          <Txt variant="h3">Two-step sign-in</Txt>
+          <Txt variant="muted">{twoStepOn ? 'On: signing in on a new device needs your password and a code from your authenticator app.' : 'Add a code from an authenticator app to your password, so a stolen password alone is not enough.'}</Txt>
+          <Button label={busy ? 'Checking…' : twoStepOn ? 'Turn off two-step sign-in' : 'Set up two-step sign-in'} icon="shield-checkmark-outline" disabled={busy} onPress={manageTwoStep} />
+        </Card>
+        <Button label="Sign out" icon="log-out-outline" onPress={signOut} />
+        <Button kind="ghost" label="Delete account" onPress={deleteAccount} hint="Deletes the MemoryPal account. Cards on this phone and in Google Drive stay." />
+        {errorBox}
+      </Screen>
+    );
+  }
+
   if (account.signedIn) {
     const last = account.state.last_synced;
     const twoStepOn = Boolean(account.session?.factors.length);
@@ -309,19 +408,9 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
           <View accessibilityLiveRegion="polite">
             <Txt variant="muted">{syncStatus(sync.syncing, sync.error, sync.auto, last)}</Txt>
           </View>
-          <Button label={sync.syncing ? 'Syncing…' : 'Sync now'} icon="sync" disabled={sync.syncing} onPress={async () => {
-            const problem = await sync.syncNow();
-            if (problem) notify("Couldn't sync", problem);
-          }} />
+          {syncNowButton}
         </Card>
-        <Card>
-          <ToggleRow
-            label="Sync automatically"
-            description="A few seconds after each change, when you open MemoryPal, and every few minutes. Turn off to sync only when you tap Sync now."
-            value={sync.auto}
-            onChange={(value) => sync.setAuto(value)}
-          />
-        </Card>
+        {autoToggle}
         <Card>
           <Txt variant="body">Sign in with this account on your computer and other devices: cards, reviews, streaks and settings stay in step automatically.</Txt>
           <Txt variant="small">Photos, recordings and attached files stay on the device that has them.</Txt>
@@ -356,6 +445,8 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
   return (
     <Screen narrow>
       {captcha.sheet}
+      {driveCards}
+      {usesDrive && mode === 'signin' ? <Txt variant="h3">MemoryPal account</Txt> : null}
       {intro ? (
         <View style={{ alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 8 }}>
           <Image source={require('../../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 18 }} accessibilityIgnoresInvertColors accessible={false} />
@@ -369,8 +460,8 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
       <Card>
         {/* With the Sign in / Create account pills just above, a heading repeating the same words adds nothing. */}
         {mode === 'signin' || mode === 'create' ? null : <Txt variant="h2">{title}</Txt>}
-        {mode === 'signin' ? <Txt variant="muted">Use the same account on every device to keep your cards in step.</Txt> : null}
-        {mode === 'create' ? <Txt variant="muted">Use an email you can check: we’ll email you a code to confirm it. You don’t need an account to use MemoryPal; it only keeps your cards in step across devices.</Txt> : null}
+        {mode === 'signin' ? <Txt variant="muted">{usesDrive ? 'A MemoryPal account lets you make study notes and questions with AI. Your cards don’t need one: they sync through Google Drive.' : 'Use the same account on every device to keep your cards in step.'}</Txt> : null}
+        {mode === 'create' ? <Txt variant="muted">{usesDrive ? 'Use an email you can check: we’ll email you a code to confirm it. You only need an account for AI notes and questions.' : 'Use an email you can check: we’ll email you a code to confirm it. You don’t need an account to use MemoryPal; it only keeps your cards in step across devices.'}</Txt> : null}
         {mode === 'second-step' ? <Txt variant="muted">Open your authenticator app and type the 6-digit code it shows for MemoryPal.</Txt> : null}
         {info ? <Txt variant="body" color={c.link}>{info}</Txt> : null}
 

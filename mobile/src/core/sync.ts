@@ -259,3 +259,88 @@ export function applyPlan<T extends PayloadLike>(payload: T, local: Records, pla
   }
   return payloadFromRecords(payload, records);
 }
+
+// ------------------------------------------------- syncing through a drive
+// Port of the drive section of sync.py: every device writes only its own
+// file, with a stamp on each record; "remote" is each record's newest copy
+// across the files, and deletions stay in the files as tombstones.
+
+export type Entry = [string, Data | null];
+export type Entries = Record<string, Entry>;
+
+export const FILE_PREFIX = 'memorypal-';
+export const FILE_FORMAT = 1;
+const STAMP_DIGITS = [13, 6];
+
+export function fileName(deviceId: string): string {
+  return `${FILE_PREFIX}${deviceId}.json`;
+}
+
+/** [milliseconds, counter] of a stamp, or null when it isn't one. */
+export function stampParts(stamp: unknown): [number, number] | null {
+  if (typeof stamp !== 'string') return null;
+  const first = stamp.indexOf(':');
+  const second = first < 0 ? -1 : stamp.indexOf(':', first + 1);
+  if (second < 0) return null;
+  const parts = [stamp.slice(0, first), stamp.slice(first + 1, second), stamp.slice(second + 1)];
+  if (!parts[2] || !STAMP_DIGITS.every((size, i) => parts[i].length === size && /^\d+$/.test(parts[i]))) return null;
+  return [Number(parts[0]), Number(parts[1])];
+}
+
+const pad = (value: number, size: number) => String(value).padStart(size, '0');
+
+/** A stamp newer than `newest` (the newest seen anywhere), normally the clock time. */
+export function nextStamp(newest: string, deviceId: string, nowMs: number): string {
+  const seen = stampParts(newest) ?? [0, 0];
+  const now = Math.trunc(nowMs);
+  const [ms, count] = now > seen[0] ? [now, 0] : [seen[0], seen[1] + 1];
+  return `${pad(ms, STAMP_DIGITS[0])}:${pad(count, STAMP_DIGITS[1])}:${deviceId}`;
+}
+
+/** The records a device file holds; anything malformed is skipped. */
+export function entriesOf(content: unknown): Entries {
+  const entries = emptyMap<Entry>();
+  const records = isRecord(content) ? content.records : null;
+  if (!isRecord(records)) return entries;
+  for (const key of Object.keys(records)) {
+    const entry = records[key];
+    if (!knownKey(key) || !Array.isArray(entry) || entry.length !== 2) continue;
+    const [stamp, data] = entry;
+    if (stampParts(stamp) === null || !(data === null || isRecord(data))) continue;
+    entries[key] = [stamp as string, data as Data | null];
+  }
+  return entries;
+}
+
+/** Each record's newest copy across the device files (this device's own included). */
+export function remoteFromFiles(files: Entries[]): [Remote, Record<string, string>] {
+  const remote = emptyMap<Data | null>();
+  const stamps = emptyMap<string>();
+  for (const entries of files) {
+    for (const key of Object.keys(entries)) {
+      const [stamp, data] = entries[key];
+      if (!has(stamps, key) || stamp > stamps[key]) {
+        stamps[key] = stamp;
+        remote[key] = data;
+      }
+    }
+  }
+  return [remote, stamps];
+}
+
+export function newestStamp(stamps: Record<string, string>): string {
+  return Object.values(stamps).reduce((newest, stamp) => (stamp > newest ? stamp : newest), '');
+}
+
+/** This device's file after a sync: what it sent gets the new stamp, what it took keeps the sender's. */
+export function entriesAfter(own: Entries, plan: SyncPlan, remote: Remote, stamps: Record<string, string>, stamp: string): Entries {
+  const entries = emptyMap<Entry>();
+  for (const key of Object.keys(own)) if (knownKey(key)) entries[key] = [own[key][0], own[key][1]];
+  for (const key of Object.keys(remote)) if (!has(plan.push, key)) entries[key] = [stamps[key], remote[key]];
+  for (const key of Object.keys(plan.push)) entries[key] = [stamp, plan.push[key]];
+  return entries;
+}
+
+export function fileContent(deviceId: string, entries: Entries, stamp: string) {
+  return { format: FILE_FORMAT, device: deviceId, written: stamp, records: entries };
+}
