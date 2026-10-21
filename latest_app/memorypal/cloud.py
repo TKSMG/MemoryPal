@@ -14,6 +14,7 @@ Network calls block; the desktop runs them on a worker thread.
 import base64
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -272,6 +273,10 @@ class CloudClient:
             detail = {}
         code = str(detail.get("error_code") or detail.get("error") or detail.get("code") or "")
         text = str(detail.get("msg") or detail.get("error_description") or detail.get("message") or "")
+        wait = re.search(r"after (\d+) seconds?", text)
+        if exc.code == 429 and wait:
+            # Supabase allows one email to an address per minute or so.
+            return CloudError(f"An email was sent to this address moments ago. Wait {wait.group(1)} seconds, then try again.", "email_too_soon")
         if code in FRIENDLY:
             return CloudError(FRIENDLY[code], code)
         if "Invalid login credentials" in text:

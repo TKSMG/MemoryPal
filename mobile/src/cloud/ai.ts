@@ -41,6 +41,7 @@ export const FRIENDLY: Record<string, string> = {
   bad_request: 'Add some notes or choose a file first.',
   blocked: "This material can't be used for AI study notes.",
   busy: 'The AI is busy right now. Wait a minute and try again.',
+  busy_today: 'The AI has had a lot of requests today and is paused until tomorrow. Everything else keeps working.',
   provider_error: 'The AI service had a problem. Try again later.',
   not_configured: "AI notes aren't set up for this copy of MemoryPal yet.",
   offline: "Couldn't reach the MemoryPal cloud. Check the internet connection and try again.",
