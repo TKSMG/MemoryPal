@@ -1,5 +1,5 @@
 // deno test supabase/functions/ai/logic_test.ts
-import { AiError, base64Bytes, cleanNotes, cleanQuestions, geminiBody, MAX_FILE_BYTES, modelJson, parseRequest, providerError } from "./logic.ts";
+import { AiError, base64Bytes, cleanNotes, cleanQuestions, ERRORS, geminiBody, limitsFrom, MAX_FILE_BYTES, modelJson, parseRequest, providerError, secondsToNextMinute, takeResult } from "./logic.ts";
 
 function assertEquals(actual: unknown, expected: unknown) {
   const a = JSON.stringify(actual);
@@ -90,4 +90,25 @@ Deno.test("questions keep only well-formed ones", () => {
   assertEquals(out[3].question, "The nucleus holds _____");
   assertEquals(cleanQuestions(raw, 2).length, 2);
   assertEquals(cleanQuestions(raw, 30, [], false)[1].page, null);
+});
+
+Deno.test("rate limits come from the secrets, with safe defaults", () => {
+  const env = (values: Record<string, string>) => (name: string) => values[name];
+  assertEquals(limitsFrom(env({})), { daily: 10, perMinute: 3, totalDaily: 450, totalPerMinute: 14 });
+  assertEquals(limitsFrom(env({ AI_DAILY_LIMIT: "0", AI_PER_MINUTE: "0", AI_TOTAL_DAILY_LIMIT: "-5", AI_TOTAL_PER_MINUTE: "nope" })), { daily: 1, perMinute: 0, totalDaily: 0, totalPerMinute: 14 });
+  assertEquals(limitsFrom(env({ AI_DAILY_LIMIT: " 25 ", AI_TOTAL_DAILY_LIMIT: "1400.7" })).daily, 25);
+  assertEquals(limitsFrom(env({ AI_TOTAL_DAILY_LIMIT: "1400.7" })).totalDaily, 1400);
+  assertEquals(secondsToNextMinute(new Date("2026-10-20T10:00:45Z")), 15);
+});
+
+Deno.test("each limit maps to an error the apps understand", () => {
+  const limits = limitsFrom(() => undefined);
+  assertEquals(takeResult({ used: 4 }, limits), 4);
+  const refused = (answer: unknown) => code(() => takeResult(answer, limits));
+  assertEquals(refused({ refused: "daily" }), "limit_reached");
+  assertEquals(refused(null), "limit_reached");
+  assertEquals(refused({ refused: "minute" }), "busy");
+  assertEquals(refused({ refused: "total_minute" }), "busy");
+  assertEquals(refused({ refused: "total_daily" }), "busy_today");
+  assertEquals([ERRORS.busy, ERRORS.busy_today, ERRORS.limit_reached], [503, 503, 429]);
 });
