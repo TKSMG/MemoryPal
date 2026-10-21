@@ -1,12 +1,14 @@
-# Setting up accounts and cloud sync
+# Setting up MemoryPal accounts (Supabase)
 
 MemoryPal's accounts and sync run on [Supabase](https://supabase.com): email + password sign-in,
 6-digit email codes, optional two-step sign-in with an authenticator app, and one table of
 sync records protected by Row Level Security. Until a project is configured, both apps work
 exactly as before, fully offline, and the account screens say sync isn't set up.
 
-**Cards can now sync through each person's own Google Drive instead**, leaving Supabase with
-accounts only. That is switched on per build; see [GOOGLE_DRIVE_SYNC.md](GOOGLE_DRIVE_SYNC.md).
+**From 0.51.0, cards sync through each person's own Google Drive** and Supabase keeps accounts
+only (sign-in, two-step, consent, the AI allowance). See [GOOGLE_DRIVE_SYNC.md](GOOGLE_DRIVE_SYNC.md).
+The `sync_records` table below is still created because builds without the Google clients, and
+apps older than 0.51.0, sync through it; a later release will lock and remove it.
 
 You don't need a domain to build or test this. You will want one before a public launch (see
 "Before launch").
@@ -110,13 +112,13 @@ tier, update both.
 
 ## Before launch
 
-- **A domain and custom SMTP** (Authentication → Emails → SMTP Settings), for example Resend,
-  Postmark or Amazon SES with your domain, so codes arrive reliably and aren't capped at 2
-  an hour.
+- **Custom SMTP** (Authentication → Emails → SMTP Settings), so codes arrive reliably and aren't
+  capped at 2 an hour. MemoryPal uses Gmail SMTP for now, with the plan to move to Brevo with its
+  own domain: see `launch/supabase/auth-email-provider.md` in the project files.
 - **A privacy policy and terms** page on that domain. App stores require one for any app with
-  accounts. Drafts written from what the app does are in [`PRIVACY_POLICY.md`](../PRIVACY_POLICY.md)
-  and [`TERMS_OF_USE.md`](../TERMS_OF_USE.md). Fill in the bracketed parts and have them reviewed,
-  publish them, then put their addresses in `cloud_config.py` (`TERMS_URL`, `PRIVACY_URL`) and
+  accounts. They are [`PRIVACY_POLICY.md`](../PRIVACY_POLICY.md) and
+  [`TERMS_OF_USE.md`](../TERMS_OF_USE.md) (linked from the apps on GitHub). If they move to a
+  domain, put their addresses in `cloud_config.py` (`TERMS_URL`, `PRIVACY_URL`) and
   `mobile/app.json` (`expo.extra.termsUrl`, `privacyUrl`). The sign-up screens link to them.
 - **CAPTCHA** stops bots from mass-creating accounts. The apps open a Cloudflare Turnstile
   check (`site/verify/`, published to https://tksmg.github.io/MemoryPal/verify/ by
@@ -129,8 +131,9 @@ tier, update both.
   3. Release the apps (older versions can't pass the check).
   4. Supabase → Authentication → Attack Protection → Enable CAPTCHA protection: provider
      Turnstile, the widget's **secret** key.
-- **Google and Apple sign-in** are planned. Apple requires Sign in with Apple on iOS if any
-  other social sign-in is offered.
+- **Google and Apple sign-in for MemoryPal accounts** are not built. Connecting Google Drive is
+  storage access, not the app's account sign-in, so Apple's Sign in with Apple rule (4.8) should
+  not apply. Say so in the App Review notes in case a reviewer asks.
 - Consider the Pro plan for leaked-password protection, daily backups and no project pausing.
 
 ## Age and consent
