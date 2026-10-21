@@ -199,6 +199,11 @@ export class CloudClient {
   static errorFrom(status: number, detail: Record<string, unknown>): CloudError {
     const code = String(detail.error_code ?? detail.error ?? detail.code ?? '');
     const text = String(detail.msg ?? detail.error_description ?? detail.message ?? '');
+    const wait = /after (\d+) seconds?/.exec(text);
+    if (status === 429 && wait) {
+      // Supabase allows one email to an address per minute or so.
+      return new CloudError(`An email was sent to this address moments ago. Wait ${wait[1]} seconds, then try again.`, 'email_too_soon');
+    }
     if (FRIENDLY[code]) return new CloudError(FRIENDLY[code], code);
     if (text.includes('Invalid login credentials')) return new CloudError(FRIENDLY.invalid_credentials, 'invalid_credentials');
     if (status === 401) return new CloudError(FRIENDLY.session_not_found, 'unauthorized');
