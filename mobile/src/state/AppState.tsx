@@ -61,6 +61,7 @@ class PrefsStore {
 
 const SYNC_AFTER_CHANGE_MS = 5_000;
 const SYNC_EVERY_MS = 5 * 60_000;
+const RETURN_SYNC_GAP_MS = 60_000;
 
 /**
  * Keeps the signed-in profile in sync on its own: on launch, a few seconds
@@ -76,6 +77,7 @@ export class SyncController {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private applying = false;
   private changedDuringSync = false;
+  private lastReturnSync = 0;
   private listeners = new Set<() => void>();
 
   constructor(private store: MemoryStore) {
@@ -97,7 +99,13 @@ export class SyncController {
       if (!this.autoReady) return;
       // Coming back fetches what other devices did; going away sends what
       // was done here, so the next device opened is already up to date.
-      if (state === 'active') this.syncSoon(500);
+      if (state === 'active') {
+        // At most once a minute, like the desktop app, so flicking between
+        // apps doesn't send a sync each time.
+        if (Date.now() - this.lastReturnSync < RETURN_SYNC_GAP_MS) return;
+        this.lastReturnSync = Date.now();
+        this.syncSoon(500);
+      }
       else if (state === 'background' && this.timer) this.syncSoon(0);
     });
   }

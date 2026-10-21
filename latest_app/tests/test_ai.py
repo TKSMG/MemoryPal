@@ -104,6 +104,7 @@ class CallTests(unittest.TestCase):
             (401, {"ok": False, "error": "not_signed_in"}, "not_signed_in"),
             (429, {"ok": False, "error": "limit_reached"}, "limit_reached"),
             (503, {"ok": False, "error": "busy"}, "busy"),
+            (503, {"ok": False, "error": "busy_today"}, "busy_today"),
             (413, b"not json", "file_too_large"),
             (415, {"ok": False, "error": "unsupported_file"}, "unsupported_file"),
             (502, {"ok": False, "error": "provider_error"}, "provider_error"),
