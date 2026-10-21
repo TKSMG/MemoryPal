@@ -77,7 +77,7 @@ The tests use a throwaway data folder, so they never touch real profiles. For th
 
 ## Building
 
-[docs/BUILDING_APP.md](docs/BUILDING_APP.md) covers Windows (`build_release_windows.cmd` does tests, app, installer and tester zip in one go) and macOS (`build_macos.sh`). A release is built by GitHub Actions: run the `release.yml` workflow with a tag such as `v0.50.0`, and it builds Windows, macOS, Android and iOS and publishes them as a GitHub Release.
+[docs/BUILDING_APP.md](docs/BUILDING_APP.md) covers Windows (`build_release_windows.cmd` does tests, app, installer and tester zip in one go) and macOS (`build_macos.sh`). A release is built by GitHub Actions: run the `release.yml` workflow with a tag such as `v0.51.0`, and it builds Windows, macOS, Android and iOS and publishes them as a GitHub Release.
 
 ## Phone app
 
