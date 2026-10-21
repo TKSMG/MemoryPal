@@ -415,3 +415,15 @@ This build is packaged as release 0.49.0.
 - The README, testing checklist, tester guide, sync setup and build notes cover the new features.
 
 This build is packaged as release 0.50.0.
+
+## v89 - Cards Sync Through Google Drive
+
+- Cards, sets, reviews and settings sync through a hidden folder in the person's own Google Drive, on desktop and phone. MemoryPal's server keeps only the account.
+- The first Drive sync of a signed-in profile moves its cards off the MemoryPal cloud and then deletes them there.
+
+## v90 - Limits
+
+- AI has a per-minute limit and a shared daily limit, and emailed codes say how many seconds to wait before asking again.
+- The phone syncs on return to the app at most once a minute.
+
+This build is packaged as release 0.51.0.
