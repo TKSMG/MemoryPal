@@ -40,7 +40,7 @@ npx expo-doctor       # dependency and config health
 
   There is no UI code in this folder.
 - `src/app/`: the screens (Expo Router). The five tabs are Today, Study, Create, Practice, and Progress. The other screens are review, quiz, add, edit card, plan, puzzle, settings, and welcome.
-- `src/cloud/`: the Supabase client (`client.ts`, including two-step sign-in), the account and sync loop (`account.ts`), secure token storage (`secrets.ts`) and the breached-password check (`pwned.ts`).
+- `src/cloud/`: the Supabase client (`client.ts`, including two-step sign-in), Google Drive sync (`drive.ts`, `googleAuth.ts`), the account and sync loop (`account.ts`), secure token storage (`secrets.ts`) and the breached-password check (`pwned.ts`).
 - `src/ui/`: theme tokens (the same WCAG AA palette as the desktop), shared components, read-aloud, and haptics.
 - `src/state/`: the app's single store and storage. Phones use Expo's SQLite key-value store and the web build uses `localStorage`. Backups are saved and opened with the system share sheet and file picker.
 
@@ -57,7 +57,7 @@ npm test
 
 ## Data
 
-Cards and progress use the desktop's JSON format (same snake_case fields), so a backup moves freely between the two apps. Settings → Save a backup / Load a backup. Phone-only preferences (appearance, vibrations) are stored separately and are never part of a backup. Signed-in phones also sync with the cloud (Settings → Account & sync): see `src/cloud/` and `../docs/CLOUD_SYNC_SETUP.md`. The sign-in token lives in expo-secure-store (Keychain / Keystore), or `sessionStorage` on the web.
+Cards and progress use the desktop's JSON format (same snake_case fields), so a backup moves freely between the two apps. Settings → Save a backup / Load a backup. Phone-only preferences (appearance, vibrations) are stored separately and are never part of a backup. Phones sync through Google Drive (Settings → Account & sync → Connect Google Drive): see `src/cloud/drive.ts`, `src/cloud/googleAuth.ts` and `../docs/GOOGLE_DRIVE_SYNC.md`. The Google sign-in module is native, so Drive sync needs a real build, not Expo Go. The sign-in token lives in expo-secure-store (Keychain / Keystore), or `sessionStorage` on the web.
 
 ## Icons
 

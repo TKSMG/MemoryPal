@@ -1,6 +1,6 @@
 # MemoryPal Terms of Use
 
-Last updated: October 18, 2026
+Last updated: October 21, 2026
 
 These terms apply when you use MemoryPal, made by Kirthik Sai Mouli Parthiban ("we"). By creating
 an account you agree to them and to the [Privacy Policy](PRIVACY_POLICY.md).
@@ -24,13 +24,14 @@ are responsible for what happens under your account. You can delete it at any ti
 
 ## 4. Your content
 
-The cards, notes and files you create or import stay yours. You give us permission only to
-store and copy them as needed to sync them between your devices. Only add material you have
+The cards, notes and files you create or import stay yours. If you connect Google Drive, the
+app copies them into your own Google Drive to sync your devices, under Google's terms; we don't
+receive them. Only add material you have
 the right to use. We don't look at, share or publish your content.
 
 ## 5. AI features
 
-AI features are optional and need an account. They send the text or file you choose to Google's
+AI features are optional and need a MemoryPal account. They send the text or file you choose to Google's
 Gemini API to make notes and questions (see the Privacy Policy). **AI can be wrong**, so check
 AI-made cards before relying on them. Only send material you have the right to use, and don't
 send private or sensitive information. Don't use AI features to make harmful, hateful, sexual or
@@ -48,8 +49,8 @@ We may suspend accounts that do, and we may limit how much each account stores.
 
 ## 7. Changes and availability
 
-We may change, pause or stop MemoryPal or the sync service. If we stop the sync service, we
-will give reasonable notice when we can, so you can export your data. Your data on your device
+We may change, pause or stop MemoryPal, its accounts, AI features or Google Drive sync. If we
+stop syncing, we will give reasonable notice when we can, so you can export your data. Your data on your device
 keeps working without it.
 
 ## 8. No warranty
@@ -66,7 +67,7 @@ under consumer law that can't be limited.
 
 ## 10. Ending
 
-You can stop using MemoryPal and delete your account at any time. We may end your account if
+You can stop using MemoryPal, disconnect Google Drive and delete your account at any time. We may end your account if
 you seriously break these terms. Sections 8 and 9 continue after that.
 
 ## 11. Law

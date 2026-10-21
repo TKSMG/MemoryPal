@@ -5,8 +5,9 @@ Google Drive instead of the MemoryPal cloud (Supabase). Supabase then only keeps
 two-step, consent, the AI allowance). Design notes: the "drive" sections of
 `latest_app/memorypal/sync.py` and `latest_app/memorypal/drive.py`.
 
-**It is off until the Google sign-in clients below exist.** Without them every build keeps
-syncing through Supabase exactly as before, so this can be merged and released at any time.
+**Status:** on from release 0.51.0 (October 21, 2026). The Google Cloud project, the clients
+below, the GitHub variables and the Supabase function are all set up. A build made without the
+Google clients still syncs through Supabase as before, and the two don't see each other's cards.
 
 ## How it works
 
@@ -51,8 +52,12 @@ syncing through Supabase exactly as before, so this can be merged and released a
 |---|---|---|
 | Desktop app | name *MemoryPal desktop* | Client ID → repository **variable** `GOOGLE_DESKTOP_CLIENT_ID`; client secret → repository **secret** `GOOGLE_DESKTOP_CLIENT_SECRET` |
 | iOS | bundle ID `app.memorypal.mobile` | Client ID → repository **variable** `GOOGLE_IOS_CLIENT_ID` |
-| Android (one per signing key) | package `app.memorypal.mobile`, SHA-1 of the **Play app signing key** (Play Console → Test and release → App integrity) | nothing to copy |
-| Android | same package, SHA-1 of the **upload key** (the APK on GitHub Releases is signed with it) | nothing to copy |
+| Android | package `app.memorypal.mobile`, SHA-1 of the **app signing key** (Play Console → Test and release → App integrity → App signing) | nothing to copy |
+
+Google checks the SHA-1 of the key that signed the installed app. MemoryPal's Play Console shows
+only an app signing key (no separate upload key), so one Android client covers it. If the APK
+from GitHub Releases ever fails to connect with `DEVELOPER_ERROR`, it was signed with a different
+key: add a second Android client with that key's SHA-1 (`keytool -list -v -keystore <file>.jks`).
 
 GitHub: Settings → Secrets and variables → Actions. The build workflows write the desktop values
 into `latest_app/memorypal/google_client.py` (ignored by git) and pass `GOOGLE_IOS_CLIENT_ID` to
@@ -64,19 +69,25 @@ Drive, a build without them through Supabase, and the two don't see each other's
 ### 3. Supabase
 
 Run `supabase/migrations/2026-10-20-move-to-drive.sql` once in the SQL editor (it only adds the
-`delete_my_sync_records()` function). Do this before releasing.
+`delete_my_sync_records()` function). Done on the live project on October 21, 2026.
 
 ### 4. Before the public release
 
-- **Privacy Policy**: cards, captures, settings and review counts are no longer kept on MemoryPal's
-  servers; they are stored in the person's own Google Drive, in a hidden app folder, under Google's
-  terms. Add Google (Drive API and Google sign-in) to "Services we use". "Delete account" no longer
-  removes cards (they stay on the device and in Drive); people remove the Drive copy in Google
-  Drive → Settings → Manage apps → MemoryPal → Delete hidden app data.
-- **Play Data safety / App Store privacy**: "App activity / user content" is no longer collected by
-  the developer for sync (it goes to the user's own Google account at their request). The email
-  address is still collected for the MemoryPal account.
-- **Store listing / screenshots**: the Account & sync screens now show "Connect Google Drive".
+- **Privacy Policy and Terms**: updated on October 21, 2026 ("Syncing with Google Drive").
+- **Google consent screen**: press **Publish app** under Audience, then submit the free branding
+  check. Until then only the listed test users can connect, and Google ends each connection
+  after 7 days.
+- **Play Data safety / App Store privacy / Microsoft Store**: the answers are in the project's
+  launch notes (`launch/store-forms-and-rules.md`); synced cards go to the person's own Google
+  account, so they are not "collected" by MemoryPal.
+- **Store screenshots**: the Account & sync screens now show "Connect Google Drive". Retake them
+  only if a store shows that screen.
+
+### Later
+
+- A release after everyone is on 0.51.0 or newer removes the Supabase sync code, revokes writes
+  to `sync_records` and drops the table.
+- OneDrive and iCloud, and syncing attachments (pictures, recordings), are not built yet.
 
 ## Testing without Google
 
