@@ -4,12 +4,26 @@
  * language, so answers don't leave the phone; otherwise the system recogniser
  * is used as is.
  */
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { Platform } from 'react-native';
 
 import type { Ears, ListenResult } from './talkback';
 
 export type Readiness = 'ready' | 'unavailable' | 'denied';
+
+type SpeechModule = typeof import('expo-speech-recognition').ExpoSpeechRecognitionModule;
+
+/**
+ * The native module, loaded on first use: Expo Go doesn't include it, and a
+ * top-level import would crash the Talk-back screen there. null when missing.
+ */
+function speech(): SpeechModule | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return (require('expo-speech-recognition') as typeof import('expo-speech-recognition')).ExpoSpeechRecognitionModule ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function locale(): string {
   try {
@@ -22,8 +36,9 @@ function locale(): string {
 /** Checks recognition is there and asks for the microphone and speech permissions. */
 export async function prepareRecognition(): Promise<Readiness> {
   try {
-    if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) return 'unavailable';
-    const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    const recognizer = speech();
+    if (!recognizer || !recognizer.isRecognitionAvailable()) return 'unavailable';
+    const permission = await recognizer.requestPermissionsAsync();
     return permission.granted ? 'ready' : 'denied';
   } catch {
     return 'unavailable';
@@ -31,9 +46,10 @@ export async function prepareRecognition(): Promise<Readiness> {
 }
 
 export function makeEars(): Ears {
+  const recognizer = speech();
   let onDevice = (() => {
     try {
-      return ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
+      return !!recognizer?.supportsOnDeviceRecognition();
     } catch {
       return false;
     }
@@ -42,14 +58,18 @@ export function makeEars(): Ears {
 
   const listenOnce = (hints: string[]): Promise<ListenResult> =>
     new Promise((resolve) => {
+      if (!recognizer) {
+        resolve({ error: 'unavailable' });
+        return;
+      }
       let best = '';
       const subscriptions = [
-        ExpoSpeechRecognitionModule.addListener('result', (event) => {
+        recognizer.addListener('result', (event) => {
           best = event.results[0]?.transcript ?? best;
           if (event.isFinal) done({ transcript: best });
         }),
-        ExpoSpeechRecognitionModule.addListener('error', (event) => done(best ? { transcript: best } : { error: event.error })),
-        ExpoSpeechRecognitionModule.addListener('end', () => done(best ? { transcript: best } : { error: 'no-speech' })),
+        recognizer.addListener('error', (event) => done(best ? { transcript: best } : { error: event.error })),
+        recognizer.addListener('end', () => done(best ? { transcript: best } : { error: 'no-speech' })),
       ];
       function done(result: ListenResult) {
         if (finish !== done) return;
@@ -59,7 +79,7 @@ export function makeEars(): Ears {
       }
       finish = done;
       try {
-        ExpoSpeechRecognitionModule.start({
+        recognizer.start({
           lang: locale(),
           interimResults: true,
           continuous: false,
@@ -91,7 +111,7 @@ export function makeEars(): Ears {
       if (!finish) return;
       const pending = finish;
       try {
-        ExpoSpeechRecognitionModule.abort();
+        recognizer?.abort();
       } catch {
         // already stopped
       }

@@ -85,8 +85,9 @@ is optional:
 
 - It only works when you are signed in and have allowed it on the one-time AI screen. You can
   turn it off again in Settings.
-- Only what you choose is sent: the text, or the one file, you picked for that request, plus a
-  list of your existing card questions so the AI doesn't repeat them.
+- Only what you choose is sent: the text, or the one file, you picked for that request, anything
+  you typed under "How should it look?", and a list of your existing card questions so the AI
+  doesn't repeat them.
 - It goes through our server (Supabase) to **Google's Gemini API**, which writes the notes or
   questions and sends them back. Our server does not keep the text or file; it only counts how
   many AI requests your account made each day, to apply a daily limit.

@@ -47,6 +47,7 @@ export default function MakeWithAi() {
   const deck = normalizeSpace(String(params.deck ?? ''));
   const [text, setText] = useState(() => takeNotesForAi());
   const [source, setSource] = useState<AiSource | null>(null);
+  const [style, setStyle] = useState('');
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState('');
   const [accountNeeded, setAccountNeeded] = useState(false);
@@ -96,7 +97,7 @@ export default function MakeWithAi() {
     }
   };
 
-  const input = (): AiInput => ({ text: text.trim(), file: source ? fileFromBase64(source.base64, source.mime) : null, title: deck || undefined });
+  const input = (): AiInput => ({ text: text.trim(), file: source ? fileFromBase64(source.base64, source.mime) : null, title: deck || undefined, style: style.trim() || undefined });
 
   const run = async (kind: Exclude<Busy, null>, from?: AiInput) => {
     if (busy) return;
@@ -173,6 +174,15 @@ export default function MakeWithAi() {
         {Platform.OS !== 'web' ? <ListRow icon="camera-outline" title="Take a photo" detail="Of a page, a slide or a whiteboard" onPress={() => choose(() => pickPhoto('camera'))} /> : null}
         <ListRow icon="image-outline" title="Choose a photo" onPress={() => choose(() => pickPhoto('library'))} />
       </ListGroup>
+
+      <Field
+        label="How should it look? (optional)"
+        hint="For example “one line per date: the year, then what happened”, “word, meaning, then an example”, or “only the causes of the war”."
+        value={style}
+        onChangeText={setStyle}
+        placeholder="One line per date…"
+        maxLength={500}
+      />
 
       <Row>
         <Button kind="primary" icon={offline ? 'cloud-offline-outline' : 'reader-outline'} label={makeLabel('Make notes')} onPress={() => run('notes')} disabled={offline || !hasInput || !!busy} style={{ flex: 1 }} />
