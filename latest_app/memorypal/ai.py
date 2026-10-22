@@ -26,6 +26,8 @@ MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_QUESTIONS = 30
 MAX_STYLE_CHARS = 500
 MAX_CONTEXT_CHARS = 240
+MAX_EXAMPLES = 20
+MAX_QUESTION_CHARS = 600  # room for a short case or scenario question
 QUESTION_TYPES = ("short", "choice", "truefalse", "cloze")
 MIME_BY_SUFFIX = {
     ".pdf": "application/pdf",
@@ -194,7 +196,7 @@ def parse_questions(raw, count=MAX_QUESTIONS, avoid=()):
             break
         item = item if isinstance(item, dict) else {}
         kind = str(item.get("type") or "").lower()
-        question, answer = clip(item.get("question"), 300), clip(item.get("answer"), 300)
+        question, answer = clip(item.get("question"), MAX_QUESTION_CHARS), clip(item.get("answer"), 300)
         if kind not in QUESTION_TYPES or not question or not answer:
             continue
         options = []
@@ -232,7 +234,14 @@ def parse_questions(raw, count=MAX_QUESTIONS, avoid=()):
 
 
 # -------------------------------------------------------------- the calls
-def request_body(action, text="", file_path=None, file=None, count=10, avoid=(), title="", style=""):
+def example_lines(examples):
+    """Teacher's past questions from a string (one per line) or a list, cleaned and capped."""
+    items = examples.splitlines() if isinstance(examples, str) else list(examples or ())
+    cleaned = [clip(str(item).lstrip("-•* \t"), 400) for item in items]
+    return [item for item in cleaned if item][:MAX_EXAMPLES]
+
+
+def request_body(action, text="", file_path=None, file=None, count=10, avoid=(), title="", style="", examples=()):
     body = {"action": action, "text": (text or "").strip()}
     if file_path:
         body["file"] = file_payload(file_path)
@@ -243,6 +252,8 @@ def request_body(action, text="", file_path=None, file=None, count=10, avoid=(),
     if action == "questions":
         body["count"] = max(1, min(MAX_QUESTIONS, int(count)))
         body["avoid"] = [str(front) for front in avoid or () if str(front).strip()][:300]
+        if example_lines(examples):
+            body["examples"] = example_lines(examples)
     if title:
         body["title"] = str(title)[:120]
     style = clip(style, MAX_STYLE_CHARS)
@@ -266,9 +277,14 @@ def make_notes(auth, text="", file_path=None, file=None, title="", style="", ope
     return notes
 
 
-def make_questions(auth, text="", file_path=None, file=None, count=10, avoid=(), title="", style="", opener=None, timeout=TIMEOUT):
-    """Varied practice questions; returns {"questions": parse_questions(...), "remaining"}."""
-    data = call(auth, request_body("questions", text, file_path, file, count, avoid, title, style), opener, timeout)
+def make_questions(auth, text="", file_path=None, file=None, count=10, avoid=(), title="", style="", examples=(), opener=None, timeout=TIMEOUT):
+    """Varied practice questions; returns {"questions": parse_questions(...), "remaining"}.
+
+    `examples` are questions the learner's teacher has asked (a list, or one
+    per line): the AI follows their pattern. Without them or a `style`, the
+    server takes the pattern from `avoid`, the set's existing questions.
+    """
+    data = call(auth, request_body("questions", text, file_path, file, count, avoid, title, style, examples), opener, timeout)
     return {
         "questions": parse_questions(data.get("result"), count, avoid),
         "remaining": data.get("remaining") if isinstance(data.get("remaining"), int) else None,

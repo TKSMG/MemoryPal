@@ -9,7 +9,7 @@ import { useNetworkState } from 'expo-network';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Platform, View } from 'react-native';
 
-import { fileFromBase64, makeNotes, makeQuestions, notesText } from '../cloud/ai';
+import { aiStyleFor, fileFromBase64, makeNotes, makeQuestions, notesText, rememberAiStyle } from '../cloud/ai';
 import type { AiAuth, AiInput, AiNotes } from '../cloud/ai';
 import { nowLabel } from '../core/dates';
 import { uid } from '../core/models';
@@ -47,7 +47,9 @@ export default function MakeWithAi() {
   const deck = normalizeSpace(String(params.deck ?? ''));
   const [text, setText] = useState(() => takeNotesForAi());
   const [source, setSource] = useState<AiSource | null>(null);
-  const [style, setStyle] = useState('');
+  // A set's style and teacher's questions are remembered on this phone and filled in next time.
+  const [style, setStyle] = useState(() => aiStyleFor(prefs.ai_styles, deck).style);
+  const [examples, setExamples] = useState(() => aiStyleFor(prefs.ai_styles, deck).examples);
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState('');
   const [accountNeeded, setAccountNeeded] = useState(false);
@@ -106,6 +108,7 @@ export default function MakeWithAi() {
     setBusy(kind);
     try {
       const request = from ?? input();
+      if (deck) setPrefs({ ai_styles: rememberAiStyle(prefs.ai_styles, deck, style, examples) });
       if (kind === 'notes') {
         const made = await makeNotes(auth, request, { fetcher: preview });
         setLeft(remainingText(made.remaining));
@@ -113,7 +116,7 @@ export default function MakeWithAi() {
         setNotesSaved('');
       } else {
         const avoid = deck ? deckCards(store, deck).map((card) => card.front) : [];
-        const made = await makeQuestions(auth, { ...request, count: 10, avoid }, { fetcher: preview });
+        const made = await makeQuestions(auth, { ...request, style: style.trim() || undefined, examples, count: 10, avoid }, { fetcher: preview });
         const usesLeft = remainingText(made.remaining);
         setLeft(usesLeft);
         if (!made.questions.length) {
@@ -182,6 +185,17 @@ export default function MakeWithAi() {
         onChangeText={setStyle}
         placeholder="One line per date…"
         maxLength={500}
+      />
+
+      <Field
+        label="Questions your teacher has asked (optional)"
+        hint={`One per line. New questions follow their style, level and the parts of the material they come from. Leave both boxes empty and questions follow the ones already in ${deck ? 'this set' : 'the set'}.${deck ? ' Saved with this set on this phone.' : ''}`}
+        value={examples}
+        onChangeText={setExamples}
+        multiline
+        placeholder="A 60-year-old has crushing chest pain. What is the first test?"
+        maxLength={8000}
+        style={{ minHeight: 90 }}
       />
 
       <Row>

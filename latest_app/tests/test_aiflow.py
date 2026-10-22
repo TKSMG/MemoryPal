@@ -19,6 +19,18 @@ QUESTIONS = [
 ]
 
 
+class StyleTests(unittest.TestCase):
+    def test_each_set_remembers_its_style(self):
+        prefs = aiflow.remember_ai_style({}, " Pharmacology ", "only drug classes", "Which drug causes X?\nA 60-year-old...")
+        self.assertEqual(aiflow.ai_style_for(prefs, "Pharmacology"), {"style": "only drug classes", "examples": "Which drug causes X?\nA 60-year-old..."})
+        self.assertEqual(aiflow.ai_style_for(prefs, "Anatomy"), {"style": "", "examples": ""})
+        cleared = aiflow.remember_ai_style(prefs, "Pharmacology", " ", "")
+        self.assertNotIn("Pharmacology", cleared["ai_styles"])
+        junk = aiflow.normalize_preferences({"ai_styles": {"A": "nope", "": {"style": "x"}, "B": {"style": "y" * 900}}})
+        self.assertEqual(list(junk["ai_styles"]), ["B"])
+        self.assertEqual(len(junk["ai_styles"]["B"]["style"]), 500)
+
+
 class ConsentTests(unittest.TestCase):
     def test_off_until_allowed(self):
         prefs = aiflow.normalize_preferences(None)

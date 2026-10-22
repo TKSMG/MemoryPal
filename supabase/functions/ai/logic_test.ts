@@ -57,6 +57,20 @@ Deno.test("the learner's style is clipped and fenced into the prompt", () => {
   assertEquals(promptFor(parseRequest({ action: "questions", text: "x" })).includes('"context"'), true);
 });
 
+Deno.test("teacher examples, or the set's own questions, set the pattern", () => {
+  const withExamples = parseRequest({ action: "questions", text: "x", examples: ["A 45-year-old man has chest pain. Next step?", "", 7, "y".repeat(500)], avoid: ["a", "b", "c"] });
+  assertEquals(withExamples.examples.length, 2);
+  assertEquals(withExamples.examples[1].length, 400);
+  const prompt = promptFor(withExamples);
+  assertEquals(prompt.includes("teacher has asked before"), true);
+  assertEquals(prompt.includes("Do not repeat these existing questions"), true);
+  const learned = promptFor(parseRequest({ action: "questions", text: "x", avoid: ["a", "b", "c"] }));
+  assertEquals(learned.includes("existing questions in this set (match their style"), true);
+  const few = promptFor(parseRequest({ action: "questions", text: "x", avoid: ["a"] }));
+  assertEquals(few.includes("match their style"), false);
+  assertEquals(parseRequest({ action: "questions", text: "x", examples: Array(40).fill("q") }).examples.length, 20);
+});
+
 Deno.test("model answers are read, and blocks are reported", () => {
   const answer = { candidates: [{ finishReason: "STOP", content: { parts: [{ text: '{"title":"T",' }, { text: '"sections":[],"key_terms":[]}' }] } }] };
   assertEquals(modelJson(answer), { title: "T", sections: [], key_terms: [] });

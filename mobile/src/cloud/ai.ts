@@ -17,6 +17,8 @@ import type { Session } from './client';
 export const MAX_FILE_BYTES = 8 * 1024 * 1024;
 export const MAX_QUESTIONS = 30;
 export const MAX_STYLE_CHARS = 500;
+export const MAX_EXAMPLES = 20;
+const MAX_QUESTION_CHARS = 600;
 const MAX_CONTEXT_CHARS = 240;
 const TIMEOUT_MS = 120000; // a PDF can take Gemini a while
 export const QUESTION_TYPES = ['short', 'choice', 'truefalse', 'cloze'] as const;
@@ -206,7 +208,7 @@ export function parseQuestions(raw: unknown, count = MAX_QUESTIONS, avoid: strin
     if (out.length >= Math.min(count, MAX_QUESTIONS)) break;
     const item = asObject(entry);
     const type = String(item.type ?? '').toLowerCase() as AiQuestionType;
-    let question = clip(item.question, 300);
+    let question = clip(item.question, MAX_QUESTION_CHARS);
     let answer = clip(item.answer, 300);
     if (!QUESTION_TYPES.includes(type) || !question || !answer) continue;
     let options: string[] = [];
@@ -251,6 +253,17 @@ export interface AiInput {
   title?: string;
   /** How the learner wants it laid out, in their words ("one line per date"); empty for the usual. */
   style?: string;
+  /** Questions the learner's teacher has asked before: one per line, or a list. Questions only. */
+  examples?: string | string[];
+}
+
+/** Teacher's past questions, cleaned (bullets stripped, clipped) and capped. */
+export function exampleLines(examples: string | string[] | undefined): string[] {
+  const items = typeof examples === 'string' ? examples.split(/\r?\n/) : (examples ?? []);
+  return items
+    .map((item) => clip(String(item).replace(/^[-•*\s]+/, ''), 400))
+    .filter(Boolean)
+    .slice(0, MAX_EXAMPLES);
 }
 
 function requestBody(action: 'notes' | 'questions', input: AiInput & { count?: number; avoid?: string[] }): Record<string, unknown> {
@@ -260,6 +273,8 @@ function requestBody(action: 'notes' | 'questions', input: AiInput & { count?: n
   if (action === 'questions') {
     body.count = Math.max(1, Math.min(MAX_QUESTIONS, Math.trunc(input.count ?? 10) || 10));
     body.avoid = (input.avoid ?? []).map(String).filter((front) => front.trim()).slice(0, 300);
+    const examples = exampleLines(input.examples);
+    if (examples.length) body.examples = examples;
   }
   if (input.title) body.title = input.title.slice(0, 120);
   const style = clip(input.style, MAX_STYLE_CHARS);
@@ -323,4 +338,46 @@ export function questionsToCards(questions: AiQuestion[], deck: string, title = 
 export function cardNote(question: Pick<AiQuestion, 'page' | 'context'>): string {
   const note = AI_NOTE + (question.page ? ` From page ${question.page}.` : '');
   return question.context ? `${note} Source: "${question.context}"` : note;
+}
+
+// ------------------------------------------------------- per-set AI styles
+/** How one set's AI notes and questions should look, saved on this device only. */
+export interface AiStyle {
+  style: string;
+  /** The teacher's past questions, one per line. */
+  examples: string;
+}
+
+export const AI_STYLES_MAX = 100;
+
+/** {set name: AiStyle}, cleaned; empty entries dropped, newest last, at most AI_STYLES_MAX. */
+export function normalizeAiStyles(raw: unknown): Record<string, AiStyle> {
+  const styles: Record<string, AiStyle> = {};
+  for (const [key, value] of Object.entries(asObject(raw))) {
+    const name = key.trim().slice(0, 200);
+    const entry = asObject(value);
+    const style = String(entry.style ?? '').trim().slice(0, MAX_STYLE_CHARS);
+    const examples = String(entry.examples ?? '').trim().slice(0, 8000);
+    if (name && (style || examples)) {
+      delete styles[name];
+      styles[name] = { style, examples };
+    }
+  }
+  return Object.fromEntries(Object.entries(styles).slice(-AI_STYLES_MAX));
+}
+
+/** The saved style for a set, or empty strings. */
+export function aiStyleFor(styles: Record<string, AiStyle> | undefined, deck: string): AiStyle {
+  const entry = (styles ?? {})[deck.trim()];
+  return { style: entry?.style ?? '', examples: entry?.examples ?? '' };
+}
+
+/** styles with this set's entry saved (or removed when both are empty), newest last. */
+export function rememberAiStyle(styles: Record<string, AiStyle> | undefined, deck: string, style: string, examples: string): Record<string, AiStyle> {
+  const name = deck.trim().slice(0, 200);
+  const updated = { ...normalizeAiStyles(styles) };
+  if (!name) return updated;
+  delete updated[name];
+  if (style.trim() || examples.trim()) updated[name] = { style: style.trim(), examples: examples.trim() };
+  return normalizeAiStyles(updated);
 }
