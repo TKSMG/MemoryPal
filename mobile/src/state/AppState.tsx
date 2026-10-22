@@ -6,6 +6,7 @@ import { createContext, ReactNode, useContext, useMemo, useSyncExternalStore } f
 import { Alert, AppState as RNAppState } from 'react-native';
 
 import { CloudAccount } from '../cloud/account';
+import { type AiStyle, normalizeAiStyles } from '../cloud/ai';
 import { CloudError, cloudConfigured, Session } from '../cloud/client';
 import { MemoryStore } from '../core/store';
 import { keyAdapter } from './storage';
@@ -21,9 +22,11 @@ export interface DevicePrefs {
   ai_allowed: boolean;
   /** When they allowed it (ISO time), or ''. */
   ai_allowed_at: string;
+  /** Per set: how its AI notes and questions should look, and the teacher's past questions. */
+  ai_styles: Record<string, AiStyle>;
 }
 
-const DEFAULT_PREFS: DevicePrefs = { theme: 'system', haptics: true, quiz_recent: [], ai_allowed: false, ai_allowed_at: '' };
+const DEFAULT_PREFS: DevicePrefs = { theme: 'system', haptics: true, quiz_recent: [], ai_allowed: false, ai_allowed_at: '', ai_styles: {} };
 
 /** Preferences that belong to this phone, not the profile (so a backup never changes them). */
 class PrefsStore {
@@ -39,6 +42,7 @@ class PrefsStore {
       if (!Array.isArray(this.prefs.quiz_recent)) this.prefs.quiz_recent = [];
       this.prefs.quiz_recent = this.prefs.quiz_recent.map(String).slice(0, 60);
       this.prefs.ai_allowed = this.prefs.ai_allowed === true;
+      this.prefs.ai_styles = normalizeAiStyles(this.prefs.ai_styles);
     } catch {
       this.prefs = { ...DEFAULT_PREFS };
     }

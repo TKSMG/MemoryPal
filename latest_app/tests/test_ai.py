@@ -73,6 +73,15 @@ class CallTests(unittest.TestCase):
         ai.make_notes("t", text="Dates", style="   ", opener=opener)
         self.assertNotIn("style", opener.sent())
 
+    def test_teacher_examples_are_one_per_line(self):
+        opener = FakeOpener({"ok": True, "result": {"questions": [{"type": "short", "question": "A 45-year-old man has crushing chest pain radiating to the left arm. " * 10, "answer": "MI"}]}})
+        made = ai.make_questions("t", text="Cardio", examples="- First question?\n\n  • Second question?  \n", opener=opener)
+        self.assertEqual(opener.sent()["examples"], ["First question?", "Second question?"])
+        self.assertEqual(len(made["questions"][0]["question"]), ai.MAX_QUESTION_CHARS)
+        ai.make_questions("t", text="Cardio", examples="", opener=opener)
+        self.assertNotIn("examples", opener.sent())
+        self.assertEqual(len(ai.example_lines(["q"] * 40)), ai.MAX_EXAMPLES)
+
     def test_questions_with_a_file_are_validated(self):
         with tempfile.TemporaryDirectory() as folder:
             pdf = Path(folder) / "lecture.PDF"

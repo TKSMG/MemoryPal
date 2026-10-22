@@ -44,6 +44,7 @@ def default_preferences():
         "ai_remaining_day": "",
         "quiz_recent": [],
         "quiz_deck": "",
+        "ai_styles": {},
     }
 
 
@@ -61,7 +62,44 @@ def normalize_preferences(raw):
     recent = raw.get("quiz_recent")
     prefs["quiz_recent"] = [str(item)[:120] for item in recent if isinstance(item, (str, int))][-QUIZ_RECENT_MAX:] if isinstance(recent, list) else []
     prefs["quiz_deck"] = str(raw.get("quiz_deck") or "")[:200]
+    prefs["ai_styles"] = normalize_ai_styles(raw.get("ai_styles"))
     return prefs
+
+
+AI_STYLES_MAX = 100
+
+
+def normalize_ai_styles(raw):
+    """{set name: {"style", "examples"}}: how each set's AI notes and questions should look."""
+    styles = {}
+    for name, entry in (raw.items() if isinstance(raw, dict) else ()):
+        name = str(name).strip()[:200]
+        entry = entry if isinstance(entry, dict) else {}
+        style = str(entry.get("style") or "").strip()[:ai.MAX_STYLE_CHARS]
+        examples = str(entry.get("examples") or "").strip()[:8000]
+        if name and (style or examples):
+            styles[name] = {"style": style, "examples": examples}
+    return dict(list(styles.items())[-AI_STYLES_MAX:])
+
+
+def ai_style_for(prefs, deck):
+    """The saved {"style", "examples"} for a set, or empty strings."""
+    entry = (prefs or {}).get("ai_styles", {}).get(str(deck or "").strip(), {})
+    return {"style": entry.get("style", ""), "examples": entry.get("examples", "")}
+
+
+def remember_ai_style(prefs, deck, style, examples):
+    """prefs with this set's style saved (or removed when both are empty), newest last."""
+    updated = normalize_preferences(prefs)
+    styles = dict(updated["ai_styles"])
+    name = str(deck or "").strip()[:200]
+    if not name:
+        return updated
+    styles.pop(name, None)
+    if str(style or "").strip() or str(examples or "").strip():
+        styles[name] = {"style": str(style or "").strip(), "examples": str(examples or "").strip()}
+    updated["ai_styles"] = normalize_ai_styles(styles)
+    return updated
 
 
 def has_consent(prefs):

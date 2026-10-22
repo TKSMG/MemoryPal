@@ -7969,12 +7969,28 @@ class MemoryPalApp(tk.Tk):
                 ai_file_holder.pack(fill="x", before=ai_source_marker)
                 show_ai_file()
 
-        # Optional: the learner's own pattern or focus, in their words.
+        # Optional: the learner's own pattern or focus, in their words, and
+        # questions their teacher has asked. Both are remembered per set.
+        saved_style = aiflow.ai_style_for(self.ai_prefs(), draft.get("name", ""))
         ttk.Label(ai_panel, text="How should it look? (optional)", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(12), 0))
-        ai_style_var = tk.StringVar(value=draft.get("ai_style", ""))
+        ai_style_var = tk.StringVar(value=draft.get("ai_style", saved_style["style"]))
         ai_style = ttk.Entry(ai_panel, textvariable=ai_style_var, font=self.font("Segoe UI", 12))
         ai_style.pack(fill="x", pady=(self.px(4), self.px(4)))
-        self.fit_wrap(ttk.Label(ai_panel, text='For example "one line per date: the year, then what happened", "word, meaning, then an example", or "only the causes of the war".', style="CardMuted.TLabel", wraplength=self.px(560)))
+        self.fit_wrap(ttk.Label(ai_panel, text='For example "one line per date: the year, then what happened", "word, meaning, then an example", "only the case boxes and tables", or "my professor asks short clinical cases from the chapter summaries".', style="CardMuted.TLabel", wraplength=self.px(560)))
+        ttk.Label(ai_panel, text="Questions your teacher has asked (optional, one per line)", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(10), 0))
+        ai_examples = self.text_box(ai_panel, 3, 11)
+        ai_examples.insert("1.0", draft.get("ai_examples", saved_style["examples"]))
+        ai_examples.pack(fill="x", pady=(self.px(4), self.px(4)))
+        self.fit_wrap(ttk.Label(ai_panel, text="New questions follow their style and level. Leave both empty and questions follow the ones already in this set. Saved with this set on this device.", style="CardMuted.TLabel", wraplength=self.px(560)))
+
+        def load_saved_style(*_args):
+            # Picking another set brings back that set's saved style, unless something is typed already.
+            saved = aiflow.ai_style_for(self.ai_prefs(), setbuilder.clean_set_name(name_var.get()))
+            if not ai_style_var.get().strip() and not ai_examples.get("1.0", "end").strip():
+                ai_style_var.set(saved["style"])
+                ai_examples.insert("1.0", saved["examples"])
+
+        name_var.trace_add("write", load_saved_style)
         ai_count = tk.StringVar(value=draft.get("ai_count", "10 questions"))
         ai_actions = ttk.Frame(ai_panel, style="Card.TFrame")
         ai_actions.pack(fill="x", pady=(self.px(12), 0))
@@ -7983,7 +7999,7 @@ class MemoryPalApp(tk.Tk):
         make_notes_button = ttk.Button(ai_actions, text="Make notes", cursor="hand2")
         make_notes_button.pack(side="left", padx=(self.px(8), 0))
         self.select_button(ai_actions, ai_count, ["5 questions", "10 questions", "15 questions", "20 questions"]).pack(side="left", padx=(self.px(8), 0))
-        privacy = "Only this text or file, what you wrote under How should it look, and your existing questions (so they aren't repeated) are sent, to Google's Gemini API through MemoryPal's server. Don't include private or sensitive information."
+        privacy = "Only this text or file, what you wrote in the two optional boxes, and your existing questions in this set are sent, to Google's Gemini API through MemoryPal's server. Don't include private or sensitive information."
         privacy_label = self.fit_wrap(ttk.Label(ai_panel, text=privacy, style="CardMuted.TLabel", wraplength=self.px(560)), pady=(self.px(10), 0))
         ai_status = self.ai_status_bar(ai_panel, before=privacy_label)
         ai_footer = tk.Frame(ai_panel, bg=surface)
@@ -8032,7 +8048,10 @@ class MemoryPalApp(tk.Tk):
                     self.toast_message(message + " They're in the set builder.")
 
             count = safe_int(ai_count.get().split(" ", 1)[0], 10)
-            self.run_ai_request(action, ai_status, done, text=source["text"], file_path=source["file_path"], deck=name, count=count, style=ai_style_var.get())
+            examples = ai_examples.get("1.0", "end").strip()
+            if name:
+                self.set_ai_prefs(aiflow.remember_ai_style(self.ai_prefs(), name, ai_style_var.get(), examples))
+            self.run_ai_request(action, ai_status, done, text=source["text"], file_path=source["file_path"], deck=name, count=count, style=ai_style_var.get(), examples=examples)
 
         make_questions_button.configure(command=lambda: ai_make("questions"))
         make_notes_button.configure(command=lambda: ai_make("notes"))
@@ -8282,6 +8301,7 @@ class MemoryPalApp(tk.Tk):
             "ai_file": ai_file["path"],
             "ai_count": ai_count.get(),
             "ai_style": ai_style_var.get(),
+            "ai_examples": ai_examples.get("1.0", "end").strip(),
         })
         if getattr(self, "_ai_choose_file", False):
             self._ai_choose_file = False
@@ -9175,7 +9195,7 @@ class MemoryPalApp(tk.Tk):
         status.update(show=show, update=update, hide=hide, alive=alive)
         return status
 
-    def run_ai_request(self, action, status, on_result, text="", file_path="", deck="", count=10, style=""):
+    def run_ai_request(self, action, status, on_result, text="", file_path="", deck="", count=10, style="", examples=""):
         """Send one AI request on a worker thread; `status` shows progress and Cancel.
 
         on_result(result) runs on the UI thread with make_notes() output
@@ -9198,7 +9218,7 @@ class MemoryPalApp(tk.Tk):
         def work():
             if action == "notes":
                 return {"notes": ai.make_notes(account, text=text, file_path=file_path or None, title=title, style=style)}
-            made = ai.make_questions(account, text=text, file_path=file_path or None, count=count, avoid=avoid, title=title, style=style)
+            made = ai.make_questions(account, text=text, file_path=file_path or None, count=count, avoid=avoid, title=title, style=style, examples=examples)
             pictures = {}
             if aiflow.source_kind(file_path) == "pdf":
                 pages = [item["page"] for item in made["questions"] if item.get("page")]
