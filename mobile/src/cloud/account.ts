@@ -307,7 +307,7 @@ export class CloudAccount {
   private mergeInto(store: MemoryStore, remote: Remote, applying: (apply: () => void) => void, mode?: 'merge' | 'replace'): SyncPlan {
     let payload = store.payload() as unknown as Record<string, unknown>;
     // Replacing starts from an empty phone (settings stay until the account's own arrive).
-    if (mode === 'replace') payload = { ...payload, cards: [], captures: [], activity: {}, practiced: 0 };
+    if (mode === 'replace') payload = { ...payload, cards: [], captures: [], decks: [], activity: {}, practiced: 0 };
     const local = recordsFromPayload(payload, this.state.device_id, this.state.base);
     const plan = planSync(local, this.state.base, remote);
     if (Object.keys(plan.apply).length || mode === 'replace') applying(() => store.replaceWith(applyPlan(payload, local, plan)));

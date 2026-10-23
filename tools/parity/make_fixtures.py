@@ -206,7 +206,8 @@ def technique_cases():
     lists = [[], ["apple"], ["apple", "banana", "cherry"], [f"idea{n}" for n in range(1, 13)], [f"item {n}" for n in range(1, 45)], ["Oak", "elm", "1st place", "under the sea"]]
     out = []
     for items in lists:
-        out.append({"items": items, "acronym": techniques.acronym(items), "story": techniques.story(items), "peg": techniques.peg_list(items), "palace": techniques.palace(items), "chunk": techniques.chunk_map(items), "chain": techniques.link_chain(items)})
+        out.append({"items": items, "acronym": techniques.acronym(items), "story": techniques.story(items), "peg": techniques.peg_list(items), "palace": techniques.palace(items), "chunk": techniques.chunk_map(items), "chain": techniques.link_chain(items),
+                    "hooks": {kind: techniques.hooks_for(kind, items + ["  two\nlines "]) for kind in techniques.TECHNIQUE_KEYS + ("nope",)}})
     parse = [{"raw": raw, "ideas": techniques.parse_ideas(raw)} for raw in ("a, b\nc; d | e / f", "salt/nitrogen", "x /n y", "  ", "one\\ntwo")]
     return out, parse
 
@@ -269,6 +270,13 @@ def sync_cases():
             if rng.random() < 0.5:
                 remote[key] = rng.choice(pool)
         settings = [{"daily_goal": 15, "accessibility": {"text_size": "Comfort"}}, {"daily_goal": 30, "accessibility": {"text_size": "Comfort"}}, {"daily_goal": 15, "accessibility": {"text_size": "Large"}}, {"daily_goal": 15, "accessibility": {"text_size": "Comfort", "reduce_motion": True}}]
+        decks = [None, {"id": "Cardio", "exam_date": "2026-11-02", "about": ""}, {"id": "Cardio", "exam_date": "2026-11-09", "about": ""}, {"id": "Cardio", "exam_date": "2026-11-02", "about": "Year 1"}]
+        b = rng.choice(decks)
+        l = rng.choice([b, rng.choice(decks)])
+        r = rng.choice(decks) if rng.random() < 0.5 else b
+        for target, value in ((base, b), (local, l), (remote, r)):
+            if value is not None:
+                target["deck:Cardio"] = value
         b = rng.choice(settings)
         base[sync.SETTINGS_KEY] = b
         local[sync.SETTINGS_KEY] = rng.choice([b, rng.choice(settings)])
@@ -279,7 +287,8 @@ def sync_cases():
     # Converting profile data to records and back, with counts from two devices.
     payload = {
         "cards": [{"id": "x", "front": "Q", "created_at": "2026-10-01 09:00"}, {"id": "y", "front": "Q2", "created_at": "2026-10-02 09:00"}],
-        "captures": [],
+        "captures": [{"id": "n1", "title": "Heart", "notes": "x", "deck": "Cardio", "created_at": "2026-10-03 09:00"}],
+        "decks": [{"id": "Cardio", "exam_date": "2026-11-02", "about": "", "ai_style": "", "ai_examples": ""}],
         "activity": {"2026-10-09": 4, "2026-10-10": 7},
         "practiced": 20,
         "daily_goal": 15,
@@ -292,6 +301,7 @@ def sync_cases():
     records = sync.records_from_payload(payload, "laptop", base)
     records_more = dict(records)
     records_more["card:z"] = {"id": "z", "front": "New from phone", "created_at": "2026-10-10 10:00"}
+    records_more["deck:Anatomy"] = {"id": "Anatomy", "exam_date": "", "about": "Bones", "ai_style": "", "ai_examples": ""}
     records_more["activity:2026-10-10:tablet"] = {"day": "2026-10-10", "count": 2}
     conversion = {"payload": payload, "base": base, "records": records, "records_more": records_more, "payload_back": sync.payload_from_records(payload, records_more)}
     return cases, conversion
@@ -472,7 +482,7 @@ def drive_cases():
         files = []
         for device in devices:
             records = {}
-            for key in ("card:a", "card:b", "capture:c", "settings:profile"):
+            for key in ("card:a", "card:b", "capture:c", "deck:Cardio", "settings:profile"):
                 if rng.random() < 0.6:
                     ms = 1_800_000_000_000 + rng.randint(0, 5) * 1000
                     records[key] = [f"{ms:013d}:{rng.randint(0, 2):06d}:{device}", rng.choice(values)]

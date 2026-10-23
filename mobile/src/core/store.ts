@@ -3,9 +3,10 @@
  * A port of memorypal/store.py: same JSON payload, same scheduling rules.
  */
 import { addDays, daysBetween, now, parseIso, todayIso, addDaysTo, isoDate } from './dates';
-import { Card, Capture, FeedbackEntry, captureFromDict, cardFromDict, feedbackFromDict, newCard, sampleCards } from './models';
+import { Card, Capture, DECK_INFO_FIELDS, DeckInfo, DeckInfoField, FeedbackEntry, captureFromDict, cardFromDict, deckInfoEmpty, deckInfoFromDict, deckName, feedbackFromDict, newCard, sampleCards } from './models';
 import { Assessment } from './smartCheck';
 import { pyMod, pyRound } from './py';
+import { splitStudyBits } from './text';
 
 export type TextSize = 'Comfort' | 'Large' | 'Extra Large';
 
@@ -48,6 +49,7 @@ export interface StudyPlan {
 export interface Payload {
   cards: Card[];
   captures: Capture[];
+  decks: DeckInfo[];
   practiced: number;
   activity: Record<string, number>;
   daily_goal: number;
@@ -179,6 +181,61 @@ function loadItems<T>(raw: unknown, factory: (item: Record<string, unknown>) => 
   return items;
 }
 
+/** Set details with one entry per set name (the last wins) and no empty ones. */
+export function uniqueDecks(infos: DeckInfo[]): DeckInfo[] {
+  const byName = new Map<string, DeckInfo>();
+  for (const info of infos) {
+    if (deckInfoEmpty(info)) continue;
+    byName.delete(info.id);
+    byName.set(info.id, info);
+  }
+  return [...byName.values()];
+}
+
+/**
+ * The set a capture belongs to: its own `deck`, or for older notes a title
+ * "<set>: ..." naming a set in `decks` (any set when decks is omitted).
+ */
+export function captureDeck(capture: Capture, decks?: string[]): string {
+  if (capture.deck) return capture.deck;
+  const title = String(capture.title || '');
+  const at = title.indexOf(': ');
+  const head = at >= 0 ? deckName(title.slice(0, at)) : '';
+  return head && (!decks || decks.includes(head)) ? head : '';
+}
+
+const AI_PATHWAY = 'Made with AI';
+
+/** The sentence an AI card's answer came from (its hook's Source: "..."), or ''. */
+export function sourceQuote(card: Pick<Card, 'association'>): string {
+  const match = /Source: "([\s\S]+)"\s*$/.exec(String(card.association || ''));
+  return match ? match[1].trim() : '';
+}
+
+/** What an AI card was made from, by name ("Made with AI > <title>"), or ''. */
+export function aiSourceTitle(card: Pick<Card, 'pathway'>): string {
+  const pathway = String(card.pathway || '');
+  const at = pathway.indexOf(' > ');
+  return at >= 0 && pathway.slice(0, at) === AI_PATHWAY ? pathway.slice(at + 3).trim() : '';
+}
+
+/** Lower case words only, for finding a quote in notes whatever the punctuation. */
+export function plainText(text: unknown): string {
+  return String(text ?? '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]|_/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Move notes to another set ('' for none), dropping an old "<set>: " title prefix. */
+export function moveCapture(capture: Capture, from: string, to: string) {
+  const prefix = `${from}: `;
+  if (capture.title.startsWith(prefix) && capture.title.length > prefix.length) capture.title = capture.title.slice(prefix.length);
+  capture.deck = to;
+}
+
 interface LastAction {
   cardId: string;
   snapshot: Card;
@@ -189,6 +246,8 @@ interface LastAction {
 export class MemoryStore {
   cards: Card[] = [];
   captures: Capture[] = [];
+  /** Each set's own details (exam date, AI style...), by set name. */
+  deckInfos: DeckInfo[] = [];
   practiced = 0;
   activity: Record<string, number> = {};
   dailyGoal = 15;
@@ -248,6 +307,7 @@ export class MemoryStore {
     }
     this.cards = loadItems(raw.cards, cardFromDict);
     this.captures = loadItems(raw.captures, captureFromDict);
+    this.deckInfos = uniqueDecks(loadItems(raw.decks, deckInfoFromDict));
     this.practiced = Math.max(0, safeInt(raw.practiced, 0));
     this.activity = activity;
     this.dailyGoal = clampGoal(raw.daily_goal ?? 15);
@@ -262,6 +322,7 @@ export class MemoryStore {
     return {
       cards: this.cards.map((card) => ({ ...card })),
       captures: this.captures.map((capture) => ({ ...capture, chunks: [...capture.chunks] })),
+      decks: this.deckInfos.map((info) => ({ ...info })),
       practiced: this.practiced,
       activity: { ...this.activity },
       daily_goal: this.dailyGoal,
@@ -322,6 +383,7 @@ export class MemoryStore {
   reset() {
     this.cards = sampleCards();
     this.captures = [];
+    this.deckInfos = [];
     this.practiced = 0;
     this.activity = {};
     this.dailyGoal = 15;
@@ -411,6 +473,90 @@ export class MemoryStore {
   addCapture(capture: Capture) {
     this.captures = [capture, ...this.captures];
     this.save();
+  }
+
+  findCapture(id: string): Capture | undefined {
+    return this.captures.find((capture) => capture.id === id);
+  }
+
+  deleteCapture(id: string): boolean {
+    const before = this.captures.length;
+    this.captures = this.captures.filter((capture) => capture.id !== id);
+    if (this.captures.length === before) return false;
+    this.save();
+    return true;
+  }
+
+  /** Saved notes that belong to this set, newest first (older notes by their "<set>: " title). */
+  notesForDeck(name: string): Capture[] {
+    const deck = deckName(name);
+    return deck ? this.captures.filter((capture) => captureDeck(capture) === deck) : [];
+  }
+
+  /**
+   * The notes a card was made from and which bit holds its source sentence
+   * (-1 when the quote spans bits or there is none), or null. Its own set's
+   * notes are searched first; without a quote, notes titled like the card's
+   * AI source count.
+   */
+  sourceNotes(card: Card): { capture: Capture; bit: number } | null {
+    const own = this.notesForDeck(card.deck || 'General');
+    const candidates = [...own, ...this.captures.filter((capture) => !own.includes(capture))];
+    const quote = plainText(sourceQuote(card)).slice(0, 80);
+    if (quote.length >= 12) {
+      for (const capture of candidates) {
+        const chunks = capture.chunks.length ? capture.chunks : splitStudyBits(capture.notes);
+        const bit = chunks.findIndex((chunk) => plainText(chunk).includes(quote));
+        if (bit >= 0) return { capture, bit };
+        if (plainText(capture.notes).includes(quote)) return { capture, bit: -1 };
+      }
+    }
+    const title = aiSourceTitle(card);
+    if (title) {
+      const capture = own.find((item) => plainText(item.title) === plainText(title));
+      if (capture) return { capture, bit: -1 };
+    }
+    return null;
+  }
+
+  // ---------------------------------------------------------- set details
+  /** A copy of this set's details (blank when it has none). */
+  deckInfo(name: string): DeckInfo {
+    const id = deckName(name);
+    const found = this.deckInfos.find((info) => info.id === id);
+    return found ? { ...found } : { id, exam_date: '', about: '', ai_style: '', ai_examples: '' };
+  }
+
+  /** Change some of a set's details and save. */
+  setDeckInfo(name: string, fields: Partial<Pick<DeckInfo, DeckInfoField>>): DeckInfo {
+    const current = this.deckInfo(name);
+    if (!current.id) return current;
+    const raw: Record<string, unknown> = { ...current };
+    for (const field of DECK_INFO_FIELDS) if (field in fields) raw[field] = fields[field];
+    const info = deckInfoFromDict(raw);
+    if (this.storeDeckInfo(info)) this.save();
+    return info;
+  }
+
+  /** Put info in place (or remove it when empty). True if anything changed. */
+  storeDeckInfo(info: DeckInfo): boolean {
+    if (!info.id) return false;
+    if (deckInfoEmpty(info)) return this.dropDeckInfo(info.id);
+    const existing = this.deckInfos.find((item) => item.id === info.id);
+    if (existing) {
+      if (DECK_INFO_FIELDS.every((field) => existing[field] === info[field])) return false;
+      Object.assign(existing, info);
+      return true;
+    }
+    this.deckInfos = [...this.deckInfos, info];
+    return true;
+  }
+
+  dropDeckInfo(name: string): boolean {
+    const id = deckName(name);
+    const before = this.deckInfos.length;
+    this.deckInfos = this.deckInfos.filter((info) => info.id !== id);
+    return this.deckInfos.length !== before;
   }
 
   // ------------------------------------------------------------- queries

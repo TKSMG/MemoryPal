@@ -171,7 +171,7 @@ MIN_ACCOUNT_AGE = 13
 # simply be changed and sent again.
 AGE_RETRY_SECONDS = 24 * 60 * 60
 # Bump when the Terms or Privacy Policy change; stored with each new account.
-TERMS_VERSION = "2026-10-21"
+TERMS_VERSION = "2026-10-23"
 AGE_FORMAT_MESSAGE = "Enter the month (1-12) and the year you were born."
 UNDER_AGE_MESSAGE = (
     f"MemoryPal accounts are for people {MIN_ACCOUNT_AGE} and older. You can keep using "

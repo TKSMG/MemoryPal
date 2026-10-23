@@ -431,7 +431,10 @@ This build is packaged as release 0.51.0.
 ## v91 - AI That Follows Your Pattern
 
 - Make with AI has an optional "How should it look?" box: describe the layout or focus in your own words, such as one line per date, and the notes and questions follow it.
-- A second box, "Questions your teacher has asked", takes past exam questions; new questions copy their style, level and the parts of the material they pull from. Leave both empty and new questions follow the set's own questions. Both boxes are remembered per set on that device.
+- A second box, "Questions your teacher has asked", takes past exam questions; new questions copy their style, level and the parts of the material they pull from. Leave both empty and new questions follow the set's own questions. Both boxes are saved with the set.
+- Sets have their own details that sync: a line about the set, an exam date with a countdown and a "Plan for the exam" button, and the two AI boxes.
+- Saved notes belong to a set. The phone finally shows them (on the set's page and in Create > Saved notes) with a reader; the desktop Library filters them by set. AI cards made from saved notes open them at the part they came from.
+- Memory techniques can use a set's answers and save each card's line as its memory hook. Puzzles can use a set's cards.
 - AI questions name their topic so they make sense on their own, and each AI card quotes the sentence its answer came from. The phone's Talk-back screen no longer crashes in Expo Go.
 
 This build is packaged as release 0.52.0.

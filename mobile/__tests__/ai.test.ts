@@ -1,5 +1,5 @@
 /** AI notes and questions: requests, validation and error messages (network mocked). */
-import { AI_STYLES_MAX, AiError, aiStyleFor, exampleLines, FRIENDLY, fileFromBase64, makeNotes, makeQuestions, MAX_EXAMPLES, MAX_FILE_BYTES, normalizeAiStyles, notesText, parseQuestions, questionsToCards, rememberAiStyle } from '../src/cloud/ai';
+import { AiError, exampleLines, FRIENDLY, fileFromBase64, makeNotes, makeQuestions, MAX_EXAMPLES, MAX_FILE_BYTES, notesText, parseQuestions, questionsToCards } from '../src/cloud/ai';
 import { CloudError } from '../src/cloud/client';
 import type { Session } from '../src/cloud/client';
 import { isAiCard } from '../src/core/questions';
@@ -61,21 +61,6 @@ describe('AI requests', () => {
     expect(JSON.parse(String(calls[2].init.body))).not.toHaveProperty('examples');
     expect(exampleLines(Array.from({ length: 30 }, (_, i) => `Q${i}`))).toHaveLength(MAX_EXAMPLES);
     expect(exampleLines(['x'.repeat(500)])[0]).toHaveLength(400);
-  });
-
-  test('each set keeps its own style on the phone', () => {
-    let styles = rememberAiStyle({}, ' Cardio ', 'clinical cases', 'Why aspirin?');
-    expect(aiStyleFor(styles, 'Cardio')).toEqual({ style: 'clinical cases', examples: 'Why aspirin?' });
-    expect(aiStyleFor(styles, 'Other')).toEqual({ style: '', examples: '' });
-    styles = rememberAiStyle(styles, 'Renal', '', 'GFR?');
-    expect(Object.keys(styles)).toEqual(['Cardio', 'Renal']);
-    styles = rememberAiStyle(styles, 'Cardio', 'short', '');
-    expect(Object.keys(styles)).toEqual(['Renal', 'Cardio']);
-    expect(rememberAiStyle(styles, 'Cardio', ' ', '')).toEqual({ Renal: { style: '', examples: 'GFR?' } });
-    expect(normalizeAiStyles({ a: 'junk', b: { style: 1 }, c: { style: 'x'.repeat(900) } })).toEqual({ b: { style: '1', examples: '' }, c: { style: 'x'.repeat(500), examples: '' } });
-    const many = Object.fromEntries(Array.from({ length: AI_STYLES_MAX + 5 }, (_, i) => [`S${i}`, { style: 's', examples: '' }]));
-    expect(Object.keys(normalizeAiStyles(many))).toHaveLength(AI_STYLES_MAX);
-    expect(normalizeAiStyles(null)).toEqual({});
   });
 
   test('questions: file, count and avoid are sent; bad questions are dropped', async () => {

@@ -1,13 +1,16 @@
 /**
  * Short memory puzzles. Calm by design: a visible countdown, an "I'm ready"
  * button so nobody is rushed or kept waiting, and More time doubles every timer.
+ * With ?deck=<set>, pair and word recall use that set's own cards.
  */
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Pressable, View } from 'react-native';
 
+import { deckCards } from '../features/decks';
+import { enoughFor, Material, materialFrom } from '../features/puzzleMaterial';
 import { useStore } from '../state/AppState';
-import { Button, Card, Field, ProgressBar, Row, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../ui/components';
+import { Button, Card, Field, Pills, ProgressBar, Row, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../ui/components';
 import { useTheme } from '../ui/theme';
 
 const WORDS = ['apple', 'river', 'candle', 'garden', 'pencil', 'window', 'basket', 'violin', 'mountain', 'teacup', 'ladder', 'blanket', 'compass', 'lemon', 'harbour', 'button', 'feather', 'kettle', 'meadow', 'lantern', 'pebble', 'orchard', 'saddle', 'thimble'];
@@ -31,22 +34,30 @@ interface Round {
   options?: string[][];
 }
 
-function makeRound(kind: string, level: number): Round {
+function makeRound(kind: string, level: number, material: Material | null = null): Round {
   if (kind === 'sequence') return { shown: Array.from({ length: level }, () => String(Math.floor(Math.random() * 10))) };
   if (kind === 'pairs') {
     const words = sample(WORDS, level * 2);
-    const pairs = Array.from({ length: level }, (_, i) => [words[i * 2], words[i * 2 + 1]] as [string, string]);
+    const pairs = enoughFor(kind, material)
+      ? sample(material!.pairs, Math.min(level, material!.pairs.length))
+      : Array.from({ length: level }, (_, i) => [words[i * 2], words[i * 2 + 1]] as [string, string]);
     const partners = pairs.map(([, b]) => b);
-    return { shown: pairs.map(([a, b]) => `${a} and ${b}`), pairs, options: pairs.map(() => sample(partners, partners.length)) };
+    const joiner = enoughFor(kind, material) ? ' → ' : ' and ';
+    return { shown: pairs.map(([a, b]) => `${a}${joiner}${b}`), pairs, options: pairs.map(() => sample(partners, partners.length)) };
   }
-  return { shown: sample(WORDS, level) };
+  return { shown: enoughFor(kind, material) ? sample(material!.words, Math.min(level, material!.words.length)) : sample(WORDS, level) };
 }
 
 export default function Puzzle() {
   const store = useStore();
   const theme = useTheme();
   const c = theme.colors;
-  const { kind = 'sequence' } = useLocalSearchParams<{ kind?: string }>();
+  const params = useLocalSearchParams<{ kind?: string; deck?: string }>();
+  const deck = params.deck ?? '';
+  const kind = params.kind ?? (deck ? 'pairs' : 'sequence');
+  // Worked out once: a round's words must not change under the player.
+  const [material] = useState<Material | null>(() => (deck ? materialFrom(deckCards(store, deck)) : null));
+  const fromSet = enoughFor(kind, material);
   useStopSpeechOnLeave();
   const moreTime = store.accessibility.more_time;
   const firstLevel = kind === 'sequence' ? 4 : kind === 'words' ? 5 : 3;
@@ -60,7 +71,7 @@ export default function Puzzle() {
   const [pairRight, setPairRight] = useState(0);
   // Rounds (and their shuffled options) are made in event handlers, never
   // during render, so a re-render can't reshuffle what's on screen.
-  const [round, setRound] = useState<Round>(() => makeRound(kind, firstLevel));
+  const [round, setRound] = useState<Round>(() => makeRound(kind, firstLevel, material));
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [tick, setTick] = useState(startedAt);
 
@@ -98,7 +109,7 @@ export default function Puzzle() {
 
   const startRound = (nextLevel: number) => {
     const now = Date.now();
-    setRound(makeRound(kind, nextLevel));
+    setRound(makeRound(kind, nextLevel, material));
     setStartedAt(now);
     setTick(now);
     setAnswer('');
@@ -125,8 +136,9 @@ export default function Puzzle() {
     if (kind === 'sequence') {
       right = answer.replace(/\D/g, '') === round.shown.join('');
     } else {
-      const typed = new Set(answer.toLowerCase().split(/[^a-z]+/).filter(Boolean));
-      const found = round.shown.filter((word) => typed.has(word)).length;
+      // A set's answers can be several words ("left ventricle"), so look for each in what was typed.
+      const typed = ` ${answer.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean).join(' ')} `;
+      const found = round.shown.filter((word) => typed.includes(` ${word.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean).join(' ')} `)).length;
       right = found >= Math.ceil(round.shown.length * 0.6);
       setPairRight(found);
     }
@@ -167,6 +179,17 @@ export default function Puzzle() {
   return (
     <Screen>
       <Stack.Screen options={{ title }} />
+      {deck ? (
+        <>
+          <Pills
+            label={`Cards from ${deck}`}
+            value={kind}
+            onChange={(value) => router.replace(`/puzzle?deck=${encodeURIComponent(deck)}&kind=${value}` as Href)}
+            options={[{ value: 'pairs', label: 'Pair recall' }, { value: 'words', label: 'Word recall' }]}
+          />
+          {!fromSet ? <Txt variant="muted">{`${deck} doesn’t have enough short answers for this yet, so it uses everyday words.`}</Txt> : null}
+        </>
+      ) : null}
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt variant="label">{`Round ${roundNumber} of ${ROUNDS}`}</Txt>
         <Txt variant="label">{`Score ${score}`}</Txt>

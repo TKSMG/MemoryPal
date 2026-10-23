@@ -827,7 +827,7 @@ def merge_into(remote, state, read_payload, write_payload, on_ui=None, mode=None
         if mode == "replace":
             # Start from an empty profile (settings stay until the account's
             # own arrive), so only the account's records end up here.
-            payload = dict(payload, cards=[], captures=[], activity={}, practiced=0)
+            payload = dict(payload, cards=[], captures=[], decks=[], activity={}, practiced=0)
         local = sync.records_from_payload(payload, state.device_id, state.base)
         plan = sync.plan_sync(local, state.base, remote)
         if plan.apply or mode == "replace":

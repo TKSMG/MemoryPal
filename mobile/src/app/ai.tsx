@@ -9,7 +9,7 @@ import { useNetworkState } from 'expo-network';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Platform, View } from 'react-native';
 
-import { aiStyleFor, fileFromBase64, makeNotes, makeQuestions, notesText, rememberAiStyle } from '../cloud/ai';
+import { fileFromBase64, makeNotes, makeQuestions, notesText } from '../cloud/ai';
 import type { AiAuth, AiInput, AiNotes } from '../cloud/ai';
 import { nowLabel } from '../core/dates';
 import { uid } from '../core/models';
@@ -43,13 +43,14 @@ export default function MakeWithAi() {
   const c = theme.colors;
   const [prefs, setPrefs] = usePrefs();
   const network = useNetworkState();
-  const params = useLocalSearchParams<{ deck?: string; from?: string }>();
+  // `notes` names saved notes opened here, so the cards made from them link back to them.
+  const params = useLocalSearchParams<{ deck?: string; from?: string; notes?: string }>();
   const deck = normalizeSpace(String(params.deck ?? ''));
   const [text, setText] = useState(() => takeNotesForAi());
   const [source, setSource] = useState<AiSource | null>(null);
-  // A set's style and teacher's questions are remembered on this phone and filled in next time.
-  const [style, setStyle] = useState(() => aiStyleFor(prefs.ai_styles, deck).style);
-  const [examples, setExamples] = useState(() => aiStyleFor(prefs.ai_styles, deck).examples);
+  // A set's style and teacher's questions are saved with the set (and synced) and filled in next time.
+  const [style, setStyle] = useState(() => store.deckInfo(deck).ai_style);
+  const [examples, setExamples] = useState(() => store.deckInfo(deck).ai_examples);
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState('');
   const [accountNeeded, setAccountNeeded] = useState(false);
@@ -108,7 +109,7 @@ export default function MakeWithAi() {
     setBusy(kind);
     try {
       const request = from ?? input();
-      if (deck) setPrefs({ ai_styles: rememberAiStyle(prefs.ai_styles, deck, style, examples) });
+      if (deck) store.setDeckInfo(deck, { ai_style: style, ai_examples: examples });
       if (kind === 'notes') {
         const made = await makeNotes(auth, request, { fetcher: preview });
         setLeft(remainingText(made.remaining));
@@ -125,7 +126,7 @@ export default function MakeWithAi() {
         }
         // Cards made from a file keep a copy of it (only when this request used the file).
         const kept = source && !from ? await keepSource(source) : '';
-        const title = deck || notes?.title || 'Notes';
+        const title = (from && notes?.title) || (!source && params.notes) || deck || notes?.title || 'Notes';
         const rows = rowsFromAiQuestions(made.questions, deck, title, source && !from ? { kind: source.kind, uri: kept } : null);
         const count = rows.length;
         sendRowsToBuilder(rows, [`${count} card${count === 1 ? '' : 's'} made with AI. Check each one, edit or remove any that are wrong, then save.`, usesLeft].filter(Boolean).join(' '));
@@ -144,8 +145,7 @@ export default function MakeWithAi() {
     if (!notes) return;
     const kept = source ? await keepSource(source) : '';
     const body = `${AI_NOTE}\n\n${notesText(notes)}`;
-    const title = deck ? `${deck}: ${notes.title}` : notes.title;
-    store.addCapture({ id: uid(), title, notes: body, chunks: splitStudyBits(notesText(notes)), text_file: source?.kind === 'pdf' ? kept : '', image: source?.kind === 'image' ? kept : '', audio: '', video: '', created_at: nowLabel() });
+    store.addCapture({ id: uid(), title: notes.title, deck, notes: body, chunks: splitStudyBits(notesText(notes)), text_file: source?.kind === 'pdf' ? kept : '', image: source?.kind === 'image' ? kept : '', audio: '', video: '', created_at: nowLabel() });
     setNotesSaved(`Notes saved${deck ? ` with ${deck}` : ''}.`);
   };
 
@@ -189,7 +189,7 @@ export default function MakeWithAi() {
 
       <Field
         label="Questions your teacher has asked (optional)"
-        hint={`One per line. New questions follow their style, level and the parts of the material they come from. Leave both boxes empty and questions follow the ones already in ${deck ? 'this set' : 'the set'}.${deck ? ' Saved with this set on this phone.' : ''}`}
+        hint={`One per line. New questions follow their style, level and the parts of the material they come from. Leave both boxes empty and questions follow the ones already in ${deck ? 'this set' : 'the set'}.${deck ? ' Both are saved with the set.' : ''}`}
         value={examples}
         onChangeText={setExamples}
         multiline

@@ -12,7 +12,7 @@ import { AttemptLimiter, accountAgeCheck, characterClasses, passwordProblems, pa
 import { answerAssessment } from '../src/core/smartCheck';
 import { MemoryStore, normalizeStudyPlan } from '../src/core/store';
 import { Entries, entriesAfter, entriesOf, newestStamp, nextStamp, payloadFromRecords, planSync, recordsFromPayload, Records, Remote, remoteFromFiles } from '../src/core/sync';
-import { acronym, chunkMap, linkChain, palace, parseIdeas, pegList, story } from '../src/core/techniques';
+import { acronym, chunkMap, hooksFor, linkChain, palace, parseIdeas, pegList, story } from '../src/core/techniques';
 import { answerKind, buildQuiz, cardQuestion, clozeCandidates, isGenericFront, listItems, noteQuestions, questionForBit, QuestionType, QuizCard, Rng } from '../src/core/questions';
 import { parsePromptAnswerLines, splitStudyBits, textTokens } from '../src/core/text';
 
@@ -88,6 +88,7 @@ describe('parity with the desktop logic', () => {
     for (const item of fixtures.techniques) {
       expect({ acronym: acronym(item.items), story: story(item.items), peg: pegList(item.items), palace: palace(item.items), chunk: chunkMap(item.items), chain: linkChain(item.items) })
         .toEqual({ acronym: item.acronym, story: item.story, peg: item.peg, palace: item.palace, chunk: item.chunk, chain: item.chain });
+      for (const [kind, hooks] of Object.entries(item.hooks)) expect(hooksFor(kind, [...item.items, '  two\nlines '])).toEqual(hooks);
     }
     for (const item of fixtures.parse_ideas) expect(parseIdeas(item.raw)).toEqual(item.ideas);
   });
