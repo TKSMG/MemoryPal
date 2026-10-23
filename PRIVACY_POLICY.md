@@ -1,6 +1,6 @@
 # MemoryPal Privacy Policy
 
-Last updated: October 21, 2026
+Last updated: October 23, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
@@ -38,9 +38,10 @@ across your computer and phone. When you do:
   hidden app folder** in your Google Drive (Google calls this `drive.appdata`) and to see your
   Google email address, so the app can show which account is connected. MemoryPal **cannot see
   or change any of your other Drive files.**
-- MemoryPal saves there: your cards and notes (the text you typed or imported), your review
-  history and study progress, your MemoryPal settings, and a random identifier for each of your
-  devices. Each device writes one file.
+- MemoryPal saves there: your cards and notes (the text you typed or imported), each set's
+  details (its description, exam date, and the AI style and teacher's questions you gave it),
+  your review history and study progress, your MemoryPal settings, and a random identifier for
+  each of your devices. Each device writes one file.
 - **Not uploaded:** the pictures, recordings, videos and documents you attach stay only on the
   device where you added them.
 - The files go **directly between your device and Google**. They never pass through our servers

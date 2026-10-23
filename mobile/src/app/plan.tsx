@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { buildMultiDayPlan, buildStudyPlan, GOAL_KEYS, planMinutes, PlanStep, STUDY_HABIT_OPTIONS, TIME_UNIT_OPTIONS, TIME_UNIT_ORDER } from '../core/planning';
+import { buildMultiDayPlan, buildStudyPlan, GOAL_KEYS, MAX_PLAN_DAYS, planMinutes, PlanStep, STUDY_HABIT_OPTIONS, TIME_UNIT_OPTIONS, TIME_UNIT_ORDER } from '../core/planning';
 import { StudyPlan } from '../core/store';
 import { useStore } from '../state/AppState';
 import { Button, Card, Pills, Row, Screen, SectionTitle, SpeakButton, ToggleRow, Txt, useStopSpeechOnLeave } from '../ui/components';
@@ -43,12 +43,14 @@ export default function Plan() {
   const store = useStore();
   const theme = useTheme();
   useStopSpeechOnLeave();
-  const params = useLocalSearchParams<{ minutes?: string; goal?: string }>();
+  // A set's page opens this with its exam: ?deck=<set>&days=<days until the exam>.
+  const params = useLocalSearchParams<{ minutes?: string; goal?: string; deck?: string; days?: string }>();
   const saved = (store.studyPlan as StudyPlan).settings;
-  const [unit, setUnit] = useState<string>(params.minutes ? 'minutes' : String(saved?.unit ?? 'minutes'));
-  const [amount, setAmount] = useState<string>(params.minutes ?? String(saved?.amount ?? '30'));
-  const [deck, setDeck] = useState<string>(String(saved?.deck ?? 'All decks'));
-  const [goal, setGoal] = useState<string>(params.goal ?? String(saved?.goal_label ?? 'Long-term retention'));
+  const examDays = Math.min(MAX_PLAN_DAYS, Math.max(0, Math.trunc(Number(params.days) || 0)));
+  const [unit, setUnit] = useState<string>(examDays ? 'days' : params.minutes ? 'minutes' : String(saved?.unit ?? 'minutes'));
+  const [amount, setAmount] = useState<string>(examDays ? String(examDays) : params.minutes ?? String(saved?.amount ?? '30'));
+  const [deck, setDeck] = useState<string>(params.deck || String(saved?.deck ?? 'All decks'));
+  const [goal, setGoal] = useState<string>(examDays ? 'Exam prep' : params.goal ?? String(saved?.goal_label ?? 'Long-term retention'));
   const [habits, setHabits] = useState<string[]>(Array.isArray(saved?.habits) ? (saved.habits as string[]) : []);
 
   const settings = { unit, amount, deck, goal_label: goal, habits };
@@ -80,7 +82,7 @@ export default function Plan() {
       <Card>
         <Txt variant="h3">How much time do you have?</Txt>
         <Pills label="Time unit" value={unit} onChange={changeUnit} options={TIME_UNIT_ORDER.map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} />
-        <Pills label="Amount" value={amount} onChange={setAmount} options={TIME_UNIT_OPTIONS[unit].map((value) => ({ value, label: value }))} />
+        <Pills label="Amount" value={amount} onChange={setAmount} options={[...TIME_UNIT_OPTIONS[unit], ...(TIME_UNIT_OPTIONS[unit].includes(amount) ? [] : [amount])].map((value) => ({ value, label: value }))} />
       </Card>
       <Card>
         <Txt variant="h3">What are you studying?</Txt>

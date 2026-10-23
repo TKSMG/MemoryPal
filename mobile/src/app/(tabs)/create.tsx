@@ -4,6 +4,7 @@ import { memo, useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { todayIso } from '../../core/dates';
+import { examCountdown } from '../../features/decks';
 import type { Card as CardModel } from '../../core/models';
 import { isAiCard } from '../../core/questions';
 import { useStore } from '../../state/AppState';
@@ -54,11 +55,17 @@ export default function Create() {
             <ListRow
               key={name}
               title={name}
-              detail={`${info.total} card${info.total === 1 ? '' : 's'}${info.due ? `, ${info.due} due` : ''}`}
+              detail={[`${info.total} card${info.total === 1 ? '' : 's'}${info.due ? `, ${info.due} due` : ''}`, examCountdown(store.deckInfo(name).exam_date)].filter(Boolean).join(' · ')}
               onPress={() => router.push(`/deck/${encodeURIComponent(name)}` as Href)}
               accessibilityHint="Opens the set to study, rename or delete it"
             />
           ))}
+        </ListGroup>
+      ) : null}
+
+      {store.captures.length ? (
+        <ListGroup>
+          <ListRow icon="reader-outline" title="Saved notes" value={String(store.captures.length)} onPress={() => router.push('/notes' as Href)} accessibilityHint="Notes you saved from Make with AI or pasted into a set" />
         </ListGroup>
       ) : null}
 

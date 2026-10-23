@@ -1,13 +1,13 @@
 -- MemoryPal cloud sync: run this once in the Supabase SQL editor.
 --
--- Every synced item (a card, a capture, the profile settings, one device's
+-- Every synced item (a card, a capture, a set's details, the profile settings, one device's
 -- review counts) is one row. Row Level Security means each person can only
 -- ever read or change their own rows, whatever the apps do.
 
 create table if not exists public.sync_records (
   user_id    uuid        not null default auth.uid() references auth.users (id) on delete cascade,
   key        text        not null check (char_length(key) between 3 and 200),
-  kind       text        not null check (kind in ('card', 'capture', 'settings', 'activity', 'practiced')),
+  kind       text        not null check (kind in ('card', 'capture', 'deck', 'settings', 'activity', 'practiced')),
   data       jsonb,
   deleted    boolean     not null default false,
   updated_at timestamptz not null default now(),
@@ -36,7 +36,7 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'sync_records_key_kind') then
     alter table public.sync_records
       add constraint sync_records_key_kind
-      check (key ~ '^(card|capture|settings|activity|practiced):' and split_part(key, ':', 1) = kind) not valid;
+      check (key ~ '^(card|capture|deck|settings|activity|practiced):' and split_part(key, ':', 1) = kind) not valid;
   end if;
   begin
     alter table public.sync_records validate constraint sync_records_key_kind;

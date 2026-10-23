@@ -1,4 +1,6 @@
+import re
 from dataclasses import dataclass, field
+from datetime import date
 
 from .core import now_label, split_study_bits, today_iso, uid
 
@@ -97,6 +99,7 @@ class Capture:
     audio: str = ""
     video: str = ""
     created_at: str = field(default_factory=now_label)
+    deck: str = ""  # the set these notes belong to ("" for none)
 
     @classmethod
     def from_dict(cls, raw):
@@ -118,7 +121,63 @@ class Capture:
             audio=text("audio"),
             video=text("video"),
             created_at=text("created_at", "createdAt"),
+            deck=deck_name(text("deck")),
         )
+
+
+MAX_DECK_NAME = 120
+MAX_ABOUT = 1000
+MAX_AI_STYLE = 500
+MAX_AI_EXAMPLES = 8000
+
+
+def deck_name(value):
+    """A set name as stored: single spaces, at most MAX_DECK_NAME characters."""
+    return " ".join(str(value or "").split())[:MAX_DECK_NAME]
+
+
+def iso_day(value):
+    """value if it is a real YYYY-MM-DD date, else ""."""
+    value = str(value or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return ""
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError:
+        return ""
+
+
+@dataclass
+class DeckInfo:
+    """What a set knows about itself. Cards name their set; this holds the rest.
+
+    `id` is the set's name, so two devices describing the same set share one
+    record. A set with no details has no DeckInfo at all.
+    """
+    id: str = ""
+    exam_date: str = ""     # YYYY-MM-DD, or ""
+    about: str = ""         # a line about the set, shown on its page
+    ai_style: str = ""      # "How should it look?" for Make with AI
+    ai_examples: str = ""   # questions the teacher has asked, one per line
+
+    FIELDS = ("exam_date", "about", "ai_style", "ai_examples")
+
+    @classmethod
+    def from_dict(cls, raw):
+        name = deck_name(first_text(raw, ("id", "name")))
+        if not name:
+            raise ValueError("a set needs a name")
+        text = lambda name, limit: str(raw.get(name) or "").strip()[:limit]
+        return cls(
+            id=name,
+            exam_date=iso_day(raw.get("exam_date")),
+            about=text("about", MAX_ABOUT),
+            ai_style=text("ai_style", MAX_AI_STYLE),
+            ai_examples=text("ai_examples", MAX_AI_EXAMPLES),
+        )
+
+    def empty(self):
+        return not any(getattr(self, name) for name in self.FIELDS)
 
 
 @dataclass

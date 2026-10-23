@@ -1,10 +1,11 @@
 /** Edit a card's words, start it over, or delete it. Its schedule is kept on edit. */
-import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
+import { Href, router, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, Platform } from 'react-native';
 
 import { isAiCard } from '../../core/questions';
+import { sourceQuote } from '../../core/store';
 import { aiPage, cardReportText, reportMailto } from '../../features/aiHelpers';
 
 import { useStore } from '../../state/AppState';
@@ -74,6 +75,8 @@ export default function EditCard() {
 
   const ai = isAiCard(card);
   const page = aiPage(card);
+  const source = ai ? store.sourceNotes(card) : null;
+  const quote = ai ? sourceQuote(card) : '';
   const localFile = (uri: string) => uri.startsWith('file:');
   const report = () => {
     Linking.openURL(reportMailto('card', cardReportText(card))).catch(() => notify('No email app', 'Email memorypal09@gmail.com to report this card.'));
@@ -94,6 +97,13 @@ export default function EditCard() {
       ) : null}
       {card.image && localFile(card.image) ? (
         <Image source={{ uri: card.image }} resizeMode="contain" style={{ width: '100%', height: 220, borderRadius: 12 }} accessibilityLabel="The photo this card was made from" />
+      ) : null}
+      {source ? (
+        <Card tone="alt">
+          <Txt variant="h3">Where it came from</Txt>
+          {quote ? <Txt variant="body">{`“${quote}”`}</Txt> : null}
+          <Button icon="reader-outline" label={`Open “${source.capture.title}”`} onPress={() => router.push(`/notes/${source.capture.id}${source.bit >= 0 ? `?bit=${source.bit}` : ''}` as Href)} hint="Opens the saved notes this card was made from" />
+        </Card>
       ) : null}
       {card.text_file && localFile(card.text_file) && Platform.OS !== 'web' ? (
         <Button icon="document-outline" label={page ? `Open the PDF (page ${page})` : 'Open the PDF'} onPress={openPdf} hint="The PDF this card was made from" />

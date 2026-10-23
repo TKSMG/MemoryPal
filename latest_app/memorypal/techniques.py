@@ -123,3 +123,37 @@ def link_chain(items):
         return f"Link chain:\n\nStart with {items[0]} and add more ideas to build a chain."
     lines = [f"{first} leads to {second}: imagine {first} handing a bright clue to {second}." for first, second in zip(items, items[1:])]
     return "Link chain:\n\n" + "\n".join(lines)
+
+
+TECHNIQUE_KEYS = ("acronym", "story", "peg", "palace", "chunk", "chain")
+
+
+def hooks_for(kind, items):
+    """One memory hook per item from a technique, to save onto the cards those items came from.
+
+    A list technique (acronym, chunk map) gives each item its place in the
+    whole; the others give each item its own line (scene, peg, spot, link).
+    """
+    items = [" ".join(str(item).split()) for item in items]
+    items = [item for item in items if item]
+    if not items:
+        return []
+    if kind == "acronym":
+        letters = "".join(item[0].upper() for item in items)
+        return [f"Acronym {letters}: {item[0].upper()} is for {item}." for item in items]
+    if kind == "chunk":
+        hooks = []
+        for start in range(0, len(items), 3):
+            group = items[start:start + 3]
+            hooks += [f"Chunk {start // 3 + 1} of {(len(items) + 2) // 3}: {', '.join(group)}."] * len(group)
+        return hooks
+    if kind == "chain":
+        if len(items) == 1:
+            return [f"Start of a link chain: {items[0]}."]
+        links = [f"{first} leads to {second}: imagine {first} handing a bright clue to {second}." for first, second in zip(items, items[1:])]
+        return [links[0]] + links
+    make = {"story": story, "peg": peg_list, "palace": palace}.get(kind)
+    if make is None:
+        return []
+    lines = re.findall(r"^\d+\. (.+)$", make(items), re.M)
+    return lines if len(lines) == len(items) else []

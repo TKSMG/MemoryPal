@@ -137,7 +137,7 @@ export default function Add() {
     if (!ready.length) return notify('Add a question', 'Each card needs a question. The answer can be left empty for a self-check card.');
     const fromNotes = !!notes.trim();
     if (fromNotes) {
-      store.addCapture({ id: uid(), title: name, notes: notes.trim(), chunks: splitStudyBits(notes), text_file: '', image: '', audio: '', video: '', created_at: nowLabel() });
+      store.addCapture({ id: uid(), title: name, notes: notes.trim(), chunks: splitStudyBits(notes), text_file: '', image: '', audio: '', video: '', created_at: nowLabel(), deck: name });
     }
     store.addCards(
       ready.map((row) =>

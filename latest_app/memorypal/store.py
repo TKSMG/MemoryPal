@@ -6,10 +6,10 @@ import time
 from dataclasses import asdict
 from datetime import date, timedelta
 
-from . import paths
+from . import paths, techniques
 from .aiflow import normalize_preferences
-from .core import add_days, now_label, today_iso
-from .models import Card, Capture, FeedbackEntry, sample_cards
+from .core import add_days, now_label, split_study_bits, today_iso
+from .models import Card, Capture, DeckInfo, FeedbackEntry, deck_name, iso_day, sample_cards
 
 
 def safe_int(value, default):
@@ -47,10 +47,89 @@ def load_items(raw_items, factory):
     return items
 
 
+def unique_decks(infos):
+    """Set details with one entry per set name (the last wins) and no empty ones."""
+    by_name = {}
+    for info in infos:
+        if not info.empty():
+            by_name.pop(info.id, None)
+            by_name[info.id] = info
+    return list(by_name.values())
+
+
+def capture_deck(capture, decks=None):
+    """The set a capture belongs to: its own `deck`, or for older notes a
+    title "<set>: ..." naming a set in `decks` (any set when decks is None)."""
+    if capture.deck:
+        return capture.deck
+    head, sep, _rest = str(capture.title or "").partition(": ")
+    head = deck_name(head)
+    if sep and head and (decks is None or head in decks):
+        return head
+    return ""
+
+
+AI_PATHWAY = "Made with AI"
+
+
+def days_until(exam_date, today=None):
+    """Days from today to a YYYY-MM-DD exam date (negative once past), or None."""
+    day = iso_day(exam_date)
+    if not day:
+        return None
+    return (date.fromisoformat(day) - (today or date.today())).days
+
+
+def exam_countdown(exam_date, today=None):
+    """"Exam in 12 days", "Exam tomorrow", "Exam today", "Exam was 3 days ago", or ""."""
+    days = days_until(exam_date, today)
+    if days is None:
+        return ""
+    if days == 0:
+        return "Exam today"
+    if days == 1:
+        return "Exam tomorrow"
+    if days > 1:
+        return f"Exam in {days} days"
+    return f"Exam was {-days} day{'' if days == -1 else 's'} ago"
+
+
+def source_quote(card):
+    """The sentence an AI card's answer came from (its hook's Source: "..."), or ""."""
+    match = re.search(r'Source: "(.+)"\s*$', str(card.association or ""), re.S)
+    return match.group(1).strip() if match else ""
+
+
+def ai_source_title(card):
+    """What an AI card was made from, by name ("Made with AI > <title>"), or ""."""
+    head, sep, rest = str(card.pathway or "").partition(" > ")
+    return rest.strip() if sep and head == AI_PATHWAY else ""
+
+
+def plain_text(text):
+    """Lower case words only, for finding a quote in notes whatever the punctuation."""
+    return " ".join(re.sub(r"[^\w\s]|_", " ", str(text or "").lower()).split())
+
+
+def technique_item(card):
+    """What a card is remembered by in a memory technique: its answer when short, else its question."""
+    back = " ".join(str(card.back or "").split())
+    return back if back and len(back.split()) <= 8 else " ".join(str(card.front or "").split())
+
+
+def move_capture(capture, old_name, new_name):
+    """Move notes to another set ("" for none), dropping an old "<set>: " title prefix."""
+    prefix = f"{old_name}: "
+    if capture.title.startswith(prefix) and len(capture.title) > len(prefix):
+        capture.title = capture.title[len(prefix):]
+    capture.deck = new_name
+
+
 def default_payload():
     return {
         "cards": [],
         "captures": [],
+        "decks": [],
         "practiced": 0,
         "activity": {},
         "daily_goal": 15,
@@ -276,6 +355,8 @@ class MemoryStore:
         self.attachment_dir = None
         self.cards = []
         self.captures = []
+        # Each set's own details (exam date, AI style...), by set name.
+        self.deck_infos = []
         self.practiced = 0
         self.activity = {}
         self.daily_goal = 15
@@ -297,6 +378,7 @@ class MemoryStore:
         self._loaded_accessibility = default_accessibility()
         self._loaded_cards = {}
         self._loaded_captures = {}
+        self._loaded_decks = {}
         self._loaded_feedback = {}
         # Called after every save (the desktop schedules a cloud sync).
         self.save_listeners = []
@@ -336,6 +418,7 @@ class MemoryStore:
         """Fill the store from a saved payload, tolerating damaged fields."""
         self.cards = load_items(as_list(raw.get("cards")), Card.from_dict)
         self.captures = load_items(as_list(raw.get("captures")), Capture.from_dict)
+        self.deck_infos = unique_decks(load_items(as_list(raw.get("decks")), DeckInfo.from_dict))
         self.practiced = max(0, safe_int(raw.get("practiced", 0), 0))
         self.activity = {str(day): safe_int(count, 0) for day, count in as_dict(raw.get("activity")).items() if safe_int(count, 0) > 0}
         self.daily_goal = clamp_goal(raw.get("daily_goal", 15))
@@ -358,10 +441,12 @@ class MemoryStore:
         if payload is None:
             self._loaded_cards = self.item_snapshot(self.cards)
             self._loaded_captures = self.item_snapshot(self.captures)
+            self._loaded_decks = self.item_snapshot(self.deck_infos)
             self._loaded_feedback = self.item_snapshot(self.feedback)
         else:
             self._loaded_cards = self.raw_snapshot(payload.get("cards"))
             self._loaded_captures = self.raw_snapshot(payload.get("captures"))
+            self._loaded_decks = self.raw_snapshot(payload.get("decks"))
             self._loaded_feedback = self.raw_snapshot(payload.get("feedback"))
 
     @staticmethod
@@ -382,6 +467,7 @@ class MemoryStore:
         return {
             "cards": [asdict(card) for card in self.cards],
             "captures": [asdict(capture) for capture in self.captures],
+            "decks": [asdict(info) for info in self.deck_infos],
             "practiced": self.practiced,
             "activity": self.activity,
             "daily_goal": self.daily_goal,
@@ -448,6 +534,7 @@ class MemoryStore:
         merged = dict(local)
         merged["cards"] = self.merge_items(local.get("cards", []), existing.get("cards", []), self._loaded_cards)
         merged["captures"] = self.merge_items(local.get("captures", []), existing.get("captures", []), self._loaded_captures)
+        merged["decks"] = self.merge_items(local.get("decks", []), existing.get("decks", []), self._loaded_decks)
         merged["feedback"] = self.merge_items(local.get("feedback", []), existing.get("feedback", []), self._loaded_feedback)
         practiced_delta = safe_int(local.get("practiced", 0), 0) - self._loaded_practiced
         merged["practiced"] = max(0, safe_int(existing.get("practiced", 0), 0) + practiced_delta)
@@ -496,6 +583,7 @@ class MemoryStore:
         # as a file read from disk.
         self.cards = self.rebind_items(self.cards, as_list(payload.get("cards")), Card.from_dict)
         self.captures = self.rebind_items(self.captures, as_list(payload.get("captures")), Capture.from_dict)
+        self.deck_infos = unique_decks(load_items(as_list(payload.get("decks")), DeckInfo.from_dict))
         self.practiced = max(0, safe_int(payload.get("practiced", 0), 0))
         self.activity = {str(day): safe_int(count, 0) for day, count in as_dict(payload.get("activity")).items() if safe_int(count, 0) > 0}
         self.daily_goal = clamp_goal(payload.get("daily_goal", 15))
@@ -729,9 +817,144 @@ class MemoryStore:
             if (card.deck or "General") == old_name:
                 card.deck = new_name
                 moved += 1
-        if moved:
+        # The set's details and notes go with it; details already on the
+        # target set win, and any it lacks are filled from the old one.
+        info, target = self.deck_info(old_name), self.deck_info(new_name)
+        for name in DeckInfo.FIELDS:
+            if not getattr(target, name):
+                setattr(target, name, getattr(info, name))
+        changed = self._store_deck_info(target) | self._drop_deck_info(old_name)
+        for capture in self.notes_for_deck(old_name):
+            move_capture(capture, old_name, new_name)
+            changed = True
+        if moved or changed:
             self.save()
         return moved
+
+    def delete_deck(self, name):
+        """Delete a set's cards and details with one save. Its notes stay, unlinked.
+
+        Returns how many cards were removed.
+        """
+        name = str(name or "").strip() or "General"
+        ids = {card.id for card in self.cards if (card.deck or "General") == name}
+        self.cards = [card for card in self.cards if card.id not in ids]
+        if self.last_action and self.last_action.get("card_id") in ids:
+            self.last_action = None
+        changed = self._drop_deck_info(name)
+        for capture in self.notes_for_deck(name):
+            move_capture(capture, name, "")
+            changed = True
+        if ids or changed:
+            self.save()
+        return len(ids)
+
+    def technique_items(self, deck):
+        """A set's cards, oldest first, and the item each is remembered by (a short answer, else the question)."""
+        cards = [card for card in reversed(self.cards) if (card.deck or "General") == deck]
+        return cards, [technique_item(card) for card in cards]
+
+    def add_technique_hooks(self, deck, kind):
+        """Give each card in a set its line from a memory technique, added to its hook. Returns how many changed."""
+        cards, items = self.technique_items(deck)
+        hooks = techniques.hooks_for(kind, items)
+        changed = 0
+        if len(hooks) == len(cards):
+            for card, hook in zip(cards, hooks):
+                if hook in card.association:
+                    continue
+                card.association = f"{card.association}\n{hook}" if card.association.strip() else hook
+                changed += 1
+        if changed:
+            self.save()
+        return changed
+
+    # ----------------------------------------------------------- set details
+    def deck_info(self, name):
+        """A copy of this set's details (blank when it has none)."""
+        name = deck_name(name)
+        for info in self.deck_infos:
+            if info.id == name:
+                return DeckInfo(**asdict(info))
+        return DeckInfo(id=name)
+
+    def set_deck_info(self, name, **fields):
+        """Change some of a set's details (exam_date, about, ai_style, ai_examples) and save."""
+        info = self.deck_info(name)
+        if not info.id:
+            return info
+        raw = asdict(info)
+        raw.update({key: value for key, value in fields.items() if key in DeckInfo.FIELDS})
+        info = DeckInfo.from_dict(raw)
+        if self._store_deck_info(info):
+            self.save()
+        return info
+
+    def _store_deck_info(self, info):
+        """Put info in place (or remove it when empty). True if anything changed."""
+        if not info.id:
+            return False
+        if info.empty():
+            return self._drop_deck_info(info.id)
+        for index, existing in enumerate(self.deck_infos):
+            if existing.id == info.id:
+                if asdict(existing) == asdict(info):
+                    return False
+                existing.__dict__.update(info.__dict__)
+                return True
+        self.deck_infos.append(info)
+        return True
+
+    def _drop_deck_info(self, name):
+        name = deck_name(name)
+        before = len(self.deck_infos)
+        self.deck_infos = [info for info in self.deck_infos if info.id != name]
+        return len(self.deck_infos) != before
+
+    def notes_for_deck(self, name):
+        """Saved notes that belong to this set, newest first.
+
+        Notes saved before 0.52.0 have no set, only a title starting "<set>: ".
+        """
+        name = deck_name(name)
+        return [capture for capture in self.captures if capture_deck(capture) == name] if name else []
+
+    def source_notes(self, card):
+        """(notes, bit index) a card was made from, or (None, -1).
+
+        An AI card quotes the sentence its answer came from; the saved notes
+        holding that sentence (its own set's first) are its source. A card
+        whose quote isn't found falls back to notes titled like its AI
+        source. The bit index is -1 when the quote spans bits or is absent.
+        """
+        own = self.notes_for_deck(card.deck or "General")
+        candidates = own + [capture for capture in self.captures if capture not in own]
+        quote = plain_text(source_quote(card))[:80]
+        if len(quote) >= 12:
+            for capture in candidates:
+                chunks = capture.chunks or split_study_bits(capture.notes)
+                for index, chunk in enumerate(chunks):
+                    if quote in plain_text(chunk):
+                        return capture, index
+                if quote in plain_text(capture.notes):
+                    return capture, -1
+        title = ai_source_title(card)
+        if title:
+            for capture in own:
+                if plain_text(capture.title) == plain_text(title):
+                    return capture, -1
+        return None, -1
+
+    def find_capture(self, capture_id):
+        return next((capture for capture in self.captures if capture.id == capture_id), None)
+
+    def delete_capture(self, capture_id):
+        before = len(self.captures)
+        self.captures = [capture for capture in self.captures if capture.id != capture_id]
+        if len(self.captures) != before:
+            self.save()
+            return True
+        return False
 
     def delete_cards(self, ids):
         """Remove cards by id with one save. Returns how many were removed."""
@@ -840,6 +1063,7 @@ class MemoryStore:
     def reset(self):
         self.cards = sample_cards()
         self.captures = []
+        self.deck_infos = []
         self.practiced = 0
         self.activity = {}
         self.daily_goal = 15
