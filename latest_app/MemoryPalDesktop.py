@@ -93,7 +93,7 @@ def shortcut(key):
     return f"\u2318{key}" if IS_MAC else f"Ctrl+{key}"
 
 
-BACK_SHORTCUT = "\u2318[" if IS_MAC else "Alt + Left"
+BACK_SHORTCUT = "\u2318[" if IS_MAC else "Alt+Left"
 
 
 def platform_text(text):
@@ -676,16 +676,22 @@ class ScrollFrame(ttk.Frame):
         soon as it could", so its steps landed on uneven refreshes (two in
         one, none in the next): that reads as judder, worst on 120-165Hz
         screens and on long pages. Instead it steps on every second (or
-        third) refresh; the glide is timed, so each step simply moves
-        further and the motion stays even.
+        third) refresh on fast screens (see scrolling.frames_per_step); the
+        glide is timed, so each step simply moves further and stays even.
         """
         frame = self._frame_ms
+        spent = (time.perf_counter() - self._last_step) * 1000
         every = scrolling.frames_per_step(self._step_cost, frame)
-        due = every * frame - (time.perf_counter() - self._last_step) * 1000
         ahead = ms_to_next_vblank()
-        if ahead is None:
-            return max(1, round(due))
-        wait = ahead + 1
+        if every == 1:
+            if ahead is None or spent > frame * 0.85:
+                # No refresh timing, or this page takes about a frame to
+                # draw: waiting for the next refresh would halve the rate.
+                return max(1, round(frame - spent))
+            # Starting right after the refresh leaves the whole frame for drawing.
+            return max(1, int(ahead) + 1)
+        due = every * frame - spent
+        wait = (ahead if ahead is not None else 0) + 1
         while wait < due - frame * 0.5:
             wait += frame
         return max(1, int(wait))
@@ -1031,38 +1037,62 @@ class Tooltip:
         root = self.widget._root()
         return root.px(value) if hasattr(root, "px") else value
 
+    @staticmethod
+    def tidy(text):
+        """A short one-line tip reads as a label, without a full stop, as
+        system tooltips do; longer explanations keep theirs."""
+        text = str(text).strip()
+        if len(text) <= 72 and text.endswith(".") and text.count(". ") == 0 and not text.endswith(".."):
+            return text[:-1]
+        return text
+
     def show(self):
         if self.tip or not self.text:
             return
+        root = self.widget._root()
         self.tip = tk.Toplevel(self.widget)
         self.tip.withdraw()
         self.tip.wm_overrideredirect(True)
+        try:
+            self.tip.attributes("-alpha", 0.0)
+        except tk.TclError:
+            pass
+        # Small and quiet like the system's own tips: caption-size text on a
+        # raised surface with a hairline edge (Windows 11 rounds it below).
+        self.tip.configure(bg=COLORS["surface_soft"], highlightthickness=1, highlightbackground=COLORS["line"])
         label = tk.Label(
             self.tip,
-            text=self.text,
-            # A raised surface with a hairline edge: on the rail, a rail-coloured
-            # tip had no visible box and read as stray text.
+            text=self.tidy(self.text),
             bg=COLORS["surface_soft"],
             fg=COLORS["ink"],
-            highlightthickness=1,
-            highlightbackground=COLORS["line"],
-            padx=self._px(10),
-            pady=self._px(7),
+            padx=self._px(9),
+            pady=self._px(5),
             justify="left",
-            wraplength=self._px(280),
-            font=self.widget._root().font("Segoe UI", 11) if hasattr(self.widget._root(), "font") else ("Segoe UI", 11),
+            wraplength=self._px(300),
+            font=root.font("Segoe UI", 10) if hasattr(root, "font") else ("Segoe UI", 10),
         )
         label.pack()
-        # Below the widget, nudged right; flipped above or shifted left when
-        # it would run off the screen edge.
+        # Under the pointer, as system tips are; flipped above or shifted
+        # left when it would run off the screen edge.
         self.tip.update_idletasks()
         width, height = self.tip.winfo_reqwidth(), self.tip.winfo_reqheight()
-        left, top = self.widget.winfo_rootx() + self._px(18), self.widget.winfo_rooty()
-        anchor = (left, top, left, top + self.widget.winfo_height())
+        try:
+            pointer_x = self.widget.winfo_pointerx()
+        except tk.TclError:
+            pointer_x = self.widget.winfo_rootx()
+        top = self.widget.winfo_rooty()
+        anchor = (pointer_x - self._px(4), top, pointer_x - self._px(4), top + self.widget.winfo_height())
         screen = (0, 0, self.widget.winfo_screenwidth(), self.widget.winfo_screenheight())
-        x, y, width, height = popup_geometry.fit_popup_rect(width, height, anchor, screen, gap=self._px(8), margin=self._px(8))
+        x, y, width, height = popup_geometry.fit_popup_rect(width, height, anchor, screen, gap=self._px(6), margin=self._px(8))
         self.tip.wm_geometry(f"+{x}+{y}")
         self.tip.deiconify()
+        try:
+            if hasattr(root, "window_handle") and windowtheme.round_popup(root.window_handle(self.tip), COLORS["line"], small=True):
+                self.tip.configure(highlightthickness=0)
+            self.tip.update_idletasks()
+            self.tip.attributes("-alpha", 1.0)
+        except tk.TclError:
+            pass
 
     def hide(self, _event=None):
         self.cancel()
@@ -2101,7 +2131,7 @@ class MemoryPalApp(tk.Tk):
             # them settle at the final width before measuring the height.
             top.geometry(f"{popup_width}x{max(1, top.winfo_reqheight())}")
             top.update_idletasks()
-        popup_height = max(height or 0, top.winfo_reqheight(), self.px(160))
+        popup_height = max(height or 0, top.winfo_reqheight(), self.px(120))
         left, s_top, right, bottom = self.screen_bounds(owner)
         margin = self.px(8)
         popup_width = min(popup_width, right - left - margin * 2)
@@ -2237,6 +2267,12 @@ class MemoryPalApp(tk.Tk):
         top.deiconify()
         self.theme_title_bar(top)
         self.apply_native_owner(top)
+        try:
+            if top.wm_overrideredirect() and windowtheme.round_popup(self.window_handle(top), COLORS["line"]):
+                # Windows 11 draws the rounded edge, border and shadow itself.
+                top.configure(highlightthickness=0)
+        except tk.TclError:
+            pass
         if owner is not None:
             top.lift(owner)
         else:
@@ -2612,8 +2648,8 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("Link.TButton", padding=self.pad(8, 6), foreground=COLORS["primary"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("Link.TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
         # Segmented choices (Study Plan time, quiz modes): one pill per option.
-        self.style.configure("Pill.TButton", padding=self.pad(14, 8), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
-        self.style.map("Pill.TButton", foreground=[("active", COLORS["primary"])])
+        self.style.configure("Pill.TButton", padding=self.pad(14, 8), foreground=COLORS["muted"], borderwidth=0, relief="flat", font=semibold)
+        self.style.map("Pill.TButton", foreground=[("active", COLORS["ink"])])
         self.style.configure("PillOn.TButton", padding=self.pad(14, 8), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
         self.style.map("PillOn.TButton", foreground=[("active", self.on_color(COLORS["primary_dark"]))])
         for name, fg in (("Again", "again_fg"), ("Review", "review_fg"), ("Good", "good_fg"), ("Easy", "easy_fg")):
@@ -2661,7 +2697,9 @@ class MemoryPalApp(tk.Tk):
             "TMenubutton": ("TMenubutton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
             "Link.TButton": ("TButton", (COLORS["surface"], soft, alt), COLORS["surface"]),
             "Select.TMenubutton": ("TMenubutton", (COLORS["input"], alt, alt), COLORS["surface"]),
-            "Pill.TButton": ("TButton", (COLORS["input"], self.tint(COLORS["input"], -10 if self.theme == "light" else 16), self.tint(COLORS["input"], -20 if self.theme == "light" else 26)), COLORS["surface"]),
+            # Unchosen options on the soft button fill: on the dark field
+            # colour they read as empty text boxes, not choices.
+            "Pill.TButton": ("TButton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
             "PillOn.TButton": ("TButton", (COLORS["primary"], COLORS["primary_dark"], self.tint(COLORS["primary_dark"], -14)), COLORS["surface"]),
         }
 
@@ -4094,35 +4132,50 @@ class MemoryPalApp(tk.Tk):
         return COLORS["bg"]
 
     def toast_message(self, text):
+        """A short confirmation at the bottom centre of the window, like a
+        Windows 11 or macOS in-app notice: a raised panel in the app's own
+        surface colour with a hairline edge (not a black slab in a corner),
+        rising a few pixels into place and leaving after a moment."""
         self.toast_var.set(text)
-        room = max(self.px(200), self.winfo_width() - self.px(48))
-        wrap = min(self.px(520), room)
-        pad_x, pad_y = self.px(20), self.px(13)
+        room = max(self.px(200), self.winfo_width() - self.px(96))
+        wrap = min(self.px(560), room)
+        pad_x, pad_y = self.px(18), self.px(11)
         canvas = self.toast
         canvas.place_forget()
         canvas.delete("all")
-        font = self.font("Segoe UI", 12)
-        label = canvas.create_text(pad_x, pad_y, text=text, anchor="nw", fill=COLORS["white"], font=font, width=wrap, justify="left")
+        font = self.font("Segoe UI", 11)
+        label = canvas.create_text(0, 0, text=text, anchor="nw", font=font, width=wrap, justify="left")
         x0, y0, x1, y1 = canvas.bbox(label) or (0, 0, wrap, self.px(20))
-        width, height = (x1 - x0) + pad_x * 2, (y1 - y0) + pad_y * 2
-        # The corners blend into what is under the toast's bottom-right corner.
-        margin = self.px(24)
-        under = self.surface_at(self.winfo_rootx() + self.winfo_width() - margin - self.px(4), self.winfo_rooty() + self.winfo_height() - margin - self.px(4))
-        canvas.configure(width=width, height=height, bg=under)
-        fill = COLORS["rail"] if self.theme == "light" else self.tint(COLORS["rail"], 18)
         canvas.delete("all")
-        if not self.draw_antialiased_shape(canvas, width, height, fill, radius=self.px(14)):
-            canvas.create_rectangle(0, 0, width, height, fill=fill, outline=fill)
-        canvas.create_text(pad_x, pad_y, text=text, anchor="nw", fill=self.on_color(fill), font=font, width=wrap, justify="left")
-        canvas.place(relx=1, rely=1, anchor="se", x=-margin, y=-margin)
-        self.tk.call("raise", canvas._w)
-        pending = getattr(self, "_toast_after", None)
-        if pending is not None:
-            try:
-                self.after_cancel(pending)
-            except tk.TclError:
-                pass
-        self._toast_after = self.after(self.pace(2600), self.toast.place_forget)
+        width, height = (x1 - x0) + pad_x * 2, (y1 - y0) + pad_y * 2
+        margin = self.px(28)
+        under = self.surface_at(self.winfo_rootx() + self.winfo_width() // 2, self.winfo_rooty() + self.winfo_height() - margin - height // 2)
+        canvas.configure(width=width, height=height, bg=under)
+        fill = COLORS["surface_soft"] if self.theme == "dark" else COLORS["surface"]
+        edge = COLORS["line"]
+        radius = self.px(10)
+        if not (self.draw_antialiased_shape(canvas, width, height, edge, radius=radius)
+                and self.draw_antialiased_shape(canvas, width, height, fill, radius=radius - 1, inset=1)):
+            canvas.create_rectangle(0, 0, width - 1, height - 1, fill=fill, outline=edge)
+        canvas.create_text(pad_x, pad_y, text=text, anchor="nw", fill=COLORS["ink"], font=font, width=wrap, justify="left")
+        rise = 0 if self.accessibility.get("reduce_motion") else self.px(8)
+
+        def place(step=0, steps=6):
+            offset = round(rise * (1 - step / steps) ** 2)
+            canvas.place(relx=0.5, rely=1, anchor="s", y=-margin + offset)
+            self.tk.call("raise", canvas._w)
+            if offset:
+                self._toast_rise = self.after(16, lambda: place(step + 1, steps))
+
+        for name in ("_toast_after", "_toast_rise"):
+            pending = getattr(self, name, None)
+            if pending is not None:
+                try:
+                    self.after_cancel(pending)
+                except tk.TclError:
+                    pass
+        place()
+        self._toast_after = self.after(self.pace(2800), self.toast.place_forget)
 
     def dialog_window(self, title, body="", parent=None, width=480):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
@@ -4130,7 +4183,9 @@ class MemoryPalApp(tk.Tk):
         owner = parent or self
         top = tk.Toplevel(owner)
         top.withdraw()
-        top.title(title)
+        # The question is the heading inside; the title bar names the app,
+        # as system message boxes do, instead of saying it twice.
+        top.title("MemoryPal")
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
         self.own_window(top, owner)
@@ -4146,20 +4201,65 @@ class MemoryPalApp(tk.Tk):
         content = ttk.Frame(shell, style="Card.TFrame")
         content.pack(fill="x")
         actions = ttk.Frame(shell, style="Card.TFrame")
-        actions.pack(fill="x", pady=(self.px(18), self.px(20)))
+        actions.pack(fill="x", pady=(self.px(20), self.px(2)))
         top.dialog_owner = owner
         top.dialog_width = self.px(width)
+        top.dialog_actions = actions
         return top, content, actions
 
     def present_dialog(self, top):
         # Shown only once its fields and buttons exist, so the height fits them.
+        self.tidy_dialog_actions(top.dialog_actions)
         self.show_popup_window(top, top.dialog_owner, top.dialog_width, modal=True)
+
+    def tidy_dialog_actions(self, actions):
+        """Lay a dialog's buttons out as system dialogs do: one row at the
+        width of their labels, lined up on the right, with a destructive
+        action (Delete) or a side tool (Read aloud) kept apart on the left.
+        Buttons stretched edge to edge read as banners, not choices. A
+        stacked list of answers (dialog_choice) is left as it is."""
+        try:
+            if actions.pack_slaves():
+                buttons = actions.pack_slaves()
+                if len(buttons) != 1:
+                    return
+                buttons[0].pack_forget()
+                buttons[0].grid(row=0, column=0)
+            items = actions.grid_slaves()
+        except tk.TclError:
+            return
+        if not items:
+            return
+        items.sort(key=lambda w: (int(w.grid_info().get("row", 0)), int(w.grid_info().get("column", 0))))
+        for column in range(len(items) + 2):
+            actions.columnconfigure(column, weight=0, uniform="", minsize=0)
+
+        def apart(widget):
+            try:
+                return "Danger" in str(widget.cget("style")) or not isinstance(widget, ttk.Button)
+            except tk.TclError:
+                return False
+
+        left = [w for w in items[:-1] if apart(w)]
+        right = [w for w in items if w not in left]
+        gap = self.px(8)
+        column = 0
+        for widget in left:
+            widget.grid(row=0, column=column, columnspan=1, sticky="w", padx=(0, gap), pady=0)
+            column += 1
+        actions.columnconfigure(column, weight=1)
+        column += 1
+        for index, widget in enumerate(right):
+            if isinstance(widget, ttk.Button):
+                widget.configure(width=-10)
+            widget.grid(row=0, column=column, columnspan=1, sticky="e", padx=(gap if index else 0, 0), pady=0)
+            column += 1
 
     def dialog_alert(self, title, body, kind="info", parent=None):
         top, _content, actions = self.dialog_window(title, body, parent=parent)
         color = COLORS["danger"] if kind == "error" else COLORS["primary"]
         ok = self.solid_button(actions, "OK", top.destroy, color)
-        ok.pack(fill="x")
+        ok.pack()
         self.present_dialog(top)
         top.bind("<Return>", lambda _event: top.destroy())
         top.bind("<Escape>", lambda _event: top.destroy())
