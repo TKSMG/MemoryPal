@@ -101,6 +101,16 @@ class GlideTests(unittest.TestCase):
         self.assertEqual(step + rest, 20)
         self.assertLessEqual(step, 3)
 
+    def test_frames_per_step(self):
+        self.assertEqual(scrolling.frames_per_step(None, 16.7), 1)
+        self.assertEqual(scrolling.frames_per_step(12, 16.7), 1)
+        self.assertEqual(scrolling.frames_per_step(17.5, 16.7), 1)  # within 10%
+        self.assertEqual(scrolling.frames_per_step(12, 6.94), 2)  # 144Hz: 72 steps/s
+        self.assertEqual(scrolling.frames_per_step(12, 8.33), 2)  # 120Hz: 60 steps/s
+        self.assertEqual(scrolling.frames_per_step(18, 6.94), 3)  # 144Hz: an even 48 steps/s
+        self.assertEqual(scrolling.frames_per_step(25, 6.94), 1)  # every 4th would be 36/s
+        self.assertEqual(scrolling.frames_per_step(23, 16.7), 1)  # never halve 60Hz
+
 
 if __name__ == "__main__":
     unittest.main()

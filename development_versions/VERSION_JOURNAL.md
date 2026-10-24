@@ -439,6 +439,20 @@ This build is packaged as release 0.51.0.
 
 This build is packaged as release 0.52.0.
 
+## v92 - A Desktop App That Behaves Like One
+
+- The Windows app uses the system title bar and frame (in the theme's colours), so it moves, snaps, resizes, minimises and goes full screen the way other apps do. The screenshot covers that hid redrawing during scrolling, resizing and full screen are gone: page changes pause painting while they are built (WM_SETREDRAW), and Windows fills new space with the app's background instead of white.
+- Panels, text boxes, lists and tick boxes have rounded corners, and multi-line boxes look like the one-line fields with an accent ring while typing. Buttons keep the width of their label instead of stretching across the card, the small label above each page title is gone, and Library rows are more compact.
+- Settings > Window has a single Full screen button (F11, Esc to leave).
+- Run from the Python files, Settings explains that Google Drive sync needs latest_app/memorypal/google_client.py, which installed versions already have.
+- Full screen on Windows changes the window's style instead of using Tk's full screen, which built a brand-new window each time and flashed white when leaving it. This is how Chrome and Windows Terminal do it.
+- On 120-165Hz screens, pages that take longer than one refresh to draw scroll on every second refresh, evenly, instead of landing two steps in one refresh and none in the next.
+- Tooltips are smaller and sit under the pointer, with system rounded corners on Windows 11. Notices ("Card saved") rise in at the bottom centre on a raised panel instead of a black box in the corner. Dialog buttons line up on the right at their natural width, and the title bar names the app instead of repeating the question. Unchosen options in choice rows no longer look like empty text boxes. The round profile button is no longer clipped.
+- Windows: when the window grows (dragging an edge, maximising, full screen) the new space is filled with the app's background straight away instead of showing white until Tk repaints, as Chrome and Electron do. On 144Hz screens heavy pages may also step on every third refresh (48 a second, evenly).
+- The welcome has a fourth question, whether to use AI, answered "Yes" unless changed, with what is sent and to whom spelled out beside it. The header's profile circle is smaller and its letter sits exactly in the middle.
+
+This build is packaged as release 0.52.0.
+
 ## v93 - Says Things The Way People Do
 
 - Page titles match the tabs and read in sentence case on both apps: the desktop's "Dashboard" is Today, "Stats & Streaks" is Progress, "Decks" is Sets, and "deck" is "set" everywhere people read it.

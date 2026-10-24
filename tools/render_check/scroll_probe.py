@@ -52,8 +52,6 @@ def timed(name, func):
 
 
 M.flush_pending_paint = timed("paint", M.flush_pending_paint)
-M.refresh_screen_cover = timed("cover", M.refresh_screen_cover)
-M.show_screen_cover = timed("cover_new", M.show_screen_cover)
 original_present = M.ScrollFrame._present
 
 

@@ -42,7 +42,8 @@ These need a Supabase project with the `ai` function deployed (see `supabase/fun
 
 - Signed out, open the set builder, choose Make with AI, and press Make notes. Confirm a "Sign in to use AI" message offers Sign in, Create an account and Not now, and nothing is sent. On the phone, confirm Make with AI shows "Sign in to use AI" with a button to sign in or create an account.
 - In a build with no cloud project set up, confirm Make with AI says "AI isn't ready yet" (desktop) or "AI isn't available yet" (phone) instead of an error.
-- Signed in, use Make with AI for the first time and confirm the one-time AI screen appears, explaining what is sent, who gets it (Google's Gemini API through MemoryPal's server), that Google may keep and read it on the free tier, and the 10-a-day limit. Confirm the Privacy policy and Gemini API terms links open.
+- On a new profile, confirm the welcome's fourth question explains AI (what is sent, Google's Gemini, the free tier) with "Yes, use AI" chosen, and that "No thanks" leaves AI off in Settings.
+- With AI turned off in Settings, use Make with AI and confirm the one-time AI screen appears, explaining what is sent, who gets it (Google's Gemini API through MemoryPal's server), that Google may keep and read it on the free tier, and the 10-a-day limit. Confirm the Privacy policy and Gemini API terms links open.
 - Press Not now on the AI screen and confirm nothing is sent and AI stays off in Settings. Use Make with AI again and confirm the AI screen asks again.
 - Press Allow and confirm a short message says AI is on. Confirm Settings > AI features shows "Use AI notes and questions" (desktop) or "AI notes and questions" (phone) switched on.
 - Type or paste a short paragraph, press Make notes, and confirm a "this can take up to a minute" style wait, then study notes with a title, sections, bullets and key terms. On the desktop, press Cancel during the wait and confirm "Cancelled. Nothing was added."
@@ -129,7 +130,7 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - With a mouse wheel, scroll a long page, a text box, the Library list and a dropdown and confirm each notch glides smoothly instead of jumping, and a fast spin keeps gliding without stutter.
 - With a Windows precision touchpad, scroll the same places and confirm the page follows your fingers directly without lagging behind.
 - Mac: try a mouse wheel and a trackpad and confirm the wheel glides and the trackpad follows your fingers. Not yet tried on a real Mac.
-- Windows 10/11: open a window that uses the system title bar (such as a dialog) and switch between light and dark theme. Confirm the title bar matches the theme (exact colours on Windows 11). Not yet tried on real Windows hardware.
+- Windows 10/11: switch between light and dark theme and confirm the main window's and dialogs' title bars match it (exact colours on Windows 11). Drag the window to a screen edge and confirm it snaps like other apps.
 - Mac: confirm the title bar follows the app's light or dark theme.
 
 ## First Run
@@ -138,12 +139,12 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Confirm the dashboard loads without errors.
 - Confirm the app opens quickly enough for a short practice session instead of sitting on a long blank startup.
 - Confirm a packaged Windows app opens to its first visible window in roughly a couple of seconds on a normal tester machine.
-- Confirm repeated page changes, focus mode, fullscreen, and resize release do not leave stuck transition covers.
+- Confirm repeated page changes, full screen and resizing never leave the window half drawn.
 - Confirm page transitions affect only the page panel while the app shell/background stays steady.
 - Confirm the title/taskbar icon uses the MemoryPal mark instead of the default Python/Tk icon.
-- Confirm the main app uses the MemoryPal title strip instead of an old native-looking title bar.
+- Confirm the main window has the normal system title bar, in the theme's colours.
 - Confirm the app appears as its own taskbar item when launched normally.
-- Confirm the right edge, bottom edge, and corner resize grips let the app resize when it is not in true fullscreen.
+- Resize the window from any edge or corner and confirm the page reflows without white flashes.
 - Confirm data is created in the normal app-data folder, not directly in the home folder.
 - If old `%USERPROFILE%\MemoryPalData` data exists, confirm it is copied into the new app-data profile folder without overwriting newer profile edits.
 - Open two MemoryPal windows, add different cards in both, save both, reopen the app, and confirm both cards remain.
@@ -171,22 +172,17 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - On Capture, resize the app narrower and confirm the horizontal scrollbar can reach the right-side captured/cue panel.
 - Open profile, recording, reset, import-error, and media-error dialogs and confirm they match the MemoryPal visual style.
 - Open the profile manager, create a profile, rename a profile, and confirm popups fade in without a white flash.
-- Switch between several pages and confirm the same-theme cover hides redraw flashes without a strip-opening effect.
+- Switch between several pages and confirm each new page appears in one step, without white flashes.
 - Confirm page switches fade in cleanly instead of flashing after the new page is drawn.
 - Confirm page/layout fades do not dim the entire app window; the background shell should stay solid while content appears.
 - Press F11 and confirm it enters true fullscreen, then press Escape to exit.
 - Use the Settings true fullscreen button and confirm it matches F11 behavior.
-- Repeatedly press F11 a few times and confirm the app ignores overlapping fullscreen requests instead of freezing.
-- Use the titlebar square button and confirm it uses borderless focus mode instead of true fullscreen.
-- While editing a field, toggle true fullscreen and focus mode and confirm the current page is not rebuilt.
-- Confirm fullscreen, focus mode, and resize release do not rebuild the active page or lose current field contents.
-- Drag a custom resize grip and confirm a thin outline shows the new size while dragging, the window only changes after releasing the mouse, and the outline disappears afterwards.
-- Toggle true fullscreen and focus mode from Settings and confirm the active page returns cleanly without a white flash, whole-window dim, freeze, or stuck cover.
+- Repeatedly press F11 a few times and confirm the app doesn't freeze.
+- While editing a field, toggle full screen and confirm the typed text is kept.
+- Leave full screen and confirm there is no white flash.
 - While already in true fullscreen, switch pages and confirm the page content changes without white flashes.
-- Confirm fullscreen/focus changes do not freeze the app or leave a cover stuck on screen.
 - Open Settings and confirm theme, navigation, profile manager, daily goal, storage folder, backup, import, and reset controls are reachable.
-- Confirm the title bar controls and resize handles remain correctly sized at higher Windows display scaling.
-- Confirm the custom titlebar buttons, header controls, profile chip, and app mark have smooth curved edges even when Pillow is not installed.
+- Confirm the header controls, profile chip, panels, fields and tick boxes have smooth curved edges.
 - If Pillow is installed, confirm the optional image-backed smoothing still looks clean around curved edges.
 - Confirm the default packaged app includes Pillow for smoother custom UI edges but does not bundle heavy optional audio/video/TTS libraries.
 - Confirm the left navigation mark uses the generated MemoryPal logo artwork instead of a plain letter.

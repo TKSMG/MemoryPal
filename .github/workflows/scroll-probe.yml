@@ -1,10 +1,16 @@
 name: Scroll probe
 
 # Run by hand (Actions > Scroll probe > Run workflow) after changing how
-# pages scroll: it measures frame pacing and torn frames on real Windows and
-# Mac machines and writes the numbers as a notice on the run.
+# pages scroll, resize or switch: it measures frame pacing, torn frames and
+# flashes on real Windows and Mac machines and writes the numbers as a
+# notice on the run. "compare" also measures main, side by side.
 on:
   workflow_dispatch:
+    inputs:
+      compare:
+        description: "Also measure main"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -14,26 +20,44 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        include:
+          - {os: windows-latest, variant: branch}
+          - {os: macos-latest, variant: branch}
+          - {os: windows-latest, variant: main, compare: true}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        if: ${{ !matrix.compare || inputs.compare }}
+      - name: Use main's app with this branch's probes
+        if: ${{ matrix.variant == 'main' && inputs.compare }}
+        shell: bash
+        run: |
+          git fetch --depth=1 origin main
+          git checkout FETCH_HEAD -- latest_app
       - uses: actions/setup-python@v6
+        if: ${{ !matrix.compare || inputs.compare }}
         with:
           python-version: "3.12"
       - name: Install app packages
+        if: ${{ !matrix.compare || inputs.compare }}
         run: python -m pip install platformdirs pypdf Pillow
-      - name: Measure scroll pacing
+      - name: Measure scroll pacing and page changes
+        if: ${{ !matrix.compare || inputs.compare }}
         shell: bash
         run: |
-          mkdir -p probe-out
-          PROBE_OUT=probe-out python tools/render_check/scroll_probe.py library stats > probe.txt 2>&1 || true
+          mkdir -p probe-out render-out
+          PROBE_OUT=probe-out python tools/render_check/scroll_probe.py stats settings library > probe.txt 2>&1 || true
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            python tools/render_check/render_probe.py render-out >> probe.txt 2>&1 || true
+          fi
           cat probe.txt
-          python -c "import sys; t=open('probe.txt').read()[-3800:]; print('::notice title=Scroll probe ${{ matrix.os }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Scroll probe ${{ matrix.os }} ${{ matrix.variant }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
       - uses: actions/upload-artifact@v5
-        if: always()
+        if: ${{ always() && (!matrix.compare || inputs.compare) }}
         with:
-          name: probe-${{ matrix.os }}
+          name: probe-${{ matrix.os }}-${{ matrix.variant }}
           path: |
             probe.txt
             probe-out/
+            render-out/*.png

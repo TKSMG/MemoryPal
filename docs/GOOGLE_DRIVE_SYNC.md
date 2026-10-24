@@ -63,6 +63,16 @@ GitHub: Settings → Secrets and variables → Actions. The build workflows writ
 into `latest_app/memorypal/google_client.py` (ignored by git) and pass `GOOGLE_IOS_CLIENT_ID` to
 `mobile/app.config.js`. For EAS builds, add `GOOGLE_IOS_CLIENT_ID` to the EAS environment too.
 
+Running the desktop app from the Python files (`python latest_app/MemoryPalDesktop.py`) doesn't
+get these values, so it shows the old account sync and no Google Drive option. To use Drive
+there, create `latest_app/memorypal/google_client.py` (git ignores it) with the same values as
+`GOOGLE_DESKTOP_CLIENT_ID` and `GOOGLE_DESKTOP_CLIENT_SECRET`:
+
+```python
+CLIENT_ID = "1234-abc.apps.googleusercontent.com"
+CLIENT_SECRET = "GOCSPX-..."
+```
+
 Set all three at once and release desktop and phone together: a build with them syncs through
 Drive, a build without them through Supabase, and the two don't see each other's cards.
 

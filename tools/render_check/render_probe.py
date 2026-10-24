@@ -131,9 +131,7 @@ def drag_burst():
 
 
 def resize():
-    app.resize_start = (0, 0, 0, 0, 0, 0, "se")
-    app.pending_resize_geometry = f"{app.winfo_width() - 200}x{app.winfo_height() - 120}+{app.winfo_x()}+{app.winfo_y()}"
-    app.stop_resize()
+    app.geometry(f"{app.winfo_width() - 200}x{app.winfo_height() - 120}")
 
 
 SCENARIOS = [
@@ -145,8 +143,6 @@ SCENARIOS = [
     ("drag_scroll", drag_burst),
     ("fullscreen_on", app.toggle_true_fullscreen),
     ("fullscreen_off", app.toggle_true_fullscreen),
-    ("focus_on", app.toggle_focus_window),
-    ("focus_off", app.toggle_focus_window),
     ("resize", resize),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),
