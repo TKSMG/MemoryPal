@@ -93,6 +93,14 @@ export interface NoteQuestion {
 
 export const BLANK = '_____';
 const WORD_RE = /[A-Za-z0-9][A-Za-z0-9'-]{2,}/g;
+/** Everyday words that make poor blanks and give-away wrong answers ("over", "them"). */
+const CLOZE_FILLER = new Set([
+  'above', 'across', 'after', 'again', 'against', 'along', 'among', 'around', 'been', 'before',
+  'behind', 'being', 'below', 'between', 'both', 'does', 'doing', 'down', 'during', 'each',
+  'even', 'ever', 'every', 'here', 'into', 'many', 'more', 'most', 'much', 'must',
+  'only', 'onto', 'other', 'over', 'same', 'some', 'such', 'them', 'these', 'they',
+  'those', 'through', 'under', 'until', 'upon', 'very', 'well', 'within', 'without',
+]);
 const YEAR_RE = /(?<![0-9])(1[0-9]{3}|20[0-9]{2})(?![0-9])/;
 const NUMBER_RE = /(?<![A-Za-z0-9.,])[0-9](?:[0-9,.:]*[0-9])?%?(?![A-Za-z0-9])/;
 const NUMBER_WORD = /^[-+]?[0-9][0-9,.:]*%?$/;
@@ -175,7 +183,7 @@ export function clozeCandidates(text: string, avoid = ''): ClozeCandidate[] {
     const word = match[0];
     const lower = word.toLowerCase();
     const hasDigit = /[0-9]/.test(word);
-    if (STOP_WORDS.has(lower) || seen.has(lower) || (word.length < 4 && !hasDigit)) continue;
+    if (STOP_WORDS.has(lower) || CLOZE_FILLER.has(lower) || seen.has(lower) || (word.length < 4 && !hasDigit)) continue;
     seen.add(lower);
     const stems = tokenWords(word);
     const stem = stems.length ? stems[0][0] : lower;
@@ -197,7 +205,7 @@ export function clozeWords(text: string, like: string): string[] {
   const out: string[] = [];
   for (const match of text.matchAll(WORD_RE)) {
     let word = match[0];
-    if (STOP_WORDS.has(word.toLowerCase()) || (word.length < 4 && !/[0-9]/.test(word))) continue;
+    if (STOP_WORDS.has(word.toLowerCase()) || CLOZE_FILLER.has(word.toLowerCase()) || (word.length < 4 && !/[0-9]/.test(word))) continue;
     const start = match.index ?? 0;
     if (start === 0 || /[.!?]\s+$/.test(text.slice(0, start))) {
       word = (/^[A-Z]/.test(like) ? word.slice(0, 1).toUpperCase() : word.slice(0, 1).toLowerCase()) + word.slice(1);
@@ -455,7 +463,8 @@ export function makeQuestion(entry: PoolEntry, type: QuestionType, pool: Pool, r
     const wrong = pickDistractors(entry.back, sameDeck, 1, rng, entry.deck);
     const showFalse = wrong.length > 0 && rng.random() < 0.5;
     const shown = showFalse ? wrong[0] : entry.back;
-    const prompt = `True or false? The answer to “${entry.front}” is “${shown}”.`;
+    const stop = /[.!?]$/.test(shown) ? '' : '.';
+    const prompt = `True or false? The answer to “${entry.front}” is “${shown}”${stop}`;
     return question(entry, type, prompt, showFalse ? 'False' : 'True', { options: ['True', 'False'], answer_index: showFalse ? 1 : 0, context: entry.front });
   }
   if (type === 'match') {

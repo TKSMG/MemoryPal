@@ -7,7 +7,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import type { Question } from '../core/questions';
 import { checkAnswer, isAiCard } from '../core/questions';
@@ -157,8 +157,10 @@ export default function Quiz() {
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt variant="label" style={{ flex: 1 }}>{`Question ${index + 1} of ${questions.length} · ${TYPE_LABEL[question.type]}`}</Txt>
-        <SpeakButton text={promptSpeech(question)} label="Read the question aloud" />
-        {question.options.length && question.type !== 'match' ? <SpeakButton text={optionsSpeech(question.options)} label="Read the choices aloud" /> : null}
+        <SpeakButton
+          text={question.options.length && question.type !== 'match' ? `${promptSpeech(question)} ${optionsSpeech(question.options)}` : promptSpeech(question)}
+          label={question.options.length && question.type !== 'match' ? 'Read the question and choices aloud' : 'Read the question aloud'}
+        />
       </Row>
       <ProgressBar value={index / questions.length} />
 
@@ -166,7 +168,7 @@ export default function Quiz() {
         {question.type === 'cloze' && question.context ? <Txt variant="label">{question.context}</Txt> : null}
         <Txt variant="h2" accessibilityRole="header" accessibilityLabel={promptSpeech(question)}>
           {parts.before}
-          {parts.blank ? <Txt variant="h2" color={c.primary} style={{ textDecorationLine: 'underline' }}>{'      '}</Txt> : null}
+          {parts.blank ? <Text style={{ color: c.primary, textDecorationLine: 'underline' }}>{'      '}</Text> : null}
           {parts.after}
         </Txt>
         {card && isAiCard(card) ? <AiTag /> : null}
