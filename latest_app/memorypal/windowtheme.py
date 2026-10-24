@@ -86,7 +86,6 @@ def set_background_brush(hwnd, hex_color):
     none, so it showed as a white flash. The brush belongs to the class, so
     it covers every MemoryPal window. Returns True if the brush was set.
     """
-    global _brush
     value = colorref(hex_color)
     if not hwnd or value is None or not sys.platform.startswith("win"):
         return False
@@ -96,15 +95,17 @@ def set_background_brush(hwnd, hex_color):
         user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
         set_class = getattr(user32, "SetClassLongPtrW", None) or user32.SetClassLongW
         set_class.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+        set_class.restype = ctypes.c_void_p
         gdi32.CreateSolidBrush.restype = ctypes.c_void_p
         brush = gdi32.CreateSolidBrush(value)
-        set_class(ctypes.c_void_p(hwnd), -10, ctypes.c_void_p(brush))  # GCLP_HBRBACKGROUND
-        previous, _brush = _brush, brush
-        if previous:
+        previous = set_class(ctypes.c_void_p(hwnd), -10, ctypes.c_void_p(brush))  # GCLP_HBRBACKGROUND
+        if previous and previous in _brushes:
             gdi32.DeleteObject(ctypes.c_void_p(previous))
+            _brushes.discard(previous)
+        _brushes.add(brush)
         return True
     except (AttributeError, OSError):
         return False
 
 
-_brush = None  # the brush MemoryPal last gave its windows
+_brushes = set()  # brushes MemoryPal made, so replaced ones can be freed

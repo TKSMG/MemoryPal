@@ -3,13 +3,12 @@ name: Scroll probe
 # Run by hand (Actions > Scroll probe > Run workflow) after changing how
 # pages scroll, resize or switch: it measures frame pacing, torn frames and
 # flashes on real Windows and Mac machines and writes the numbers as a
-# notice on the run. "compare" also measures main and this branch with
-# the system scroll blit off, side by side.
+# notice on the run. "compare" also measures main, side by side.
 on:
   workflow_dispatch:
     inputs:
       compare:
-        description: "Also measure main and the scroll blit off"
+        description: "Also measure main"
         type: boolean
         default: false
 
@@ -22,14 +21,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: windows-latest, variant: branch, blit: "1"}
-          - {os: macos-latest, variant: branch, blit: "1"}
-          - {os: windows-latest, variant: main, blit: "1", compare: true}
-          - {os: windows-latest, variant: branch-no-blit, blit: "0", compare: true}
+          - {os: windows-latest, variant: branch}
+          - {os: macos-latest, variant: branch}
+          - {os: windows-latest, variant: main, compare: true}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    env:
-      MEMORYPAL_SCROLL_BLIT: ${{ matrix.blit }}
     steps:
       - uses: actions/checkout@v5
         if: ${{ !matrix.compare || inputs.compare }}
