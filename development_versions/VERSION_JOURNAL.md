@@ -438,3 +438,12 @@ This build is packaged as release 0.51.0.
 - AI questions name their topic so they make sense on their own, and each AI card quotes the sentence its answer came from. The phone's Talk-back screen no longer crashes in Expo Go.
 
 This build is packaged as release 0.52.0.
+
+## v92 - A Desktop App That Behaves Like One
+
+- The Windows app uses the system title bar and frame (in the theme's colours), so it moves, snaps, resizes, minimises and goes full screen the way other apps do. The screenshot covers that hid redrawing during scrolling, resizing and full screen are gone: page changes pause painting while they are built (WM_SETREDRAW), and Windows fills new space with the app's background instead of white.
+- Panels, text boxes, lists and tick boxes have rounded corners, and multi-line boxes look like the one-line fields with an accent ring while typing. Buttons keep the width of their label instead of stretching across the card, the small label above each page title is gone, and Library rows are more compact.
+- Settings > Window has a single Full screen button (F11, Esc to leave).
+- Run from the Python files, Settings explains that Google Drive sync needs latest_app/memorypal/google_client.py, which installed versions already have.
+
+This build is packaged as release 0.52.0.

@@ -106,19 +106,14 @@ The full feature list, newest first. The [README](../README.md) has the short ve
 - Accessibility settings for larger text, higher contrast, reduced motion, simpler wording, caregiver mode, and a senior-friendly layout preset.
 - Everyday Memory page for older adults and caregivers, with a Today board, gentle review, starter cards, and person/routine/place/reminder card creation.
 - Settings stays pinned at the bottom of the navigation rail so the header has more room for status and profile controls.
-- Window controls separate true fullscreen from borderless focus mode: F11 and the Settings fullscreen control use true fullscreen, while the titlebar square and Settings focus control use borderless focus mode.
-- Windowed page changes, theme changes, and interface rebuilds use matching same-theme covers to hide redraw flashes without the older strip-opening effect.
+- The desktop window uses the system's own title bar (coloured to match the light or dark theme), so moving, snapping, resizing, minimising and maximising work as in any Windows or Mac app. F11 (Control-Command-F on a Mac) and Settings > Window turn full screen on and off; Esc leaves it.
+- Page changes and in-page rebuilds pause painting (WM_SETREDRAW on Windows) while they are built, then draw once, instead of covering the window with a screenshot.
 - Fullscreen and focus changes preserve the active page instead of rebuilding the interface.
-- Custom window resizing applies after the user releases the resize grip, then reveals the settled layout without fading the whole app window.
-- Custom titlebar, navigation, and button shapes use Pillow-backed antialiasing when available, with a built-in smoothed fallback for source runs without Pillow.
-- The titlebar and left navigation use the same generated MemoryPal logo artwork.
-- The generated logo renders directly through Tk, so the rail mark and titlebar mark stay consistent even without Pillow.
+- Panels, fields, buttons and tick boxes have antialiased rounded corners; multi-line boxes and lists are drawn like the one-line fields, with an accent ring while typing.
 - The desktop launcher now relies on the split `latest_app/memorypal/` package instead of carrying a second stale copy of models, storage, parsing, and planning code.
 - Profile config reads, generated logo pixels, and antialiased UI shapes are cached so normal shell rebuilds do less repeat work.
-- The custom borderless titlebar restore path is debounced so fullscreen/focus changes and startup do not repeatedly force expensive idle redraws.
 - File dialogs, CSV export, browser opening, desktop recording, webcam recording, and text-to-speech load only when those features are used.
 - The header and navigation logo load from the checked-in PNG asset during startup, with generated pixels kept as a fallback.
-- The main desktop window is resizable from the right edge, bottom edge, and corner while keeping the custom app chrome and DPI-scaled title bar controls.
 - More forgiving responsive button rows and Study Plan controls for larger DPI/text scaling.
 - Separate local profiles, so different learners or study areas can keep independent data.
 - Local saves merge newly added cards, captures, feedback, review counters, and newer saved card progress so two open windows are less likely to overwrite each other's work.

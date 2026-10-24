@@ -113,7 +113,7 @@ Hub pages show one tile per page, with a live count where it helps ("4 cards due
 Each build should feel native where it runs, checked against Apple's Human Interface Guidelines (audit of 2026-10-11):
 
 - **Mac:** a real menu bar (About, Settings… ⌘,, Edit, View, Go, Window, Help). Shortcuts use Command, and on-screen hints are written the Mac way (⌘K, ⌘Z, ⌘[ for Back). Text uses the system font instead of Segoe UI. Dialogs keep the native frame, so close is top-left. Tk only displays menu shortcuts, so every shortcut shown in a menu must also be bound.
-- **Windows:** the custom title bar and borderless dialogs stay. Shortcuts are written Ctrl+K.
+- **Windows:** the system title bar and frame, coloured to match the theme (Windows 11 takes exact colours), on the main window and dialogs. Shortcuts are written Ctrl+K.
 - **iPhone and iPad:** screens stop growing at a 720pt reading width and centre, so iPad lines stay readable. Sheets have Cancel or Done in the bar. Text follows Apple's styles (Large Title 34, Title 2 22, Headline 17 semibold, Body 17, Footnote 13), with sentence-case labels rather than spaced capitals. Buttons and cards shrink slightly the moment they're pressed.
 - **Reduce motion** means a cross-fade, not no transition: people still see that the screen changed.
 
