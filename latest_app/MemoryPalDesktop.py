@@ -181,27 +181,6 @@ def set_window_redraw(widget, enabled):
         return False
 
 
-def scroll_window_pixels(window, dy):
-    """Shift a window's picture and its child windows up by `dy` pixels (Windows).
-
-    ScrollWindowEx is how Windows programs scroll: the system moves what is
-    already drawn in one step, children included, and only the strip that
-    comes into view is painted afresh. When Tk then moves the content to
-    the same place, nothing changes, so no step shows half-moved content.
-    MEMORYPAL_SCROLL_BLIT=0 turns it off for comparison. Returns True if
-    the picture was shifted.
-    """
-    if not sys.platform.startswith("win") or not dy or os.environ.get("MEMORYPAL_SCROLL_BLIT", "1") == "0":
-        return False
-    try:
-        import ctypes
-
-        # SW_SCROLLCHILDREN | SW_INVALIDATE
-        return ctypes.windll.user32.ScrollWindowEx(window.winfo_id(), 0, -int(dy), None, None, None, None, 0x0001 | 0x0002) != 0
-    except (AttributeError, OSError, tk.TclError):
-        return False
-
-
 def display_refresh_hz(widget, default=60.0):
     """Refresh rate of the screen showing this window (Windows and Mac; else default).
 
@@ -827,20 +806,14 @@ class ScrollFrame(ttk.Frame):
         pixels and the page smeared into overlapping ghosts. Each move now
         runs from a timer and immediately draws the newly exposed area.
         Moves are never nested: one requested while painting runs as its own
-        frame afterwards. On Windows the system shifts what is already drawn
-        (see scroll_window_pixels), so only the newly shown strip is painted.
+        frame afterwards.
         """
         if self._presenting:
             self.after(1, lambda: self._present(move, distance))
             return
         self._presenting = True
         try:
-            before = (self.viewport.canvasx(0), self.viewport.canvasy(0))
             move()
-            dy = int(round(self.viewport.canvasy(0) - before[1]))
-            moved_x = int(round(self.viewport.canvasx(0) - before[0]))
-            if not moved_x and 0 < abs(dy) < self.viewport.winfo_height():
-                scroll_window_pixels(self.viewport, dy)
             self._sync_scrollbars()
             self.viewport.update_idletasks()
             flush_pending_paint(self.viewport)
@@ -1241,20 +1214,12 @@ class MemoryPalApp(tk.Tk):
     def toggle_true_fullscreen(self):
         """F11 (Control-Command-F on a Mac): the system's own full screen."""
         target = not self.is_fullscreen
-        # Painting waits until the page has reflowed at the new size, so the
-        # change shows as one step (the system still animates the window).
-        frozen = self.set_redraw_frozen(True)
         try:
             self.attributes("-fullscreen", target)
-            self.settle_layout()
         except tk.TclError as exc:
-            if frozen:
-                self.set_redraw_frozen(False)
             self.dialog_alert("Full screen isn't available", str(exc), "error")
             return
-        if frozen:
-            self.set_redraw_frozen(False)
-        flush_pending_paint(self)
+        self.settle_layout()
         self.is_fullscreen = target
         if getattr(self, "current_view", None) == "settings":
             self.after_idle(lambda: self.show_view("settings"))
@@ -2218,6 +2183,7 @@ class MemoryPalApp(tk.Tk):
             if not sys.platform.startswith("win") or window.wm_overrideredirect():
                 return
             windowtheme.apply_windows(self.window_handle(window), dark, caption=COLORS["bg"], text=COLORS["ink"], border=COLORS["line"])
+            windowtheme.set_background_brush(self.window_handle(window), COLORS["bg"])
         except (tk.TclError, AttributeError):
             pass
 
