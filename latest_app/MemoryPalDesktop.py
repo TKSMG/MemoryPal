@@ -5716,7 +5716,9 @@ class MemoryPalApp(tk.Tk):
         # AI is chosen here, with what it means in plain words, and starts on
         # (Kirthik's call, 2026-10-24): picking "Yes" and finishing the
         # welcome is the same consent as the AI screen, recorded with a time.
-        use_ai = tk.StringVar(value="Yes, use AI")
+        # Choosing again from Settings keeps the current answer.
+        redo = bool(self.store.onboarding.get("done"))
+        use_ai = tk.StringVar(value="No thanks" if redo and not aiflow.has_consent(self.ai_prefs()) else "Yes, use AI")
         ai_card = self.card(page.inner, "Card.TFrame", 22)
         ai_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(ai_card, text="4. Use AI to make notes and practice questions?", style="H2.TLabel").pack(anchor="w", pady=(0, 6))
@@ -5753,7 +5755,7 @@ class MemoryPalApp(tk.Tk):
 
     def finish_welcome(self, persona_key, text_size, read_aloud, take_tour, use_ai=None):
         persona_key = persona_key if persona_key in onboarding.PERSONAS else "general"
-        if use_ai is not None:
+        if use_ai is not None and use_ai != aiflow.has_consent(self.ai_prefs()):
             prefs = self.ai_prefs()
             self.store.preferences = aiflow.normalize_preferences(aiflow.give_consent(prefs) if use_ai else aiflow.withdraw_consent(prefs))
         data = onboarding.persona(persona_key)
