@@ -181,6 +181,34 @@ def set_window_redraw(widget, enabled):
         return False
 
 
+def enable_double_buffering(window):
+    """Paint a Windows top-level window off screen, then show it whole.
+
+    WS_EX_COMPOSITED makes Windows draw the window and all its children
+    into one back buffer and put the finished picture on screen in a single
+    step, the standard Win32 cure for flicker and tearing (it is what
+    WinForms' DoubleBuffered and many native apps use). Scroll steps,
+    resizes and full screen then never show half-painted frames.
+    MEMORYPAL_DOUBLE_BUFFER=0 turns it off for comparison.
+    Returns True if the style was set.
+    """
+    if not sys.platform.startswith("win") or os.environ.get("MEMORYPAL_DOUBLE_BUFFER", "1") == "0":
+        return False
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetParent(window.winfo_id()) or window.winfo_id()  # Tk's wrapper window
+        try:
+            get_style, set_style = user32.GetWindowLongPtrW, user32.SetWindowLongPtrW
+        except AttributeError:
+            get_style, set_style = user32.GetWindowLongW, user32.SetWindowLongW
+        set_style(hwnd, -20, get_style(hwnd, -20) | 0x02000000)  # GWL_EXSTYLE, WS_EX_COMPOSITED
+        return True
+    except (AttributeError, OSError, tk.TclError):
+        return False
+
+
 def display_refresh_hz(widget, default=60.0):
     """Refresh rate of the screen showing this window (Windows and Mac; else default).
 
@@ -327,142 +355,6 @@ def flush_pending_paint(widget):
         return 0
 
 
-def show_screen_cover(width, height, left=0, top=0, source=None):
-    """Put a pixel-identical, topmost snapshot of part of the screen over it.
-
-    The captured bitmap is handed straight to a layered popup window
-    (UpdateLayeredWindow), so it appears atomically with no Tk image
-    conversion. The window never takes focus, ignores the mouse (clicks and
-    drags go to the app underneath), and doesn't show in the taskbar.
-
-    With `source` (a widget at left/top), its pixels are copied from its own
-    window instead of the screen, which reads memory rather than the
-    composed screen (about 1ms instead of 10-50ms). That copy doesn't
-    include windows overlapping the app, so the snapshot is slotted into the
-    z-order directly above the app's top-level window, below anything
-    already above it (dialogs, tooltips, other programs).
-    Returns a handle for remove_screen_cover, or None if unavailable.
-    """
-    if not sys.platform.startswith("win"):
-        return None
-    try:
-        import ctypes
-        from ctypes import wintypes
-
-        class BlendFunction(ctypes.Structure):
-            _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte),
-                        ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
-
-        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
-        user32.CreateWindowExW.restype = wintypes.HWND
-        user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
-                                           ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-                                           wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
-        source_hwnd = source.winfo_id() if source is not None else 0
-        app_hwnd = user32.GetAncestor(source_hwnd, 2) if source_hwnd else 0  # GA_ROOT
-        topmost = not app_hwnd or bool(user32.GetWindowLongW(app_hwnd, -20) & 0x00000008)  # GWL_EXSTYLE, WS_EX_TOPMOST
-        screen_dc = user32.GetDC(0)
-        source_dc = user32.GetDC(source_hwnd) if source_hwnd else screen_dc
-        memory_dc = gdi32.CreateCompatibleDC(screen_dc)
-        bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
-        previous = gdi32.SelectObject(memory_dc, bitmap)
-        hwnd = None
-        try:
-            if source_hwnd:
-                gdi32.BitBlt(memory_dc, 0, 0, width, height, source_dc, 0, 0, 0x00CC0020)  # SRCCOPY
-            else:
-                gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, left, top, 0x00CC0020)
-            # WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE (+ WS_EX_TOPMOST), WS_POPUP
-            ex_style = 0x00080000 | 0x00000020 | 0x00000080 | 0x08000000 | (0x00000008 if topmost else 0)
-            hwnd = user32.CreateWindowExW(ex_style, "STATIC", None, 0x80000000, left, top, width, height, None, None, None, None)
-            if not hwnd:
-                return None
-            origin, size = wintypes.POINT(left, top), wintypes.SIZE(width, height)
-            blend = BlendFunction(0, 0, 255, 0)
-            if not user32.UpdateLayeredWindow(hwnd, screen_dc, ctypes.byref(origin), ctypes.byref(size), memory_dc,
-                                              ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4):  # ULW_OPAQUE
-                user32.DestroyWindow(hwnd)
-                return None
-            insert_after = 0  # HWND_TOP of the cover's band
-            if app_hwnd:
-                above = user32.GetWindow(app_hwnd, 3)  # GW_HWNDPREV: the window right above the app
-                # A topmost window above a normal app marks the top of the
-                # normal band, where HWND_TOP already lands.
-                if above and topmost == bool(user32.GetWindowLongW(above, -20) & 0x00000008):
-                    insert_after = above
-            # Slot it in (SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE), then show
-            # it where it is; SWP_SHOWWINDOW here left layered windows hidden.
-            user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
-            user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE
-            ctypes.windll.dwmapi.DwmFlush()  # make sure it is on screen before anything changes
-            return hwnd
-        finally:
-            gdi32.SelectObject(memory_dc, previous)
-            gdi32.DeleteObject(bitmap)
-            gdi32.DeleteDC(memory_dc)
-            if source_hwnd:
-                user32.ReleaseDC(source_hwnd, source_dc)
-            user32.ReleaseDC(0, screen_dc)
-    except (AttributeError, OSError, tk.TclError):
-        return None
-
-
-def refresh_screen_cover(cover, width, height, source):
-    """Show a fresh copy of `source` in an existing cover, in one frame.
-
-    Used while scrolling: one cover stays up for the whole scroll and each
-    step swaps its picture, instead of a cover being made and removed for
-    every step (each of those waited for the screen twice, which halved the
-    frame rate). Waits for the next screen refresh, which paces the steps.
-    Returns False if the picture couldn't be swapped.
-    """
-    if not sys.platform.startswith("win"):
-        return False
-    try:
-        import ctypes
-        from ctypes import wintypes
-
-        class BlendFunction(ctypes.Structure):
-            _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte),
-                        ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
-
-        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
-        source_hwnd = source.winfo_id()
-        screen_dc = user32.GetDC(0)
-        source_dc = user32.GetDC(source_hwnd)
-        memory_dc = gdi32.CreateCompatibleDC(screen_dc)
-        bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
-        previous = gdi32.SelectObject(memory_dc, bitmap)
-        try:
-            gdi32.BitBlt(memory_dc, 0, 0, width, height, source_dc, 0, 0, 0x00CC0020)  # SRCCOPY
-            size = wintypes.SIZE(width, height)
-            blend = BlendFunction(0, 0, 255, 0)
-            # No position: the cover stays where it is, only its picture changes.
-            done = user32.UpdateLayeredWindow(cover, screen_dc, None, ctypes.byref(size), memory_dc,
-                                              ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4)  # ULW_OPAQUE
-            if done:
-                ctypes.windll.dwmapi.DwmFlush()
-            return bool(done)
-        finally:
-            gdi32.SelectObject(memory_dc, previous)
-            gdi32.DeleteObject(bitmap)
-            gdi32.DeleteDC(memory_dc)
-            user32.ReleaseDC(source_hwnd, source_dc)
-            user32.ReleaseDC(0, screen_dc)
-    except (AttributeError, OSError, tk.TclError):
-        return False
-
-
-def remove_screen_cover(cover):
-    try:
-        import ctypes
-
-        ctypes.windll.dwmapi.DwmFlush()  # let the finished window be composed underneath first
-        ctypes.windll.user32.DestroyWindow(cover)
-    except (AttributeError, OSError):
-        pass
-
-
 class ScrollFrame(ttk.Frame):
     """Stable, clipped scrolling surface.
 
@@ -503,8 +395,6 @@ class ScrollFrame(ttk.Frame):
         self._glide_last = {}
         self._wheel_after = None
         self._presenting = False
-        self._live_cover = None  # (window, geometry) of the snapshot kept up while scrolling
-        self._live_cover_after = None
         self._glide_time = None
         self._fine_timers = False
         self._frame_ms = self.FRAME_MS
@@ -897,72 +787,20 @@ class ScrollFrame(ttk.Frame):
         pixels and the page smeared into overlapping ghosts. Each move now
         runs from a timer and immediately draws the newly exposed area.
         Moves are never nested: one requested while painting runs as its own
-        frame afterwards.
-
-        `distance` is how far the move goes in pixels, if known. Short moves
-        (wheel and touchpad steps) are blitted by Windows and only a thin
-        strip is drawn fresh, so they skip the snapshot cover: copying the
-        window into the cover and waiting for it to be composed took about
-        16ms a step, which held scrolling to half the screen's frame rate.
+        frame afterwards. On Windows the window is double-buffered (see
+        enable_double_buffering), so each step reaches the screen whole.
         """
         if self._presenting:
             self.after(1, lambda: self._present(move, distance))
             return
         self._presenting = True
-        cover = None
         try:
-            # Even painted straight away, Windows composited frames where the
-            # cards had moved but their text wasn't drawn yet (tearing). A
-            # snapshot of just the scrolling area hides each step until it
-            # is fully drawn, then the new position appears in one frame.
-            # The snapshot stays up while scrolling continues; each step only
-            # swaps its picture (see refresh_screen_cover).
-            root = self.winfo_toplevel()
-            geometry = None
-            if not getattr(root, "use_native_window_chrome", True) and not getattr(root, "_hidden_active", False):
-                width, height = self.viewport.winfo_width(), self.viewport.winfo_height()
-                if width > 1 and height > 1:
-                    geometry = (width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty())
-            small = distance is not None and distance <= self.viewport.winfo_height() / 3
-            if small:
-                geometry = None
-            live = self._live_cover
-            if live is not None and live[1] != geometry:
-                self._release_live_cover()
-                live = None
-            if live is None and geometry is not None:
-                cover = show_screen_cover(*geometry, source=self.viewport)
             move()
             self._sync_scrollbars()
             self.viewport.update_idletasks()
             flush_pending_paint(self.viewport)
-            if live is not None:
-                if not refresh_screen_cover(live[0], geometry[0], geometry[1], self.viewport):
-                    self._release_live_cover()
-            elif cover is not None:
-                if refresh_screen_cover(cover, geometry[0], geometry[1], self.viewport):
-                    self._live_cover, cover = (cover, geometry), None
         finally:
             self._presenting = False
-            if cover is not None:
-                remove_screen_cover(cover)
-            if self._live_cover is not None:
-                # Taken down once scrolling has paused; by then the window
-                # underneath shows exactly the same picture.
-                if self._live_cover_after is not None:
-                    self.after_cancel(self._live_cover_after)
-                self._live_cover_after = self.after(90, self._release_live_cover)
-
-    def _release_live_cover(self):
-        if self._live_cover_after is not None:
-            try:
-                self.after_cancel(self._live_cover_after)
-            except tk.TclError:
-                pass
-            self._live_cover_after = None
-        live, self._live_cover = self._live_cover, None
-        if live is not None:
-            remove_screen_cover(live[0])
 
     def _scrollbar_yview(self, *args):
         self._scrollbar_view("y", args)
@@ -1102,7 +940,6 @@ class ScrollFrame(ttk.Frame):
 
     def destroy(self):
         self._destroyed = True
-        self._release_live_cover()
         if self._idle_after is not None:
             try:
                 self.after_cancel(self._idle_after)
@@ -1203,12 +1040,7 @@ class Tooltip:
 class MemoryPalApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.use_native_window_chrome = sys.platform == "darwin"
-        self._chrome_update_active = False
-        self._taskbar_ready = False
         self.withdraw()
-        if not self.use_native_window_chrome:
-            self.overrideredirect(True)
         self.resizable(True, True)
         try:
             self.attributes("-alpha", 0.0)
@@ -1246,16 +1078,9 @@ class MemoryPalApp(tk.Tk):
         self.deck_filter = None
         self._hotkeys_bound = False
         self.is_fullscreen = False
-        self.is_focus_window = False
-        self.restoring_borderless = False
-        self.window_transition_active = False
         self.page_transition_image = None
         self.page_transition_canvas = None
         self.page_transition_photo = None
-        self.normal_geometry = ""
-        self.drag_start = None
-        self.resize_start = None
-        self.pending_resize_geometry = None
         self.root_cover = None
         self.logo_photo_cache = {}
         self.shape_photo_cache = {}
@@ -1284,14 +1109,13 @@ class MemoryPalApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         if IS_MAC:
             self.install_mac_menus()
-        self.bind("<Map>", self.restore_window_chrome, add="+")
         self.bind("<F11>", lambda _event: self.toggle_true_fullscreen())
         for sequence in ("<Control-Command-f>", "<Command-Control-f>"):
             try:
                 self.bind(sequence, lambda _event: self.toggle_true_fullscreen(), add="+")
             except tk.TclError:
                 pass
-        self.bind("<Escape>", lambda _event: self.exit_fullscreen_or_focus())
+        self.bind("<Escape>", lambda _event: self.exit_fullscreen())
         self.bind("<Alt-Left>", lambda _event: self.go_back())
         if IS_MAC:
             # ⌘[ is Back in Finder, Safari and every Mac app with history.
@@ -1305,7 +1129,7 @@ class MemoryPalApp(tk.Tk):
                 self.bind_class(widget_class, sequence, self.open_page_finder)
         self.bind("<Configure>", self.handle_window_configure, add="+")
         self.update_idletasks()
-        self._taskbar_ready = self.ensure_taskbar_presence()
+        enable_double_buffering(self)
         self.tour = None
         # Map the window while it is still fully transparent, build and settle
         # the first page, then show the finished frame in one step (no fade).
@@ -1313,7 +1137,6 @@ class MemoryPalApp(tk.Tk):
         self.show_view(self.start_view(), transition=False)
         self.settle_layout()
         self.reveal_window(self)
-        self.after(120, lambda: setattr(self, "_taskbar_ready", self.ensure_taskbar_presence()))
         self._ui_ready = True
 
     def install_mac_menus(self):
@@ -1371,129 +1194,30 @@ class MemoryPalApp(tk.Tk):
         menubar.add_cascade(label="Help", menu=help_menu)
         self.configure(menu=menubar)
 
-    def capture_normal_geometry(self):
-        if not self.is_fullscreen and not self.is_focus_window:
-            self.normal_geometry = self.geometry()
-
     def toggle_true_fullscreen(self):
-        if self.window_transition_active:
-            return
+        """F11 (Control-Command-F on a Mac): the system's own full screen."""
         target = not self.is_fullscreen
-        if target and not self.is_focus_window:
-            self.capture_normal_geometry()
-        # Going fullscreen is only a resize; the shell reflows in place, so
-        # there is nothing to hide behind a blank cover.
-        self.window_transition_active = True
-        self.after_idle(lambda: self.apply_true_fullscreen(target))
-
-    def apply_true_fullscreen(self, target):
-        # Tk refuses the -fullscreen attribute on an override-redirect
-        # (borderless) window, so there a screen-sized borderless window
-        # is the fullscreen; it already covers the taskbar.
-        borderless = bool(self.overrideredirect())
-        screen = (self.winfo_screenwidth(), self.winfo_screenheight())
-
-        def change():
-            if target:
-                self.is_focus_window = False
-                self.is_fullscreen = True
-                if borderless:
-                    self.geometry(f"{screen[0]}x{screen[1]}+0+0")
-                else:
-                    self.attributes("-fullscreen", True)
-            else:
-                if not borderless:
-                    self.attributes("-fullscreen", False)
-                self.is_fullscreen = False
-                if self.normal_geometry:
-                    self.geometry(self.normal_geometry)
-
-        size = screen if target else self.geometry_size(self.normal_geometry)
-        self.restoring_borderless = True
         try:
-            self.run_window_change(change, size)
+            self.attributes("-fullscreen", target)
         except tk.TclError as exc:
-            self.is_fullscreen = False
-            self.dialog_alert("Fullscreen unavailable", str(exc), "error")
-        finally:
-            self.restoring_borderless = False
-            self.window_transition_active = False
-
-    def toggle_focus_window(self):
-        if self.window_transition_active:
+            self.dialog_alert("Full screen isn't available", str(exc), "error")
             return
-        self.window_transition_active = True
-        self.after_idle(self.apply_focus_window)
-
-    def apply_focus_window(self):
-        entering = not self.is_focus_window
-        if entering and not self.is_fullscreen:
-            self.capture_normal_geometry()
-        screen = (self.winfo_screenwidth(), self.winfo_screenheight())
-
-        def change():
-            if self.is_fullscreen:
-                if not self.overrideredirect():
-                    self.attributes("-fullscreen", False)
-                self.is_fullscreen = False
-            if entering:
-                self.geometry(f"{screen[0]}x{screen[1]}+0+0")
-                self.is_focus_window = True
-            else:
-                if self.normal_geometry:
-                    self.geometry(self.normal_geometry)
-                self.is_focus_window = False
-                self.enable_borderless_chrome()
-
-        size = screen if entering else self.geometry_size(self.normal_geometry)
-        try:
-            self.run_window_change(change, size)
-        except tk.TclError:
-            pass
-        finally:
-            self.window_transition_active = False
+        self.is_fullscreen = target
+        if getattr(self, "current_view", None) == "settings":
+            self.after_idle(lambda: self.show_view("settings"))
 
     @staticmethod
     def geometry_size(geometry):
         match = re.match(r"(\d+)x(\d+)", geometry or "")
         return (int(match.group(1)), int(match.group(2))) if match else None
 
-    def run_window_change(self, change, target_size=None):
-        """Resize the window with every layout and paint pass hidden.
-
-        A pixel-identical snapshot of the screen is shown on top, then the
-        window is resized and all follow-up work (Configure events that
-        rewrap text, page reflow, scroll regions, painting) is settled
-        underneath; removing the snapshot swaps to the finished result in a
-        single frame. Pausing paint alone can't do that, since Windows shows
-        the resized window, new area still blank, before Tk paints it. If no
-        snapshot is available, fall back to pausing paint with the shell laid
-        out at the target size in advance.
-        """
-        cover = None
-        if not self.use_native_window_chrome:
-            cover = show_screen_cover(self.winfo_screenwidth(), self.winfo_screenheight())
-        frozen = False if cover is not None else self.set_redraw_frozen(True)
-        try:
-            if target_size and cover is None:
-                self.prelayout_shell(*target_size)
-            change()
-            self.update_window_controls()
-            self.settle_layout()
-        finally:
-            if frozen:
-                self.set_redraw_frozen(False)
-            flush_pending_paint(self)
-            if cover is not None:
-                remove_screen_cover(cover)
-
     def smooth(self, rebuild):
         """Wrap an in-page rebuild so it swaps in finished, in one frame.
 
         Rebuilding part of a page (new buttons, a different number of rows,
         a taller or shorter section) paints each geometry pass as it happens,
-        which reads as a flash and a jump. The wrapped function runs under the
-        same pixel-identical snapshot used for page switches. While a page is
+        which reads as a flash and a jump. The wrapped function runs with
+        painting paused, like page switches (run_hidden_change). While a page is
         first being built, or inside another hidden change, it just runs.
         """
         def run(*args, **kwargs):
@@ -1512,30 +1236,21 @@ class MemoryPalApp(tk.Tk):
         return run
 
     def run_hidden_change(self, change, fallback=None):
-        """Run a big in-window change with the calculation gap hidden.
+        """Run a big in-window change and show only the finished result.
 
-        Same idea as run_window_change, without a resize: a pixel-identical
-        snapshot of the screen (or, failing that, frozen painting) covers the
-        window while the change is built and every layout pass settles, then
-        the finished result replaces the snapshot in a single frame. Nothing
-        half-built, unstyled, or blank is ever painted in between.
-
-        When neither hiding method is available (macOS/native chrome, or the
-        window is not visible yet), run `fallback` instead, which should use
-        the older in-window canvas cover.
+        Painting is paused while the change is built and every layout pass
+        settles, then the window repaints once (WM_SETREDRAW, the usual
+        BeginUpdate/EndUpdate of Windows apps), so nothing half-built or
+        blank is painted in between. Where painting can't be paused (macOS,
+        or the window isn't visible yet), run `fallback` instead, or the
+        change as it is.
         """
-        cover = None
-        frozen = False
         try:
             viewable = bool(self.winfo_viewable())
         except tk.TclError:
             viewable = False
-        if viewable and not self.use_native_window_chrome:
-            # Only the app window changes here (no resize), so copy just it.
-            cover = show_screen_cover(self.winfo_width(), self.winfo_height(), self.winfo_rootx(), self.winfo_rooty(), source=self)
-            if cover is None:
-                frozen = self.set_redraw_frozen(True)
-        if cover is None and not frozen:
+        frozen = viewable and self.set_redraw_frozen(True)
+        if not frozen:
             (fallback or change)()
             return
         self._hidden_active = True
@@ -1544,24 +1259,8 @@ class MemoryPalApp(tk.Tk):
             self.settle_layout()
         finally:
             self._hidden_active = False
-            if frozen:
-                self.set_redraw_frozen(False)
+            self.set_redraw_frozen(False)
             flush_pending_paint(self)
-            if cover is not None:
-                remove_screen_cover(cover)
-
-    def prelayout_shell(self, width, height):
-        """Lay the tab bar and main area out for a window size not applied yet."""
-        chrome = getattr(self, "app_chrome", None)
-        try:
-            chrome_h = chrome.winfo_height() if chrome is not None and chrome.winfo_ismapped() else 0
-            body_h = max(1, height - chrome_h)
-            bar = self.tab_bar_height()
-            self.rail.place_configure(width=width, height=bar, relwidth=0, relheight=0)
-            self.main.place_configure(width=width, height=max(1, body_h - bar), relwidth=0, relheight=0)
-        except (AttributeError, tk.TclError):
-            return
-        self.settle_layout(relayout_shell=False)
 
     def settle_layout(self, rounds=6, relayout_shell=True):
         # Configure-driven work (label rewrapping, scroll regions) runs from
@@ -1585,29 +1284,7 @@ class MemoryPalApp(tk.Tk):
         wrapper's redraw is off Windows reports it as hidden and Tk skips the
         pending resize entirely. Returns True if painting was changed.
         """
-        if self.use_native_window_chrome:
-            return False
         return set_window_redraw(self, not frozen)
-
-    def finish_window_transition_cover(self, cover):
-        # Compatibility helper for callers that want to end a window veil.
-        self.destroy_transition_cover(cover)
-        self.window_transition_active = False
-
-    def update_window_controls(self):
-        if hasattr(self, "chrome_fullscreen_button") and self.chrome_fullscreen_button.winfo_exists():
-            symbol = "\u2750" if self.is_focus_window else "\u25a1"
-            if hasattr(self.chrome_fullscreen_button, "set_symbol"):
-                self.chrome_fullscreen_button.set_symbol(symbol)
-            else:
-                self.chrome_fullscreen_button.configure(text=symbol)
-        if getattr(self, "app_chrome", None) is not None and self.app_chrome.winfo_exists():
-            if not self.app_chrome.winfo_ismapped():
-                self.app_chrome.pack(fill="x", before=self.app_body)
-        if self.is_fullscreen or self.use_native_window_chrome:
-            self.set_resize_grips_visible(False)
-        else:
-            self.set_resize_grips_visible(True)
 
     def raise_widget(self, widget):
         try:
@@ -2123,107 +1800,9 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             pass
 
-    def exit_fullscreen_or_focus(self):
+    def exit_fullscreen(self):
         if self.is_fullscreen:
             self.toggle_true_fullscreen()
-        elif self.is_focus_window:
-            self.toggle_focus_window()
-
-    def exit_fullscreen(self):
-        self.exit_fullscreen_or_focus()
-
-    def restore_window_chrome(self, _event=None):
-        if self.use_native_window_chrome:
-            return
-        if _event is not None and _event.widget is not self:
-            return
-        if self.state() != "normal" or self.is_fullscreen or self.restoring_borderless or self._chrome_update_active:
-            return
-        try:
-            already_borderless = bool(self.overrideredirect())
-        except tk.TclError:
-            already_borderless = False
-        if already_borderless and self._taskbar_ready:
-            return
-        if self.state() == "normal":
-            self.enable_borderless_chrome()
-
-    def enable_borderless_chrome(self):
-        if self.use_native_window_chrome:
-            self.restoring_borderless = False
-            return
-        if self.is_fullscreen:
-            self.restoring_borderless = False
-            return
-        if self._chrome_update_active:
-            return
-        self._chrome_update_active = True
-        try:
-            try:
-                already_borderless = bool(self.overrideredirect())
-            except tk.TclError:
-                already_borderless = False
-            if not already_borderless:
-                self.overrideredirect(True)
-                self.update_idletasks()
-                self._taskbar_ready = False
-            if not self._taskbar_ready:
-                self._taskbar_ready = self.ensure_taskbar_presence()
-        except tk.TclError:
-            pass
-        finally:
-            self._chrome_update_active = False
-            self.restoring_borderless = False
-
-    def restore_from_minimize(self, _event=None):
-        if self.use_native_window_chrome:
-            return
-        if not self.is_fullscreen:
-            self.enable_borderless_chrome()
-
-    def minimize_app(self):
-        if self.use_native_window_chrome:
-            try:
-                self.iconify()
-            except tk.TclError:
-                pass
-            return
-        try:
-            self.restoring_borderless = True
-            self.overrideredirect(False)
-            self.update_idletasks()
-            self.iconify()
-            self.after(120, self.restore_from_minimize)
-        except tk.TclError:
-            self.restoring_borderless = False
-
-    def ensure_taskbar_presence(self):
-        if not sys.platform.startswith("win"):
-            return True
-        try:
-            import ctypes
-
-            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
-            if not hwnd:
-                hwnd = self.winfo_id()
-            gwl_exstyle = -20
-            ws_ex_appwindow = 0x00040000
-            ws_ex_toolwindow = 0x00000080
-            try:
-                get_style = ctypes.windll.user32.GetWindowLongPtrW
-                set_style = ctypes.windll.user32.SetWindowLongPtrW
-            except AttributeError:
-                get_style = ctypes.windll.user32.GetWindowLongW
-                set_style = ctypes.windll.user32.SetWindowLongW
-            style = get_style(hwnd, gwl_exstyle)
-            style = (style & ~ws_ex_toolwindow) | ws_ex_appwindow
-            set_style(hwnd, gwl_exstyle, style)
-            # Tell Windows to re-read the window style without moving/resizing.
-            swp_flags = 0x0001 | 0x0002 | 0x0010 | 0x0020
-            ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, swp_flags)
-            return True
-        except (AttributeError, OSError, tk.TclError):
-            return False
 
     def close_window(self, window=None):
         target = window or self
@@ -2231,168 +1810,6 @@ class MemoryPalApp(tk.Tk):
             target.destroy()
         except tk.TclError:
             pass
-
-    def start_drag(self, event, window=None):
-        window = window or self
-        if window is self and self.is_fullscreen:
-            return
-        self.drag_start = (event.x_root, event.y_root, window.winfo_x(), window.winfo_y(), window)
-
-    def drag_window(self, event):
-        if not self.drag_start:
-            return
-        start_x, start_y, window_x, window_y, window = self.drag_start
-        window.geometry(f"+{window_x + event.x_root - start_x}+{window_y + event.y_root - start_y}")
-
-    def stop_drag(self, _event=None):
-        self.drag_start = None
-
-    def start_resize(self, event, mode="se"):
-        self.capture_normal_geometry()
-        self.resize_start = (event.x_root, event.y_root, self.winfo_width(), self.winfo_height(), self.winfo_rootx(), self.winfo_rooty(), mode)
-        self.pending_resize_geometry = None
-
-    def resize_window(self, event):
-        if not self.resize_start or self.is_fullscreen:
-            return
-        start_x, start_y, start_width, start_height, window_x, window_y, mode = self.resize_start
-        min_width, min_height = self.minsize()
-        dx = event.x_root - start_x
-        dy = event.y_root - start_y
-        width = max(min_width, start_width + (dx if "e" in mode else 0))
-        height = max(min_height, start_height + (dy if "s" in mode else 0))
-        self.pending_resize_geometry = f"{width}x{height}+{window_x}+{window_y}"
-        self.show_resize_outline(window_x, window_y, width, height)
-
-    def show_resize_outline(self, x, y, width, height):
-        """Preview the new size as an outline, like Windows does while dragging.
-
-        The outline is four thin, solid, always-on-top bars, one per edge. The
-        real window is resized once, on release. Moving small solid windows
-        is cheap and never shows a half-drawn edge; an earlier version used one
-        big see-through window, which had to be recomposited on every mouse
-        move and made the moving edge blink.
-        """
-        bars = getattr(self, "resize_outline", None)
-        if bars is None or not all(bar.winfo_exists() for bar in bars):
-            self.hide_resize_outline()
-            thickness = max(2, self.px(3)) + 2  # accent line plus a dark 1px rim each side
-            bars = []
-            for side in ("top", "bottom", "left", "right"):
-                bar = tk.Toplevel(self)
-                bar.withdraw()
-                bar.overrideredirect(True)
-                bar.configure(bg="#0b1220")
-                try:
-                    bar.attributes("-topmost", True)
-                except tk.TclError:
-                    pass
-                # A dark rim around a bright accent line reads on light and
-                # dark backgrounds alike. The side bars fit between the top
-                # and bottom bars, so their accent runs straight into them.
-                accent = COLORS["primary"]
-                if side in ("top", "bottom"):
-                    tk.Frame(bar, bg=accent).place(x=1, y=1, relwidth=1, relheight=1, width=-2, height=-2)
-                    # Open the inner rim where a side bar joins, so the corner is one clean L.
-                    joint_y = thickness - 1 if side == "top" else 0
-                    tk.Frame(bar, bg=accent).place(x=1, y=joint_y, width=thickness - 2, height=1)
-                    tk.Frame(bar, bg=accent).place(relx=1, x=-(thickness - 1), y=joint_y, width=thickness - 2, height=1)
-                else:
-                    tk.Frame(bar, bg=accent).place(x=1, y=0, relwidth=1, relheight=1, width=-2)
-                bar.side = side
-                bars.append(bar)
-            self.resize_outline = bars
-            self.resize_outline_thickness = thickness
-            self.place_resize_bars(bars, x, y, width, height)
-            for bar in bars:
-                bar.deiconify()
-            return
-        self.place_resize_bars(bars, x, y, width, height)
-
-    def place_resize_bars(self, bars, x, y, width, height):
-        t = self.resize_outline_thickness
-        spots = {
-            "top": (x, y, width, t),
-            "bottom": (x, y + height - t, width, t),
-            "left": (x, y + t, t, max(1, height - 2 * t)),
-            "right": (x + width - t, y + t, t, max(1, height - 2 * t)),
-        }
-        # Move all four in one step so the edges never drift apart mid-drag.
-        try:
-            import ctypes
-
-            user32 = ctypes.windll.user32
-            user32.BeginDeferWindowPos.restype = ctypes.c_void_p
-            user32.DeferWindowPos.restype = ctypes.c_void_p
-            user32.DeferWindowPos.argtypes = (ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint)
-            user32.EndDeferWindowPos.argtypes = (ctypes.c_void_p,)
-            handles = [self.window_handle(bar) for bar in bars]
-            if all(handles) and all(bar.winfo_ismapped() for bar in bars):
-                batch = user32.BeginDeferWindowPos(len(bars))
-                for bar, hwnd in zip(bars, handles):
-                    bx, by, bw, bh = spots[bar.side]
-                    # SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
-                    batch = user32.DeferWindowPos(batch, hwnd, None, bx, by, bw, bh, 0x0004 | 0x0010 | 0x0200) if batch else None
-                if batch and user32.EndDeferWindowPos(batch):
-                    return
-        except (AttributeError, OSError):
-            pass
-        for bar in bars:
-            bx, by, bw, bh = spots[bar.side]
-            bar.geometry(f"{bw}x{bh}+{bx}+{by}")
-
-    def hide_resize_outline(self):
-        bars = getattr(self, "resize_outline", None)
-        self.resize_outline = None
-        for bar in bars or ():
-            try:
-                bar.destroy()
-            except tk.TclError:
-                pass
-
-    def stop_resize(self, _event=None):
-        geometry = self.pending_resize_geometry
-        self.resize_start = None
-        self.pending_resize_geometry = None
-        if not geometry:
-            self.hide_resize_outline()
-            return
-        size = geometry.split("+")[0]
-        width, height = (int(value) for value in size.split("x"))
-        position = geometry[len(size):]
-
-        def apply():
-            self.hide_resize_outline()
-            self.geometry(f"{width}x{height}{position}")
-
-        # Same single-frame swap as fullscreen: everything reflows under a
-        # snapshot and the finished layout appears at once.
-        try:
-            self.run_window_change(apply, (width, height))
-        except tk.TclError:
-            self.hide_resize_outline()
-
-    def ease_out_cubic(self, step, total_steps):
-        progress = clamp(step / max(1, total_steps), 0, 1)
-        return 1 - (1 - progress) ** 3
-
-    def set_resize_grips_visible(self, visible=True):
-        grips = getattr(self, "resize_grips", [])
-        if not grips:
-            return
-        if not visible:
-            for grip in grips:
-                if grip.winfo_exists():
-                    grip.place_forget()
-            return
-        placements = (
-            {"relx": 1, "rely": 0, "anchor": "ne", "width": self.px(5), "relheight": 1},
-            {"relx": 0, "rely": 1, "anchor": "sw", "relwidth": 1, "height": self.px(5)},
-            {"relx": 1, "rely": 1, "anchor": "se", "width": self.px(18), "height": self.px(18)},
-        )
-        for grip, placement in zip(grips, placements):
-            if grip.winfo_exists():
-                grip.place(**placement)
 
     # The rail holds five destinations, like the phone's tabs. Every other
     # page lives inside one of them (and stays reachable through the page
@@ -3590,84 +3007,6 @@ class MemoryPalApp(tk.Tk):
         dot = size * 0.066
         canvas.create_oval(size * 0.775 - dot, size * 0.235 - dot, size * 0.775 + dot, size * 0.235 + dot, fill="#ffb020", outline="")
 
-    def render_window_chrome(self, parent, title, close_command, window=None, show_minimize=True, show_fullscreen=True):
-        window = window or self
-        dialog = window is not self
-        # The bar is the same colour as what's under it (the tab bar, or the
-        # dialog body), like a unified macOS / Windows 11 title area.
-        chrome_bg = COLORS["surface"] if dialog else COLORS["bg"]
-        bar = tk.Frame(parent, bg=chrome_bg)
-        bar.pack(fill="x")
-        grip = tk.Frame(bar, bg=chrome_bg)
-        grip.pack(side="left", fill="both", expand=True, padx=self.px(14))
-        icon_size = self.px(20)
-        dot = tk.Canvas(grip, width=icon_size, height=icon_size, bg=chrome_bg, highlightthickness=0)
-        label = tk.Label(grip, text="" if dialog else title, bg=chrome_bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10))
-        if not dialog:
-            # Dialogs show their title as a heading in the body instead.
-            dot.pack(side="left", padx=(0, self.px(10)))
-            self.draw_chrome_icon(dot, icon_size)
-            label.pack(side="left")
-        for widget in (bar, grip, label, dot):
-            widget.bind("<ButtonPress-1>", lambda event, w=window: self.start_drag(event, w), add="+")
-            widget.bind("<B1-Motion>", self.drag_window, add="+")
-            widget.bind("<ButtonRelease-1>", self.stop_drag, add="+")
-
-        controls = tk.Frame(bar, bg=chrome_bg)
-        controls.pack(side="right", padx=self.px(8), pady=self.px(6))
-
-        def chrome_button(text, command, bg=None, fg=None, hint=""):
-            symbol = {"value": text}
-            # Even sizes with an even stroke put symbols exactly on the centre
-            # line; odd combinations land half a pixel off.
-            width = self.px(38) // 2 * 2
-            height = self.px(30) // 2 * 2
-            button = tk.Canvas(controls, width=width, height=height, bg=chrome_bg, highlightthickness=0, cursor="hand2")
-            button.pack(side="left", padx=self.px(2))
-
-            def draw(hover=False):
-                button.delete("all")
-                if bg and hover:
-                    fill, text_color = bg, fg or COLORS["white"]
-                else:
-                    fill = self.tint(chrome_bg, -9 if self.theme == "light" else 14) if hover else chrome_bg
-                    text_color = COLORS["ink"] if hover else COLORS["muted"]
-                if not self.draw_antialiased_shape(button, width, height, fill, radius=self.px(10)):
-                    button.create_rectangle(0, 0, width, height, fill=fill, outline="")
-                cx = width / 2
-                cy = height / 2
-                value = symbol["value"]
-                # Draw the window controls geometrically instead of using font glyphs.
-                # Font metrics make X/minimize/maximize symbols look subtly off-center
-                # on different platforms and scaling levels.
-                icon = {"\u00d7": "close", "\u2212": "minimize", "\u25a1": "maximize", "\u2750": "maximize"}.get(value)
-                image = self.line_icon(icon, self.px(24), text_color) if icon else None
-                if image is not None:
-                    button.create_image(cx, cy, image=image, anchor="center")
-                    button._memorypal_icon = image
-                else:
-                    self.create_centered_canvas_text(button, cx, cy, value, fill=text_color, font=self.font("Segoe UI Symbol", 12))
-
-            def set_symbol(value):
-                symbol["value"] = value
-                draw()
-
-            draw()
-            button.set_symbol = set_symbol
-            button.bind("<Button-1>", lambda _event: command())
-            button.bind("<Enter>", lambda _event: draw(True), add="+")
-            button.bind("<Leave>", lambda _event: draw(False), add="+")
-            if hint:
-                self.add_tooltip(button, hint)
-            return button
-
-        if show_minimize:
-            chrome_button("\u2212", self.minimize_app, hint="Minimize")
-        if show_fullscreen:
-            self.chrome_fullscreen_button = chrome_button("\u2750" if self.is_focus_window else "\u25a1", self.toggle_focus_window, hint="Toggle borderless focus. Press " + ("Control-Command-F" if IS_MAC else "F11") + " for true fullscreen.")
-        close = chrome_button("\u00d7", close_command, COLORS["danger"], COLORS["white"], "Close")
-        return bar
-
     def ensure_nav_item_visible(self, key):
         """Every tab always shows, so this only moves the selection."""
         self.refresh_nav_selection(key)
@@ -3904,11 +3243,6 @@ class MemoryPalApp(tk.Tk):
         root = ttk.Frame(self, style="Root.TFrame")
         root.pack(fill="both", expand=True)
 
-        if self.use_native_window_chrome:
-            self.app_chrome = None
-        else:
-            self.app_chrome = self.render_window_chrome(root, APP_NAME, close_command=self.destroy)
-
         self.app_body = ttk.Frame(root, style="Root.TFrame")
         self.app_body.pack(fill="both", expand=True)
         self.app_body.bind("<Configure>", self.layout_app_body, add="+")
@@ -3974,19 +3308,6 @@ class MemoryPalApp(tk.Tk):
         # A rounded message pill (drawn on a canvas so its corners blend into
         # whatever it floats over), like the rounded buttons and dialogs.
         self.toast = tk.Canvas(self, highlightthickness=0, bd=0, bg=COLORS["bg"])
-        # Invisible grips along the window edge: the cursor shows where to
-        # drag, so they need no grey strip or corner square of their own.
-        right_grip = tk.Frame(self, bg=COLORS["bg"], cursor="sb_h_double_arrow")
-        bottom_grip = tk.Frame(self, bg=COLORS["bg"], cursor="sb_v_double_arrow")
-        corner_grip = tk.Frame(self, bg=COLORS["bg"], cursor="bottom_right_corner")
-        self.resize_grips = [right_grip, bottom_grip, corner_grip]
-        right_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "e"), add="+")
-        bottom_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "s"), add="+")
-        corner_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "se"), add="+")
-        for grip in self.resize_grips:
-            grip.bind("<B1-Motion>", self.resize_window, add="+")
-            grip.bind("<ButtonRelease-1>", self.stop_resize, add="+")
-        self.set_resize_grips_visible(not self.is_fullscreen and not self.use_native_window_chrome)
         self.after_idle(self.layout_app_body)
 
     def refresh_header_status(self):
@@ -4516,7 +3837,6 @@ class MemoryPalApp(tk.Tk):
     def open_profile_manager(self):
         top = tk.Toplevel(self)
         top.withdraw()
-        self.make_dialog_frame(top)
         top.title("Profiles")
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
@@ -4525,8 +3845,6 @@ class MemoryPalApp(tk.Tk):
 
         shell = tk.Frame(top, bg=COLORS["bg"])
         shell.pack(fill="both", expand=True)
-        if not self.use_native_window_chrome:
-            self.render_window_chrome(shell, "Profiles", top.destroy, window=top, show_minimize=False, show_fullscreen=False)
 
         wrap = tk.Frame(shell, bg=COLORS["bg"], padx=self.px(20), pady=self.px(20))
         wrap.pack(fill="both", expand=True)
@@ -4688,32 +4006,19 @@ class MemoryPalApp(tk.Tk):
                 pass
         self._toast_after = self.after(self.pace(2600), self.toast.place_forget)
 
-    def make_dialog_frame(self, top):
-        """Give a titled popup the platform's frame.
-
-        On Windows the app draws its own title bar, so popups are borderless
-        and draw the same bar. A Mac keeps the native frame, with the close
-        button top-left where Mac people look for it, like the main window.
-        """
-        if not self.use_native_window_chrome:
-            top.overrideredirect(True)
-
     def dialog_window(self, title, body="", parent=None, width=480):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
         # confirmations do not fall back to old stock Tk dialog boxes.
         owner = parent or self
         top = tk.Toplevel(owner)
         top.withdraw()
-        self.make_dialog_frame(top)
         top.title(title)
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
         self.own_window(top, owner)
         top.resizable(False, False)
         top.configure(bg=COLORS["surface"])
-        if not self.use_native_window_chrome:
-            self.render_window_chrome(top, title, top.destroy, window=top, show_minimize=False, show_fullscreen=False)
-        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(24), pady=self.px(4 if not self.use_native_window_chrome else 20))
+        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(24), pady=self.px(20))
         shell.pack(fill="both", expand=True)
         heading = tk.Label(shell, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), wraplength=self.px(width - 70), justify="left", anchor="w")
         self.fit_wrap(heading, pady=(0, self.px(6) if body else self.px(10)))
@@ -11972,19 +11277,9 @@ class MemoryPalApp(tk.Tk):
         window_card = self.card(grid, "Card.TFrame", 22)
         window_card.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
         ttk.Label(window_card, text="Window", style="H2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(window_card, text="F11 uses true fullscreen. The titlebar square uses borderless focus mode.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
-        state_row = tk.Frame(window_card, bg=COLORS["surface"])
-        state_row.pack(fill="x", pady=(0, 12))
-        self.render_status_chip(state_row, "True fullscreen on" if self.is_fullscreen else "True fullscreen off", COLORS["green"] if self.is_fullscreen else COLORS["alt"], self.on_color(COLORS["green"]) if self.is_fullscreen else COLORS["muted"])
-        self.render_status_chip(state_row, "Focus window on" if self.is_focus_window else "Focus window off", COLORS["primary"] if self.is_focus_window else COLORS["alt"], self.on_color(COLORS["primary"]) if self.is_focus_window else COLORS["muted"])
-        self.button_row(
-            window_card,
-            [
-                ("True fullscreen", self.toggle_true_fullscreen, "TButton"),
-                ("Focus window", self.toggle_focus_window, "TButton"),
-            ],
-            "Card.TFrame",
-        )
+        keys = "Control-Command-F" if IS_MAC else "F11"
+        self.fit_wrap(ttk.Label(window_card, text=f"Full screen hides everything but MemoryPal. {keys} turns it on or off, and Esc leaves it.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
+        self.button_row(window_card, [("Leave full screen" if self.is_fullscreen else "Full screen", self.toggle_true_fullscreen, "TButton")], "Card.TFrame")
 
         profile_card = self.card(grid, "Card.TFrame", 22)
         profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 12))
