@@ -66,7 +66,7 @@ from memorypal.paths import (
 from memorypal import cloud, cloud_config, drive, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
-from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme
+from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
 from memorypal import ai, aiflow
 from memorypal import questions as quiz_questions
 from memorypal.speech import Speaker
@@ -94,7 +94,7 @@ def shortcut(key):
     return f"\u2318{key}" if IS_MAC else f"Ctrl+{key}"
 
 
-BACK_SHORTCUT = "\u2318[" if IS_MAC else "Alt + Left"
+BACK_SHORTCUT = "\u2318[" if IS_MAC else "Alt+Left"
 
 
 def platform_text(text):
@@ -328,140 +328,51 @@ def flush_pending_paint(widget):
         return 0
 
 
-def show_screen_cover(width, height, left=0, top=0, source=None):
-    """Put a pixel-identical, topmost snapshot of part of the screen over it.
+class FieldText(tk.Text):
+    """A text box inside a rounded field frame (MemoryPalApp.text_box).
 
-    The captured bitmap is handed straight to a layered popup window
-    (UpdateLayeredWindow), so it appears atomically with no Tk image
-    conversion. The window never takes focus, ignores the mouse (clicks and
-    drags go to the app underneath), and doesn't show in the taskbar.
-
-    With `source` (a widget at left/top), its pixels are copied from its own
-    window instead of the screen, which reads memory rather than the
-    composed screen (about 1ms instead of 10-50ms). That copy doesn't
-    include windows overlapping the app, so the snapshot is slotted into the
-    z-order directly above the app's top-level window, below anything
-    already above it (dialogs, tooltips, other programs).
-    Returns a handle for remove_screen_cover, or None if unavailable.
+    Callers place and remove it like any widget; that is passed on to the
+    frame, which draws the rounded edge and the focus ring around the text.
     """
-    if not sys.platform.startswith("win"):
-        return None
-    try:
-        import ctypes
-        from ctypes import wintypes
 
-        class BlendFunction(ctypes.Structure):
-            _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte),
-                        ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
+    def __init__(self, field, **options):
+        super().__init__(field, **options)
+        self.field = field
 
-        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
-        user32.CreateWindowExW.restype = wintypes.HWND
-        user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
-                                           ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-                                           wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
-        source_hwnd = source.winfo_id() if source is not None else 0
-        app_hwnd = user32.GetAncestor(source_hwnd, 2) if source_hwnd else 0  # GA_ROOT
-        topmost = not app_hwnd or bool(user32.GetWindowLongW(app_hwnd, -20) & 0x00000008)  # GWL_EXSTYLE, WS_EX_TOPMOST
-        screen_dc = user32.GetDC(0)
-        source_dc = user32.GetDC(source_hwnd) if source_hwnd else screen_dc
-        memory_dc = gdi32.CreateCompatibleDC(screen_dc)
-        bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
-        previous = gdi32.SelectObject(memory_dc, bitmap)
-        hwnd = None
-        try:
-            if source_hwnd:
-                gdi32.BitBlt(memory_dc, 0, 0, width, height, source_dc, 0, 0, 0x00CC0020)  # SRCCOPY
-            else:
-                gdi32.BitBlt(memory_dc, 0, 0, width, height, screen_dc, left, top, 0x00CC0020)
-            # WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE (+ WS_EX_TOPMOST), WS_POPUP
-            ex_style = 0x00080000 | 0x00000020 | 0x00000080 | 0x08000000 | (0x00000008 if topmost else 0)
-            hwnd = user32.CreateWindowExW(ex_style, "STATIC", None, 0x80000000, left, top, width, height, None, None, None, None)
-            if not hwnd:
-                return None
-            origin, size = wintypes.POINT(left, top), wintypes.SIZE(width, height)
-            blend = BlendFunction(0, 0, 255, 0)
-            if not user32.UpdateLayeredWindow(hwnd, screen_dc, ctypes.byref(origin), ctypes.byref(size), memory_dc,
-                                              ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4):  # ULW_OPAQUE
-                user32.DestroyWindow(hwnd)
-                return None
-            insert_after = 0  # HWND_TOP of the cover's band
-            if app_hwnd:
-                above = user32.GetWindow(app_hwnd, 3)  # GW_HWNDPREV: the window right above the app
-                # A topmost window above a normal app marks the top of the
-                # normal band, where HWND_TOP already lands.
-                if above and topmost == bool(user32.GetWindowLongW(above, -20) & 0x00000008):
-                    insert_after = above
-            # Slot it in (SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE), then show
-            # it where it is; SWP_SHOWWINDOW here left layered windows hidden.
-            user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
-            user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE
-            ctypes.windll.dwmapi.DwmFlush()  # make sure it is on screen before anything changes
-            return hwnd
-        finally:
-            gdi32.SelectObject(memory_dc, previous)
-            gdi32.DeleteObject(bitmap)
-            gdi32.DeleteDC(memory_dc)
-            if source_hwnd:
-                user32.ReleaseDC(source_hwnd, source_dc)
-            user32.ReleaseDC(0, screen_dc)
-    except (AttributeError, OSError, tk.TclError):
-        return None
+    def pack_configure(self, *args, **kwargs):
+        self.field.pack_configure(*args, **kwargs)
 
+    def grid_configure(self, *args, **kwargs):
+        self.field.grid_configure(*args, **kwargs)
 
-def refresh_screen_cover(cover, width, height, source):
-    """Show a fresh copy of `source` in an existing cover, in one frame.
+    def place_configure(self, *args, **kwargs):
+        self.field.place_configure(*args, **kwargs)
 
-    Used while scrolling: one cover stays up for the whole scroll and each
-    step swaps its picture, instead of a cover being made and removed for
-    every step (each of those waited for the screen twice, which halved the
-    frame rate). Waits for the next screen refresh, which paces the steps.
-    Returns False if the picture couldn't be swapped.
-    """
-    if not sys.platform.startswith("win"):
-        return False
-    try:
-        import ctypes
-        from ctypes import wintypes
+    def pack_forget(self):
+        self.field.pack_forget()
 
-        class BlendFunction(ctypes.Structure):
-            _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte),
-                        ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
+    def grid_forget(self):
+        self.field.grid_forget()
 
-        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
-        source_hwnd = source.winfo_id()
-        screen_dc = user32.GetDC(0)
-        source_dc = user32.GetDC(source_hwnd)
-        memory_dc = gdi32.CreateCompatibleDC(screen_dc)
-        bitmap = gdi32.CreateCompatibleBitmap(screen_dc, width, height)
-        previous = gdi32.SelectObject(memory_dc, bitmap)
-        try:
-            gdi32.BitBlt(memory_dc, 0, 0, width, height, source_dc, 0, 0, 0x00CC0020)  # SRCCOPY
-            size = wintypes.SIZE(width, height)
-            blend = BlendFunction(0, 0, 255, 0)
-            # No position: the cover stays where it is, only its picture changes.
-            done = user32.UpdateLayeredWindow(cover, screen_dc, None, ctypes.byref(size), memory_dc,
-                                              ctypes.byref(wintypes.POINT(0, 0)), 0, ctypes.byref(blend), 0x4)  # ULW_OPAQUE
-            if done:
-                ctypes.windll.dwmapi.DwmFlush()
-            return bool(done)
-        finally:
-            gdi32.SelectObject(memory_dc, previous)
-            gdi32.DeleteObject(bitmap)
-            gdi32.DeleteDC(memory_dc)
-            user32.ReleaseDC(source_hwnd, source_dc)
-            user32.ReleaseDC(0, screen_dc)
-    except (AttributeError, OSError, tk.TclError):
-        return False
+    def grid_remove(self):
+        self.field.grid_remove()
 
+    def place_forget(self):
+        self.field.place_forget()
 
-def remove_screen_cover(cover):
-    try:
-        import ctypes
+    pack = pack_configure
+    grid = grid_configure
+    place = place_configure
+    forget = pack_forget
 
-        ctypes.windll.dwmapi.DwmFlush()  # let the finished window be composed underneath first
-        ctypes.windll.user32.DestroyWindow(cover)
-    except (AttributeError, OSError):
-        pass
+    def destroy(self):
+        field, self.field = self.field, None
+        super().destroy()
+        if field is not None:
+            try:
+                field.destroy()
+            except tk.TclError:
+                pass
 
 
 class ScrollFrame(ttk.Frame):
@@ -504,12 +415,11 @@ class ScrollFrame(ttk.Frame):
         self._glide_last = {}
         self._wheel_after = None
         self._presenting = False
-        self._live_cover = None  # (window, geometry) of the snapshot kept up while scrolling
-        self._live_cover_after = None
         self._glide_time = None
         self._fine_timers = False
         self._frame_ms = self.FRAME_MS
         self._last_step = 0.0
+        self._step_cost = None  # recent milliseconds one scroll step takes to draw
         self._idle_after = None
         self._touchpad_time = -1.0
         self._last_wheel_event = 0.0
@@ -761,15 +671,31 @@ class ScrollFrame(ttk.Frame):
         self._wheel_after = self.after(wait, self._scroll_step)
 
     def _frame_wait(self):
-        """Milliseconds to wait so the next step starts just after a refresh."""
+        """Milliseconds to wait so the next step starts just after a refresh.
+
+        A page that takes longer than one refresh to draw used to step "as
+        soon as it could", so its steps landed on uneven refreshes (two in
+        one, none in the next): that reads as judder, worst on 120-165Hz
+        screens and on long pages. Instead it steps on every second (or
+        third) refresh on fast screens (see scrolling.frames_per_step); the
+        glide is timed, so each step simply moves further and stays even.
+        """
+        frame = self._frame_ms
         spent = (time.perf_counter() - self._last_step) * 1000
+        every = scrolling.frames_per_step(self._step_cost, frame)
         ahead = ms_to_next_vblank()
-        if ahead is None or spent > self._frame_ms * 0.85:
-            # No refresh timing, or this page takes about a frame to draw:
-            # waiting for the next refresh would halve the rate, so go now.
-            return max(1, round(self._frame_ms - spent))
-        # Starting right after the refresh leaves the whole frame for drawing.
-        return max(1, int(ahead) + 1)
+        if every == 1:
+            if ahead is None or spent > frame * 0.85:
+                # No refresh timing, or this page takes about a frame to
+                # draw: waiting for the next refresh would halve the rate.
+                return max(1, round(frame - spent))
+            # Starting right after the refresh leaves the whole frame for drawing.
+            return max(1, int(ahead) + 1)
+        due = every * frame - spent
+        wait = (ahead if ahead is not None else 0) + 1
+        while wait < due - frame * 0.5:
+            wait += frame
+        return max(1, int(wait))
 
     def _flush_wheel(self):
         self._scroll_step()
@@ -831,9 +757,14 @@ class ScrollFrame(ttk.Frame):
                 self._glide_last.pop(axis, None)
                 self._glide_tau.pop(axis, None)
             moves[axis] = moves.get(axis, 0) + step
+        drew = False
         for axis, pixels in moves.items():
             if pixels:
                 self._scroll_pixels(pixels, axis=axis)
+                drew = True
+        if drew:
+            cost = (time.perf_counter() - now) * 1000
+            self._step_cost = cost if self._step_cost is None else self._step_cost * 0.75 + cost * 0.25
         self._last_step = now
         if self._wheel_targets and not self._destroyed:
             self._wheel_after = self.after(self._frame_wait(), self._scroll_step)
@@ -899,71 +830,18 @@ class ScrollFrame(ttk.Frame):
         runs from a timer and immediately draws the newly exposed area.
         Moves are never nested: one requested while painting runs as its own
         frame afterwards.
-
-        `distance` is how far the move goes in pixels, if known. Short moves
-        (wheel and touchpad steps) are blitted by Windows and only a thin
-        strip is drawn fresh, so they skip the snapshot cover: copying the
-        window into the cover and waiting for it to be composed took about
-        16ms a step, which held scrolling to half the screen's frame rate.
         """
         if self._presenting:
             self.after(1, lambda: self._present(move, distance))
             return
         self._presenting = True
-        cover = None
         try:
-            # Even painted straight away, Windows composited frames where the
-            # cards had moved but their text wasn't drawn yet (tearing). A
-            # snapshot of just the scrolling area hides each step until it
-            # is fully drawn, then the new position appears in one frame.
-            # The snapshot stays up while scrolling continues; each step only
-            # swaps its picture (see refresh_screen_cover).
-            root = self.winfo_toplevel()
-            geometry = None
-            if not getattr(root, "use_native_window_chrome", True) and not getattr(root, "_hidden_active", False):
-                width, height = self.viewport.winfo_width(), self.viewport.winfo_height()
-                if width > 1 and height > 1:
-                    geometry = (width, height, self.viewport.winfo_rootx(), self.viewport.winfo_rooty())
-            small = distance is not None and distance <= self.viewport.winfo_height() / 3
-            if small:
-                geometry = None
-            live = self._live_cover
-            if live is not None and live[1] != geometry:
-                self._release_live_cover()
-                live = None
-            if live is None and geometry is not None:
-                cover = show_screen_cover(*geometry, source=self.viewport)
             move()
             self._sync_scrollbars()
             self.viewport.update_idletasks()
             flush_pending_paint(self.viewport)
-            if live is not None:
-                if not refresh_screen_cover(live[0], geometry[0], geometry[1], self.viewport):
-                    self._release_live_cover()
-            elif cover is not None:
-                if refresh_screen_cover(cover, geometry[0], geometry[1], self.viewport):
-                    self._live_cover, cover = (cover, geometry), None
         finally:
             self._presenting = False
-            if cover is not None:
-                remove_screen_cover(cover)
-            if self._live_cover is not None:
-                # Taken down once scrolling has paused; by then the window
-                # underneath shows exactly the same picture.
-                if self._live_cover_after is not None:
-                    self.after_cancel(self._live_cover_after)
-                self._live_cover_after = self.after(90, self._release_live_cover)
-
-    def _release_live_cover(self):
-        if self._live_cover_after is not None:
-            try:
-                self.after_cancel(self._live_cover_after)
-            except tk.TclError:
-                pass
-            self._live_cover_after = None
-        live, self._live_cover = self._live_cover, None
-        if live is not None:
-            remove_screen_cover(live[0])
 
     def _scrollbar_yview(self, *args):
         self._scrollbar_view("y", args)
@@ -1103,7 +981,6 @@ class ScrollFrame(ttk.Frame):
 
     def destroy(self):
         self._destroyed = True
-        self._release_live_cover()
         if self._idle_after is not None:
             try:
                 self.after_cancel(self._idle_after)
@@ -1161,38 +1038,62 @@ class Tooltip:
         root = self.widget._root()
         return root.px(value) if hasattr(root, "px") else value
 
+    @staticmethod
+    def tidy(text):
+        """A short one-line tip reads as a label, without a full stop, as
+        system tooltips do; longer explanations keep theirs."""
+        text = str(text).strip()
+        if len(text) <= 72 and text.endswith(".") and text.count(". ") == 0 and not text.endswith(".."):
+            return text[:-1]
+        return text
+
     def show(self):
         if self.tip or not self.text:
             return
+        root = self.widget._root()
         self.tip = tk.Toplevel(self.widget)
         self.tip.withdraw()
         self.tip.wm_overrideredirect(True)
+        try:
+            self.tip.attributes("-alpha", 0.0)
+        except tk.TclError:
+            pass
+        # Small and quiet like the system's own tips: caption-size text on a
+        # raised surface with a hairline edge (Windows 11 rounds it below).
+        self.tip.configure(bg=COLORS["surface_soft"], highlightthickness=1, highlightbackground=COLORS["line"])
         label = tk.Label(
             self.tip,
-            text=self.text,
-            # A raised surface with a hairline edge: on the rail, a rail-coloured
-            # tip had no visible box and read as stray text.
+            text=self.tidy(self.text),
             bg=COLORS["surface_soft"],
             fg=COLORS["ink"],
-            highlightthickness=1,
-            highlightbackground=COLORS["line"],
-            padx=self._px(10),
-            pady=self._px(7),
+            padx=self._px(9),
+            pady=self._px(5),
             justify="left",
-            wraplength=self._px(280),
-            font=self.widget._root().font("Segoe UI", 11) if hasattr(self.widget._root(), "font") else ("Segoe UI", 11),
+            wraplength=self._px(300),
+            font=root.font("Segoe UI", 10) if hasattr(root, "font") else ("Segoe UI", 10),
         )
         label.pack()
-        # Below the widget, nudged right; flipped above or shifted left when
-        # it would run off the screen edge.
+        # Under the pointer, as system tips are; flipped above or shifted
+        # left when it would run off the screen edge.
         self.tip.update_idletasks()
         width, height = self.tip.winfo_reqwidth(), self.tip.winfo_reqheight()
-        left, top = self.widget.winfo_rootx() + self._px(18), self.widget.winfo_rooty()
-        anchor = (left, top, left, top + self.widget.winfo_height())
+        try:
+            pointer_x = self.widget.winfo_pointerx()
+        except tk.TclError:
+            pointer_x = self.widget.winfo_rootx()
+        top = self.widget.winfo_rooty()
+        anchor = (pointer_x - self._px(4), top, pointer_x - self._px(4), top + self.widget.winfo_height())
         screen = (0, 0, self.widget.winfo_screenwidth(), self.widget.winfo_screenheight())
-        x, y, width, height = popup_geometry.fit_popup_rect(width, height, anchor, screen, gap=self._px(8), margin=self._px(8))
+        x, y, width, height = popup_geometry.fit_popup_rect(width, height, anchor, screen, gap=self._px(6), margin=self._px(8))
         self.tip.wm_geometry(f"+{x}+{y}")
         self.tip.deiconify()
+        try:
+            if hasattr(root, "window_handle") and windowtheme.round_popup(root.window_handle(self.tip), COLORS["line"], small=True):
+                self.tip.configure(highlightthickness=0)
+            self.tip.update_idletasks()
+            self.tip.attributes("-alpha", 1.0)
+        except tk.TclError:
+            pass
 
     def hide(self, _event=None):
         self.cancel()
@@ -1204,12 +1105,7 @@ class Tooltip:
 class MemoryPalApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.use_native_window_chrome = sys.platform == "darwin"
-        self._chrome_update_active = False
-        self._taskbar_ready = False
         self.withdraw()
-        if not self.use_native_window_chrome:
-            self.overrideredirect(True)
         self.resizable(True, True)
         try:
             self.attributes("-alpha", 0.0)
@@ -1247,16 +1143,9 @@ class MemoryPalApp(tk.Tk):
         self.deck_filter = None
         self._hotkeys_bound = False
         self.is_fullscreen = False
-        self.is_focus_window = False
-        self.restoring_borderless = False
-        self.window_transition_active = False
         self.page_transition_image = None
         self.page_transition_canvas = None
         self.page_transition_photo = None
-        self.normal_geometry = ""
-        self.drag_start = None
-        self.resize_start = None
-        self.pending_resize_geometry = None
         self.root_cover = None
         self.logo_photo_cache = {}
         self.shape_photo_cache = {}
@@ -1285,14 +1174,13 @@ class MemoryPalApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         if IS_MAC:
             self.install_mac_menus()
-        self.bind("<Map>", self.restore_window_chrome, add="+")
         self.bind("<F11>", lambda _event: self.toggle_true_fullscreen())
         for sequence in ("<Control-Command-f>", "<Command-Control-f>"):
             try:
                 self.bind(sequence, lambda _event: self.toggle_true_fullscreen(), add="+")
             except tk.TclError:
                 pass
-        self.bind("<Escape>", lambda _event: self.exit_fullscreen_or_focus())
+        self.bind("<Escape>", lambda _event: self.exit_fullscreen())
         self.bind("<Alt-Left>", lambda _event: self.go_back())
         if IS_MAC:
             # ⌘[ is Back in Finder, Safari and every Mac app with history.
@@ -1306,7 +1194,6 @@ class MemoryPalApp(tk.Tk):
                 self.bind_class(widget_class, sequence, self.open_page_finder)
         self.bind("<Configure>", self.handle_window_configure, add="+")
         self.update_idletasks()
-        self._taskbar_ready = self.ensure_taskbar_presence()
         self.tour = None
         # Map the window while it is still fully transparent, build and settle
         # the first page, then show the finished frame in one step (no fade).
@@ -1314,7 +1201,6 @@ class MemoryPalApp(tk.Tk):
         self.show_view(self.start_view(), transition=False)
         self.settle_layout()
         self.reveal_window(self)
-        self.after(120, lambda: setattr(self, "_taskbar_ready", self.ensure_taskbar_presence()))
         self._ui_ready = True
 
     def install_mac_menus(self):
@@ -1372,129 +1258,45 @@ class MemoryPalApp(tk.Tk):
         menubar.add_cascade(label="Help", menu=help_menu)
         self.configure(menu=menubar)
 
-    def capture_normal_geometry(self):
-        if not self.is_fullscreen and not self.is_focus_window:
-            self.normal_geometry = self.geometry()
-
     def toggle_true_fullscreen(self):
-        if self.window_transition_active:
-            return
+        """F11 (Control-Command-F on a Mac): the system's own full screen."""
         target = not self.is_fullscreen
-        if target and not self.is_focus_window:
-            self.capture_normal_geometry()
-        # Going fullscreen is only a resize; the shell reflows in place, so
-        # there is nothing to hide behind a blank cover.
-        self.window_transition_active = True
-        self.after_idle(lambda: self.apply_true_fullscreen(target))
+        if not self.native_fullscreen(target):
+            try:
+                self.attributes("-fullscreen", target)
+            except tk.TclError as exc:
+                self.dialog_alert("Full screen isn't available", str(exc), "error")
+                return
+        self.settle_layout()
+        self.is_fullscreen = target
+        if getattr(self, "current_view", None) == "settings":
+            self.after_idle(lambda: self.show_view("settings"))
 
-    def apply_true_fullscreen(self, target):
-        # Tk refuses the -fullscreen attribute on an override-redirect
-        # (borderless) window, so there a screen-sized borderless window
-        # is the fullscreen; it already covers the taskbar.
-        borderless = bool(self.overrideredirect())
-        screen = (self.winfo_screenwidth(), self.winfo_screenheight())
-
-        def change():
-            if target:
-                self.is_focus_window = False
-                self.is_fullscreen = True
-                if borderless:
-                    self.geometry(f"{screen[0]}x{screen[1]}+0+0")
-                else:
-                    self.attributes("-fullscreen", True)
-            else:
-                if not borderless:
-                    self.attributes("-fullscreen", False)
-                self.is_fullscreen = False
-                if self.normal_geometry:
-                    self.geometry(self.normal_geometry)
-
-        size = screen if target else self.geometry_size(self.normal_geometry)
-        self.restoring_borderless = True
-        try:
-            self.run_window_change(change, size)
-        except tk.TclError as exc:
-            self.is_fullscreen = False
-            self.dialog_alert("Fullscreen unavailable", str(exc), "error")
-        finally:
-            self.restoring_borderless = False
-            self.window_transition_active = False
-
-    def toggle_focus_window(self):
-        if self.window_transition_active:
-            return
-        self.window_transition_active = True
-        self.after_idle(self.apply_focus_window)
-
-    def apply_focus_window(self):
-        entering = not self.is_focus_window
-        if entering and not self.is_fullscreen:
-            self.capture_normal_geometry()
-        screen = (self.winfo_screenwidth(), self.winfo_screenheight())
-
-        def change():
-            if self.is_fullscreen:
-                if not self.overrideredirect():
-                    self.attributes("-fullscreen", False)
-                self.is_fullscreen = False
-            if entering:
-                self.geometry(f"{screen[0]}x{screen[1]}+0+0")
-                self.is_focus_window = True
-            else:
-                if self.normal_geometry:
-                    self.geometry(self.normal_geometry)
-                self.is_focus_window = False
-                self.enable_borderless_chrome()
-
-        size = screen if entering else self.geometry_size(self.normal_geometry)
-        try:
-            self.run_window_change(change, size)
-        except tk.TclError:
-            pass
-        finally:
-            self.window_transition_active = False
+    def native_fullscreen(self, target):
+        """Windows: switch by changing the window's style (see winfullscreen),
+        keeping the same window so its dark frame and background stay and
+        nothing flashes white. False means Tk's own full screen should run."""
+        if not sys.platform.startswith("win"):
+            return False
+        hwnd = self.window_handle(self)
+        if target:
+            self._fullscreen_saved = winfullscreen.enter(hwnd)
+            return self._fullscreen_saved is not None
+        saved, self._fullscreen_saved = getattr(self, "_fullscreen_saved", None), None
+        return winfullscreen.leave(hwnd, saved)
 
     @staticmethod
     def geometry_size(geometry):
         match = re.match(r"(\d+)x(\d+)", geometry or "")
         return (int(match.group(1)), int(match.group(2))) if match else None
 
-    def run_window_change(self, change, target_size=None):
-        """Resize the window with every layout and paint pass hidden.
-
-        A pixel-identical snapshot of the screen is shown on top, then the
-        window is resized and all follow-up work (Configure events that
-        rewrap text, page reflow, scroll regions, painting) is settled
-        underneath; removing the snapshot swaps to the finished result in a
-        single frame. Pausing paint alone can't do that, since Windows shows
-        the resized window, new area still blank, before Tk paints it. If no
-        snapshot is available, fall back to pausing paint with the shell laid
-        out at the target size in advance.
-        """
-        cover = None
-        if not self.use_native_window_chrome:
-            cover = show_screen_cover(self.winfo_screenwidth(), self.winfo_screenheight())
-        frozen = False if cover is not None else self.set_redraw_frozen(True)
-        try:
-            if target_size and cover is None:
-                self.prelayout_shell(*target_size)
-            change()
-            self.update_window_controls()
-            self.settle_layout()
-        finally:
-            if frozen:
-                self.set_redraw_frozen(False)
-            flush_pending_paint(self)
-            if cover is not None:
-                remove_screen_cover(cover)
-
     def smooth(self, rebuild):
         """Wrap an in-page rebuild so it swaps in finished, in one frame.
 
         Rebuilding part of a page (new buttons, a different number of rows,
         a taller or shorter section) paints each geometry pass as it happens,
-        which reads as a flash and a jump. The wrapped function runs under the
-        same pixel-identical snapshot used for page switches. While a page is
+        which reads as a flash and a jump. The wrapped function runs with
+        painting paused, like page switches (run_hidden_change). While a page is
         first being built, or inside another hidden change, it just runs.
         """
         def run(*args, **kwargs):
@@ -1513,30 +1315,21 @@ class MemoryPalApp(tk.Tk):
         return run
 
     def run_hidden_change(self, change, fallback=None):
-        """Run a big in-window change with the calculation gap hidden.
+        """Run a big in-window change and show only the finished result.
 
-        Same idea as run_window_change, without a resize: a pixel-identical
-        snapshot of the screen (or, failing that, frozen painting) covers the
-        window while the change is built and every layout pass settles, then
-        the finished result replaces the snapshot in a single frame. Nothing
-        half-built, unstyled, or blank is ever painted in between.
-
-        When neither hiding method is available (macOS/native chrome, or the
-        window is not visible yet), run `fallback` instead, which should use
-        the older in-window canvas cover.
+        Painting is paused while the change is built and every layout pass
+        settles, then the window repaints once (WM_SETREDRAW, the usual
+        BeginUpdate/EndUpdate of Windows apps), so nothing half-built or
+        blank is painted in between. Where painting can't be paused (macOS,
+        or the window isn't visible yet), run `fallback` instead, or the
+        change as it is.
         """
-        cover = None
-        frozen = False
         try:
             viewable = bool(self.winfo_viewable())
         except tk.TclError:
             viewable = False
-        if viewable and not self.use_native_window_chrome:
-            # Only the app window changes here (no resize), so copy just it.
-            cover = show_screen_cover(self.winfo_width(), self.winfo_height(), self.winfo_rootx(), self.winfo_rooty(), source=self)
-            if cover is None:
-                frozen = self.set_redraw_frozen(True)
-        if cover is None and not frozen:
+        frozen = viewable and self.set_redraw_frozen(True)
+        if not frozen:
             (fallback or change)()
             return
         self._hidden_active = True
@@ -1545,24 +1338,8 @@ class MemoryPalApp(tk.Tk):
             self.settle_layout()
         finally:
             self._hidden_active = False
-            if frozen:
-                self.set_redraw_frozen(False)
+            self.set_redraw_frozen(False)
             flush_pending_paint(self)
-            if cover is not None:
-                remove_screen_cover(cover)
-
-    def prelayout_shell(self, width, height):
-        """Lay the tab bar and main area out for a window size not applied yet."""
-        chrome = getattr(self, "app_chrome", None)
-        try:
-            chrome_h = chrome.winfo_height() if chrome is not None and chrome.winfo_ismapped() else 0
-            body_h = max(1, height - chrome_h)
-            bar = self.tab_bar_height()
-            self.rail.place_configure(width=width, height=bar, relwidth=0, relheight=0)
-            self.main.place_configure(width=width, height=max(1, body_h - bar), relwidth=0, relheight=0)
-        except (AttributeError, tk.TclError):
-            return
-        self.settle_layout(relayout_shell=False)
 
     def settle_layout(self, rounds=6, relayout_shell=True):
         # Configure-driven work (label rewrapping, scroll regions) runs from
@@ -1586,29 +1363,7 @@ class MemoryPalApp(tk.Tk):
         wrapper's redraw is off Windows reports it as hidden and Tk skips the
         pending resize entirely. Returns True if painting was changed.
         """
-        if self.use_native_window_chrome:
-            return False
         return set_window_redraw(self, not frozen)
-
-    def finish_window_transition_cover(self, cover):
-        # Compatibility helper for callers that want to end a window veil.
-        self.destroy_transition_cover(cover)
-        self.window_transition_active = False
-
-    def update_window_controls(self):
-        if hasattr(self, "chrome_fullscreen_button") and self.chrome_fullscreen_button.winfo_exists():
-            symbol = "\u2750" if self.is_focus_window else "\u25a1"
-            if hasattr(self.chrome_fullscreen_button, "set_symbol"):
-                self.chrome_fullscreen_button.set_symbol(symbol)
-            else:
-                self.chrome_fullscreen_button.configure(text=symbol)
-        if getattr(self, "app_chrome", None) is not None and self.app_chrome.winfo_exists():
-            if not self.app_chrome.winfo_ismapped():
-                self.app_chrome.pack(fill="x", before=self.app_body)
-        if self.is_fullscreen or self.use_native_window_chrome:
-            self.set_resize_grips_visible(False)
-        else:
-            self.set_resize_grips_visible(True)
 
     def raise_widget(self, widget):
         try:
@@ -1625,7 +1380,9 @@ class MemoryPalApp(tk.Tk):
             return
         current_x = (bbox[0] + bbox[2]) / 2
         current_y = (bbox[1] + bbox[3]) / 2
-        canvas.move(item, x - current_x, y - current_y)
+        # Whole pixels: a half-pixel move lands on whichever side Tk rounds
+        # to, which put letters a pixel off centre in round buttons.
+        canvas.move(item, round(x - current_x), round(y - current_y))
 
     ICON_FONTS = ("Segoe MDL2 Assets", "Segoe Fluent Icons", "Segoe UI Symbol", "Segoe UI Emoji")
 
@@ -1658,6 +1415,11 @@ class MemoryPalApp(tk.Tk):
             height = int(height)
             inset = int(inset)
             radius = int(radius if radius is not None else height / 2)
+            # A radius past half the shape made Pillow clip the corners (the
+            # round profile button came out with flat top and left edges).
+            radius = min(radius, (min(width, height) - 2 * inset) // 2)
+            if shape != "oval" and width == height and radius * 2 >= width - 2 * inset:
+                shape = "oval"
             key = (width, height, fill, shape, radius, inset)
             photo = self.shape_photo_cache.get(key)
             if photo is None:
@@ -1712,7 +1474,6 @@ class MemoryPalApp(tk.Tk):
         rgb = self.hex_to_rgb(fill)
         if rgb is None or width < 1 or height < 1:
             return None
-        radius = max(0, min(float(radius or 0), width / 2, height / 2))
         inset = max(0, float(inset))
         scale = 4 if max(width, height) <= 90 else 3
         samples = scale * scale
@@ -1720,6 +1481,9 @@ class MemoryPalApp(tk.Tk):
         y0 = inset
         x1 = max(x0, width - inset)
         y1 = max(y0, height - inset)
+        # Measured inside the inset: a radius past half the inset box flattened
+        # the top and left of round shapes (the profile button looked clipped).
+        radius = max(0, min(float(radius or 0), (x1 - x0) / 2, (y1 - y0) / 2))
 
         def inside(px, py):
             if shape == "oval":
@@ -2124,107 +1888,9 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             pass
 
-    def exit_fullscreen_or_focus(self):
+    def exit_fullscreen(self):
         if self.is_fullscreen:
             self.toggle_true_fullscreen()
-        elif self.is_focus_window:
-            self.toggle_focus_window()
-
-    def exit_fullscreen(self):
-        self.exit_fullscreen_or_focus()
-
-    def restore_window_chrome(self, _event=None):
-        if self.use_native_window_chrome:
-            return
-        if _event is not None and _event.widget is not self:
-            return
-        if self.state() != "normal" or self.is_fullscreen or self.restoring_borderless or self._chrome_update_active:
-            return
-        try:
-            already_borderless = bool(self.overrideredirect())
-        except tk.TclError:
-            already_borderless = False
-        if already_borderless and self._taskbar_ready:
-            return
-        if self.state() == "normal":
-            self.enable_borderless_chrome()
-
-    def enable_borderless_chrome(self):
-        if self.use_native_window_chrome:
-            self.restoring_borderless = False
-            return
-        if self.is_fullscreen:
-            self.restoring_borderless = False
-            return
-        if self._chrome_update_active:
-            return
-        self._chrome_update_active = True
-        try:
-            try:
-                already_borderless = bool(self.overrideredirect())
-            except tk.TclError:
-                already_borderless = False
-            if not already_borderless:
-                self.overrideredirect(True)
-                self.update_idletasks()
-                self._taskbar_ready = False
-            if not self._taskbar_ready:
-                self._taskbar_ready = self.ensure_taskbar_presence()
-        except tk.TclError:
-            pass
-        finally:
-            self._chrome_update_active = False
-            self.restoring_borderless = False
-
-    def restore_from_minimize(self, _event=None):
-        if self.use_native_window_chrome:
-            return
-        if not self.is_fullscreen:
-            self.enable_borderless_chrome()
-
-    def minimize_app(self):
-        if self.use_native_window_chrome:
-            try:
-                self.iconify()
-            except tk.TclError:
-                pass
-            return
-        try:
-            self.restoring_borderless = True
-            self.overrideredirect(False)
-            self.update_idletasks()
-            self.iconify()
-            self.after(120, self.restore_from_minimize)
-        except tk.TclError:
-            self.restoring_borderless = False
-
-    def ensure_taskbar_presence(self):
-        if not sys.platform.startswith("win"):
-            return True
-        try:
-            import ctypes
-
-            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
-            if not hwnd:
-                hwnd = self.winfo_id()
-            gwl_exstyle = -20
-            ws_ex_appwindow = 0x00040000
-            ws_ex_toolwindow = 0x00000080
-            try:
-                get_style = ctypes.windll.user32.GetWindowLongPtrW
-                set_style = ctypes.windll.user32.SetWindowLongPtrW
-            except AttributeError:
-                get_style = ctypes.windll.user32.GetWindowLongW
-                set_style = ctypes.windll.user32.SetWindowLongW
-            style = get_style(hwnd, gwl_exstyle)
-            style = (style & ~ws_ex_toolwindow) | ws_ex_appwindow
-            set_style(hwnd, gwl_exstyle, style)
-            # Tell Windows to re-read the window style without moving/resizing.
-            swp_flags = 0x0001 | 0x0002 | 0x0010 | 0x0020
-            ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, swp_flags)
-            return True
-        except (AttributeError, OSError, tk.TclError):
-            return False
 
     def close_window(self, window=None):
         target = window or self
@@ -2232,168 +1898,6 @@ class MemoryPalApp(tk.Tk):
             target.destroy()
         except tk.TclError:
             pass
-
-    def start_drag(self, event, window=None):
-        window = window or self
-        if window is self and self.is_fullscreen:
-            return
-        self.drag_start = (event.x_root, event.y_root, window.winfo_x(), window.winfo_y(), window)
-
-    def drag_window(self, event):
-        if not self.drag_start:
-            return
-        start_x, start_y, window_x, window_y, window = self.drag_start
-        window.geometry(f"+{window_x + event.x_root - start_x}+{window_y + event.y_root - start_y}")
-
-    def stop_drag(self, _event=None):
-        self.drag_start = None
-
-    def start_resize(self, event, mode="se"):
-        self.capture_normal_geometry()
-        self.resize_start = (event.x_root, event.y_root, self.winfo_width(), self.winfo_height(), self.winfo_rootx(), self.winfo_rooty(), mode)
-        self.pending_resize_geometry = None
-
-    def resize_window(self, event):
-        if not self.resize_start or self.is_fullscreen:
-            return
-        start_x, start_y, start_width, start_height, window_x, window_y, mode = self.resize_start
-        min_width, min_height = self.minsize()
-        dx = event.x_root - start_x
-        dy = event.y_root - start_y
-        width = max(min_width, start_width + (dx if "e" in mode else 0))
-        height = max(min_height, start_height + (dy if "s" in mode else 0))
-        self.pending_resize_geometry = f"{width}x{height}+{window_x}+{window_y}"
-        self.show_resize_outline(window_x, window_y, width, height)
-
-    def show_resize_outline(self, x, y, width, height):
-        """Preview the new size as an outline, like Windows does while dragging.
-
-        The outline is four thin, solid, always-on-top bars, one per edge. The
-        real window is resized once, on release. Moving small solid windows
-        is cheap and never shows a half-drawn edge; an earlier version used one
-        big see-through window, which had to be recomposited on every mouse
-        move and made the moving edge blink.
-        """
-        bars = getattr(self, "resize_outline", None)
-        if bars is None or not all(bar.winfo_exists() for bar in bars):
-            self.hide_resize_outline()
-            thickness = max(2, self.px(3)) + 2  # accent line plus a dark 1px rim each side
-            bars = []
-            for side in ("top", "bottom", "left", "right"):
-                bar = tk.Toplevel(self)
-                bar.withdraw()
-                bar.overrideredirect(True)
-                bar.configure(bg="#0b1220")
-                try:
-                    bar.attributes("-topmost", True)
-                except tk.TclError:
-                    pass
-                # A dark rim around a bright accent line reads on light and
-                # dark backgrounds alike. The side bars fit between the top
-                # and bottom bars, so their accent runs straight into them.
-                accent = COLORS["primary"]
-                if side in ("top", "bottom"):
-                    tk.Frame(bar, bg=accent).place(x=1, y=1, relwidth=1, relheight=1, width=-2, height=-2)
-                    # Open the inner rim where a side bar joins, so the corner is one clean L.
-                    joint_y = thickness - 1 if side == "top" else 0
-                    tk.Frame(bar, bg=accent).place(x=1, y=joint_y, width=thickness - 2, height=1)
-                    tk.Frame(bar, bg=accent).place(relx=1, x=-(thickness - 1), y=joint_y, width=thickness - 2, height=1)
-                else:
-                    tk.Frame(bar, bg=accent).place(x=1, y=0, relwidth=1, relheight=1, width=-2)
-                bar.side = side
-                bars.append(bar)
-            self.resize_outline = bars
-            self.resize_outline_thickness = thickness
-            self.place_resize_bars(bars, x, y, width, height)
-            for bar in bars:
-                bar.deiconify()
-            return
-        self.place_resize_bars(bars, x, y, width, height)
-
-    def place_resize_bars(self, bars, x, y, width, height):
-        t = self.resize_outline_thickness
-        spots = {
-            "top": (x, y, width, t),
-            "bottom": (x, y + height - t, width, t),
-            "left": (x, y + t, t, max(1, height - 2 * t)),
-            "right": (x + width - t, y + t, t, max(1, height - 2 * t)),
-        }
-        # Move all four in one step so the edges never drift apart mid-drag.
-        try:
-            import ctypes
-
-            user32 = ctypes.windll.user32
-            user32.BeginDeferWindowPos.restype = ctypes.c_void_p
-            user32.DeferWindowPos.restype = ctypes.c_void_p
-            user32.DeferWindowPos.argtypes = (ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint)
-            user32.EndDeferWindowPos.argtypes = (ctypes.c_void_p,)
-            handles = [self.window_handle(bar) for bar in bars]
-            if all(handles) and all(bar.winfo_ismapped() for bar in bars):
-                batch = user32.BeginDeferWindowPos(len(bars))
-                for bar, hwnd in zip(bars, handles):
-                    bx, by, bw, bh = spots[bar.side]
-                    # SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
-                    batch = user32.DeferWindowPos(batch, hwnd, None, bx, by, bw, bh, 0x0004 | 0x0010 | 0x0200) if batch else None
-                if batch and user32.EndDeferWindowPos(batch):
-                    return
-        except (AttributeError, OSError):
-            pass
-        for bar in bars:
-            bx, by, bw, bh = spots[bar.side]
-            bar.geometry(f"{bw}x{bh}+{bx}+{by}")
-
-    def hide_resize_outline(self):
-        bars = getattr(self, "resize_outline", None)
-        self.resize_outline = None
-        for bar in bars or ():
-            try:
-                bar.destroy()
-            except tk.TclError:
-                pass
-
-    def stop_resize(self, _event=None):
-        geometry = self.pending_resize_geometry
-        self.resize_start = None
-        self.pending_resize_geometry = None
-        if not geometry:
-            self.hide_resize_outline()
-            return
-        size = geometry.split("+")[0]
-        width, height = (int(value) for value in size.split("x"))
-        position = geometry[len(size):]
-
-        def apply():
-            self.hide_resize_outline()
-            self.geometry(f"{width}x{height}{position}")
-
-        # Same single-frame swap as fullscreen: everything reflows under a
-        # snapshot and the finished layout appears at once.
-        try:
-            self.run_window_change(apply, (width, height))
-        except tk.TclError:
-            self.hide_resize_outline()
-
-    def ease_out_cubic(self, step, total_steps):
-        progress = clamp(step / max(1, total_steps), 0, 1)
-        return 1 - (1 - progress) ** 3
-
-    def set_resize_grips_visible(self, visible=True):
-        grips = getattr(self, "resize_grips", [])
-        if not grips:
-            return
-        if not visible:
-            for grip in grips:
-                if grip.winfo_exists():
-                    grip.place_forget()
-            return
-        placements = (
-            {"relx": 1, "rely": 0, "anchor": "ne", "width": self.px(5), "relheight": 1},
-            {"relx": 0, "rely": 1, "anchor": "sw", "relwidth": 1, "height": self.px(5)},
-            {"relx": 1, "rely": 1, "anchor": "se", "width": self.px(18), "height": self.px(18)},
-        )
-        for grip, placement in zip(grips, placements):
-            if grip.winfo_exists():
-                grip.place(**placement)
 
     # The rail holds five destinations, like the phone's tabs. Every other
     # page lives inside one of them (and stays reachable through the page
@@ -2630,7 +2134,7 @@ class MemoryPalApp(tk.Tk):
             # them settle at the final width before measuring the height.
             top.geometry(f"{popup_width}x{max(1, top.winfo_reqheight())}")
             top.update_idletasks()
-        popup_height = max(height or 0, top.winfo_reqheight(), self.px(160))
+        popup_height = max(height or 0, top.winfo_reqheight(), self.px(120))
         left, s_top, right, bottom = self.screen_bounds(owner)
         margin = self.px(8)
         popup_width = min(popup_width, right - left - margin * 2)
@@ -2749,6 +2253,14 @@ class MemoryPalApp(tk.Tk):
             if not sys.platform.startswith("win") or window.wm_overrideredirect():
                 return
             windowtheme.apply_windows(self.window_handle(window), dark, caption=COLORS["bg"], text=COLORS["ink"], border=COLORS["line"])
+            windowtheme.set_background_brush(self.window_handle(window), COLORS["bg"])
+            try:
+                fill = window.cget("bg") if window is not self else COLORS["bg"]
+                red, green, blue = (value // 257 for value in self.winfo_rgb(fill))
+                fill = f"#{red:02x}{green:02x}{blue:02x}"
+            except tk.TclError:
+                fill = COLORS["bg"]
+            windowtheme.fill_on_erase(window.winfo_id(), fill)
         except (tk.TclError, AttributeError):
             pass
 
@@ -2765,6 +2277,12 @@ class MemoryPalApp(tk.Tk):
         top.deiconify()
         self.theme_title_bar(top)
         self.apply_native_owner(top)
+        try:
+            if top.wm_overrideredirect() and windowtheme.round_popup(self.window_handle(top), COLORS["line"]):
+                # Windows 11 draws the rounded edge, border and shadow itself.
+                top.configure(highlightthickness=0)
+        except tk.TclError:
+            pass
         if owner is not None:
             top.lift(owner)
         else:
@@ -3085,6 +2603,8 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("WarmMuted.TLabel", background=COLORS["alt"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
         self.style.configure("Title.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 28))
         self.style.configure("H2.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 18))
+        # A list item's own heading: a step under a panel's heading.
+        self.style.configure("ItemTitle.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 14))
         self.style.configure("AltH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 18))
         self.style.configure("WarmH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 13))
         self.style.configure("Stat.TLabel", background=COLORS["surface"], foreground=COLORS["primary"], font=self.font("Segoe UI Semibold", 34))
@@ -3138,8 +2658,8 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("Link.TButton", padding=self.pad(8, 6), foreground=COLORS["primary"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("Link.TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
         # Segmented choices (Study Plan time, quiz modes): one pill per option.
-        self.style.configure("Pill.TButton", padding=self.pad(14, 8), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
-        self.style.map("Pill.TButton", foreground=[("active", COLORS["primary"])])
+        self.style.configure("Pill.TButton", padding=self.pad(14, 8), foreground=COLORS["muted"], borderwidth=0, relief="flat", font=semibold)
+        self.style.map("Pill.TButton", foreground=[("active", COLORS["ink"])])
         self.style.configure("PillOn.TButton", padding=self.pad(14, 8), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
         self.style.map("PillOn.TButton", foreground=[("active", self.on_color(COLORS["primary_dark"]))])
         for name, fg in (("Again", "again_fg"), ("Review", "review_fg"), ("Good", "good_fg"), ("Easy", "easy_fg")):
@@ -3187,21 +2707,26 @@ class MemoryPalApp(tk.Tk):
             "TMenubutton": ("TMenubutton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
             "Link.TButton": ("TButton", (COLORS["surface"], soft, alt), COLORS["surface"]),
             "Select.TMenubutton": ("TMenubutton", (COLORS["input"], alt, alt), COLORS["surface"]),
-            "Pill.TButton": ("TButton", (COLORS["input"], self.tint(COLORS["input"], -10 if self.theme == "light" else 16), self.tint(COLORS["input"], -20 if self.theme == "light" else 26)), COLORS["surface"]),
+            # Unchosen options on the soft button fill: on the dark field
+            # colour they read as empty text boxes, not choices.
+            "Pill.TButton": ("TButton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
             "PillOn.TButton": ("TButton", (COLORS["primary"], COLORS["primary_dark"], self.tint(COLORS["primary_dark"], -14)), COLORS["surface"]),
         }
 
-    def rounded_tile(self, fill, bg, ring=None, ring_width=0):
+    def rounded_tile(self, fill, bg, ring=None, ring_width=0, radius=None, size=None):
         """A small antialiased rounded square, stretched by ttk as a 9-slice.
 
         The tile is fully opaque: its corners are blended onto `bg`, the
         surface the control sits on. Tk on Windows draws photos with
         transparency by reading the screen back on every redraw, which made
         pages with many buttons take seconds to build and paint in pieces.
+        With `size`, the square is returned at exactly that size instead
+        (a tick box, say), not widened for stretching.
         """
-        radius = self.px(9)
-        size = radius * 2 + 4
-        key = ("tile", size, fill, bg, ring, ring_width)
+        exact = size is not None
+        radius = self.px(9) if radius is None else radius
+        size = size if exact else radius * 2 + 4
+        key = ("tile", size, radius, exact, fill, bg, ring, ring_width)
         photo = self._tile_cache.get(key)
         if photo is not None:
             return photo
@@ -3236,7 +2761,7 @@ class MemoryPalApp(tk.Tk):
         pixels = b"".join(rows)
         data = base64.b64encode(self.png_rgba(size, size, bytes(pixels))).decode("ascii")
         small = tk.PhotoImage(master=self, data=data, format="png")
-        photo = self.widen_tile(small, radius, fill)
+        photo = small if exact else self.widen_tile(small, radius, fill)
         self._tile_cache[key] = photo
         return photo
 
@@ -3283,7 +2808,7 @@ class MemoryPalApp(tk.Tk):
         big._memorypal_source = small  # keep the small tile alive with it
         return big
 
-    def rounded_element(self, normal, hover=None, pressed=None, disabled=None, focus=None, focus_hover=None, keyboard_only=False):
+    def rounded_element(self, normal, hover=None, pressed=None, disabled=None, focus=None, focus_hover=None, keyboard_only=False, border=None):
         """A ttk image element (cached by its tiles) with per-state tiles.
 
         Keyboard focus is a solid ring drawn into the tile (clam's own focus
@@ -3291,7 +2816,7 @@ class MemoryPalApp(tk.Tk):
         keyboard_only, the ring needs the "user1" state too, which
         track_focus_source sets only when focus arrived from the keyboard.
         """
-        key = (str(normal), str(hover), str(pressed), str(disabled), str(focus), str(focus_hover), keyboard_only)
+        key = (str(normal), str(hover), str(pressed), str(disabled), str(focus), str(focus_hover), keyboard_only, border)
         name = self._rounded_elements.get(key)
         if name:
             return name
@@ -3313,7 +2838,7 @@ class MemoryPalApp(tk.Tk):
         # padding unless told otherwise, which made every button ~30px taller.
         # width/height set the element's minimum size; without them it asks
         # for the full (large) tile size and every button grows to match.
-        border = self.px(9)
+        border = self.px(9) if border is None else border
         self.style.element_create(name, "image", normal, *states, border=border, padding=0, width=2 * border + 2, height=2 * border + 2, sticky="nsew")
         self._rounded_elements[key] = name
         return name
@@ -3439,6 +2964,7 @@ class MemoryPalApp(tk.Tk):
             self._clam_layouts = {name: self.style.layout(name) for name in ("TButton", "TMenubutton", "TEntry")}
             for widget_class in ("TButton", "TMenubutton", "TEntry"):
                 self.bind_class(widget_class, "<Map>", self.fit_control_corners, add="+")
+            self.bind_class("TFrame", "<Map>", self.fit_panel_corners, add="+")
         # Element names can't be deleted, so a theme change starts a new
         # generation of names; tiles are cached by colour and reused.
         self._style_generation += 1
@@ -3454,7 +2980,67 @@ class MemoryPalApp(tk.Tk):
         except (tk.TclError, IndexError, KeyError):
             self._round_specs = {}  # an unusual Tk: keep the flat controls
             return
+        # Panels: rounded corners and a hairline edge instead of flat
+        # squares, and the multi-line fields drawn like the one-line ones.
+        self._panel_specs = {
+            "Card.TFrame": (COLORS["surface"], COLORS["bg"], False),
+            "AltCard.TFrame": (COLORS["alt"], COLORS["surface"], False),
+            "WarmCard.TFrame": (COLORS["alt"], COLORS["surface"], False),
+            "Field.TFrame": (COLORS["input"], COLORS["surface"], True),
+        }
+        try:
+            for style, (fill, bg, field) in self._panel_specs.items():
+                self.round_panel(style, fill, bg, field)
+        except tk.TclError:
+            self._panel_specs = {}
         self.warm_corner_styles()
+
+    def round_panel(self, style, fill, bg, field=False):
+        """Rounded panel (or text field) tiles for a ttk.Frame style."""
+        radius = self.px(9 if field else 12)
+        line = COLORS["soft_line"] if self.theme == "light" else COLORS["line"]
+        thin = max(1, self.px(1))
+        # Panels are set apart by their fill, like the rest of the app;
+        # fields get a hairline edge so it's clear where to type.
+        normal = self.rounded_tile(fill, bg, ring=line if field else None, ring_width=thin if field else 0, radius=radius)
+        focus = self.rounded_tile(fill, bg, ring=COLORS["primary"], ring_width=max(2, self.px(2)), radius=radius) if field else None
+        element = self.rounded_element(normal, focus=focus, border=radius)
+        self.style.layout(style, [(element, {"sticky": "nsew"})])
+        self.style.configure(style, background=fill)
+
+    def fit_panel_corners(self, event):
+        """Bake a panel's corners onto the surface it actually sits on."""
+        widget = event.widget
+        try:
+            style = str(widget.cget("style"))
+        except (tk.TclError, AttributeError):
+            return
+        base = style.split(".", 1)[1] if (style.startswith("on") or style.startswith("Flat.")) and "." in style else style
+        spec = getattr(self, "_panel_specs", {}).get(base)
+        if not spec:
+            return
+        fill, default_bg, field = spec
+        behind = self.surface_behind(widget)
+        if behind == fill.lower() and not field:
+            # A plain container on a panel of its own colour (a row of
+            # buttons in a card): no edge of its own.
+            derived = f"Flat.{base}"
+            if derived not in self._corner_styles:
+                self.style.layout(derived, [("Frame.border", {"sticky": "nsew"})])
+                self.style.configure(derived, background=fill, borderwidth=0, relief="flat")
+                self._corner_styles[derived] = True
+        elif behind == default_bg.lower():
+            derived = base
+        else:
+            derived = f"on{behind.lstrip('#')}.{base}"
+            if derived not in self._corner_styles:
+                try:
+                    self.round_panel(derived, fill, behind, field)
+                except tk.TclError:
+                    return
+                self._corner_styles[derived] = True
+        if derived != style:
+            widget.configure(style=derived)
 
     def accent_button_style(self, color):
         """A rounded filled button style for any accent colour (green, violet...)."""
@@ -3590,84 +3176,6 @@ class MemoryPalApp(tk.Tk):
             canvas.create_arc(left, arch_y - half, left + 2 * half, arch_y + half, start=0, extent=180, style="arc", outline=ink, width=stroke)
         dot = size * 0.066
         canvas.create_oval(size * 0.775 - dot, size * 0.235 - dot, size * 0.775 + dot, size * 0.235 + dot, fill="#ffb020", outline="")
-
-    def render_window_chrome(self, parent, title, close_command, window=None, show_minimize=True, show_fullscreen=True):
-        window = window or self
-        dialog = window is not self
-        # The bar is the same colour as what's under it (the tab bar, or the
-        # dialog body), like a unified macOS / Windows 11 title area.
-        chrome_bg = COLORS["surface"] if dialog else COLORS["bg"]
-        bar = tk.Frame(parent, bg=chrome_bg)
-        bar.pack(fill="x")
-        grip = tk.Frame(bar, bg=chrome_bg)
-        grip.pack(side="left", fill="both", expand=True, padx=self.px(14))
-        icon_size = self.px(20)
-        dot = tk.Canvas(grip, width=icon_size, height=icon_size, bg=chrome_bg, highlightthickness=0)
-        label = tk.Label(grip, text="" if dialog else title, bg=chrome_bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10))
-        if not dialog:
-            # Dialogs show their title as a heading in the body instead.
-            dot.pack(side="left", padx=(0, self.px(10)))
-            self.draw_chrome_icon(dot, icon_size)
-            label.pack(side="left")
-        for widget in (bar, grip, label, dot):
-            widget.bind("<ButtonPress-1>", lambda event, w=window: self.start_drag(event, w), add="+")
-            widget.bind("<B1-Motion>", self.drag_window, add="+")
-            widget.bind("<ButtonRelease-1>", self.stop_drag, add="+")
-
-        controls = tk.Frame(bar, bg=chrome_bg)
-        controls.pack(side="right", padx=self.px(8), pady=self.px(6))
-
-        def chrome_button(text, command, bg=None, fg=None, hint=""):
-            symbol = {"value": text}
-            # Even sizes with an even stroke put symbols exactly on the centre
-            # line; odd combinations land half a pixel off.
-            width = self.px(38) // 2 * 2
-            height = self.px(30) // 2 * 2
-            button = tk.Canvas(controls, width=width, height=height, bg=chrome_bg, highlightthickness=0, cursor="hand2")
-            button.pack(side="left", padx=self.px(2))
-
-            def draw(hover=False):
-                button.delete("all")
-                if bg and hover:
-                    fill, text_color = bg, fg or COLORS["white"]
-                else:
-                    fill = self.tint(chrome_bg, -9 if self.theme == "light" else 14) if hover else chrome_bg
-                    text_color = COLORS["ink"] if hover else COLORS["muted"]
-                if not self.draw_antialiased_shape(button, width, height, fill, radius=self.px(10)):
-                    button.create_rectangle(0, 0, width, height, fill=fill, outline="")
-                cx = width / 2
-                cy = height / 2
-                value = symbol["value"]
-                # Draw the window controls geometrically instead of using font glyphs.
-                # Font metrics make X/minimize/maximize symbols look subtly off-center
-                # on different platforms and scaling levels.
-                icon = {"\u00d7": "close", "\u2212": "minimize", "\u25a1": "maximize", "\u2750": "maximize"}.get(value)
-                image = self.line_icon(icon, self.px(24), text_color) if icon else None
-                if image is not None:
-                    button.create_image(cx, cy, image=image, anchor="center")
-                    button._memorypal_icon = image
-                else:
-                    self.create_centered_canvas_text(button, cx, cy, value, fill=text_color, font=self.font("Segoe UI Symbol", 12))
-
-            def set_symbol(value):
-                symbol["value"] = value
-                draw()
-
-            draw()
-            button.set_symbol = set_symbol
-            button.bind("<Button-1>", lambda _event: command())
-            button.bind("<Enter>", lambda _event: draw(True), add="+")
-            button.bind("<Leave>", lambda _event: draw(False), add="+")
-            if hint:
-                self.add_tooltip(button, hint)
-            return button
-
-        if show_minimize:
-            chrome_button("\u2212", self.minimize_app, hint="Minimize")
-        if show_fullscreen:
-            self.chrome_fullscreen_button = chrome_button("\u2750" if self.is_focus_window else "\u25a1", self.toggle_focus_window, hint="Toggle borderless focus. Press " + ("Control-Command-F" if IS_MAC else "F11") + " for true fullscreen.")
-        close = chrome_button("\u00d7", close_command, COLORS["danger"], COLORS["white"], "Close")
-        return bar
 
     def ensure_nav_item_visible(self, key):
         """Every tab always shows, so this only moves the selection."""
@@ -3856,7 +3364,9 @@ class MemoryPalApp(tk.Tk):
         return canvas
 
     def profile_avatar_button(self, parent):
-        size = self.px(38)
+        # A little smaller than the icon buttons' hover tiles, so the filled
+        # circle sits level with the line icons instead of outweighing them.
+        size = self.px(32)
         profile_number = str(min(self.active_profile_number(), 99))
         # Initials read as "this is me" at a glance; "P1" read as a code.
         words = [word for word in re.split(r"[\s_-]+", active_profile_name()) if word]
@@ -3890,7 +3400,7 @@ class MemoryPalApp(tk.Tk):
                 size / 2,
                 profile_label,
                 fill=ink,
-                font=self.font("Segoe UI Semibold", 11 if len(profile_label) <= 3 else 10),
+                font=self.font("Segoe UI Semibold", 10 if len(profile_label) <= 1 else 9),
             )
 
         draw()
@@ -3904,11 +3414,6 @@ class MemoryPalApp(tk.Tk):
         # The navigation rail stays expanded for a steadier desktop layout.
         root = ttk.Frame(self, style="Root.TFrame")
         root.pack(fill="both", expand=True)
-
-        if self.use_native_window_chrome:
-            self.app_chrome = None
-        else:
-            self.app_chrome = self.render_window_chrome(root, APP_NAME, close_command=self.destroy)
 
         self.app_body = ttk.Frame(root, style="Root.TFrame")
         self.app_body.pack(fill="both", expand=True)
@@ -3928,8 +3433,6 @@ class MemoryPalApp(tk.Tk):
         top.columnconfigure(1, weight=0)
         title_box = ttk.Frame(top, style="Header.TFrame")
         title_box.grid(row=0, column=0, sticky="ew")
-        self.eyebrow = ttk.Label(title_box, text="Today", style="HeaderMuted.TLabel")
-        self.eyebrow.pack(anchor="w")
         self.title_label = ttk.Label(title_box, text="Today", style="PageTitle.TLabel")
         self.title_label.pack(anchor="w", fill="x")
         header_bg = COLORS["bg"]
@@ -3975,19 +3478,6 @@ class MemoryPalApp(tk.Tk):
         # A rounded message pill (drawn on a canvas so its corners blend into
         # whatever it floats over), like the rounded buttons and dialogs.
         self.toast = tk.Canvas(self, highlightthickness=0, bd=0, bg=COLORS["bg"])
-        # Invisible grips along the window edge: the cursor shows where to
-        # drag, so they need no grey strip or corner square of their own.
-        right_grip = tk.Frame(self, bg=COLORS["bg"], cursor="sb_h_double_arrow")
-        bottom_grip = tk.Frame(self, bg=COLORS["bg"], cursor="sb_v_double_arrow")
-        corner_grip = tk.Frame(self, bg=COLORS["bg"], cursor="bottom_right_corner")
-        self.resize_grips = [right_grip, bottom_grip, corner_grip]
-        right_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "e"), add="+")
-        bottom_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "s"), add="+")
-        corner_grip.bind("<ButtonPress-1>", lambda event: self.start_resize(event, "se"), add="+")
-        for grip in self.resize_grips:
-            grip.bind("<B1-Motion>", self.resize_window, add="+")
-            grip.bind("<ButtonRelease-1>", self.stop_resize, add="+")
-        self.set_resize_grips_visible(not self.is_fullscreen and not self.use_native_window_chrome)
         self.after_idle(self.layout_app_body)
 
     def refresh_header_status(self):
@@ -4145,8 +3635,7 @@ class MemoryPalApp(tk.Tk):
             canvas.place(x=0, y=0, relwidth=1, relheight=1)
             self.tk.call("raise", canvas._w)  # Canvas.lift() raises canvas items, not the widget
             self.draw_page_skeleton(canvas, self.SKELETON_PAGES.get(view, "grid"), width, height)
-            section, title = self.page_titles().get(view, ("", ""))
-            self.eyebrow.configure(text=section)
+            _section, title = self.page_titles().get(view, ("", ""))
             self.title_label.configure(text=title)
             self.refresh_nav_selection(view)
             self.update_idletasks()
@@ -4299,7 +3788,6 @@ class MemoryPalApp(tk.Tk):
                 old_host.destroy()
             return
         self.refresh_header_status()
-        self.eyebrow.configure(text=titles[view][0])
         self.title_label.configure(text=titles[view][1])
         if keep_scroll:
             self.restore_page_scroll(new_host, keep_scroll)
@@ -4517,7 +4005,6 @@ class MemoryPalApp(tk.Tk):
     def open_profile_manager(self):
         top = tk.Toplevel(self)
         top.withdraw()
-        self.make_dialog_frame(top)
         top.title("Profiles")
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
@@ -4526,8 +4013,6 @@ class MemoryPalApp(tk.Tk):
 
         shell = tk.Frame(top, bg=COLORS["bg"])
         shell.pack(fill="both", expand=True)
-        if not self.use_native_window_chrome:
-            self.render_window_chrome(shell, "Profiles", top.destroy, window=top, show_minimize=False, show_fullscreen=False)
 
         wrap = tk.Frame(shell, bg=COLORS["bg"], padx=self.px(20), pady=self.px(20))
         wrap.pack(fill="both", expand=True)
@@ -4659,45 +4144,50 @@ class MemoryPalApp(tk.Tk):
         return COLORS["bg"]
 
     def toast_message(self, text):
+        """A short confirmation at the bottom centre of the window, like a
+        Windows 11 or macOS in-app notice: a raised panel in the app's own
+        surface colour with a hairline edge (not a black slab in a corner),
+        rising a few pixels into place and leaving after a moment."""
         self.toast_var.set(text)
-        room = max(self.px(200), self.winfo_width() - self.px(48))
-        wrap = min(self.px(520), room)
-        pad_x, pad_y = self.px(20), self.px(13)
+        room = max(self.px(200), self.winfo_width() - self.px(96))
+        wrap = min(self.px(560), room)
+        pad_x, pad_y = self.px(18), self.px(11)
         canvas = self.toast
         canvas.place_forget()
         canvas.delete("all")
-        font = self.font("Segoe UI", 12)
-        label = canvas.create_text(pad_x, pad_y, text=text, anchor="nw", fill=COLORS["white"], font=font, width=wrap, justify="left")
+        font = self.font("Segoe UI", 11)
+        label = canvas.create_text(0, 0, text=text, anchor="nw", font=font, width=wrap, justify="left")
         x0, y0, x1, y1 = canvas.bbox(label) or (0, 0, wrap, self.px(20))
-        width, height = (x1 - x0) + pad_x * 2, (y1 - y0) + pad_y * 2
-        # The corners blend into what is under the toast's bottom-right corner.
-        margin = self.px(24)
-        under = self.surface_at(self.winfo_rootx() + self.winfo_width() - margin - self.px(4), self.winfo_rooty() + self.winfo_height() - margin - self.px(4))
-        canvas.configure(width=width, height=height, bg=under)
-        fill = COLORS["rail"] if self.theme == "light" else self.tint(COLORS["rail"], 18)
         canvas.delete("all")
-        if not self.draw_antialiased_shape(canvas, width, height, fill, radius=self.px(14)):
-            canvas.create_rectangle(0, 0, width, height, fill=fill, outline=fill)
-        canvas.create_text(pad_x, pad_y, text=text, anchor="nw", fill=self.on_color(fill), font=font, width=wrap, justify="left")
-        canvas.place(relx=1, rely=1, anchor="se", x=-margin, y=-margin)
-        self.tk.call("raise", canvas._w)
-        pending = getattr(self, "_toast_after", None)
-        if pending is not None:
-            try:
-                self.after_cancel(pending)
-            except tk.TclError:
-                pass
-        self._toast_after = self.after(self.pace(2600), self.toast.place_forget)
+        width, height = (x1 - x0) + pad_x * 2, (y1 - y0) + pad_y * 2
+        margin = self.px(28)
+        under = self.surface_at(self.winfo_rootx() + self.winfo_width() // 2, self.winfo_rooty() + self.winfo_height() - margin - height // 2)
+        canvas.configure(width=width, height=height, bg=under)
+        fill = COLORS["surface_soft"] if self.theme == "dark" else COLORS["surface"]
+        edge = COLORS["line"]
+        radius = self.px(10)
+        if not (self.draw_antialiased_shape(canvas, width, height, edge, radius=radius)
+                and self.draw_antialiased_shape(canvas, width, height, fill, radius=radius - 1, inset=1)):
+            canvas.create_rectangle(0, 0, width - 1, height - 1, fill=fill, outline=edge)
+        canvas.create_text(pad_x, pad_y, text=text, anchor="nw", fill=COLORS["ink"], font=font, width=wrap, justify="left")
+        rise = 0 if self.accessibility.get("reduce_motion") else self.px(8)
 
-    def make_dialog_frame(self, top):
-        """Give a titled popup the platform's frame.
+        def place(step=0, steps=6):
+            offset = round(rise * (1 - step / steps) ** 2)
+            canvas.place(relx=0.5, rely=1, anchor="s", y=-margin + offset)
+            self.tk.call("raise", canvas._w)
+            if offset:
+                self._toast_rise = self.after(16, lambda: place(step + 1, steps))
 
-        On Windows the app draws its own title bar, so popups are borderless
-        and draw the same bar. A Mac keeps the native frame, with the close
-        button top-left where Mac people look for it, like the main window.
-        """
-        if not self.use_native_window_chrome:
-            top.overrideredirect(True)
+        for name in ("_toast_after", "_toast_rise"):
+            pending = getattr(self, name, None)
+            if pending is not None:
+                try:
+                    self.after_cancel(pending)
+                except tk.TclError:
+                    pass
+        place()
+        self._toast_after = self.after(self.pace(2800), self.toast.place_forget)
 
     def dialog_window(self, title, body="", parent=None, width=480):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
@@ -4705,16 +4195,15 @@ class MemoryPalApp(tk.Tk):
         owner = parent or self
         top = tk.Toplevel(owner)
         top.withdraw()
-        self.make_dialog_frame(top)
-        top.title(title)
+        # The question is the heading inside; the title bar names the app,
+        # as system message boxes do, instead of saying it twice.
+        top.title("MemoryPal")
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
         self.own_window(top, owner)
         top.resizable(False, False)
         top.configure(bg=COLORS["surface"])
-        if not self.use_native_window_chrome:
-            self.render_window_chrome(top, title, top.destroy, window=top, show_minimize=False, show_fullscreen=False)
-        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(24), pady=self.px(4 if not self.use_native_window_chrome else 20))
+        shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(24), pady=self.px(20))
         shell.pack(fill="both", expand=True)
         heading = tk.Label(shell, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), wraplength=self.px(width - 70), justify="left", anchor="w")
         self.fit_wrap(heading, pady=(0, self.px(6) if body else self.px(10)))
@@ -4724,20 +4213,65 @@ class MemoryPalApp(tk.Tk):
         content = ttk.Frame(shell, style="Card.TFrame")
         content.pack(fill="x")
         actions = ttk.Frame(shell, style="Card.TFrame")
-        actions.pack(fill="x", pady=(self.px(18), self.px(20)))
+        actions.pack(fill="x", pady=(self.px(20), self.px(2)))
         top.dialog_owner = owner
         top.dialog_width = self.px(width)
+        top.dialog_actions = actions
         return top, content, actions
 
     def present_dialog(self, top):
         # Shown only once its fields and buttons exist, so the height fits them.
+        self.tidy_dialog_actions(top.dialog_actions)
         self.show_popup_window(top, top.dialog_owner, top.dialog_width, modal=True)
+
+    def tidy_dialog_actions(self, actions):
+        """Lay a dialog's buttons out as system dialogs do: one row at the
+        width of their labels, lined up on the right, with a destructive
+        action (Delete) or a side tool (Read aloud) kept apart on the left.
+        Buttons stretched edge to edge read as banners, not choices. A
+        stacked list of answers (dialog_choice) is left as it is."""
+        try:
+            if actions.pack_slaves():
+                buttons = actions.pack_slaves()
+                if len(buttons) != 1:
+                    return
+                buttons[0].pack_forget()
+                buttons[0].grid(row=0, column=0)
+            items = actions.grid_slaves()
+        except tk.TclError:
+            return
+        if not items:
+            return
+        items.sort(key=lambda w: (int(w.grid_info().get("row", 0)), int(w.grid_info().get("column", 0))))
+        for column in range(len(items) + 2):
+            actions.columnconfigure(column, weight=0, uniform="", minsize=0)
+
+        def apart(widget):
+            try:
+                return "Danger" in str(widget.cget("style")) or not isinstance(widget, ttk.Button)
+            except tk.TclError:
+                return False
+
+        left = [w for w in items[:-1] if apart(w)]
+        right = [w for w in items if w not in left]
+        gap = self.px(8)
+        column = 0
+        for widget in left:
+            widget.grid(row=0, column=column, columnspan=1, sticky="w", padx=(0, gap), pady=0)
+            column += 1
+        actions.columnconfigure(column, weight=1)
+        column += 1
+        for index, widget in enumerate(right):
+            if isinstance(widget, ttk.Button):
+                widget.configure(width=-10)
+            widget.grid(row=0, column=column, columnspan=1, sticky="e", padx=(gap if index else 0, 0), pady=0)
+            column += 1
 
     def dialog_alert(self, title, body, kind="info", parent=None):
         top, _content, actions = self.dialog_window(title, body, parent=parent)
         color = COLORS["danger"] if kind == "error" else COLORS["primary"]
         ok = self.solid_button(actions, "OK", top.destroy, color)
-        ok.pack(fill="x")
+        ok.pack()
         self.present_dialog(top)
         top.bind("<Return>", lambda _event: top.destroy())
         top.bind("<Escape>", lambda _event: top.destroy())
@@ -4934,11 +4468,20 @@ class MemoryPalApp(tk.Tk):
     def card(self, parent, style="Card.TFrame", padding=24):
         return ttk.Frame(parent, style=style, padding=self.px(padding))
 
+    def field_frame(self, parent):
+        """The rounded frame a multi-line box sits in, drawn like the one-line
+        fields: input fill, hairline edge, accent ring while typing."""
+        return ttk.Frame(parent, style="Field.TFrame", padding=self.px(4))
+
+    def follow_focus(self, field, control):
+        control.bind("<FocusIn>", lambda _event: field.state(["focus"]), add="+")
+        control.bind("<FocusOut>", lambda _event: field.state(["!focus"]), add="+")
+
     def text_box(self, parent, height=4, font_size=12):
-        # A visible edge: in the light theme the box is white on a white card,
-        # so with an input-coloured border there was nothing to show where to type.
-        edge = COLORS["soft_line"] if self.theme == "light" else COLORS["line"]
-        box = tk.Text(parent, height=height, wrap="word", bg=COLORS["input"], fg=COLORS["ink"], bd=0, relief="flat", highlightthickness=max(1, self.px(1)), highlightbackground=edge, highlightcolor=COLORS["primary"], padx=self.px(12), pady=self.px(12), font=self.font("Segoe UI", font_size), insertbackground=COLORS["primary"])
+        field = self.field_frame(parent)
+        box = FieldText(field, height=height, wrap="word", bg=COLORS["input"], fg=COLORS["ink"], bd=0, relief="flat", highlightthickness=0, padx=self.px(8), pady=self.px(6), font=self.font("Segoe UI", font_size), insertbackground=COLORS["primary"], selectbackground=COLORS["alt"], selectforeground=COLORS["ink"])
+        tk.Text.pack_configure(box, fill="both", expand=True)
+        self.follow_focus(field, box)
         return box
 
     def answer_area(self, parent, title="Your answer", hint="Type what you remember, then check or reveal.", height=4):
@@ -5021,6 +4564,79 @@ class MemoryPalApp(tk.Tk):
         self.add_tooltip(button, self.action_hint(label))
         return button
 
+    def tk_corner_photos(self, radius, fill, under):
+        """The four antialiased corners of a rounded panel, cut from one tile."""
+        cache = self.__dict__.setdefault("_tk_corner_cache", {})
+        key = (radius, fill, under)
+        if key not in cache:
+            size = 2 * radius + 2
+            tile = self.rounded_tile(fill, under, radius=radius, size=size)
+            corners = {}
+            for corner, (x, y) in (("nw", (0, 0)), ("ne", (size - radius, 0)), ("sw", (0, size - radius)), ("se", (size - radius, size - radius))):
+                piece = tk.PhotoImage(master=self, width=radius, height=radius)
+                self.tk.call(piece.name, "copy", tile.name, "-from", x, y, x + radius, y + radius)
+                corners[corner] = piece
+            cache[key] = corners
+        return cache[key]
+
+    def round_tk_panel(self, frame, radius=None):
+        """Round a plain tk.Frame panel's corners onto what it sits on.
+
+        Four small corner pictures are placed over the frame's corners, which
+        are always padding; the panel stays one native window, so it costs
+        nothing extra to scroll.
+        """
+        radius = radius or self.px(12)
+        if getattr(frame, "_mp_corners", None):
+            return frame
+        try:
+            fill = frame.cget("bg")
+            under = self.surface_behind(frame)
+        except tk.TclError:
+            return frame
+        if under == fill.lower():
+            return frame
+        photos = self.tk_corner_photos(radius, fill, under)
+        corners = []
+        # place() measures from inside the frame's padding, so step back out
+        # by it to reach the real corners.
+        px, py = int(frame.cget("padx")), int(frame.cget("pady"))
+        for corner, place in (("nw", {"x": -px, "y": -py}), ("ne", {"relx": 1, "x": px, "y": -py}),
+                              ("sw", {"x": -px, "rely": 1, "y": py}), ("se", {"relx": 1, "x": px, "rely": 1, "y": py})):
+            label = tk.Label(frame, image=photos[corner], bd=0, highlightthickness=0, padx=0, pady=0, bg=under)
+            label.place(anchor=corner, **place)
+            corners.append((corner, label))
+        frame._mp_corners = (radius, under, corners)
+        frame.after_idle(lambda: [label.winfo_exists() and label.lift() for _corner, label in corners])
+        return frame
+
+    def recolor_panel(self, frame, fill):
+        """Give a tk panel (and its children of the same colour) a new fill."""
+        try:
+            old = frame.cget("bg")
+        except tk.TclError:
+            return
+        if old == fill:
+            return
+        stack = [frame]
+        while stack:
+            widget = stack.pop()
+            try:
+                if isinstance(widget, (tk.Frame, tk.Label, tk.Canvas)) and widget.cget("bg") == old:
+                    widget.configure(bg=fill)
+            except tk.TclError:
+                continue
+            stack.extend(widget.winfo_children())
+        rounded = getattr(frame, "_mp_corners", None)
+        if rounded:
+            radius, under, corners = rounded
+            photos = self.tk_corner_photos(radius, fill, under)
+            for corner, label in corners:
+                try:
+                    label.configure(image=photos[corner], bg=under)
+                except tk.TclError:
+                    pass
+
     def hover_card(self, frame, normal=None, hover=None, command=None):
         """Border a card; if it has a command, make the whole card clickable.
 
@@ -5030,17 +4646,20 @@ class MemoryPalApp(tk.Tk):
         runs the command, which also gives a much larger target than the
         small button inside it.
         """
-        # Cards are set apart by their fill, not a 1px outline on every box;
-        # the edge stays invisible until a clickable card is hovered, and it
-        # is always the one accent colour (the per-tile rainbow is gone).
+        # Cards are set apart by their fill and rounded corners, like the
+        # ttk panels; a clickable card lightens a step while hovered.
         try:
             normal = frame.cget("bg")
         except tk.TclError:
             normal = normal or COLORS["surface"]
-        frame.configure(highlightthickness=1, highlightbackground=normal, highlightcolor=normal)
+        frame.configure(highlightthickness=0)
+        self.round_tk_panel(frame)
         if command is None:
             return frame
-        hover = COLORS["primary"]
+        hover = self.tint(normal, -5 if self.theme == "light" else 7)
+
+        def paint(fill):
+            self.recolor_panel(frame, fill)
 
         def pointer_inside():
             try:
@@ -5057,7 +4676,7 @@ class MemoryPalApp(tk.Tk):
             # Tk sends <Leave> when the pointer moves onto a child (the card's
             # text); only clear the highlight once it is really outside.
             if not pointer_inside():
-                frame.configure(highlightbackground=normal)
+                paint(normal)
 
         def wire(widget):
             # Buttons and inputs inside keep their own behaviour.
@@ -5071,28 +4690,47 @@ class MemoryPalApp(tk.Tk):
             for child in widget.winfo_children():
                 wire(child)
 
-        frame.bind("<Enter>", lambda _event: frame.configure(highlightbackground=hover), add="+")
+        frame.bind("<Enter>", lambda _event: paint(hover), add="+")
         frame.bind("<Leave>", leave, add="+")
         # Children are added after this call, so wire them once built.
         frame.after_idle(lambda: frame.winfo_exists() and wire(frame))
         return frame
     def button_row(self, parent, buttons, style="Card.TFrame"):
+        """Buttons side by side at the width of their labels, lined up from
+        the left as in system dialogs, wrapping only when the card is too
+        narrow for them all (stretched across a card they read as banners)."""
         row = ttk.Frame(parent, style=style)
         row.pack(fill="x")
-        columns = 3 if len(buttons) > 3 else max(1, len(buttons))
-        if len(buttons) > 2 and self.accessibility_multiplier() > 1.1:
-            columns = 2
-        for index, (label, command, button_style) in enumerate(buttons):
-            grid_row, grid_col = divmod(index, columns)
+        made = []
+        for label, command, button_style in buttons:
             button = self.row_button(row, label, command, button_style)
-            button.grid(
-                row=grid_row,
-                column=grid_col,
-                sticky="ew",
-                padx=(0 if grid_col == 0 else self.px(12), 0),
-                pady=(0 if grid_row == 0 else self.px(10), 0),
-            )
-            row.columnconfigure(grid_col, weight=1, uniform="buttons")
+            button.configure(width=-12)  # a minimum, so short labels aren't stubs
+            made.append(button)
+        gap = self.px(10)
+        placed = {"layout": None}
+
+        def flow(_event=None):
+            width = row.winfo_width()
+            if width <= 1:
+                width = 10 ** 6
+            layout, x, line, column = [], 0, 0, 0
+            for button in made:
+                need = button.winfo_reqwidth() + (gap if column else 0)
+                if column and x + need > width:
+                    line, column, x = line + 1, 0, 0
+                    need = button.winfo_reqwidth()
+                layout.append((line, column))
+                x += need
+                column += 1
+            if layout == placed["layout"]:
+                return
+            placed["layout"] = layout
+            for button, (line, column) in zip(made, layout):
+                button.grid(row=line, column=column, sticky="w",
+                            padx=(0 if column == 0 else gap, 0), pady=(0 if line == 0 else gap, 0))
+
+        flow()
+        row.bind("<Configure>", flow, add="+")
         return row
 
     def cue_menu_button(self, parent, text, actions, hint=""):
@@ -5362,15 +5000,18 @@ class MemoryPalApp(tk.Tk):
 
         def draw():
             box.delete("all")
-            pad = max(1, self.px(2))
+            # A rounded square like the fields and buttons, not a hard-edged box.
+            radius, thin = self.px(5), max(1, self.px(1))
             if variable.get():
-                box.create_rectangle(pad, pad, size - pad, size - pad, fill=COLORS["primary"], outline=COLORS["primary"], width=0)
+                square = self.rounded_tile(COLORS["primary"], bg, radius=radius, size=size)
                 tick = self.line_icon("check", size, self.on_color(COLORS["primary"]))
-                if tick is not None:
-                    box.create_image(size / 2, size / 2, image=tick, anchor="center")
-                    box._memorypal_icon = tick
             else:
-                box.create_rectangle(pad, pad, size - pad, size - pad, fill=COLORS["input"], outline=COLORS["muted"], width=max(1, self.px(1)))
+                square = self.rounded_tile(COLORS["input"], bg, ring=COLORS["muted"], ring_width=thin, radius=radius, size=size)
+                tick = None
+            box.create_image(0, 0, image=square, anchor="nw")
+            if tick is not None:
+                box.create_image(size / 2, size / 2, image=tick, anchor="center")
+            box._memorypal_icon = (square, tick)
 
         def toggle(_event=None):
             variable.set(not variable.get())
@@ -5919,8 +5560,6 @@ class MemoryPalApp(tk.Tk):
             "Open Data Folder": "Open the folder where MemoryPal stores profiles, data, and attachments.",
             "Export Backup": "Save a portable JSON copy of the active profile.",
             "Import Backup": "Load a JSON backup into the active profile.",
-            "True Fullscreen": f"Use the operating system fullscreen mode. {'Control-Command-F' if IS_MAC else 'F11'} does the same thing.",
-            "Focus Window": "Use a borderless focus window without changing the operating system fullscreen state.",
         }
 
     def mastery_summary(self):
@@ -6009,7 +5648,7 @@ class MemoryPalApp(tk.Tk):
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(30), pady=self.px(28)))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Label(hero, text=f"Welcome to MemoryPal, {active_profile_name()}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        tk.Label(hero, text="Three quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
+        tk.Label(hero, text="Four quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
 
         who = self.card(page.inner, "Card.TFrame", 22)
         who.pack(fill="x", padx=(0, 8), pady=(0, 16))
@@ -6074,6 +5713,33 @@ class MemoryPalApp(tk.Tk):
         self.check_toggle(voice, read_aloud, "Yes, read questions and answers aloud to me", fit=True).pack(fill="x", pady=(0, self.px(10)))
         self.button_row(voice, [("Test the Voice", lambda: self.speak("Hello. This is how MemoryPal sounds when it reads to you."), "TButton")])
 
+        # AI is chosen here, with what it means in plain words, and starts on
+        # (Kirthik's call, 2026-10-24): picking "Yes" and finishing the
+        # welcome is the same consent as the AI screen, recorded with a time.
+        # Choosing again from Settings keeps the current answer.
+        redo = bool(self.store.onboarding.get("done"))
+        use_ai = tk.StringVar(value="No thanks" if redo and not aiflow.has_consent(self.ai_prefs()) else "Yes, use AI")
+        ai_card = self.card(page.inner, "Card.TFrame", 22)
+        ai_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(ai_card, text="4. Use AI to make notes and practice questions?", style="H2.TLabel").pack(anchor="w", pady=(0, 6))
+        self.fit_wrap(ttk.Label(
+            ai_card,
+            text=(
+                "Only what you choose is sent, when you press an AI button: it goes through MemoryPal's server to Google's Gemini API. "
+                "On Gemini's free tier Google may keep it, use it to improve its products, and people at Google may read it, so don't send "
+                f"private or sensitive information. AI needs a MemoryPal account (up to {aiflow.AI_DAILY_LIMIT} requests a day) and can be turned off in Settings."
+            ),
+            style="CardMuted.TLabel", wraplength=self.px(1000), justify="left",
+        ), pady=(0, self.px(10)))
+        self.pill_group(ai_card, use_ai, ["Yes, use AI", "No thanks"], max_columns=2).pack(fill="x")
+        links = tk.Frame(ai_card, bg=COLORS["surface"])
+        links.pack(fill="x", pady=(self.px(10), 0))
+        for index, (label, url) in enumerate((label, url) for label, url in (("Privacy policy", cloud_config.PRIVACY_URL), ("Google's Gemini API terms", aiflow.GEMINI_TERMS_URL)) if url):
+            link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2")
+            link.pack(side="left", padx=(0 if index == 0 else self.px(16), 0))
+            self.keyboard_link(link, lambda _event, address=url: open_web_page(address))
+        state["use_ai"] = use_ai
+
         finish = self.card(page.inner, "AltCard.TFrame", 22)
         finish.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(finish, text="All set?", style="AltH2.TLabel").pack(anchor="w")
@@ -6081,14 +5747,17 @@ class MemoryPalApp(tk.Tk):
         self.button_row(
             finish,
             [
-                ("Start the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), True), "Primary.TButton"),
-                ("Skip the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), False), "TButton"),
+                ("Start the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), True, use_ai.get() == "Yes, use AI"), "Primary.TButton"),
+                ("Skip the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), False, use_ai.get() == "Yes, use AI"), "TButton"),
             ],
             "AltCard.TFrame",
         )
 
-    def finish_welcome(self, persona_key, text_size, read_aloud, take_tour):
+    def finish_welcome(self, persona_key, text_size, read_aloud, take_tour, use_ai=None):
         persona_key = persona_key if persona_key in onboarding.PERSONAS else "general"
+        if use_ai is not None and use_ai != aiflow.has_consent(self.ai_prefs()):
+            prefs = self.ai_prefs()
+            self.store.preferences = aiflow.normalize_preferences(aiflow.give_consent(prefs) if use_ai else aiflow.withdraw_consent(prefs))
         data = onboarding.persona(persona_key)
         prefs = dict(self.accessibility)
         # Redoing the welcome with a different answer shouldn't keep the old
@@ -6665,6 +6334,7 @@ class MemoryPalApp(tk.Tk):
             r, c = divmod(index, per_row)
             cell = tk.Frame(row, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20))
             cell.grid(row=r, column=c, sticky="nsew", padx=(0 if c == 0 else gap, 0), pady=(0 if r == 0 else gap, 0))
+            self.round_tk_panel(cell)
             cells.append(cell)
         for c in range(per_row):
             row.columnconfigure(c, weight=1, uniform=f"panels{count}")
@@ -6707,6 +6377,8 @@ class MemoryPalApp(tk.Tk):
     def render_today_path(self, box):
         for child in box.winfo_children():
             child.destroy()
+        box._mp_corners = None
+        self.round_tk_panel(box)
         bg = COLORS["surface"]
         today = plan_for_today(self.store)
         head = tk.Frame(box, bg=bg)
@@ -6872,7 +6544,6 @@ class MemoryPalApp(tk.Tk):
         panels = self.panel_row(parent, len(modes))
         for panel, (icon, title, body, action, color) in zip(panels, modes):
             card = self.hover_card(panel, command=action)
-            card.configure(highlightthickness=max(1, self.px(2)))
             # Line icons in a tinted badge, matching the hub tiles.
             self.icon_badge(card, icon).pack(anchor="w")
             tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").pack(fill="x", pady=(self.px(6), 0))
@@ -6884,7 +6555,6 @@ class MemoryPalApp(tk.Tk):
         upcoming = next((badge for badge in badges if not badge["done"]), None)
         (panel,) = self.panel_row(parent, 1)
         card = self.hover_card(panel, command=lambda: self.show_view("stats"))
-        card.configure(highlightthickness=max(1, self.px(2)), highlightbackground=COLORS["surface"])
         card.columnconfigure(1, weight=1)
         if upcoming:
             tk.Label(card, text=upcoming["icon"], bg=COLORS["surface"], font=self.font("Segoe UI Emoji", 26)).grid(row=0, column=0, rowspan=3, sticky="nw", padx=(0, self.px(16)))
@@ -10953,7 +10623,7 @@ class MemoryPalApp(tk.Tk):
         draft = self.view_drafts.get("feedback", {})
         summary = self.store.feedback_summary()
 
-        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26), highlightthickness=1, highlightbackground=COLORS["line"]))
+        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26)))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Label(hero, text="Help make MemoryPal better", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
         tk.Label(hero, text="Tell us what's working, what's confusing, or what's broken. Notes stay on this computer until you send them.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(6, 0))
@@ -10966,7 +10636,7 @@ class MemoryPalApp(tk.Tk):
             ("Latest", summary["latest"], "most recent feedback note", COLORS["warm_text"]),
         ]
         for index, (title, value, caption, color) in enumerate(stat_items):
-            tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18), highlightthickness=1, highlightbackground=COLORS["line"]))
+            tile = self.hover_card(tk.Frame(stats, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18)))
             tile.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else self.px(10), 0))
             tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w")
             tk.Label(tile, text=value, bg=COLORS["surface"], fg=color, font=self.font("Segoe UI Semibold", 20), wraplength=self.px(290), justify="left").pack(anchor="w", pady=(self.px(2), 0))
@@ -11488,6 +11158,14 @@ class MemoryPalApp(tk.Tk):
         if not uses_drive:
             self._account_status_label = status
         self.fit_wrap(status, pady=(4, 12))
+        if not uses_drive and not getattr(sys, "frozen", False):
+            # Started from the .py files: the Google sign-in details only go
+            # into installed builds, so say why Google Drive isn't offered.
+            self.fit_wrap(ttk.Label(
+                card,
+                text="Google Drive sync isn't offered in this copy because it was started from the Python files without MemoryPal's Google sign-in details. "
+                     "Installed versions have them. To use Drive here, add latest_app/memorypal/google_client.py with CLIENT_ID and CLIENT_SECRET (see docs/GOOGLE_DRIVE_SYNC.md).",
+                style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(0, 12))
         if not cloud.configured():
             return
         if self.account.signed_in:
@@ -11977,19 +11655,9 @@ class MemoryPalApp(tk.Tk):
         window_card = self.card(grid, "Card.TFrame", 22)
         window_card.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
         ttk.Label(window_card, text="Window", style="H2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(window_card, text="F11 uses true fullscreen. The titlebar square uses borderless focus mode.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
-        state_row = tk.Frame(window_card, bg=COLORS["surface"])
-        state_row.pack(fill="x", pady=(0, 12))
-        self.render_status_chip(state_row, "True fullscreen on" if self.is_fullscreen else "True fullscreen off", COLORS["green"] if self.is_fullscreen else COLORS["alt"], self.on_color(COLORS["green"]) if self.is_fullscreen else COLORS["muted"])
-        self.render_status_chip(state_row, "Focus window on" if self.is_focus_window else "Focus window off", COLORS["primary"] if self.is_focus_window else COLORS["alt"], self.on_color(COLORS["primary"]) if self.is_focus_window else COLORS["muted"])
-        self.button_row(
-            window_card,
-            [
-                ("True fullscreen", self.toggle_true_fullscreen, "TButton"),
-                ("Focus window", self.toggle_focus_window, "TButton"),
-            ],
-            "Card.TFrame",
-        )
+        keys = "Control-Command-F" if IS_MAC else "F11"
+        self.fit_wrap(ttk.Label(window_card, text=f"Full screen hides everything but MemoryPal. {keys} turns it on or off, and Esc leaves it.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
+        self.button_row(window_card, [("Leave full screen" if self.is_fullscreen else "Full screen", self.toggle_true_fullscreen, "TButton")], "Card.TFrame")
 
         profile_card = self.card(grid, "Card.TFrame", 22)
         profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 12))
@@ -12062,15 +11730,16 @@ class MemoryPalApp(tk.Tk):
         self.fit_wrap(ttk.Label(nav_card, text="Move pages up or down to choose which come first inside Today, Study, Create, Practice and Progress, and in the page finder.", style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
         nav_order = [key for key, _label, _short in self.ordered_nav_items()]
         nav_labels = {key: label for key, label, _short in self.default_nav_items()}
-        order_row = tk.Frame(nav_card, bg=COLORS["surface"])
+        order_row = self.field_frame(nav_card)
         order_row.pack(fill="x", pady=(0, self.px(12)))
         listbox = tk.Listbox(
             order_row,
             height=8,
             bg=COLORS["input"],
             fg=COLORS["ink"],
-            selectbackground=COLORS["primary"],
-            selectforeground=self.on_color(COLORS["primary"]),
+            # A calm tinted row for the chosen page, as in the dropdowns.
+            selectbackground=COLORS["alt"],
+            selectforeground=COLORS["ink"],
             relief="flat",
             bd=0,
             highlightthickness=0,
@@ -12079,6 +11748,7 @@ class MemoryPalApp(tk.Tk):
             exportselection=False,
         )
         listbox.pack(side="left", fill="both", expand=True)
+        self.follow_focus(order_row, listbox)
         list_scroll = ttk.Scrollbar(order_row, orient="vertical", command=listbox.yview)
         list_scroll.pack(side="right", fill="y")
         listbox.configure(yscrollcommand=list_scroll.set)
@@ -12151,11 +11821,6 @@ class MemoryPalApp(tk.Tk):
                 ("Import Backup", self.import_data, "TButton"),
             ] + ([] if self.accessibility.get("caregiver_mode") else [("Reset", self.reset_data, "Danger.TButton")]),
         )
-
-        comfort = self.card(page.inner, "Card.TFrame", 22)
-        comfort.pack(fill="x", padx=(0, 8))
-        ttk.Label(comfort, text="Comfort Notes", style="H2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(comfort, text="Use focus mode when the window frame feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="Card.TLabel", wraplength=self.px(1040), justify="left"), pady=(4, 0))
 
     def view_library(self):
         # On a card, like the other pages: on the bare page background the
@@ -12248,8 +11913,8 @@ class MemoryPalApp(tk.Tk):
                     if shown >= limit["count"]:
                         hidden += 1
                         continue
-                    item = self.card(page.inner)
-                    item.pack(fill="x", padx=(0, 8), pady=(0, 10))
+                    item = self.card(page.inner, padding=18)
+                    item.pack(fill="x", padx=(0, 8), pady=(0, 8))
                     seen = card.last_result != "New"
                     status_line = "  \u00b7  ".join([
                         card.deck or "General",
@@ -12269,7 +11934,7 @@ class MemoryPalApp(tk.Tk):
                         tk.Label(item, text=f"Missed {card.lapses} times. Try rewording it or adding a memory hook.", bg=COLORS["again_bg"], fg=COLORS["again_fg"], font=self.font("Segoe UI Semibold", 10), padx=self.px(8), pady=self.px(3)).pack(anchor="w", pady=(4, 0))
                     if quiz_questions.is_ai_card(card):
                         self.ai_tag(item, f"Q: {card.front}\nA: {card.back}").pack(anchor="w", pady=(self.px(6), 0))
-                    ttk.Label(item, text=card.front, style="H2.TLabel", wraplength=1060).pack(anchor="w", pady=(6, 5))
+                    ttk.Label(item, text=card.front, style="ItemTitle.TLabel", wraplength=1060).pack(anchor="w", pady=(6, 3))
                     ttk.Label(item, text=card.back, style="Card.TLabel", wraplength=1080).pack(anchor="w")
                     if card.association:
                         ttk.Label(item, text=f"Memory hook: {card.association}", style="CardMuted.TLabel", wraplength=1080).pack(anchor="w", pady=(8, 0))
