@@ -448,6 +448,8 @@ This build is packaged as release 0.52.0.
 - Full screen on Windows changes the window's style instead of using Tk's full screen, which built a brand-new window each time and flashed white when leaving it. This is how Chrome and Windows Terminal do it.
 - On 120-165Hz screens, pages that take longer than one refresh to draw scroll on every second refresh, evenly, instead of landing two steps in one refresh and none in the next.
 - Tooltips are smaller and sit under the pointer, with system rounded corners on Windows 11. Notices ("Card saved") rise in at the bottom centre on a raised panel instead of a black box in the corner. Dialog buttons line up on the right at their natural width, and the title bar names the app instead of repeating the question. Unchosen options in choice rows no longer look like empty text boxes. The round profile button is no longer clipped.
+- Windows: when the window grows (dragging an edge, maximising, full screen) the new space is filled with the app's background straight away instead of showing white until Tk repaints, as Chrome and Electron do. On 144Hz screens heavy pages may also step on every third refresh (48 a second, evenly).
+- The welcome has a fourth question, whether to use AI, answered "Yes" unless changed, with what is sent and to whom spelled out beside it. The header's profile circle is smaller and its letter sits exactly in the middle.
 
 This build is packaged as release 0.52.0.
 
