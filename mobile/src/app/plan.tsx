@@ -39,6 +39,9 @@ function StepList({ steps }: { steps: PlanStep[] }) {
   );
 }
 
+/** Plans keep the value "All decks"; people see "All sets", the app's word for decks. */
+const deckLabel = (value: string) => (value === 'All decks' ? 'All sets' : value);
+
 export default function Plan() {
   const store = useStore();
   const theme = useTheme();
@@ -86,7 +89,7 @@ export default function Plan() {
       </Card>
       <Card>
         <Txt variant="h3">What are you studying?</Txt>
-        <Pills label="Material" value={deck} onChange={setDeck} options={['All decks', 'New material', ...store.decks()].map((value) => ({ value, label: value }))} />
+        <Pills label="Material" value={deck} onChange={setDeck} options={['All decks', 'New material', ...store.decks()].map((value) => ({ value, label: deckLabel(value) }))} />
       </Card>
       <Card>
         <Txt variant="h3">What’s the goal?</Txt>
@@ -102,7 +105,7 @@ export default function Plan() {
       <SectionTitle action={<SpeakButton text={session ? stepsText(session) : days ? days.map((day) => `Day ${day.day}, ${day.minutes} minutes. ${day.steps.map((step) => step.title).join(', ')}.`).join(' ') : ''} label="Read the plan aloud" />}>Your plan</SectionTitle>
       {session ? (
         <Card tone="alt">
-          <Txt variant="muted">{`${minutes} minutes · ${goal} · ${deck}`}</Txt>
+          <Txt variant="muted">{`${minutes} minutes · ${goal} · ${deckLabel(deck)}`}</Txt>
           <StepList steps={session} />
         </Card>
       ) : null}

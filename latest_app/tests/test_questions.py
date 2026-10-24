@@ -162,6 +162,14 @@ class QuizTests(unittest.TestCase):
         second = q.build_quiz(cards, 5, q.Rng(2), recent_ids=[item["id"] for item in first], today=TODAY)
         self.assertFalse({item["card_id"] for item in first} & {item["card_id"] for item in second})
 
+    def test_true_false_prompt_has_one_full_stop(self):
+        card = Card(id="s", deck="Bio", front="What is osmosis?", back="Water moving across a membrane.")
+        prompt = q.build_quiz([card], 1, q.Rng(1), today=TODAY)[0]["prompt"]
+        self.assertTrue(prompt.endswith("membrane.\u201d"), prompt)
+
+    def test_cloze_skips_everyday_words(self):
+        self.assertNotIn("over", [word for word, _start, _end in q.cloze_candidates("Images can make a memory stick over time")])
+
     def test_types_filter_and_small_decks(self):
         cards = deck()
         quiz = q.build_quiz(cards, 6, q.Rng(1), types=["choice", "truefalse"], today=TODAY)

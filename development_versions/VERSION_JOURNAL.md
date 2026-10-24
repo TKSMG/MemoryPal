@@ -450,3 +450,11 @@ This build is packaged as release 0.52.0.
 - Tooltips are smaller and sit under the pointer, with system rounded corners on Windows 11. Notices ("Card saved") rise in at the bottom centre on a raised panel instead of a black box in the corner. Dialog buttons line up on the right at their natural width, and the title bar names the app instead of repeating the question. Unchosen options in choice rows no longer look like empty text boxes. The round profile button is no longer clipped.
 
 This build is packaged as release 0.52.0.
+
+## v93 - Says Things The Way People Do
+
+- Page titles match the tabs and read in sentence case on both apps: the desktop's "Dashboard" is Today, "Stats & Streaks" is Progress, "Decks" is Sets, and "deck" is "set" everywhere people read it.
+- Library rows say "Due tomorrow" and "Last: Got it" instead of a raw date and "New 0%"; set tiles separate new cards from ones that need focus, and their More menu holds Make with AI so the buttons fit.
+- Wording that explained how the app was built is gone from Spaced review and Study plan, and an empty review page offers a next step.
+- Quiz fixes: a true-or-false answer that ends in a full stop no longer gets a second one, everyday words like "over" aren't blanked out or offered as wrong answers, and the phone reads the question and choices from one button.
+- The phone's two-week chart labels its dates instead of an ambiguous run of single letters, compares with the week before, and Today shows "Start a streak today" instead of "0 days in a row".

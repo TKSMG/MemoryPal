@@ -19,13 +19,38 @@ function Bars({ values, labels, color, summary }: { values: number[]; labels: st
           </View>
         ))}
       </View>
-      <View style={{ flexDirection: 'row', gap: 4 }}>
-        {labels.map((label, i) => (
-          <Txt key={i} variant="small" center numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.5} style={{ flex: 1, fontSize: theme.font(11) }}>{label}</Txt>
-        ))}
-      </View>
+      {labels.length === values.length ? (
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          {labels.map((label, i) => (
+            <Txt key={i} variant="small" center numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.5} style={{ flex: 1, fontSize: theme.font(11) }}>{label}</Txt>
+          ))}
+        </View>
+      ) : (
+        // Too many bars to label each one: [first day, middle day, last day],
+        // placed under the first bar, the middle bar and the last bar.
+        <View style={{ flexDirection: 'row' }}>
+          <Txt variant="small" numberOfLines={1} maxFontSizeMultiplier={1.5} style={{ flex: 1, fontSize: theme.font(11) }}>{labels[0]}</Txt>
+          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Txt variant="small" numberOfLines={1} maxFontSizeMultiplier={1.5} style={{ fontSize: theme.font(11) }}>{labels[1]}</Txt>
+            <Txt variant="small" numberOfLines={1} maxFontSizeMultiplier={1.5} style={{ fontSize: theme.font(11) }}>{labels[2]}</Txt>
+          </View>
+        </View>
+      )}
     </View>
   );
+}
+
+/** "12 Oct": the first day of each week on the two-week chart. */
+function shortDay(date: Date): string {
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+function weekSummary(thisWeek: number, lastWeek: number): string {
+  if (!thisWeek) return lastWeek ? `No reviews in the last 7 days yet (${lastWeek} the week before). Even five minutes counts.` : 'No reviews yet. Even five minutes counts.';
+  const reviews = `${thisWeek} review${thisWeek === 1 ? '' : 's'} in the last 7 days`;
+  if (!lastWeek || thisWeek === lastWeek) return `${reviews}.`;
+  const diff = Math.abs(thisWeek - lastWeek);
+  return `${reviews}, ${diff} ${thisWeek > lastWeek ? 'more' : 'fewer'} than the week before.`;
 }
 
 export default function Progress() {
@@ -37,6 +62,7 @@ export default function Progress() {
   const best = Math.max(bestStreak(store.activity), streak);
   const week = dailySeries(store.activity, 14);
   const weekTotal = week.slice(7).reduce((sum, [, count]) => sum + count, 0);
+  const lastWeekTotal = week.slice(0, 7).reduce((sum, [, count]) => sum + count, 0);
   const forecast = dueForecast(store.cards, 7);
   const maturity = maturityBreakdown(store.cards);
   const total = Math.max(1, store.cards.length);
@@ -70,11 +96,11 @@ export default function Progress() {
       <Card>
         <Bars
           values={week.map(([, count]) => count)}
-          labels={week.map(([day], i) => (i % 2 ? '' : WEEKDAYS[weekday(day)].slice(0, dayLength)))}
+          labels={[shortDay(week[0][0]), shortDay(week[7][0]), 'Today']}
           color={c.primary}
-          summary={`${weekTotal} reviews in the last 7 days.`}
+          summary={`${weekTotal} reviews in the last 7 days, ${lastWeekTotal} the week before.`}
         />
-        <Txt variant="muted">{weekTotal ? `${weekTotal} reviews in the last 7 days.` : 'No reviews this week yet. Even five minutes counts.'}</Txt>
+        <Txt variant="muted">{weekSummary(weekTotal, lastWeekTotal)}</Txt>
       </Card>
 
       <SectionTitle>Coming up</SectionTitle>
