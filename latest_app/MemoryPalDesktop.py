@@ -4318,7 +4318,16 @@ class MemoryPalApp(tk.Tk):
         return result["value"]
 
     def card(self, parent, style="Card.TFrame", padding=24):
-        return ttk.Frame(parent, style=style, padding=self.px(padding))
+        """A rounded panel: a classic Tk frame with four corner pictures.
+
+        Not a ttk.Frame with a rounded image element: ttk repaints its whole
+        size for every exposed strip, so a tall card (the whole Testing or
+        Review page is one) cost its full area on every scroll step.
+        """
+        fill = self.style.lookup(style, "background") or COLORS["surface"]
+        pad = self.px(padding)
+        frame = tk.Frame(parent, bg=fill, padx=pad, pady=pad, bd=0, highlightthickness=0)
+        return self.round_tk_panel(frame)
 
     @staticmethod
     def page_frame(parent):
