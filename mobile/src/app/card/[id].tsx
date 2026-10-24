@@ -115,7 +115,7 @@ export default function EditCard() {
             : 'New card, not reviewed yet.'}
         </Txt>
       </Card>
-      <Field label="Deck" value={deck} onChangeText={setDeck} autoCapitalize="words" />
+      <Field label="Set" value={deck} onChangeText={setDeck} autoCapitalize="words" />
       <Field label="Question or prompt" value={front} onChangeText={setFront} multiline accessory={<SpeakButton text={front} label="Read the question aloud" />} />
       <Field label="Answer" hint="Leave it empty for a self-check card." value={back} onChangeText={setBack} multiline accessory={<SpeakButton text={back} label="Read the answer aloud" />} />
       <Field label="Memory hook (optional)" value={hook} onChangeText={setHook} multiline accessory={<SpeakButton text={hook} label="Read the memory hook aloud" />} />
