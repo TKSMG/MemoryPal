@@ -42,7 +42,8 @@ These need a Supabase project with the `ai` function deployed (see `supabase/fun
 
 - Signed out, open the set builder, choose Make with AI, and press Make notes. Confirm a "Sign in to use AI" message offers Sign in, Create an account and Not now, and nothing is sent. On the phone, confirm Make with AI shows "Sign in to use AI" with a button to sign in or create an account.
 - In a build with no cloud project set up, confirm Make with AI says "AI isn't ready yet" (desktop) or "AI isn't available yet" (phone) instead of an error.
-- Signed in, use Make with AI for the first time and confirm the one-time AI screen appears, explaining what is sent, who gets it (Google's Gemini API through MemoryPal's server), that Google may keep and read it on the free tier, and the 10-a-day limit. Confirm the Privacy policy and Gemini API terms links open.
+- On a new profile, confirm the welcome's fourth question explains AI (what is sent, Google's Gemini, the free tier) with "Yes, use AI" chosen, and that "No thanks" leaves AI off in Settings.
+- With AI turned off in Settings, use Make with AI and confirm the one-time AI screen appears, explaining what is sent, who gets it (Google's Gemini API through MemoryPal's server), that Google may keep and read it on the free tier, and the 10-a-day limit. Confirm the Privacy policy and Gemini API terms links open.
 - Press Not now on the AI screen and confirm nothing is sent and AI stays off in Settings. Use Make with AI again and confirm the AI screen asks again.
 - Press Allow and confirm a short message says AI is on. Confirm Settings > AI features shows "Use AI notes and questions" (desktop) or "AI notes and questions" (phone) switched on.
 - Type or paste a short paragraph, press Make notes, and confirm a "this can take up to a minute" style wait, then study notes with a title, sections, bullets and key terms. On the desktop, press Cancel during the wait and confirm "Cancelled. Nothing was added."

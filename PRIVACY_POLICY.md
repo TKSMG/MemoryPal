@@ -1,6 +1,6 @@
 # MemoryPal Privacy Policy
 
-Last updated: October 23, 2026
+Last updated: October 24, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
@@ -13,8 +13,9 @@ request.
 - **Sync goes through your own Google Drive, not our servers.** If you connect Google Drive, your
   cards are kept in a hidden MemoryPal folder in your own Google account (see "Syncing with
   Google Drive").
-- **AI features are optional and off until you allow them.** They need an account. Only the
-  notes or file you choose are sent, and only when you press an AI button (see "AI features").
+- **AI features are optional.** The welcome asks whether to use them, with "Yes" chosen unless
+  you change it, and they can be turned off in Settings. They need an account. Only the notes or
+  file you choose are sent, and only when you press an AI button (see "AI features").
 - **A MemoryPal account is optional.** It is only needed for AI features.
 - **We don't sell your data, show ads, or use tracking or analytics tools.**
 - **Accounts are for people 13 and older.**
@@ -84,8 +85,8 @@ iOS Keychain or the Android Keystore), never your password.
 MemoryPal can make study notes and practice questions from your notes, a PDF or a photo. This
 is optional:
 
-- It only works when you are signed in and have allowed it on the one-time AI screen. You can
-  turn it off again in Settings.
+- It only works when you are signed in and have said yes to it, in the welcome or on the AI
+  screen. You can turn it off again in Settings.
 - Only what you choose is sent: the text, or the one file, you picked for that request, anything
   you typed under "How should it look?" or "Questions your teacher has asked", and a list of your
   existing card questions in that set, so the AI doesn't repeat them and can follow their style.
