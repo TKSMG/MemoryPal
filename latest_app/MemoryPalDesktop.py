@@ -328,6 +328,53 @@ def flush_pending_paint(widget):
         return 0
 
 
+class FormMessage(tk.Label):
+    """A form's error or progress line that takes no room while it's empty.
+
+    An always-packed empty label left a blank band under the fields of
+    every dialog. This one packs itself in place when it gets text (and
+    grows its window to fit), and leaves again when the text is cleared.
+    """
+
+    def __init__(self, master, after=None, pady=(0, 0), **options):
+        super().__init__(master, **options)
+        self._after_widget = after
+        self._pady = pady
+
+    def configure(self, cnf=None, **kw):
+        result = super().configure(cnf, **kw)
+        if "text" in kw or (isinstance(cnf, dict) and "text" in cnf):
+            self._place()
+        return result
+
+    config = configure
+
+    def _place(self):
+        try:
+            if not str(self.cget("text")):
+                self.pack_forget()
+                return
+            if not self.winfo_manager():
+                options = {"fill": "x", "pady": self._pady}
+                if self._after_widget is not None and self._after_widget.winfo_exists():
+                    options["after"] = self._after_widget
+                self.pack(**options)
+                self.after_idle(self._fit_window)
+        except tk.TclError:
+            pass
+
+    def _fit_window(self):
+        try:
+            top = self.winfo_toplevel()
+            top.update_idletasks()  # let the new request reach the window
+            wanted = top.winfo_reqheight()
+            limit = top.winfo_screenheight() - 80
+            if wanted > top.winfo_height():
+                top.geometry(f"{top.winfo_width()}x{min(wanted, limit)}")
+        except tk.TclError:
+            pass
+
+
 class FieldText(tk.Text):
     """A text box inside a rounded field frame (MemoryPalApp.text_box).
 
@@ -2145,6 +2192,18 @@ class MemoryPalApp(tk.Tk):
         y = max(s_top + margin, min(y, bottom - margin - popup_height))
         top.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
         self.reveal_window(top, owner)
+        if not height:
+            # Labels that wrap to their final width only once shown (names,
+            # descriptions) can need fewer lines than were measured; fit the
+            # height again so no empty band is left under the buttons.
+            def refit():
+                try:
+                    wanted = min(max(top.winfo_reqheight(), self.px(120)), bottom - s_top - margin * 2)
+                    if abs(wanted - top.winfo_height()) > self.px(2):
+                        top.geometry(f"{top.winfo_width()}x{wanted}")
+                except tk.TclError:
+                    pass
+            top.after(60, refit)
         previous_grab = None
         if modal:
             previous_grab = top.grab_current()
@@ -2647,7 +2706,7 @@ class MemoryPalApp(tk.Tk):
         semibold = self.font("Segoe UI Semibold", 11)
         self.style.configure("TButton", padding=self.pad(18, 11), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
-        self.style.configure("Primary.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 12))
+        self.style.configure("Primary.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
         self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["primary_dark"]))])
         self.style.configure("TMenubutton", padding=self.pad(18, 11), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
         self.style.map("TMenubutton", foreground=[("active", COLORS["primary"])])
@@ -3363,14 +3422,18 @@ class MemoryPalApp(tk.Tk):
         canvas.set_active = lambda value: (setattr(canvas, "_memorypal_active", bool(value)), draw(False))
         return canvas
 
+    @staticmethod
+    def profile_initials(name):
+        # Initials read as "this is me" at a glance; "P1" read as a code.
+        words = [word for word in re.split(r"[\s_-]+", name) if word]
+        return "".join(word[0] for word in words[:2]).upper()
+
     def profile_avatar_button(self, parent):
         # A little smaller than the icon buttons' hover tiles, so the filled
         # circle sits level with the line icons instead of outweighing them.
         size = self.px(32)
         profile_number = str(min(self.active_profile_number(), 99))
-        # Initials read as "this is me" at a glance; "P1" read as a code.
-        words = [word for word in re.split(r"[\s_-]+", active_profile_name()) if word]
-        profile_label = ("".join(word[0] for word in words[:2]) or profile_number).upper()
+        profile_label = self.profile_initials(active_profile_name()) or profile_number
         try:
             base = parent.cget("bg") or COLORS["surface"]
         except tk.TclError:
@@ -4006,44 +4069,62 @@ class MemoryPalApp(tk.Tk):
         top = tk.Toplevel(self)
         top.withdraw()
         top.title("Profiles")
-        top.configure(bg=COLORS["bg"])
+        top.configure(bg=COLORS["surface"])
         self.apply_app_icon(top)
         self.own_window(top, self)
-        top.minsize(self.px(360), self.px(360))
+        top.minsize(self.px(400), self.px(280))
 
-        shell = tk.Frame(top, bg=COLORS["bg"])
-        shell.pack(fill="both", expand=True)
-
-        wrap = tk.Frame(shell, bg=COLORS["bg"], padx=self.px(20), pady=self.px(20))
+        # The same surface as the other dialogs, so its buttons look the same.
+        wrap = tk.Frame(top, bg=COLORS["surface"], padx=self.px(24), pady=self.px(20))
         wrap.pack(fill="both", expand=True)
-        tk.Label(wrap, text="Profiles", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 20)).pack(anchor="w")
-        self.fit_wrap(tk.Label(wrap, text="Each profile keeps its own sets, stats, and streak. Sign each one in to a different account to keep them apart in the cloud too.", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(380), justify="left"), pady=(4, 16))
+        tk.Label(wrap, text="Profiles", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w").pack(fill="x")
+        self.fit_wrap(tk.Label(wrap, text="Each profile keeps its own sets, stats, and streak. Sign each one in to a different account to keep them apart in the cloud too.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(440), justify="left", anchor="w"), pady=(self.px(4), self.px(16)))
 
-        list_holder = tk.Frame(wrap, bg=COLORS["bg"])
-        list_holder.pack(fill="both", expand=True)
+        # One list between hairlines, like a Settings page: every row's name
+        # and buttons on the same lines as the others.
+        divider = self.blend_hex(COLORS["surface"], COLORS["line"], 0.35)
+        rows = tk.Frame(wrap, bg=COLORS["surface"], highlightthickness=0)
+        rows.pack(fill="x")
+        rows.columnconfigure(1, weight=1)
 
         @self.smooth
         def render_list():
-            for child in list_holder.winfo_children():
+            for child in rows.winfo_children():
                 child.destroy()
             active = active_profile_name()
-            for name in list_profiles():
-                row = tk.Frame(list_holder, bg=COLORS["surface"], padx=self.px(14), pady=self.px(12))
-                row.pack(fill="x", pady=(0, 8))
-                label_text = name + ("  (active)" if name == active else "")
-                button_area = tk.Frame(row, bg=COLORS["surface"])
-                button_area.pack(side="right")
-                # Packed after the buttons so a long name wraps instead of
-                # pushing them out of the window.
-                name_label = tk.Label(row, text=label_text, bg=COLORS["surface"], fg=(COLORS["primary"] if name == active else COLORS["ink"]), font=self.font("Segoe UI Semibold", 12), anchor="w", justify="left", wraplength=self.px(160))
-                name_label.pack(side="left", fill="x", expand=True)
+            names = list_profiles()
+            for index, name in enumerate(names + [None]):
+                line = index * 2
+                tk.Frame(rows, bg=divider, height=max(1, self.px(1))).grid(row=line, column=0, columnspan=4, sticky="ew")
+                if name is None:
+                    break
+                line += 1
+                current = name == active
+                size = self.px(32)
+                avatar = tk.Canvas(rows, width=size, height=size, bg=COLORS["surface"], highlightthickness=0, bd=0)
+                fill = COLORS["primary"] if current else self.tint(COLORS["surface"], -9 if self.theme == "light" else 14)
+                if not self.draw_antialiased_shape(avatar, size, size, fill, radius=size // 2, inset=1):
+                    avatar.create_oval(0, 0, size, size, fill=fill, outline="")
+                initials = self.profile_initials(name) or "?"
+                self.create_centered_canvas_text(avatar, size / 2, size / 2, initials, fill=self.on_color(fill) if current else COLORS["ink"], font=self.font("Segoe UI Semibold", 10 if len(initials) <= 1 else 9))
+                avatar.grid(row=line, column=0, padx=(self.px(4), self.px(12)), pady=self.px(10))
+                text = tk.Frame(rows, bg=COLORS["surface"])
+                text.grid(row=line, column=1, sticky="ew")
+                name_label = tk.Label(text, text=name, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 12), anchor="w", justify="left", wraplength=self.px(220))
+                name_label.pack(fill="x")
                 self.bind_rewrap(name_label)
-                # The app's own rounded buttons, like every other dialog.
-                if name != active:
-                    ttk.Button(button_area, text="Switch", style="Primary.TButton", cursor="hand2", command=lambda n=name: (top.destroy(), self.switch_profile(n))).pack(side="left", padx=(0, self.px(6)))
-                ttk.Button(button_area, text="Rename", cursor="hand2", command=lambda n=name: do_rename(n)).pack(side="left", padx=(0, self.px(6)))
-                if len(list_profiles()) > 1:
-                    ttk.Button(button_area, text="Delete", cursor="hand2", command=lambda n=name: do_delete(n)).pack(side="left")
+                if current:
+                    tk.Label(text, text="In use now", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x")
+                    # Holds Switch's place so the More buttons line up.
+                    tk.Label(rows, text="", bg=COLORS["surface"]).grid(row=line, column=2)
+                else:
+                    ttk.Button(rows, text="Switch", style="Primary.TButton", cursor="hand2", width=-7, command=lambda n=name: (top.destroy(), self.switch_profile(n))).grid(row=line, column=2, sticky="e", padx=(self.px(12), 0))
+                actions = [("Rename…", lambda n=name: do_rename(n))]
+                if len(names) > 1:
+                    actions.append(("Delete…", lambda n=name: do_delete(n)))
+                more = self.cue_menu_button(rows, "More", actions, hint=f"Rename or delete {name}.")
+                more.configure(width=0)
+                more.grid(row=line, column=3, sticky="e", padx=(self.px(8), 0), pady=self.px(10))
 
         def do_rename(name):
             new_name = self.dialog_text("Rename profile", f"New name for \"{name}\":", initial=name, parent=top)
@@ -4092,10 +4173,16 @@ class MemoryPalApp(tk.Tk):
             self.switch_profile(normalize_profile_name(new_name))
 
         render_list()
-        ttk.Button(wrap, text="New profile", style="Primary.TButton", cursor="hand2", command=do_create).pack(fill="x", pady=(self.px(12), 0))
-        ttk.Button(wrap, text="Close", cursor="hand2", command=top.destroy).pack(fill="x", pady=(self.px(8), 0))
+        # Buttons at the width of their words, as in the other dialogs: the
+        # way to add on the left, the way out on the right.
+        footer = tk.Frame(wrap, bg=COLORS["surface"])
+        footer.pack(fill="x", pady=(self.px(20), 0))
+        ttk.Button(footer, text="New profile…", cursor="hand2", command=do_create).pack(side="left")
+        done = ttk.Button(footer, text="Done", style="Primary.TButton", cursor="hand2", width=-8, command=top.destroy)
+        done.pack(side="right")
         top.bind("<Escape>", lambda _event: top.destroy())
-        self.show_popup_window(top, self, self.px(440), self.px(420))
+        self.show_popup_window(top, self, self.px(520))
+        done.focus_set()
 
     def toggle_theme(self):
         self.save_current_draft()
@@ -4222,6 +4309,15 @@ class MemoryPalApp(tk.Tk):
     def present_dialog(self, top):
         # Shown only once its fields and buttons exist, so the height fits them.
         self.tidy_dialog_actions(top.dialog_actions)
+        # The buttons claim their place first, so on a short screen the
+        # text runs out of room, never the way to answer or close.
+        try:
+            actions = top.dialog_actions
+            first = actions.master.pack_slaves()[0]
+            if first is not actions:
+                actions.pack_configure(side="bottom", before=first)
+        except (tk.TclError, IndexError):
+            pass
         self.show_popup_window(top, top.dialog_owner, top.dialog_width, modal=True)
 
     def tidy_dialog_actions(self, actions):
@@ -4269,8 +4365,9 @@ class MemoryPalApp(tk.Tk):
 
     def dialog_alert(self, title, body, kind="info", parent=None):
         top, _content, actions = self.dialog_window(title, body, parent=parent)
-        color = COLORS["danger"] if kind == "error" else COLORS["primary"]
-        ok = self.solid_button(actions, "OK", top.destroy, color)
+        # OK only closes the message, so it is the usual default button even
+        # for an error: red is kept for buttons that destroy something.
+        ok = self.solid_button(actions, "OK", top.destroy, COLORS["primary"])
         ok.pack()
         self.present_dialog(top)
         top.bind("<Return>", lambda _event: top.destroy())
@@ -4329,8 +4426,7 @@ class MemoryPalApp(tk.Tk):
         entry = ttk.Entry(content)
         entry.insert(0, initial or "")
         entry.pack(fill="x")
-        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
-        error.pack(fill="x", pady=(self.px(6), 0))
+        error = FormMessage(content, after=entry, pady=(self.px(6), 0), text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
 
         def submit():
             value = normalize_space(entry.get())
@@ -4383,8 +4479,7 @@ class MemoryPalApp(tk.Tk):
             # An AI card made from saved notes opens them at the bit it came from.
             link = ttk.Button(content, text=f"Open \u201c{source.title[:60]}\u201d, where this card came from", command=lambda: self.open_notes(source, bit))
             link.pack(anchor="w", pady=(self.px(10), 0))
-        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
-        error.pack(fill="x", pady=(self.px(6), 0))
+        error = FormMessage(content, pady=(self.px(6), 0), text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
 
         def value(name):
             widget = fields[name]
@@ -6865,15 +6960,14 @@ class MemoryPalApp(tk.Tk):
                 widget.insert("1.0", value or "")
             widget.pack(fill="x")
             if hint:
-                tk.Label(content, text=hint, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 9), anchor="w", justify="left", wraplength=self.px(560)).pack(fill="x", pady=(self.px(2), 0))
+                self.fit_wrap(tk.Label(content, text=hint, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(560)), pady=(self.px(4), 0))
             fields[name] = widget
 
         field("About (optional)", "about", info.about)
         field("Exam date (optional)", "exam_date", info.exam_date, hint="Year-month-day, for example 2026-12-05. The set shows a countdown and can plan up to it.")
         field("How should AI notes look? (optional)", "ai_style", info.ai_style)
         field("Questions your teacher has asked (optional, one per line)", "ai_examples", info.ai_examples, lines=4, hint="Make with AI writes new questions in the same style and level.")
-        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
-        error.pack(fill="x", pady=(self.px(6), 0))
+        error = FormMessage(content, pady=(self.px(6), 0), text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
 
         def value(name):
             widget = fields[name]
@@ -8821,10 +8915,10 @@ class MemoryPalApp(tk.Tk):
             "Use AI notes and questions?",
             "MemoryPal can make study notes and practice questions from notes, a PDF or a picture you choose. Before you turn it on:",
             parent=parent,
-            width=600,
+            width=680,
         )
         surface = COLORS["surface"]
-        wrap = self.px(600 - 70)
+        wrap = self.px(680 - 70)
         # Same five points, in the same words, as the phone (AiConsent.tsx).
         points = (
             ("What is sent", "Only what you choose for each request: the text, or the one PDF or picture, plus your existing card questions so the AI doesn't repeat them. Nothing is sent until you press an AI button."),
@@ -9149,8 +9243,7 @@ class MemoryPalApp(tk.Tk):
         answer = self.text_box(content, 3, 12)
         answer.insert("1.0", item.get("answer", ""))
         answer.pack(fill="x", pady=(self.px(4), 0))
-        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
-        error.pack(fill="x", pady=(self.px(6), 0))
+        error = FormMessage(content, pady=(self.px(6), 0), text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
 
         def submit():
             prompt = normalize_space(question.get())
@@ -11255,7 +11348,8 @@ class MemoryPalApp(tk.Tk):
     def cloud_dialog(self, title, body, fields, submit_label, work, on_success, extra_links=(), hint=None, extra_widgets=None, footer=None, browser_check=False):
         """A small form dialog whose network call runs in the background.
 
-        fields: [(name, label, secret)]. work(values) runs on a worker thread;
+        fields: [(name, label, secret)], or a list of such tuples for fields
+        that share one row (birth month and year). work(values) runs on a worker thread;
         on_success(result, values) runs on the UI thread after the dialog closes.
         hint(values) -> (text, colour) updates a line under the fields as people type.
         footer(content) adds widgets under the fields and returns {name: getter};
@@ -11265,14 +11359,21 @@ class MemoryPalApp(tk.Tk):
         if extra_widgets:
             extra_widgets(content)
         entries = {}
-        for name, label, secret in fields:
-            tk.Label(content, text=label, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(8), self.px(4)))
-            entry = ttk.Entry(content, show="•" if secret else "")
-            entry.pack(fill="x")
-            entries[name] = entry
+        for index, group in enumerate(fields):
+            group = group if isinstance(group, list) else [group]
+            row = tk.Frame(content, bg=COLORS["surface"])
+            row.pack(fill="x", pady=(self.px(10) if index else 0, 0))
+            for column, (name, label, secret) in enumerate(group):
+                row.columnconfigure(column, weight=1, uniform="field")
+                cell = tk.Frame(row, bg=COLORS["surface"])
+                cell.grid(row=0, column=column, sticky="ew", padx=(self.px(12) if column else 0, 0))
+                tk.Label(cell, text=label, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(0, self.px(4)))
+                entry = ttk.Entry(cell, show="•" if secret else "")
+                entry.pack(fill="x")
+                entries[name] = entry
         if hint is not None:
             hint_label = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(470))
-            hint_label.pack(fill="x", pady=(self.px(6), 0))
+            self.fit_wrap(hint_label, pady=(self.px(6), 0))
 
             def update_hint(_event=None):
                 text, colour = hint({name: entry.get() for name, entry in entries.items()})
@@ -11282,12 +11383,16 @@ class MemoryPalApp(tk.Tk):
                 entry.bind("<KeyRelease>", update_hint, add="+")
             update_hint()
         footer_values = footer(content) if footer else {}
-        error = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(470))
-        error.pack(fill="x", pady=(self.px(8), 0))
-        for text, action in extra_links:
-            link = tk.Label(content, text=text, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2", anchor="w")
-            link.pack(fill="x", pady=(self.px(6), 0))
-            self.keyboard_link(link, lambda _event, act=action: (top.destroy(), act()))
+        # Shown only while there is something to say, under the fields.
+        error = FormMessage(content, after=content.pack_slaves()[-1], pady=(self.px(10), 0), text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(470))
+        if extra_links:
+            # The side ways out ("Forgot your password?") share one line.
+            links = tk.Frame(content, bg=COLORS["surface"])
+            links.pack(fill="x", pady=(self.px(14), 0))
+            for index, (text, action) in enumerate(extra_links):
+                link = tk.Label(links, text=text, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2", anchor="w")
+                link.pack(side="left", padx=(self.px(20) if index else 0, 0))
+                self.keyboard_link(link, lambda _event, act=action: (top.destroy(), act()))
         busy = {"on": False}
 
         def submit():
@@ -11383,11 +11488,9 @@ class MemoryPalApp(tk.Tk):
                 "Create your MemoryPal account",
                 "Use an email you can check: we'll email you a code to confirm it. You don't need an account to use MemoryPal; it only keeps your cards in step across devices.",
                 [
-                    ("birth_month", "Month you were born (1-12)", False),
-                    ("birth_year", "Year you were born", False),
+                    [("birth_month", "Month you were born (1-12)", False), ("birth_year", "Year you were born", False)],
                     ("email", "Email", False),
-                    ("password", "Password", True),
-                    ("again", "Password again", True),
+                    [("password", "Password", True), ("again", "Password again", True)],
                 ],
                 "Create account", create, created,
                 extra_links=[("Already have an account? Sign in", lambda: self.open_account_dialog("sign_in"))],

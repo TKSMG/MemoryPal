@@ -460,3 +460,10 @@ This build is packaged as release 0.52.0.
 - Wording that explained how the app was built is gone from Spaced review and Study plan, and an empty review page offers a next step.
 - Quiz fixes: a true-or-false answer that ends in a full stop no longer gets a second one, everyday words like "over" aren't blanked out or offered as wrong answers, and the phone reads the question and choices from one button.
 - The phone's two-week chart labels its dates instead of an ambiguous run of single letters, compares with the week before, and Today shows "Start a streak today" instead of "0 days in a row".
+
+## v94 - Dialogs That Sit Right
+
+- Profiles is one tidy list: each profile has its initials, its name, and the same columns of buttons, so names no longer crowd the Switch button. Rename and Delete are in each row's More menu, the profile in use says "In use now", and the bottom has New profile on the left and Done on the right instead of two full-width bars. It no longer leaves an empty band under the list.
+- Dialog buttons always stay on screen: on a short or zoomed screen the text runs out of room first, so Create account and the AI question can always be answered. Create account puts birth month and year, and the two password boxes, side by side.
+- Error lines in dialogs take no room until there is something to say (the window grows to show it), so there is no blank gap under the fields. Sign in's two links share one line.
+- Main and plain buttons are the same height everywhere (the main one used a larger font). An error message's OK button is the usual accent colour; red is kept for buttons that delete things. Set details' hints wrap to the width of the window.
