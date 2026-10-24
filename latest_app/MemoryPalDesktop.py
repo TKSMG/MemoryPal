@@ -1380,7 +1380,9 @@ class MemoryPalApp(tk.Tk):
             return
         current_x = (bbox[0] + bbox[2]) / 2
         current_y = (bbox[1] + bbox[3]) / 2
-        canvas.move(item, x - current_x, y - current_y)
+        # Whole pixels: a half-pixel move lands on whichever side Tk rounds
+        # to, which put letters a pixel off centre in round buttons.
+        canvas.move(item, round(x - current_x), round(y - current_y))
 
     ICON_FONTS = ("Segoe MDL2 Assets", "Segoe Fluent Icons", "Segoe UI Symbol", "Segoe UI Emoji")
 
@@ -2252,6 +2254,13 @@ class MemoryPalApp(tk.Tk):
                 return
             windowtheme.apply_windows(self.window_handle(window), dark, caption=COLORS["bg"], text=COLORS["ink"], border=COLORS["line"])
             windowtheme.set_background_brush(self.window_handle(window), COLORS["bg"])
+            try:
+                fill = window.cget("bg") if window is not self else COLORS["bg"]
+                red, green, blue = (value // 257 for value in self.winfo_rgb(fill))
+                fill = f"#{red:02x}{green:02x}{blue:02x}"
+            except tk.TclError:
+                fill = COLORS["bg"]
+            windowtheme.fill_on_erase(window.winfo_id(), fill)
         except (tk.TclError, AttributeError):
             pass
 
@@ -3355,7 +3364,9 @@ class MemoryPalApp(tk.Tk):
         return canvas
 
     def profile_avatar_button(self, parent):
-        size = self.px(38)
+        # A little smaller than the icon buttons' hover tiles, so the filled
+        # circle sits level with the line icons instead of outweighing them.
+        size = self.px(32)
         profile_number = str(min(self.active_profile_number(), 99))
         # Initials read as "this is me" at a glance; "P1" read as a code.
         words = [word for word in re.split(r"[\s_-]+", active_profile_name()) if word]
@@ -3389,7 +3400,7 @@ class MemoryPalApp(tk.Tk):
                 size / 2,
                 profile_label,
                 fill=ink,
-                font=self.font("Segoe UI Semibold", 11 if len(profile_label) <= 3 else 10),
+                font=self.font("Segoe UI Semibold", 10 if len(profile_label) <= 1 else 9),
             )
 
         draw()
@@ -5637,7 +5648,7 @@ class MemoryPalApp(tk.Tk):
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(30), pady=self.px(28)))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Label(hero, text=f"Welcome to MemoryPal, {active_profile_name()}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        tk.Label(hero, text="Three quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
+        tk.Label(hero, text="Four quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
 
         who = self.card(page.inner, "Card.TFrame", 22)
         who.pack(fill="x", padx=(0, 8), pady=(0, 16))
@@ -5702,6 +5713,31 @@ class MemoryPalApp(tk.Tk):
         self.check_toggle(voice, read_aloud, "Yes, read questions and answers aloud to me", fit=True).pack(fill="x", pady=(0, self.px(10)))
         self.button_row(voice, [("Test the Voice", lambda: self.speak("Hello. This is how MemoryPal sounds when it reads to you."), "TButton")])
 
+        # AI is chosen here, with what it means in plain words, and starts on
+        # (Kirthik's call, 2026-10-24): picking "Yes" and finishing the
+        # welcome is the same consent as the AI screen, recorded with a time.
+        use_ai = tk.StringVar(value="Yes, use AI")
+        ai_card = self.card(page.inner, "Card.TFrame", 22)
+        ai_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(ai_card, text="4. Use AI to make notes and practice questions?", style="H2.TLabel").pack(anchor="w", pady=(0, 6))
+        self.fit_wrap(ttk.Label(
+            ai_card,
+            text=(
+                "Only what you choose is sent, when you press an AI button: it goes through MemoryPal's server to Google's Gemini API. "
+                "On Gemini's free tier Google may keep it, use it to improve its products, and people at Google may read it, so don't send "
+                f"private or sensitive information. AI needs a MemoryPal account (up to {aiflow.AI_DAILY_LIMIT} requests a day) and can be turned off in Settings."
+            ),
+            style="CardMuted.TLabel", wraplength=self.px(1000), justify="left",
+        ), pady=(0, self.px(10)))
+        self.pill_group(ai_card, use_ai, ["Yes, use AI", "No thanks"], max_columns=2).pack(fill="x")
+        links = tk.Frame(ai_card, bg=COLORS["surface"])
+        links.pack(fill="x", pady=(self.px(10), 0))
+        for index, (label, url) in enumerate((label, url) for label, url in (("Privacy policy", cloud_config.PRIVACY_URL), ("Google's Gemini API terms", aiflow.GEMINI_TERMS_URL)) if url):
+            link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2")
+            link.pack(side="left", padx=(0 if index == 0 else self.px(16), 0))
+            self.keyboard_link(link, lambda _event, address=url: open_web_page(address))
+        state["use_ai"] = use_ai
+
         finish = self.card(page.inner, "AltCard.TFrame", 22)
         finish.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(finish, text="All set?", style="AltH2.TLabel").pack(anchor="w")
@@ -5709,14 +5745,17 @@ class MemoryPalApp(tk.Tk):
         self.button_row(
             finish,
             [
-                ("Start the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), True), "Primary.TButton"),
-                ("Skip the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), False), "TButton"),
+                ("Start the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), True, use_ai.get() == "Yes, use AI"), "Primary.TButton"),
+                ("Skip the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), False, use_ai.get() == "Yes, use AI"), "TButton"),
             ],
             "AltCard.TFrame",
         )
 
-    def finish_welcome(self, persona_key, text_size, read_aloud, take_tour):
+    def finish_welcome(self, persona_key, text_size, read_aloud, take_tour, use_ai=None):
         persona_key = persona_key if persona_key in onboarding.PERSONAS else "general"
+        if use_ai is not None:
+            prefs = self.ai_prefs()
+            self.store.preferences = aiflow.normalize_preferences(aiflow.give_consent(prefs) if use_ai else aiflow.withdraw_consent(prefs))
         data = onboarding.persona(persona_key)
         prefs = dict(self.accessibility)
         # Redoing the welcome with a different answer shouldn't keep the old
