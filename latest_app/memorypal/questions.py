@@ -59,6 +59,14 @@ class Rng:
 TYPES = ("choice", "reverse", "cloze", "truefalse", "match", "order", "recall")
 BLANK = "_____"
 WORD_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]{2,}")
+# Everyday words that make poor blanks and give-away wrong answers ("over", "them").
+CLOZE_FILLER = {
+    "above", "across", "after", "again", "against", "along", "among", "around", "been", "before",
+    "behind", "being", "below", "between", "both", "does", "doing", "down", "during", "each",
+    "even", "ever", "every", "here", "into", "many", "more", "most", "much", "must",
+    "only", "onto", "other", "over", "same", "some", "such", "them", "these", "they",
+    "those", "through", "under", "until", "upon", "very", "well", "within", "without",
+}
 YEAR_RE = re.compile(r"(?<![0-9])(1[0-9]{3}|20[0-9]{2})(?![0-9])")
 NUMBER_RE = re.compile(r"(?<![A-Za-z0-9.,])[0-9](?:[0-9,.:]*[0-9])?%?(?![A-Za-z0-9])")
 NUMBER_WORD = re.compile(r"^[-+]?[0-9][0-9,.:]*%?$")
@@ -150,7 +158,7 @@ def cloze_candidates(text, avoid=""):
         word = match.group(0)
         lower = word.lower()
         has_digit = bool(re.search(r"[0-9]", word))
-        if lower in STOP_WORDS or lower in seen or (len(word) < 4 and not has_digit):
+        if lower in STOP_WORDS or lower in CLOZE_FILLER or lower in seen or (len(word) < 4 and not has_digit):
             continue
         seen.add(lower)
         stems = token_words(word)
@@ -171,7 +179,7 @@ def cloze_words(text, like):
     out = []
     for match in WORD_RE.finditer(text):
         word = match.group(0)
-        if word.lower() in STOP_WORDS or (len(word) < 4 and not re.search(r"[0-9]", word)):
+        if word.lower() in STOP_WORDS or word.lower() in CLOZE_FILLER or (len(word) < 4 and not re.search(r"[0-9]", word)):
             continue
         if match.start() == 0 or re.search(r"[.!?]\s+$", text[: match.start()]):
             word = (word[:1].upper() if re.match(r"[A-Z]", like) else word[:1].lower()) + word[1:]
@@ -418,7 +426,8 @@ def make_question(entry, kind, pool, rng):
         wrong = pick_distractors(entry["back"], same_deck, 1, rng, entry["deck"])
         show_false = bool(wrong) and rng.random() < 0.5
         shown = wrong[0] if show_false else entry["back"]
-        prompt = f"True or false? The answer to \u201c{entry['front']}\u201d is \u201c{shown}\u201d."
+        stop = "" if re.search(r"[.!?]$", shown) else "."
+        prompt = f"True or false? The answer to \u201c{entry['front']}\u201d is \u201c{shown}\u201d{stop}"
         answer = "False" if show_false else "True"
         return question(entry, kind, prompt, answer, ["True", "False"], 1 if show_false else 0, context=entry["front"])
     if kind == "match":

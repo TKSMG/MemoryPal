@@ -90,7 +90,7 @@ export default function Today() {
         <Row wrap style={{ justifyContent: 'space-between' }}>
           <Row gap={6}>
             <Ionicons name="flame" size={theme.icon(20)} color={c.orange} />
-            <Txt variant="body">{streak} day{streak === 1 ? '' : 's'} in a row</Txt>
+            <Txt variant="body">{streak ? `${streak} day${streak === 1 ? '' : 's'} in a row` : 'Start a streak today'}</Txt>
           </Row>
           <Txt variant="muted">{`Level ${level.level}, ${level.xp} of ${level.need} XP`}</Txt>
         </Row>
@@ -100,7 +100,7 @@ export default function Today() {
         action={
           <Row gap={4}>
             {plan && !plan.finished ? <SpeakButton text={plan.steps.map((step, i) => `Step ${i + 1}: ${step.title}, ${step.minutes} minutes.`).join(' ')} label="Read today’s plan aloud" /> : null}
-            <Button kind="ghost" compact inline label={plan ? 'Edit' : 'Make one'} onPress={() => router.push('/plan')} />
+            {plan ? <Button kind="ghost" compact inline label="Edit" onPress={() => router.push('/plan')} /> : null}
           </Row>
         }
       >
