@@ -48,6 +48,7 @@ from memorypal.core import (
     normalize_space,
     parse_prompt_answer_lines,
     salient_keywords,
+    relative_day,
     split_study_bits,
     today_iso,
 )
@@ -1359,7 +1360,7 @@ class MemoryPalApp(tk.Tk):
         go.add_command(label="Back", accelerator="Command-[", command=self.go_back)
         go.add_command(label="Go to Page\u2026", accelerator="Command-K", command=self.open_page_finder)
         go.add_separator()
-        for key, label in (("dashboard", "Dashboard"), ("review", "Review"), ("capture", "New Study Set"), ("library", "Library"), ("stats", "Stats")):
+        for key, label in (("dashboard", "Today"), ("review", "Review"), ("capture", "New Set"), ("library", "Library"), ("stats", "Progress")):
             go.add_command(label=label, command=lambda key=key: self.show_view(key))
         menubar.add_cascade(label="Go", menu=go)
 
@@ -2426,15 +2427,15 @@ class MemoryPalApp(tk.Tk):
 
     def default_nav_items(self):
         return [
-            ("dashboard", "Dashboard", "D"),
+            ("dashboard", "Today", "D"),
             ("training", "Memory Gym", "G"),
             ("elder", "Everyday Memory", "Em"),
-            ("decks", "Decks", "De"),
-            ("plan", "Study Plan", "P"),
+            ("decks", "Sets", "De"),
+            ("plan", "Study plan", "P"),
             ("focus", "Focus", "F"),
-            ("capture", "New Set", "C"),
+            ("capture", "New set", "C"),
             ("review", "Review", "R"),
-            ("talkback", "Talk-back Study", "Tb"),
+            ("talkback", "Talk-back study", "Tb"),
             ("testing", "Test Lab", "T"),
             ("quiz", "Quiz", "Q"),
             ("shuffle", "Repetition", "Rp"),
@@ -2442,7 +2443,7 @@ class MemoryPalApp(tk.Tk):
             ("cuelab", "Cue Lab", "Cu"),
             ("games", "Puzzles", "Pu"),
             ("library", "Library", "L"),
-            ("stats", "Stats", "S"),
+            ("stats", "Progress", "S"),
             ("feedback", "Feedback", "Fb"),
         ]
 
@@ -3929,7 +3930,7 @@ class MemoryPalApp(tk.Tk):
         title_box.grid(row=0, column=0, sticky="ew")
         self.eyebrow = ttk.Label(title_box, text="Today", style="HeaderMuted.TLabel")
         self.eyebrow.pack(anchor="w")
-        self.title_label = ttk.Label(title_box, text="Dashboard", style="PageTitle.TLabel")
+        self.title_label = ttk.Label(title_box, text="Today", style="PageTitle.TLabel")
         self.title_label.pack(anchor="w", fill="x")
         header_bg = COLORS["bg"]
         action_strip = tk.Frame(top, bg=header_bg)
@@ -4036,11 +4037,11 @@ class MemoryPalApp(tk.Tk):
 
     def nav_hint(self, key):
         return {
-            "dashboard": "Today's path from your study plan, your streak and level, and study modes.",
+            "dashboard": "Today's steps from your study plan, your streak and level, and ways to study.",
             "talkback": "Hands-free: each question is read aloud, you answer out loud, and you hear whether you were right.",
             "training": "Pick evidence-based study drills or gentle memory-support games.",
             "elder": "Large, calm memory support for routines, people, places, and caregiver-created prompts.",
-            "decks": "Browse your decks, see per-deck mastery, and study one deck at a time.",
+            "decks": "Browse your sets, see how well you know each one, and study one set at a time.",
             "plan": "Answer a few questions and get a tailored study plan for today.",
             "stats": "Charts of your practice, what's coming up, card maturity, and achievements.",
             "focus": "A queue of due, weak and new cards to work through.",
@@ -4057,26 +4058,26 @@ class MemoryPalApp(tk.Tk):
             "feedback": "Rate the app, report a problem, or suggest an idea.",
             "settings": "Personalize appearance, profiles, storage, backups, and focus behavior.",
             "study": "Every way to practise your cards: due review, focus, quizzes and repetition.",
-            "create": "Add things to learn, organise decks, browse the library and make cues.",
+            "create": "Add things to learn, organise sets, browse the library and make cues.",
             "practice": "Memory techniques, everyday memory support, associations and puzzles.",
         }.get(key, "")
 
     def page_titles(self):
         """(section, title) shown above each page."""
         return {
-            "dashboard": ("Today", "Dashboard"), "training": ("Practice", "Memory Gym"),
-            "elder": ("Practice", "Everyday Memory"), "decks": ("Create", "Decks"),
-            "plan": ("Today", "Study Plan"), "stats": ("Progress", "Stats & Streaks"),
-            "focus": ("Study", "Focus Session"), "capture": ("Create", "New study set"),
-            "review": ("Study", "Spaced Review"), "testing": ("Study", "Test Lab"),
-            "quiz": ("Study", "Quick Quiz"), "talkback": ("Study", "Talk-back study"), "shuffle": ("Study", "Repetition Path"),
+            "dashboard": ("Today", "Today"), "training": ("Practice", "Memory Gym"),
+            "elder": ("Practice", "Everyday Memory"), "decks": ("Create", "Sets"),
+            "plan": ("Today", "Study plan"), "stats": ("Progress", "Progress"),
+            "focus": ("Study", "Focus session"), "capture": ("Create", "New set"),
+            "review": ("Study", "Spaced review"), "testing": ("Study", "Test Lab"),
+            "quiz": ("Study", "Quick quiz"), "talkback": ("Study", "Talk-back study"), "shuffle": ("Study", "Repetition path"),
             "tools": ("Practice", "Associations"), "cuelab": ("Create", "Cue Lab"),
             "games": ("Practice", "Puzzles"), "library": ("Create", "Library"),
-            "feedback": ("Help us improve", "Send Feedback"), "settings": ("Personalize", "Settings"),
+            "feedback": ("Help us improve", "Send feedback"), "settings": ("Personalize", "Settings"),
             "welcome": ("Welcome", "Let's set things up"),
             "signin": ("Welcome", "Sign in"),
-            "study": ("Study", "Ways to study"), "create": ("Create", "Make and organise"),
-            "practice": ("Practice", "Practise and play"),
+            "study": ("Study", "Study"), "create": ("Create", "Create"),
+            "practice": ("Practice", "Practice"),
             "ainotes": ("Create", "AI notes"),
         }
 
@@ -4531,7 +4532,7 @@ class MemoryPalApp(tk.Tk):
         wrap = tk.Frame(shell, bg=COLORS["bg"], padx=self.px(20), pady=self.px(20))
         wrap.pack(fill="both", expand=True)
         tk.Label(wrap, text="Profiles", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 20)).pack(anchor="w")
-        self.fit_wrap(tk.Label(wrap, text="Each profile keeps its own decks, stats, and streak. Sign each one in to a different account to keep them apart in the cloud too.", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(380), justify="left"), pady=(4, 16))
+        self.fit_wrap(tk.Label(wrap, text="Each profile keeps its own sets, stats, and streak. Sign each one in to a different account to keep them apart in the cloud too.", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(380), justify="left"), pady=(4, 16))
 
         list_holder = tk.Frame(wrap, bg=COLORS["bg"])
         list_holder.pack(fill="both", expand=True)
@@ -4839,7 +4840,7 @@ class MemoryPalApp(tk.Tk):
             widget.pack(fill="x")
             fields[name] = widget
 
-        field("Deck", "deck", card.deck)
+        field("Set", "deck", card.deck)
         field("Question or prompt", "front", card.front, lines=2)
         field("Answer (leave empty for a self-check card)", "back", card.back, lines=3)
         field("Memory hook (optional)", "association", card.association, lines=2)
@@ -6175,7 +6176,7 @@ class MemoryPalApp(tk.Tk):
 
     HUB_INTROS = {
         "study": "Answer from memory first, then rate how it went. Easy cards come back later; hard ones sooner.",
-        "create": "Add what you want to remember, keep it in decks, and give it cues that help it stick.",
+        "create": "Add what you want to remember, keep it in sets, and give it cues that help it stick.",
         "practice": "Techniques that make memories stronger, gentle everyday support, and short recall games.",
     }
 
@@ -6216,7 +6217,7 @@ class MemoryPalApp(tk.Tk):
             return f"{count} card{'s' if count != 1 else ''} saved"
         if view == "decks":
             count = len(store.decks())
-            return f"{count} deck{'s' if count != 1 else ''}"
+            return f"{count} set{'s' if count != 1 else ''}"
         return ""
 
     def view_hub(self, hub):
@@ -6800,9 +6801,9 @@ class MemoryPalApp(tk.Tk):
         streak_panel, goal_panel, level_panel, week_panel = self.panel_row(parent, 4)
 
         tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 28), anchor="w").pack(fill="x")
-        tk.Label(streak_panel, text=f"day streak" if streak == 1 else "days in a row", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text="day in a row" if streak == 1 else "days in a row", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
         message = "Practise today to start one." if streak == 0 else ("Practise today to keep it going." if today == 0 else "Kept alive today.")
-        tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
+        tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}." if best else message, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
 
         tk.Label(goal_panel, text="Daily goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
         ring = tk.Frame(goal_panel, bg=COLORS["surface"])
@@ -7058,7 +7059,7 @@ class MemoryPalApp(tk.Tk):
 
         (deck_panel,) = self.panel_row(page.inner, 1)
         summary = store.deck_summary()
-        self.panel_title(deck_panel, "Deck mastery", "How much of each deck you've mastered.")
+        self.panel_title(deck_panel, "Sets", "How much of each set you know well.")
         if summary:
             palette = [COLORS["primary"], COLORS["green"], COLORS["orange"], COLORS["violet"], COLORS["pink"], COLORS["cyan"]]
             rows = [(deck, info["mastery"], 100, palette[index % len(palette)], f"{info['mastery']}%  \u2022  {info['due']} due  \u2022  {info['total']} cards") for index, (deck, info) in enumerate(summary.items())]
@@ -7094,7 +7095,7 @@ class MemoryPalApp(tk.Tk):
                 panel.configure(bg=COLORS["bg"])
 
     def new_set_dialog(self):
-        name = self.dialog_text("New study set", "Name your set. Every card you add to it goes into this deck.")
+        name = self.dialog_text("New set", "Name your set. Every card you add to it goes into this set.")
         if name is None:
             return
         name = setbuilder.clean_set_name(name)
@@ -7130,13 +7131,13 @@ class MemoryPalApp(tk.Tk):
         if self.deck_filter:
             banner = self.card(page.inner, "AltCard.TFrame", 16)
             banner.pack(fill="x", padx=(0, 8), pady=(0, 12))
-            ttk.Label(banner, text=f"Deck filter active: {self.deck_filter}", style="AltH2.TLabel").pack(side="left")
+            ttk.Label(banner, text=f"Showing only {self.deck_filter}", style="AltH2.TLabel").pack(side="left")
             ttk.Button(banner, text="Clear filter", command=self.clear_deck_filter).pack(side="right")
         if not summary:
             empty = self.card(page.inner)
             empty.pack(fill="x", padx=(0, 8))
-            ttk.Label(empty, text="No decks yet", style="H2.TLabel").pack(anchor="w")
-            ttk.Label(empty, text="Make a study set to start your first deck.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 12))
+            ttk.Label(empty, text="No sets yet", style="H2.TLabel").pack(anchor="w")
+            ttk.Label(empty, text="Make a set to hold your first cards.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 12))
             ttk.Button(empty, text="Make a study set", style="Primary.TButton", command=lambda: self.start_new_set()).pack(fill="x")
             return
         grid = ttk.Frame(page.inner, style="Page.TFrame")
@@ -7147,7 +7148,10 @@ class MemoryPalApp(tk.Tk):
             grid.columnconfigure(index % 2, weight=1, uniform="decks")
             self.icon_badge(tile, "decks", 36).pack(anchor="w", pady=(0, self.px(10)))
             tk.Label(tile, text=deck, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(anchor="w")
-            tk.Label(tile, text=f"{info['total']} cards  \u2022  {info['due']} due  \u2022  {info['weak']} need focus", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11)).pack(anchor="w", pady=(4, 4))
+            # New cards count as "weak" in the summary; show them on their own.
+            new = len([card for card in self.store.cards if (card.deck or "General") == deck and card.repetitions == 0])
+            counts = [f"{info['total']} card{'s' if info['total'] != 1 else ''}", f"{info['due']} due" if info["due"] else "", f"{new} new" if new else "", f"{info['weak'] - new} need focus" if info["weak"] > new else ""]
+            tk.Label(tile, text="  \u2022  ".join(part for part in counts if part), bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11)).pack(anchor="w", pady=(4, 4))
             details = self.store.deck_info(deck)
             notes_count = len(self.store.notes_for_deck(deck))
             extra = [part for part in (exam_countdown(details.exam_date), f"{notes_count} saved note{'s' if notes_count != 1 else ''}" if notes_count else "") if part]
@@ -7161,12 +7165,10 @@ class MemoryPalApp(tk.Tk):
             tk.Label(tile, text=f"{info['mastery']}% mastered", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11)).pack(anchor="w", pady=(0, 12))
             actions = tk.Frame(tile, bg=COLORS["surface"])
             actions.pack(fill="x")
-            ttk.Button(actions, text="Study this deck", style="Primary.TButton", cursor="hand2", command=lambda name=deck: self.study_deck(name)).pack(side="left", fill="x", expand=True, padx=(0, 8))
+            ttk.Button(actions, text="Study this set", style="Primary.TButton", cursor="hand2", command=lambda name=deck: self.study_deck(name)).pack(side="left", fill="x", expand=True, padx=(0, 8))
             ttk.Button(actions, text="Add cards", command=lambda name=deck: self.start_new_set(name)).pack(side="left", padx=(0, 8))
-            make_ai = ttk.Button(actions, text="Make with AI", command=lambda name=deck: self.open_ai_builder(name))
-            make_ai.pack(side="left", padx=(0, 8))
-            self.add_tooltip(make_ai, f"Make notes or questions for {deck} from your notes, a PDF or a picture.")
-            menu = [("Set details", lambda name=deck: self.set_details_dialog(name)), ("Rename", lambda name=deck: self.rename_set_dialog(name)), ("Open in Library", lambda name=deck: self.open_deck_library(name))]
+            # Make with AI sits in More: four buttons don't fit a half-width tile.
+            menu = [("Make with AI", lambda name=deck: self.open_ai_builder(name)), ("Set details", lambda name=deck: self.set_details_dialog(name)), ("Rename", lambda name=deck: self.rename_set_dialog(name)), ("Open in Library", lambda name=deck: self.open_deck_library(name))]
             if notes_count:
                 menu.append(("Saved notes", lambda name=deck: self.open_deck_library(name, "Captures")))
             menu += [("Quiz this set", lambda name=deck: self.quiz_set(name)), ("Puzzles with these cards", lambda name=deck: self.puzzle_set(name))]
@@ -7174,7 +7176,7 @@ class MemoryPalApp(tk.Tk):
             if days_left and days_left > 0:
                 menu.append(("Plan for the exam", lambda name=deck, days=days_left: self.plan_for_exam(name, days)))
             menu.append(("Delete set", lambda name=deck: self.delete_set_dialog(name)))
-            more = self.cue_menu_button(actions, "More", menu, hint=f"Details, notes, rename or delete {deck}.")
+            more = self.cue_menu_button(actions, "More", menu, hint=f"Make with AI, details, notes, rename or delete {deck}.")
             more.pack(side="left")
 
     def set_details_dialog(self, deck):
@@ -7274,8 +7276,8 @@ class MemoryPalApp(tk.Tk):
         page.pack(fill="both", expand=True)
         intro = self.card(page.inner, "WarmCard.TFrame", 18)
         intro.pack(fill="x", padx=(0, 8), pady=(0, 14))
-        ttk.Label(intro, text="Tell me what you're working with", style="WarmH2.TLabel").pack(anchor="w")
-        ttk.Label(intro, text="This builds a rule-based plan from your due cards, deck size, and habits below \u2014 no internet required.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
+        ttk.Label(intro, text="Plan your study time", style="WarmH2.TLabel").pack(anchor="w")
+        ttk.Label(intro, text="Your plan is built from the cards you have due, the size of each set and the habits you pick below.", style="WarmCard.TLabel", wraplength=1040).pack(anchor="w", pady=(4, 0))
         self.render_resource_strip(page.inner, "Available notes and cues")
 
         form = self.card(page.inner)
@@ -7324,8 +7326,10 @@ class MemoryPalApp(tk.Tk):
         deck_section = self.card(grid, "AltCard.TFrame", 14)
         deck_section.pack(fill="x", pady=(0, 10))
         ttk.Label(deck_section, text="What material?", style="AltMuted.TLabel").pack(anchor="w", pady=(0, 4))
-        deck_values = ["All decks"] + self.store.decks() + ["New material"]
-        deck_var = tk.StringVar(value=draft.get("deck", "All decks") if draft.get("deck", "All decks") in deck_values else "All decks")
+        # Plans store "All decks"; people see "All sets", the app's word for decks.
+        deck_values = ["All sets"] + self.store.decks() + ["New material"]
+        saved_deck = "All sets" if draft.get("deck", "All decks") == "All decks" else draft.get("deck")
+        deck_var = tk.StringVar(value=saved_deck if saved_deck in deck_values else "All sets")
         self.select_button(deck_section, deck_var, deck_values).pack(fill="x")
 
         goal_section = self.card(grid, "AltCard.TFrame", 14)
@@ -7403,7 +7407,7 @@ class MemoryPalApp(tk.Tk):
                 child.destroy()
             unit = unit_var.get()
             amount = int(amount_var.get())
-            deck_choice = deck_var.get()
+            deck_choice = "All decks" if deck_var.get() == "All sets" else deck_var.get()
             goal_key = goal_key_for(goal_var.get())
             habits = {key for key, var in habit_vars.items() if var.get()}
             self.view_drafts["plan"] = {
@@ -7970,7 +7974,7 @@ class MemoryPalApp(tk.Tk):
 
         # 1. The set's name: it becomes the deck of every card made here.
         ttk.Label(form, text="Name your set", style="H2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(form, text="Every card you add goes into this set. You can rename it later on the Decks page.", style="CardMuted.TLabel", wraplength=self.px(560)), pady=(self.px(4), self.px(10)))
+        self.fit_wrap(ttk.Label(form, text="Every card you add goes into this set. You can rename it later on the Sets page.", style="CardMuted.TLabel", wraplength=self.px(560)), pady=(self.px(4), self.px(10)))
         name_row = ttk.Frame(form, style="Card.TFrame")
         name_row.pack(fill="x")
         name_var = tk.StringVar(value=draft.get("name", ""))
@@ -8569,23 +8573,24 @@ class MemoryPalApp(tk.Tk):
         if self.deck_filter:
             filter_row = tk.Frame(host, bg=COLORS["alt"], padx=self.px(14), pady=self.px(8))
             filter_row.pack(fill="x", pady=(0, 12))
-            tk.Label(filter_row, text=f"Studying deck: {self.deck_filter}", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11)).pack(side="left")
+            tk.Label(filter_row, text=f"Studying the set: {self.deck_filter}", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11)).pack(side="left")
             ttk.Button(filter_row, text="Clear filter", command=self.clear_deck_filter).pack(side="right")
         due = self.store.due_cards(self.deck_filter)
         if not due:
-            ttk.Label(host, text="No cards due today", style="H2.TLabel").pack(anchor="w")
-            ttk.Label(host, text="Capture new material or browse your library.", style="Card.TLabel").pack(anchor="w", pady=(8, 0))
+            ttk.Label(host, text="You're all caught up", style="H2.TLabel").pack(anchor="w")
+            ttk.Label(host, text="Nothing is due today. Add new cards, or try a quiz to keep things fresh.", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(8, 16))
+            self.button_row(host, [("Add cards", lambda: self.show_view("capture"), "Primary.TButton"), ("Quick quiz", lambda: self.show_view("quiz"), "TButton")])
             return
         self.current_review = due[0]
-        ttk.Label(host, text=f"{len(due)} due card{'s' if len(due) != 1 else ''}", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(host, text="Review now opens in Test Lab so the answer, reveal, Smart Check, and rating stay on one focused page.", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(8, 16))
+        ttk.Label(host, text=f"{len(due)} card{'s' if len(due) != 1 else ''} due", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(host, text="Answer each one from memory, then rate how it went. Easy cards come back later; hard ones sooner.", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(8, 16))
         preview = self.card(host, "AltCard.TFrame", 18)
         preview.pack(fill="x", pady=(0, 12))
         ttk.Label(preview, text="Next card", style="AltH2.TLabel").pack(anchor="w")
         if quiz_questions.is_ai_card(self.current_review):
             tk.Label(preview, text="Made with AI, check it", bg=self.blend_hex(COLORS["alt"], COLORS["warm_text"], 0.14), fg=COLORS["warm_text"], font=self.font("Segoe UI Semibold", 10), padx=self.px(10), pady=self.px(3)).pack(anchor="w", pady=(self.px(6), 0))
         ttk.Label(preview, text=self.current_review.front, style="AltCard.TLabel", wraplength=1000).pack(anchor="w", pady=(6, 0))
-        self.button_row(host, [("Start in Test Lab", lambda: self.open_testing(self.current_review, "review", "review"), "Primary.TButton"), ("Focus Queue", lambda: self.show_view("focus"), "TButton"), ("Library", lambda: self.show_view("library"), "TButton")])
+        self.button_row(host, [("Start review", lambda: self.open_testing(self.current_review, "review", "review"), "Primary.TButton"), ("Focus session", lambda: self.show_view("focus"), "TButton")])
 
     def render_review(self, host, show_answer=False, assessment=None, response_text=""):
         if not getattr(self, "_building_view", False) and not getattr(self, "_hidden_active", False):
@@ -12245,18 +12250,23 @@ class MemoryPalApp(tk.Tk):
                         continue
                     item = self.card(page.inner)
                     item.pack(fill="x", padx=(0, 8), pady=(0, 10))
-                    status_line = f"{card.deck}  \u00b7  due {card.next_review}  \u00b7  {card.last_result} {card.last_score}%"
+                    seen = card.last_result != "New"
+                    status_line = "  \u00b7  ".join([
+                        card.deck or "General",
+                        f"Due {relative_day(card.next_review)}" if seen else "New",
+                        *([f"Last: {self.rating_label(card.last_result)}"] if seen else []),
+                    ])
                     if card.buried_until > today_iso():
-                        status_line += f"  \u2022  Buried until {card.buried_until}"
+                        status_line += f"  \u00b7  Skipped until {relative_day(card.buried_until)}"
                     head = ttk.Frame(item, style="Card.TFrame")
                     head.pack(fill="x")
                     edit = ttk.Button(head, text="Edit", command=lambda c=card: self.open_card_editor(c, render))
                     edit.pack(side="right")
                     self.speak_button(head, f"{card.front}. The answer is: {card.back}", compact=True).pack(side="right", padx=(0, self.px(6)))
-                    self.add_tooltip(edit, "Change the words, deck or memory hook, or delete this card.")
+                    self.add_tooltip(edit, "Change the words, set or memory hook, or delete this card.")
                     ttk.Label(head, text=status_line, style="CardMuted.TLabel").pack(side="left", anchor="w")
                     if self.store.is_leech(card):
-                        tk.Label(item, text=f"\u26a0 Missed {card.lapses} times \u2014 try rewriting it (Edit) or adding a memory hook", bg=COLORS["again_bg"], fg=COLORS["again_fg"], font=self.font("Segoe UI Semibold", 10), padx=self.px(8), pady=self.px(3)).pack(anchor="w", pady=(4, 0))
+                        tk.Label(item, text=f"Missed {card.lapses} times. Try rewording it or adding a memory hook.", bg=COLORS["again_bg"], fg=COLORS["again_fg"], font=self.font("Segoe UI Semibold", 10), padx=self.px(8), pady=self.px(3)).pack(anchor="w", pady=(4, 0))
                     if quiz_questions.is_ai_card(card):
                         self.ai_tag(item, f"Q: {card.front}\nA: {card.back}").pack(anchor="w", pady=(self.px(6), 0))
                     ttk.Label(item, text=card.front, style="H2.TLabel", wraplength=1060).pack(anchor="w", pady=(6, 5))
