@@ -107,3 +107,17 @@ def take_lines(pending, per_frame_max=3):
     size = min(abs(pending), max(1, min(per_frame_max, abs(pending) // 4 + 1)))
     step = size if pending > 0 else -size
     return step, pending - step
+
+
+def frames_per_step(step_cost_ms, frame_ms, most=3):
+    """How many screen refreshes each scroll step should span.
+
+    One while a step draws within a refresh; otherwise the next whole
+    number, so steps land on evenly spaced refreshes (every second one on a
+    144Hz screen, say) instead of wherever they finish. A step up to 10%
+    over a refresh still counts as one, so a page near the limit doesn't
+    flip between the two.
+    """
+    if not step_cost_ms or not frame_ms or frame_ms <= 0:
+        return 1
+    return max(1, min(most, math.ceil(step_cost_ms / (frame_ms * 1.1))))

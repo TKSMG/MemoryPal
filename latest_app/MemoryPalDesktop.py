@@ -65,7 +65,7 @@ from memorypal.paths import (
 from memorypal import cloud, cloud_config, drive, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import media
-from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme
+from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
 from memorypal import ai, aiflow
 from memorypal import questions as quiz_questions
 from memorypal.speech import Speaker
@@ -418,6 +418,7 @@ class ScrollFrame(ttk.Frame):
         self._fine_timers = False
         self._frame_ms = self.FRAME_MS
         self._last_step = 0.0
+        self._step_cost = None  # recent milliseconds one scroll step takes to draw
         self._idle_after = None
         self._touchpad_time = -1.0
         self._last_wheel_event = 0.0
@@ -669,15 +670,25 @@ class ScrollFrame(ttk.Frame):
         self._wheel_after = self.after(wait, self._scroll_step)
 
     def _frame_wait(self):
-        """Milliseconds to wait so the next step starts just after a refresh."""
-        spent = (time.perf_counter() - self._last_step) * 1000
+        """Milliseconds to wait so the next step starts just after a refresh.
+
+        A page that takes longer than one refresh to draw used to step "as
+        soon as it could", so its steps landed on uneven refreshes (two in
+        one, none in the next): that reads as judder, worst on 120-165Hz
+        screens and on long pages. Instead it steps on every second (or
+        third) refresh; the glide is timed, so each step simply moves
+        further and the motion stays even.
+        """
+        frame = self._frame_ms
+        every = scrolling.frames_per_step(self._step_cost, frame)
+        due = every * frame - (time.perf_counter() - self._last_step) * 1000
         ahead = ms_to_next_vblank()
-        if ahead is None or spent > self._frame_ms * 0.85:
-            # No refresh timing, or this page takes about a frame to draw:
-            # waiting for the next refresh would halve the rate, so go now.
-            return max(1, round(self._frame_ms - spent))
-        # Starting right after the refresh leaves the whole frame for drawing.
-        return max(1, int(ahead) + 1)
+        if ahead is None:
+            return max(1, round(due))
+        wait = ahead + 1
+        while wait < due - frame * 0.5:
+            wait += frame
+        return max(1, int(wait))
 
     def _flush_wheel(self):
         self._scroll_step()
@@ -739,9 +750,14 @@ class ScrollFrame(ttk.Frame):
                 self._glide_last.pop(axis, None)
                 self._glide_tau.pop(axis, None)
             moves[axis] = moves.get(axis, 0) + step
+        drew = False
         for axis, pixels in moves.items():
             if pixels:
                 self._scroll_pixels(pixels, axis=axis)
+                drew = True
+        if drew:
+            cost = (time.perf_counter() - now) * 1000
+            self._step_cost = cost if self._step_cost is None else self._step_cost * 0.75 + cost * 0.25
         self._last_step = now
         if self._wheel_targets and not self._destroyed:
             self._wheel_after = self.after(self._frame_wait(), self._scroll_step)
@@ -1214,15 +1230,29 @@ class MemoryPalApp(tk.Tk):
     def toggle_true_fullscreen(self):
         """F11 (Control-Command-F on a Mac): the system's own full screen."""
         target = not self.is_fullscreen
-        try:
-            self.attributes("-fullscreen", target)
-        except tk.TclError as exc:
-            self.dialog_alert("Full screen isn't available", str(exc), "error")
-            return
+        if not self.native_fullscreen(target):
+            try:
+                self.attributes("-fullscreen", target)
+            except tk.TclError as exc:
+                self.dialog_alert("Full screen isn't available", str(exc), "error")
+                return
         self.settle_layout()
         self.is_fullscreen = target
         if getattr(self, "current_view", None) == "settings":
             self.after_idle(lambda: self.show_view("settings"))
+
+    def native_fullscreen(self, target):
+        """Windows: switch by changing the window's style (see winfullscreen),
+        keeping the same window so its dark frame and background stay and
+        nothing flashes white. False means Tk's own full screen should run."""
+        if not sys.platform.startswith("win"):
+            return False
+        hwnd = self.window_handle(self)
+        if target:
+            self._fullscreen_saved = winfullscreen.enter(hwnd)
+            return self._fullscreen_saved is not None
+        saved, self._fullscreen_saved = getattr(self, "_fullscreen_saved", None), None
+        return winfullscreen.leave(hwnd, saved)
 
     @staticmethod
     def geometry_size(geometry):
@@ -1352,6 +1382,11 @@ class MemoryPalApp(tk.Tk):
             height = int(height)
             inset = int(inset)
             radius = int(radius if radius is not None else height / 2)
+            # A radius past half the shape made Pillow clip the corners (the
+            # round profile button came out with flat top and left edges).
+            radius = min(radius, (min(width, height) - 2 * inset) // 2)
+            if shape != "oval" and width == height and radius * 2 >= width - 2 * inset:
+                shape = "oval"
             key = (width, height, fill, shape, radius, inset)
             photo = self.shape_photo_cache.get(key)
             if photo is None:
@@ -1406,7 +1441,6 @@ class MemoryPalApp(tk.Tk):
         rgb = self.hex_to_rgb(fill)
         if rgb is None or width < 1 or height < 1:
             return None
-        radius = max(0, min(float(radius or 0), width / 2, height / 2))
         inset = max(0, float(inset))
         scale = 4 if max(width, height) <= 90 else 3
         samples = scale * scale
@@ -1414,6 +1448,9 @@ class MemoryPalApp(tk.Tk):
         y0 = inset
         x1 = max(x0, width - inset)
         y1 = max(y0, height - inset)
+        # Measured inside the inset: a radius past half the inset box flattened
+        # the top and left of round shapes (the profile button looked clipped).
+        radius = max(0, min(float(radius or 0), (x1 - x0) / 2, (y1 - y0) / 2))
 
         def inside(px, py):
             if shape == "oval":
@@ -4547,25 +4584,41 @@ class MemoryPalApp(tk.Tk):
         frame.after_idle(lambda: frame.winfo_exists() and wire(frame))
         return frame
     def button_row(self, parent, buttons, style="Card.TFrame"):
+        """Buttons side by side at the width of their labels, lined up from
+        the left as in system dialogs, wrapping only when the card is too
+        narrow for them all (stretched across a card they read as banners)."""
         row = ttk.Frame(parent, style=style)
         row.pack(fill="x")
-        columns = 3 if len(buttons) > 3 else max(1, len(buttons))
-        if len(buttons) > 2 and self.accessibility_multiplier() > 1.1:
-            columns = 2
-        for index, (label, command, button_style) in enumerate(buttons):
-            grid_row, grid_col = divmod(index, columns)
+        made = []
+        for label, command, button_style in buttons:
             button = self.row_button(row, label, command, button_style)
             button.configure(width=-12)  # a minimum, so short labels aren't stubs
-            # Buttons keep the width of their label, lined up from the left,
-            # as in system dialogs; stretched across a whole card they read
-            # as banners rather than buttons.
-            button.grid(
-                row=grid_row,
-                column=grid_col,
-                sticky="ew",
-                padx=(0 if grid_col == 0 else self.px(10), 0),
-                pady=(0 if grid_row == 0 else self.px(10), 0),
-            )
+            made.append(button)
+        gap = self.px(10)
+        placed = {"layout": None}
+
+        def flow(_event=None):
+            width = row.winfo_width()
+            if width <= 1:
+                width = 10 ** 6
+            layout, x, line, column = [], 0, 0, 0
+            for button in made:
+                need = button.winfo_reqwidth() + (gap if column else 0)
+                if column and x + need > width:
+                    line, column, x = line + 1, 0, 0
+                    need = button.winfo_reqwidth()
+                layout.append((line, column))
+                x += need
+                column += 1
+            if layout == placed["layout"]:
+                return
+            placed["layout"] = layout
+            for button, (line, column) in zip(made, layout):
+                button.grid(row=line, column=column, sticky="w",
+                            padx=(0 if column == 0 else gap, 0), pady=(0 if line == 0 else gap, 0))
+
+        flow()
+        row.bind("<Configure>", flow, add="+")
         return row
 
     def cue_menu_button(self, parent, text, actions, hint=""):
@@ -5395,8 +5448,6 @@ class MemoryPalApp(tk.Tk):
             "Open Data Folder": "Open the folder where MemoryPal stores profiles, data, and attachments.",
             "Export Backup": "Save a portable JSON copy of the active profile.",
             "Import Backup": "Load a JSON backup into the active profile.",
-            "True Fullscreen": f"Use the operating system fullscreen mode. {'Control-Command-F' if IS_MAC else 'F11'} does the same thing.",
-            "Focus Window": "Use a borderless focus window without changing the operating system fullscreen state.",
         }
 
     def mastery_summary(self):
@@ -11624,11 +11675,6 @@ class MemoryPalApp(tk.Tk):
                 ("Import Backup", self.import_data, "TButton"),
             ] + ([] if self.accessibility.get("caregiver_mode") else [("Reset", self.reset_data, "Danger.TButton")]),
         )
-
-        comfort = self.card(page.inner, "Card.TFrame", 22)
-        comfort.pack(fill="x", padx=(0, 8))
-        ttk.Label(comfort, text="Comfort Notes", style="H2.TLabel").pack(anchor="w")
-        self.fit_wrap(ttk.Label(comfort, text="Use focus mode when the window frame feels distracting, true fullscreen for presentations or testing, and profiles when different people use the same computer.", style="Card.TLabel", wraplength=self.px(1040), justify="left"), pady=(4, 0))
 
     def view_library(self):
         # On a card, like the other pages: on the bare page background the
