@@ -1,5 +1,5 @@
 import { newCard } from '../src/core/models';
-import { BLANK, buildQuiz, cardQuestion, cardsFromNoteQuestions, checkAnswer, isAiCard, isGenericFront, noteQuestions, pickDistractors, questionForBit, Rng, TYPES } from '../src/core/questions';
+import { BLANK, buildQuiz, cardQuestion, clozeCandidates, cardsFromNoteQuestions, checkAnswer, isAiCard, isGenericFront, noteQuestions, pickDistractors, questionForBit, Rng, TYPES } from '../src/core/questions';
 import { comparableText } from '../src/core/text';
 
 const TODAY = '2026-10-18';
@@ -109,5 +109,17 @@ describe('quiz rounds', () => {
     const cards = cardsFromNoteQuestions(noteQuestions('Gold is Au. Iron is Fe.'), 'Chemistry', true);
     expect(cards.map((card) => [card.front, card.back])).toEqual([['What is Gold?', 'Au'], ['What is Iron?', 'Fe']]);
     expect(cards.every(isAiCard)).toBe(true);
+  });
+});
+
+describe('question wording', () => {
+  it('ends a true-or-false prompt with one full stop', () => {
+    const card = newCard({ id: 's', deck: 'Bio', front: 'What is osmosis?', back: 'Water moving across a membrane.' });
+    const [item] = buildQuiz([card], 1, new Rng(1), { today: TODAY });
+    expect(item.prompt.endsWith('membrane.”')).toBe(true);
+  });
+
+  it('does not blank out everyday words', () => {
+    expect(clozeCandidates('Images can make a memory stick over time').map(([word]) => word)).not.toContain('over');
   });
 });
