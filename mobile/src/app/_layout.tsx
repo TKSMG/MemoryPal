@@ -1,8 +1,10 @@
-import { router, Stack } from 'expo-router';
+import { Href, router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, Pressable, Text } from 'react-native';
+import { useEffect } from 'react';
+import { AppState as RNAppState, Platform, Pressable, Text } from 'react-native';
 
-import { AppStateProvider } from '../state/AppState';
+import { AppStateProvider, usePrefs, useStore } from '../state/AppState';
+import { onReminderTapped, refreshReminders, setUpNotifications } from '../state/reminders';
 import { ThemeProvider, useTheme } from '../ui/theme';
 
 /** iOS sheets get a way out in the bar; Android has its back button and arrow. */
@@ -16,12 +18,37 @@ function SheetButton({ label, bold }: { label: string; bold?: boolean }) {
   );
 }
 
+/**
+ * Keeps the next week of study reminders and the icon badge up to date:
+ * rescheduled whenever MemoryPal goes to the background (after studying)
+ * and when the reminder settings change. A tapped reminder opens Review.
+ */
+function Reminders() {
+  const store = useStore();
+  const [prefs] = usePrefs();
+  const { reminders, reminder_time: time, badge } = prefs;
+  useEffect(() => {
+    setUpNotifications();
+    return onReminderTapped((url) => router.push(url as Href));
+  }, []);
+  useEffect(() => {
+    const refresh = () => refreshReminders(store, { reminders, time, badge });
+    refresh();
+    const subscription = RNAppState.addEventListener('change', (state) => {
+      if (state !== 'active') refresh();
+    });
+    return () => subscription.remove();
+  }, [store, reminders, time, badge]);
+  return null;
+}
+
 function RootStack() {
   const theme = useTheme();
   const c = theme.colors;
   return (
     <>
       <StatusBar style={theme.dark ? 'light' : 'dark'} />
+      <Reminders />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: c.bg },
