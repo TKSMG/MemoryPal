@@ -172,7 +172,7 @@ class StagingTests(unittest.TestCase):
     def test_notes_capture(self):
         notes = {"title": "Cells", "sections": [{"heading": "Organelles", "bullets": ["Mitochondria make ATP."]}], "key_terms": [{"term": "ATP", "definition": "Energy carrier"}]}
         fields = aiflow.notes_capture_fields(notes, "Biology", "/attachments/notes.pdf")
-        self.assertEqual(fields["title"], "Biology: Cells")
+        self.assertEqual((fields["title"], fields["deck"]), ("Cells", "Biology"))
         self.assertEqual(fields["chunks"], ["Organelles: Mitochondria make ATP.", "ATP => Energy carrier"])
         self.assertEqual(fields["text_file"], "/attachments/notes.pdf")
         capture = Capture(**fields)

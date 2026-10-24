@@ -2,7 +2,7 @@
  * Two-way sync of the profile with the person's cloud account: the pure logic.
  * A line-by-line port of latest_app/memorypal/sync.py (checked by the parity
  * tests). See that file for the full explanation; in short:
- * - every synced thing is a record (card:, capture:, settings:profile, and
+ * - every synced thing is a record (card:, capture:, deck: (a set's details), settings:profile, and
  *   each device's own review counts, which are added up across devices);
  * - a record changed on one side wins; changed on both sides, it is merged
  *   field by field against the last synced version, and for a card's review
@@ -18,7 +18,7 @@ export const SETTINGS_KEY = 'settings:profile';
 export const SETTINGS_FIELDS = ['daily_goal', 'accessibility', 'onboarding', 'study_plan', 'nav_order'] as const;
 export const SCHEDULE_FIELDS = ['interval', 'repetitions', 'ease', 'lapses', 'last_score', 'last_result', 'next_review', 'buried_until'];
 const COUNT_KINDS = ['activity', 'practiced'];
-const KINDS = ['card', 'capture', 'settings', ...COUNT_KINDS];
+const KINDS = ['card', 'capture', 'deck', 'settings', ...COUNT_KINDS];
 
 // Records are keyed by text that comes from the cloud, so every map here has
 // no prototype and is read with Object.hasOwn: a key like "__proto__" or
@@ -90,6 +90,7 @@ export function otherDeviceCounts(base: Records, deviceId: string): [Record<stri
 interface PayloadLike {
   cards?: Data[];
   captures?: Data[];
+  decks?: Data[];
   activity?: Record<string, number>;
   practiced?: number;
   [key: string]: unknown;
@@ -99,6 +100,7 @@ export function recordsFromPayload(payload: PayloadLike, deviceId: string, base:
   const records = emptyMap<Data>();
   for (const card of payload.cards ?? []) records[`card:${card.id}`] = { ...card };
   for (const capture of payload.captures ?? []) records[`capture:${capture.id}`] = { ...capture };
+  for (const info of payload.decks ?? []) records[`deck:${info.id}`] = { ...info };
   records[SETTINGS_KEY] = Object.fromEntries(SETTINGS_FIELDS.map((name) => [name, payload[name] ?? null]));
   const [othersActivity, othersPracticed] = otherDeviceCounts(base, deviceId);
   for (const day of Object.keys(payload.activity ?? {}).sort()) {
@@ -130,6 +132,9 @@ export function payloadFromRecords<T extends PayloadLike>(payload: T, records: R
   const captureKeys = Object.keys(records).filter((key) => kindOf(key) === 'capture');
   const freshCaptures = newestFirst(captureKeys.filter((key) => !captureOrder.includes(key)), records);
   result.captures = [...freshCaptures, ...captureOrder.filter((key) => has(records, key))].map((key) => ({ ...records[key] }));
+  const deckOrder = (payload.decks ?? []).map((item) => `deck:${item.id}`);
+  const deckKeys = Object.keys(records).filter((key) => kindOf(key) === 'deck' && !deckOrder.includes(key)).sort();
+  result.decks = [...deckOrder.filter((key) => has(records, key)), ...deckKeys].map((key) => ({ ...records[key] }));
   const settings = (has(records, SETTINGS_KEY) && records[SETTINGS_KEY]) || {};
   for (const name of SETTINGS_FIELDS) {
     if (has(settings, name) && settings[name] !== null && settings[name] !== undefined) result[name] = settings[name];

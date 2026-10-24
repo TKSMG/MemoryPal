@@ -5,7 +5,7 @@ The apps never hold an AI key: they call the Supabase Edge Function "ai"
 function calls Google Gemini. The phone has the same logic in
 mobile/src/cloud/ai.ts.
 
-    notes = make_notes(account, text="...", file_path="lecture.pdf")
+    notes = make_notes(account, text="...", file_path="lecture.pdf", style="one line per date")
     questions = make_questions(account, text=notes_text(notes), count=10, avoid=[c.front for c in cards])
     made = questions_to_cards(questions, deck="Biology")   # [{"card": Card, "page": 3 or None}]
 
@@ -24,6 +24,10 @@ from . import cloud
 TIMEOUT = 120  # a PDF can take Gemini a while
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_QUESTIONS = 30
+MAX_STYLE_CHARS = 500
+MAX_CONTEXT_CHARS = 240
+MAX_EXAMPLES = 20
+MAX_QUESTION_CHARS = 600  # room for a short case or scenario question
 QUESTION_TYPES = ("short", "choice", "truefalse", "cloze")
 MIME_BY_SUFFIX = {
     ".pdf": "application/pdf",
@@ -179,7 +183,11 @@ def question_key(text):
 
 
 def parse_questions(raw, count=MAX_QUESTIONS, avoid=()):
-    """Clean questions: [{"type", "question", "answer", "options", "page"}], at most `count`."""
+    """Clean questions: [{"type", "question", "answer", "options", "context", "page"}], at most `count`.
+
+    "context" is the sentence from the material the answer comes from ("" when
+    the model gave none).
+    """
     items = raw if isinstance(raw, list) else (raw.get("questions") if isinstance(raw, dict) else None)
     seen = {question_key(str(text)) for text in avoid or ()}
     out = []
@@ -188,7 +196,7 @@ def parse_questions(raw, count=MAX_QUESTIONS, avoid=()):
             break
         item = item if isinstance(item, dict) else {}
         kind = str(item.get("type") or "").lower()
-        question, answer = clip(item.get("question"), 300), clip(item.get("answer"), 300)
+        question, answer = clip(item.get("question"), MAX_QUESTION_CHARS), clip(item.get("answer"), 300)
         if kind not in QUESTION_TYPES or not question or not answer:
             continue
         options = []
@@ -221,12 +229,19 @@ def parse_questions(raw, count=MAX_QUESTIONS, avoid=()):
         seen.add(key)
         page = item.get("page")
         page = int(page) if isinstance(page, (int, float)) and not isinstance(page, bool) and 1 <= page <= 10000 else None
-        out.append({"type": kind, "question": question, "answer": answer, "options": options, "page": page})
+        out.append({"type": kind, "question": question, "answer": answer, "options": options, "context": clip(item.get("context"), MAX_CONTEXT_CHARS), "page": page})
     return out
 
 
 # -------------------------------------------------------------- the calls
-def request_body(action, text="", file_path=None, file=None, count=10, avoid=(), title=""):
+def example_lines(examples):
+    """Teacher's past questions from a string (one per line) or a list, cleaned and capped."""
+    items = examples.splitlines() if isinstance(examples, str) else list(examples or ())
+    cleaned = [clip(str(item).lstrip("-•* \t"), 400) for item in items]
+    return [item for item in cleaned if item][:MAX_EXAMPLES]
+
+
+def request_body(action, text="", file_path=None, file=None, count=10, avoid=(), title="", style="", examples=()):
     body = {"action": action, "text": (text or "").strip()}
     if file_path:
         body["file"] = file_payload(file_path)
@@ -237,26 +252,39 @@ def request_body(action, text="", file_path=None, file=None, count=10, avoid=(),
     if action == "questions":
         body["count"] = max(1, min(MAX_QUESTIONS, int(count)))
         body["avoid"] = [str(front) for front in avoid or () if str(front).strip()][:300]
+        if example_lines(examples):
+            body["examples"] = example_lines(examples)
     if title:
         body["title"] = str(title)[:120]
+    style = clip(style, MAX_STYLE_CHARS)
+    if style:
+        body["style"] = style
     return body
 
 
-def make_notes(auth, text="", file_path=None, file=None, title="", opener=None, timeout=TIMEOUT):
+def make_notes(auth, text="", file_path=None, file=None, title="", style="", opener=None, timeout=TIMEOUT):
     """Study notes from text and/or a file (path, or {"data", "mime_type"}).
+
+    `style` is how the learner wants them laid out, in their own words
+    ("one line per date: year, then what happened"); "" for the usual notes.
 
     `auth` is a cloud.Account, a cloud.Session or an access token. Returns
     parse_notes() output plus "remaining" (requests left today, or None).
     """
-    data = call(auth, request_body("notes", text, file_path, file, title=title), opener, timeout)
+    data = call(auth, request_body("notes", text, file_path, file, title=title, style=style), opener, timeout)
     notes = parse_notes(data.get("result"))
     notes["remaining"] = data.get("remaining") if isinstance(data.get("remaining"), int) else None
     return notes
 
 
-def make_questions(auth, text="", file_path=None, file=None, count=10, avoid=(), title="", opener=None, timeout=TIMEOUT):
-    """Varied practice questions; returns {"questions": parse_questions(...), "remaining"}."""
-    data = call(auth, request_body("questions", text, file_path, file, count, avoid, title), opener, timeout)
+def make_questions(auth, text="", file_path=None, file=None, count=10, avoid=(), title="", style="", examples=(), opener=None, timeout=TIMEOUT):
+    """Varied practice questions; returns {"questions": parse_questions(...), "remaining"}.
+
+    `examples` are questions the learner's teacher has asked (a list, or one
+    per line): the AI follows their pattern. Without them or a `style`, the
+    server takes the pattern from `avoid`, the set's existing questions.
+    """
+    data = call(auth, request_body("questions", text, file_path, file, count, avoid, title, style, examples), opener, timeout)
     return {
         "questions": parse_questions(data.get("result"), count, avoid),
         "remaining": data.get("remaining") if isinstance(data.get("remaining"), int) else None,
@@ -300,12 +328,19 @@ def questions_to_cards(questions, deck, title=""):
     for question in questions:
         front, back = question_card_fields(question)
         page = question.get("page")
-        note = AI_NOTE + (f" From page {page}." if page else "")
+        note = card_note(question)
         made.append({
             "card": Card(deck=deck or "General", front=front, back=back, pathway=f"{AI_PATHWAY} > {title or deck or 'Notes'}", association=note),
             "page": page,
         })
     return made
+
+
+def card_note(question):
+    """The hook text for an AI card: check it, which page, and the source sentence."""
+    note = AI_NOTE + (f" From page {question['page']}." if question.get("page") else "")
+    context = question.get("context") or ""
+    return note + (f' Source: "{context}"' if context else "")
 
 
 def is_ai_card(card):

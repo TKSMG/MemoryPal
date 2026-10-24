@@ -43,10 +43,14 @@ export default function MakeWithAi() {
   const c = theme.colors;
   const [prefs, setPrefs] = usePrefs();
   const network = useNetworkState();
-  const params = useLocalSearchParams<{ deck?: string; from?: string }>();
+  // `notes` names saved notes opened here, so the cards made from them link back to them.
+  const params = useLocalSearchParams<{ deck?: string; from?: string; notes?: string }>();
   const deck = normalizeSpace(String(params.deck ?? ''));
   const [text, setText] = useState(() => takeNotesForAi());
   const [source, setSource] = useState<AiSource | null>(null);
+  // A set's style and teacher's questions are saved with the set (and synced) and filled in next time.
+  const [style, setStyle] = useState(() => store.deckInfo(deck).ai_style);
+  const [examples, setExamples] = useState(() => store.deckInfo(deck).ai_examples);
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState('');
   const [accountNeeded, setAccountNeeded] = useState(false);
@@ -96,7 +100,7 @@ export default function MakeWithAi() {
     }
   };
 
-  const input = (): AiInput => ({ text: text.trim(), file: source ? fileFromBase64(source.base64, source.mime) : null, title: deck || undefined });
+  const input = (): AiInput => ({ text: text.trim(), file: source ? fileFromBase64(source.base64, source.mime) : null, title: deck || undefined, style: style.trim() || undefined });
 
   const run = async (kind: Exclude<Busy, null>, from?: AiInput) => {
     if (busy) return;
@@ -105,6 +109,7 @@ export default function MakeWithAi() {
     setBusy(kind);
     try {
       const request = from ?? input();
+      if (deck) store.setDeckInfo(deck, { ai_style: style, ai_examples: examples });
       if (kind === 'notes') {
         const made = await makeNotes(auth, request, { fetcher: preview });
         setLeft(remainingText(made.remaining));
@@ -112,7 +117,7 @@ export default function MakeWithAi() {
         setNotesSaved('');
       } else {
         const avoid = deck ? deckCards(store, deck).map((card) => card.front) : [];
-        const made = await makeQuestions(auth, { ...request, count: 10, avoid }, { fetcher: preview });
+        const made = await makeQuestions(auth, { ...request, style: style.trim() || undefined, examples, count: 10, avoid }, { fetcher: preview });
         const usesLeft = remainingText(made.remaining);
         setLeft(usesLeft);
         if (!made.questions.length) {
@@ -121,7 +126,7 @@ export default function MakeWithAi() {
         }
         // Cards made from a file keep a copy of it (only when this request used the file).
         const kept = source && !from ? await keepSource(source) : '';
-        const title = deck || notes?.title || 'Notes';
+        const title = (from && notes?.title) || (!source && params.notes) || deck || notes?.title || 'Notes';
         const rows = rowsFromAiQuestions(made.questions, deck, title, source && !from ? { kind: source.kind, uri: kept } : null);
         const count = rows.length;
         sendRowsToBuilder(rows, [`${count} card${count === 1 ? '' : 's'} made with AI. Check each one, edit or remove any that are wrong, then save.`, usesLeft].filter(Boolean).join(' '));
@@ -140,8 +145,7 @@ export default function MakeWithAi() {
     if (!notes) return;
     const kept = source ? await keepSource(source) : '';
     const body = `${AI_NOTE}\n\n${notesText(notes)}`;
-    const title = deck ? `${deck}: ${notes.title}` : notes.title;
-    store.addCapture({ id: uid(), title, notes: body, chunks: splitStudyBits(notesText(notes)), text_file: source?.kind === 'pdf' ? kept : '', image: source?.kind === 'image' ? kept : '', audio: '', video: '', created_at: nowLabel() });
+    store.addCapture({ id: uid(), title: notes.title, deck, notes: body, chunks: splitStudyBits(notesText(notes)), text_file: source?.kind === 'pdf' ? kept : '', image: source?.kind === 'image' ? kept : '', audio: '', video: '', created_at: nowLabel() });
     setNotesSaved(`Notes saved${deck ? ` with ${deck}` : ''}.`);
   };
 
@@ -173,6 +177,26 @@ export default function MakeWithAi() {
         {Platform.OS !== 'web' ? <ListRow icon="camera-outline" title="Take a photo" detail="Of a page, a slide or a whiteboard" onPress={() => choose(() => pickPhoto('camera'))} /> : null}
         <ListRow icon="image-outline" title="Choose a photo" onPress={() => choose(() => pickPhoto('library'))} />
       </ListGroup>
+
+      <Field
+        label="How should it look? (optional)"
+        hint="For example “one line per date: the year, then what happened”, “word, meaning, then an example”, or “only the causes of the war”."
+        value={style}
+        onChangeText={setStyle}
+        placeholder="One line per date…"
+        maxLength={500}
+      />
+
+      <Field
+        label="Questions your teacher has asked (optional)"
+        hint={`One per line. New questions follow their style, level and the parts of the material they come from. Leave both boxes empty and questions follow the ones already in ${deck ? 'this set' : 'the set'}.${deck ? ' Both are saved with the set.' : ''}`}
+        value={examples}
+        onChangeText={setExamples}
+        multiline
+        placeholder="A 60-year-old has crushing chest pain. What is the first test?"
+        maxLength={8000}
+        style={{ minHeight: 90 }}
+      />
 
       <Row>
         <Button kind="primary" icon={offline ? 'cloud-offline-outline' : 'reader-outline'} label={makeLabel('Make notes')} onPress={() => run('notes')} disabled={offline || !hasInput || !!busy} style={{ flex: 1 }} />

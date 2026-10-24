@@ -16,6 +16,10 @@ import type { Session } from './client';
 
 export const MAX_FILE_BYTES = 8 * 1024 * 1024;
 export const MAX_QUESTIONS = 30;
+export const MAX_STYLE_CHARS = 500;
+export const MAX_EXAMPLES = 20;
+const MAX_QUESTION_CHARS = 600;
+const MAX_CONTEXT_CHARS = 240;
 const TIMEOUT_MS = 120000; // a PDF can take Gemini a while
 export const QUESTION_TYPES = ['short', 'choice', 'truefalse', 'cloze'] as const;
 export type AiQuestionType = (typeof QUESTION_TYPES)[number];
@@ -71,6 +75,8 @@ export interface AiQuestion {
   answer: string;
   /** For choice: the answer first, then 3 wrong options (shuffle before showing). */
   options: string[];
+  /** The sentence from the material the answer comes from, or ''. */
+  context: string;
   /** The PDF page it came from, or null. */
   page: number | null;
 }
@@ -202,7 +208,7 @@ export function parseQuestions(raw: unknown, count = MAX_QUESTIONS, avoid: strin
     if (out.length >= Math.min(count, MAX_QUESTIONS)) break;
     const item = asObject(entry);
     const type = String(item.type ?? '').toLowerCase() as AiQuestionType;
-    let question = clip(item.question, 300);
+    let question = clip(item.question, MAX_QUESTION_CHARS);
     let answer = clip(item.answer, 300);
     if (!QUESTION_TYPES.includes(type) || !question || !answer) continue;
     let options: string[] = [];
@@ -235,7 +241,7 @@ export function parseQuestions(raw: unknown, count = MAX_QUESTIONS, avoid: strin
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const page = typeof item.page === 'number' && Number.isFinite(item.page) && item.page >= 1 && item.page <= 10000 ? Math.trunc(item.page) : null;
-    out.push({ type, question, answer, options, page });
+    out.push({ type, question, answer, options, context: clip(item.context, MAX_CONTEXT_CHARS), page });
   }
   return out;
 }
@@ -245,6 +251,19 @@ export interface AiInput {
   text?: string;
   file?: AiFile | null;
   title?: string;
+  /** How the learner wants it laid out, in their words ("one line per date"); empty for the usual. */
+  style?: string;
+  /** Questions the learner's teacher has asked before: one per line, or a list. Questions only. */
+  examples?: string | string[];
+}
+
+/** Teacher's past questions, cleaned (bullets stripped, clipped) and capped. */
+export function exampleLines(examples: string | string[] | undefined): string[] {
+  const items = typeof examples === 'string' ? examples.split(/\r?\n/) : (examples ?? []);
+  return items
+    .map((item) => clip(String(item).replace(/^[-•*\s]+/, ''), 400))
+    .filter(Boolean)
+    .slice(0, MAX_EXAMPLES);
 }
 
 function requestBody(action: 'notes' | 'questions', input: AiInput & { count?: number; avoid?: string[] }): Record<string, unknown> {
@@ -254,8 +273,12 @@ function requestBody(action: 'notes' | 'questions', input: AiInput & { count?: n
   if (action === 'questions') {
     body.count = Math.max(1, Math.min(MAX_QUESTIONS, Math.trunc(input.count ?? 10) || 10));
     body.avoid = (input.avoid ?? []).map(String).filter((front) => front.trim()).slice(0, 300);
+    const examples = exampleLines(input.examples);
+    if (examples.length) body.examples = examples;
   }
   if (input.title) body.title = input.title.slice(0, 120);
+  const style = clip(input.style, MAX_STYLE_CHARS);
+  if (style) body.style = style;
   return body;
 }
 
@@ -306,7 +329,13 @@ export function questionCardFields(question: AiQuestion): [front: string, back: 
 export function questionsToCards(questions: AiQuestion[], deck: string, title = ''): { card: Card; page: number | null }[] {
   return questions.map((question) => {
     const [front, back] = questionCardFields(question);
-    const association = AI_NOTE + (question.page ? ` From page ${question.page}.` : '');
+    const association = cardNote(question);
     return { card: newCard({ deck: deck || 'General', front, back, pathway: `${AI_PATHWAY} > ${title || deck || 'Notes'}`, association }), page: question.page };
   });
+}
+
+/** The hook text for an AI card: check it, which page, and the source sentence. */
+export function cardNote(question: Pick<AiQuestion, 'page' | 'context'>): string {
+  const note = AI_NOTE + (question.page ? ` From page ${question.page}.` : '');
+  return question.context ? `${note} Source: "${question.context}"` : note;
 }

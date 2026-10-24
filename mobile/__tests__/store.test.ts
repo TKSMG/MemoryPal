@@ -1,5 +1,6 @@
 import { addDays, todayIso } from '../src/core/dates';
-import { newCard } from '../src/core/models';
+import { Capture, newCard } from '../src/core/models';
+import { addTechniqueHooks, deleteDeck, renameDeck, techniqueItems } from '../src/features/decks';
 import { buildMultiDayPlan, MAX_PLAN_DAYS, planForToday } from '../src/core/planning';
 import { MemoryAdapter, MemoryStore } from '../src/core/store';
 
@@ -127,5 +128,69 @@ describe('MemoryStore', () => {
     const raw = { settings: { unit: 'weeks', amount: '99999', deck: 'All decks', goal_label: 'Cram', habits: [] }, created: todayIso(), done: {} };
     expect(planForToday(store, raw)?.totalDays).toBe(MAX_PLAN_DAYS);
     expect(buildMultiDayPlan(store, 1e9, 'All decks', [], 'long_term')).toHaveLength(MAX_PLAN_DAYS);
+  });
+});
+
+describe('set details and notes', () => {
+  const capture = (fields: Partial<Capture>): Capture => ({ id: Math.random().toString(36).slice(2), title: 'Notes', notes: '', chunks: [], text_file: '', image: '', audio: '', video: '', created_at: '', deck: '', ...fields });
+
+  test('details save cleaned, persist, and vanish when emptied', () => {
+    const { store, reload } = fresh();
+    store.setDeckInfo(' Cardio ', { exam_date: '2026-11-02', ai_style: 'clinical cases', ai_examples: 'Why aspirin?' });
+    const info = reload().deckInfo('Cardio');
+    expect([info.exam_date, info.ai_style, info.ai_examples]).toEqual(['2026-11-02', 'clinical cases', 'Why aspirin?']);
+    store.setDeckInfo('Cardio', { exam_date: '2026-02-30' });
+    expect(store.deckInfo('Cardio').exam_date).toBe('');
+    store.setDeckInfo('Cardio', { ai_style: '', ai_examples: '' });
+    expect(reload().deckInfos).toEqual([]);
+  });
+
+  test('renaming a set moves its details and notes; deleting keeps the notes', () => {
+    const { store, reload } = fresh();
+    store.cards = [];
+    store.addCards([newCard({ deck: 'Bio', front: 'a' }), newCard({ deck: 'Art', front: 'b' })]);
+    store.setDeckInfo('Bio', { exam_date: '2026-11-02', about: 'Year 1' });
+    store.setDeckInfo('Biology', { about: 'kept' });
+    store.addCapture(capture({ title: 'Bio: Cells' }));
+    store.addCapture(capture({ title: 'Plants', deck: 'Bio' }));
+    store.addCapture(capture({ title: 'Art: Colour' }));
+    renameDeck(store, 'Bio', 'Biology');
+    let again = reload();
+    expect([again.deckInfo('Biology').about, again.deckInfo('Biology').exam_date, again.deckInfo('Bio').about]).toEqual(['kept', '2026-11-02', '']);
+    expect(again.notesForDeck('Biology').map((c) => [c.title, c.deck]).sort()).toEqual([['Cells', 'Biology'], ['Plants', 'Biology']]);
+    expect(deleteDeck(store, 'Biology')).toBe(1);
+    again = reload();
+    expect(again.cards.map((card) => card.deck)).toEqual(['Art']);
+    expect(again.deckInfos).toEqual([]);
+    expect(again.captures.filter((c) => c.title !== 'Art: Colour').map((c) => c.deck)).toEqual(['', '']);
+  });
+
+  test('damaged details are skipped', () => {
+    const { store } = fresh();
+    store.applyRaw({ decks: [{ id: '  ' }, 'nope', { name: 'A', about: 'x'.repeat(2000) }, { id: 'B' }, { id: 'A', about: 'second' }] });
+    expect(store.deckInfos.map((info) => [info.id, info.about])).toEqual([['A', 'second']]);
+  });
+
+  test('AI cards find the notes they came from', () => {
+    const { store } = fresh();
+    const heart = capture({ title: 'Heart', deck: 'Cardio', notes: 'x', chunks: ['The heart has four chambers.', 'Aspirin stops platelets sticking together.'] });
+    const lungs = capture({ title: 'Lungs', deck: 'Resp', notes: 'Aspirin stops platelets sticking together.' });
+    store.captures = [lungs, heart];
+    const card = newCard({ deck: 'Cardio', pathway: 'Made with AI > Heart', association: 'Made with AI, check it. Source: "aspirin stops platelets sticking-together"' });
+    expect(store.sourceNotes(card)).toEqual({ capture: heart, bit: 1 });
+    expect(store.sourceNotes(newCard({ deck: 'Cardio', pathway: 'Made with AI > Heart' }))).toEqual({ capture: heart, bit: -1 });
+    expect(store.sourceNotes(newCard({ deck: 'Cardio' }))).toBeNull();
+  });
+
+  test('technique hooks go onto each card of a set once', () => {
+    const { store, reload } = fresh();
+    store.cards = [];
+    store.addCards([newCard({ deck: 'Heart', front: 'Pacemaker?', back: 'SA node' }), newCard({ deck: 'Heart', front: 'Biggest chamber?', back: 'Left ventricle', association: 'Thick wall' })]);
+    store.addCards([newCard({ deck: 'Other', front: 'x', back: 'y' })]);
+    expect(techniqueItems(store, 'Heart').items).toEqual(['SA node', 'Left ventricle']);
+    expect(addTechniqueHooks(store, 'Heart', 'acronym')).toBe(2);
+    const hooks = Object.fromEntries(reload().cards.map((card) => [card.front, card.association]));
+    expect(hooks).toEqual({ 'Pacemaker?': 'Acronym SL: S is for SA node.', 'Biggest chamber?': 'Thick wall\nAcronym SL: L is for Left ventricle.', x: '' });
+    expect(addTechniqueHooks(store, 'Heart', 'acronym')).toBe(0);
   });
 });

@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import ai, cloud
 from .core import normalize_space, today_iso
+from .models import deck_name
 
 CONSENT_VERSION = 1
 QUIZ_RECENT_MAX = 60
@@ -328,7 +329,7 @@ def is_ai_item(item):
 
 
 def notes_capture_fields(notes, deck="", source=""):
-    """Capture fields (title, notes, chunks, text_file, image) for AI notes saved in a set."""
+    """Capture fields (title, deck, notes, chunks, text_file, image) for AI notes saved in a set."""
     body = ai.notes_text(notes)
     title = normalize_space(notes.get("title", "")) or "Study notes"
     chunks = []
@@ -339,7 +340,8 @@ def notes_capture_fields(notes, deck="", source=""):
     chunks.extend(f"{item['term']} => {item['definition']}" for item in notes.get("key_terms", []))
     kind = source_kind(source)
     return {
-        "title": f"{deck}: {title}" if deck else title,
+        "title": title,
+        "deck": deck_name(deck),
         "notes": f"{ai.AI_NOTE}\n{body}",
         "chunks": [chunk for chunk in chunks if normalize_space(chunk)] or [title],
         "text_file": str(source) if kind == "pdf" else "",
