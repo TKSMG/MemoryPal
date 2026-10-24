@@ -2183,10 +2183,7 @@ class MemoryPalApp(tk.Tk):
             if not sys.platform.startswith("win") or window.wm_overrideredirect():
                 return
             windowtheme.apply_windows(self.window_handle(window), dark, caption=COLORS["bg"], text=COLORS["ink"], border=COLORS["line"])
-            # Both Tk's frame window and its client window, which have
-            # window classes of their own.
             windowtheme.set_background_brush(self.window_handle(window), COLORS["bg"])
-            windowtheme.set_background_brush(window.winfo_id(), COLORS["bg"])
         except (tk.TclError, AttributeError):
             pass
 
