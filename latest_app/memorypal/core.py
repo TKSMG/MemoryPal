@@ -52,6 +52,28 @@ def add_days(days):
     return (date.today() + timedelta(days=days)).isoformat()
 
 
+def relative_day(iso, today=None):
+    """A date as people say it: "today", "tomorrow", "in 4 days", then "on 20 Oct".
+
+    Past dates read "today" (an overdue card comes up today). Text that isn't
+    an ISO date comes back unchanged. Matches relativeDay in the phone app.
+    """
+    try:
+        day = date.fromisoformat(str(iso)[:10])
+    except ValueError:
+        return iso
+    today = today or date.today()
+    days = (day - today).days
+    if days <= 0:
+        return "today"
+    if days == 1:
+        return "tomorrow"
+    if days < 7:
+        return f"in {days} days"
+    label = f"{day.day} {day.strftime('%b')}"
+    return f"on {label}" if day.year == today.year else f"on {label} {day.year}"
+
+
 def now_label():
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
