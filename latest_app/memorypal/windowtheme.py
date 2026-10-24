@@ -109,3 +109,31 @@ def set_background_brush(hwnd, hex_color):
 
 
 _brushes = set()  # brushes MemoryPal made, so replaced ones can be freed
+
+
+DWMWA_WINDOW_CORNER_PREFERENCE = 33
+DWMWCP_ROUND = 2
+DWMWCP_ROUNDSMALL = 3
+
+
+def round_popup(hwnd, border=None, small=False):
+    """Windows 11: give a borderless popup (tooltip, list, menu) the system's
+    rounded corners, hairline border and shadow, as its own menus and
+    tooltips have. Returns True on Windows 11, False where it isn't
+    supported (the caller then draws its own square edge)."""
+    if not hwnd or not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+
+        set_attribute = ctypes.windll.dwmapi.DwmSetWindowAttribute
+        corner = ctypes.c_int(DWMWCP_ROUNDSMALL if small else DWMWCP_ROUND)
+        if set_attribute(ctypes.c_void_p(hwnd), DWMWA_WINDOW_CORNER_PREFERENCE, ctypes.byref(corner), ctypes.sizeof(corner)) != 0:
+            return False
+        value = colorref(border)
+        if value is not None:
+            color = ctypes.c_int(value)
+            set_attribute(ctypes.c_void_p(hwnd), DWMWA_BORDER_COLOR, ctypes.byref(color), ctypes.sizeof(color))
+        return True
+    except (AttributeError, OSError):
+        return False

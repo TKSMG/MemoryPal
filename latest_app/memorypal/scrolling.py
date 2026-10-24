@@ -109,15 +109,18 @@ def take_lines(pending, per_frame_max=3):
     return step, pending - step
 
 
-def frames_per_step(step_cost_ms, frame_ms, most=3):
+def frames_per_step(step_cost_ms, frame_ms, slowest_ms=17.5):
     """How many screen refreshes each scroll step should span.
 
-    One while a step draws within a refresh; otherwise the next whole
-    number, so steps land on evenly spaced refreshes (every second one on a
-    144Hz screen, say) instead of wherever they finish. A step up to 10%
-    over a refresh still counts as one, so a page near the limit doesn't
-    flip between the two.
+    One while a step draws within a refresh. On a fast screen (120-165Hz) a
+    page that takes longer steps on every second or third refresh, so steps
+    land evenly instead of two in one refresh and none in the next. Only
+    while that still means about 60 steps a second or more: on a 60Hz
+    screen halving the rate looks worse than an uneven step, so it stays 1
+    and the page simply steps as soon as it can. A step up to 10% over a
+    refresh still counts as one, so a page near the limit doesn't flip.
     """
     if not step_cost_ms or not frame_ms or frame_ms <= 0:
         return 1
-    return max(1, min(most, math.ceil(step_cost_ms / (frame_ms * 1.1))))
+    every = max(1, math.ceil(step_cost_ms / (frame_ms * 1.1)))
+    return every if every * frame_ms <= slowest_ms else 1
