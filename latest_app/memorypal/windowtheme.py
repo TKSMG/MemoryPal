@@ -76,3 +76,35 @@ def apply_mac(window, dark):
         return True
     except Exception:  # an older Tk without the option
         return False
+
+
+def set_background_brush(hwnd, hex_color):
+    """Have Windows fill a window with the app's background colour, not white.
+
+    While a window grows or leaves full screen, Windows erases the new area
+    with the window class's brush before the app paints it; Tk's class has
+    none, so it showed as a white flash. The brush belongs to the class, so
+    it covers every MemoryPal window. Returns True if the brush was set.
+    """
+    global _brush
+    value = colorref(hex_color)
+    if not hwnd or value is None or not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+
+        user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+        set_class = getattr(user32, "SetClassLongPtrW", None) or user32.SetClassLongW
+        set_class.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+        gdi32.CreateSolidBrush.restype = ctypes.c_void_p
+        brush = gdi32.CreateSolidBrush(value)
+        set_class(ctypes.c_void_p(hwnd), -10, ctypes.c_void_p(brush))  # GCLP_HBRBACKGROUND
+        previous, _brush = _brush, brush
+        if previous:
+            gdi32.DeleteObject(ctypes.c_void_p(previous))
+        return True
+    except (AttributeError, OSError):
+        return False
+
+
+_brush = None  # the brush MemoryPal last gave its windows
