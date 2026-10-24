@@ -8929,7 +8929,7 @@ class MemoryPalApp(tk.Tk):
         )
         for title, body in points:
             block = tk.Frame(content, bg=surface)
-            block.pack(fill="x", pady=(0, self.px(10)))
+            block.pack(fill="x", pady=(0, self.px(7)))
             tk.Label(block, text=title, bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 12), anchor="w").pack(fill="x")
             self.fit_wrap(tk.Label(block, text=body, bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=wrap, justify="left", anchor="w"), pady=(self.px(2), 0))
         footer = tk.Frame(content, bg=surface)
