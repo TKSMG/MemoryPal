@@ -7,8 +7,10 @@ import { legalLinks } from '../cloud/client';
 import { persona } from '../core/personas';
 import { TextSize } from '../core/store';
 import { AI_DAILY_LIMIT } from '../features/aiHelpers';
+import { REMINDER_TIMES, reminderLabel } from '../features/reminders';
 import { exportBackup, pickBackup } from '../state/backup';
 import { ThemeChoice, usePrefs, useStore, useSync } from '../state/AppState';
+import { askForNotifications } from '../state/reminders';
 import { Button, Card, Pills, Row, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
 import { confirm, notify, speak } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
@@ -60,6 +62,18 @@ export default function Settings() {
     }
   };
 
+  const turnOnReminders = async (value: boolean) => {
+    if (!value) return setPrefs({ reminders: false });
+    const permission = await askForNotifications();
+    if (permission === 'granted') return setPrefs({ reminders: true });
+    notify(
+      permission === 'denied' ? 'Notifications are off for MemoryPal' : "Reminders aren't available here",
+      permission === 'denied'
+        ? 'Turn on notifications for MemoryPal in your phone’s Settings, then switch this on again.'
+        : 'This copy of MemoryPal can’t show notifications.',
+    );
+  };
+
   const doReset = async () => {
     const account = sync.account;
     const body = account.usesDrive && account.drive
@@ -101,6 +115,25 @@ export default function Settings() {
         <ToggleRow label="Higher contrast" description="Stronger text and borders." value={a.high_contrast} onChange={(value) => store.setAccessibility({ high_contrast: value })} />
         <ToggleRow label="Reduce motion" description="No sliding screen transitions." value={a.reduce_motion} onChange={(value) => store.setAccessibility({ reduce_motion: value })} />
         <ToggleRow label="Gentle vibrations" description="A light tap when you answer." value={prefs.haptics} onChange={(value) => setPrefs({ haptics: value })} />
+      </Card>
+
+      <SectionTitle>Reminders</SectionTitle>
+      <Card>
+        <ToggleRow
+          label="Daily study reminder"
+          description={prefs.reminders ? `Around ${reminderLabel(prefs.reminder_time)} on days cards are due. Skipped once you’ve studied.` : 'One notification a day when cards are due.'}
+          value={prefs.reminders}
+          onChange={turnOnReminders}
+        />
+        {prefs.reminders ? (
+          <Pills<string>
+            label="Reminder time"
+            value={prefs.reminder_time}
+            onChange={(value) => setPrefs({ reminder_time: value })}
+            options={REMINDER_TIMES.map((time) => ({ value: time, label: reminderLabel(time) }))}
+          />
+        ) : null}
+        <ToggleRow label="Due cards on the app icon" description="A small number on MemoryPal’s icon." value={prefs.badge} onChange={(value) => setPrefs({ badge: value })} />
       </Card>
 
       <SectionTitle>AI features</SectionTitle>

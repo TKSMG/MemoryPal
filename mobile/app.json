@@ -160,6 +160,13 @@
             "com.google.android.as"
           ]
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#2563eb"
+        }
       ]
     ]
   }

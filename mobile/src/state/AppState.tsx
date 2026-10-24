@@ -21,9 +21,18 @@ export interface DevicePrefs {
   ai_allowed: boolean;
   /** When they allowed it (ISO time), or ''. */
   ai_allowed_at: string;
+  /** A daily reminder when cards are due (asks for notification permission when turned on). */
+  reminders: boolean;
+  /** "HH:MM", one of REMINDER_TIMES. */
+  reminder_time: string;
+  /** Cards due today on the app icon. */
+  badge: boolean;
 }
 
-const DEFAULT_PREFS: DevicePrefs = { theme: 'system', haptics: true, quiz_recent: [], ai_allowed: false, ai_allowed_at: '' };
+const DEFAULT_PREFS: DevicePrefs = {
+  theme: 'system', haptics: true, quiz_recent: [], ai_allowed: false, ai_allowed_at: '',
+  reminders: false, reminder_time: '19:00', badge: true,
+};
 
 /** Preferences that belong to this phone, not the profile (so a backup never changes them). */
 class PrefsStore {
@@ -39,6 +48,9 @@ class PrefsStore {
       if (!Array.isArray(this.prefs.quiz_recent)) this.prefs.quiz_recent = [];
       this.prefs.quiz_recent = this.prefs.quiz_recent.map(String).slice(0, 60);
       this.prefs.ai_allowed = this.prefs.ai_allowed === true;
+      this.prefs.reminders = this.prefs.reminders === true;
+      this.prefs.badge = this.prefs.badge !== false;
+      this.prefs.reminder_time = typeof this.prefs.reminder_time === 'string' ? this.prefs.reminder_time : '19:00';
     } catch {
       this.prefs = { ...DEFAULT_PREFS };
     }
