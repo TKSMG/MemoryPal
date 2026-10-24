@@ -64,12 +64,30 @@ class CallTests(unittest.TestCase):
         self.assertEqual(notes, {"title": "Cells", "sections": [{"heading": "Parts", "bullets": ["Nucleus"]}], "key_terms": [{"term": "Cell", "definition": "Unit of life"}], "remaining": 19})
         self.assertIn("Nucleus", ai.notes_text(notes))
 
+    def test_style_is_sent_only_when_given(self):
+        opener = FakeOpener({"ok": True, "result": {"title": "T", "sections": [], "key_terms": []}})
+        ai.make_notes("t", text="Dates", style="  one line per date:\n year, then event ", opener=opener)
+        self.assertEqual(opener.sent()["style"], "one line per date: year, then event")
+        ai.make_questions("t", text="Dates", style="x" * 900, opener=opener)
+        self.assertEqual(len(opener.sent()["style"]), ai.MAX_STYLE_CHARS)
+        ai.make_notes("t", text="Dates", style="   ", opener=opener)
+        self.assertNotIn("style", opener.sent())
+
+    def test_teacher_examples_are_one_per_line(self):
+        opener = FakeOpener({"ok": True, "result": {"questions": [{"type": "short", "question": "A 45-year-old man has crushing chest pain radiating to the left arm. " * 10, "answer": "MI"}]}})
+        made = ai.make_questions("t", text="Cardio", examples="- First question?\n\n  • Second question?  \n", opener=opener)
+        self.assertEqual(opener.sent()["examples"], ["First question?", "Second question?"])
+        self.assertEqual(len(made["questions"][0]["question"]), ai.MAX_QUESTION_CHARS)
+        ai.make_questions("t", text="Cardio", examples="", opener=opener)
+        self.assertNotIn("examples", opener.sent())
+        self.assertEqual(len(ai.example_lines(["q"] * 40)), ai.MAX_EXAMPLES)
+
     def test_questions_with_a_file_are_validated(self):
         with tempfile.TemporaryDirectory() as folder:
             pdf = Path(folder) / "lecture.PDF"
             pdf.write_bytes(b"%PDF-1.4 tiny")
             opener = FakeOpener({"ok": True, "remaining": 3, "result": {"questions": [
-                {"type": "short", "question": "What is a cell?", "answer": "Unit of life", "page": 2},
+                {"type": "short", "question": "What is a cell?", "answer": "Unit of life", "page": 2, "context": " A cell is the   unit of life. "},
                 {"type": "choice", "question": "Powerhouse?", "answer": "Mitochondria", "options": ["Nucleus", "mitochondria", "Ribosome", "Golgi", "Wall"]},
                 {"type": "choice", "question": "Too few?", "answer": "A", "options": ["B"]},
                 {"type": "truefalse", "question": "Cells have walls", "answer": "FALSE"},
@@ -85,6 +103,8 @@ class CallTests(unittest.TestCase):
         questions = result["questions"]
         self.assertEqual([q["type"] for q in questions], ["short", "choice", "truefalse", "cloze"])
         self.assertEqual(questions[0]["page"], 2)
+        self.assertEqual(questions[0]["context"], "A cell is the unit of life.")
+        self.assertEqual(questions[1]["context"], "")
         self.assertEqual(questions[1]["options"], ["Mitochondria", "Nucleus", "Ribosome", "Golgi"])
         self.assertEqual(questions[2]["answer"], "False")
         self.assertEqual(questions[3]["question"], "The nucleus holds _____")
@@ -97,6 +117,8 @@ class CallTests(unittest.TestCase):
         self.assertTrue(ai.is_ai_card(card))
         self.assertIn("check it", card.association)
         self.assertIn("page 2", card.association)
+        self.assertIn('Source: "A cell is the unit of life."', card.association)
+        self.assertNotIn("Source", made[1]["card"].association)
         self.assertEqual(made[2]["card"].front, "True or false: Cells have walls")
 
     def test_error_codes_become_friendly_messages(self):

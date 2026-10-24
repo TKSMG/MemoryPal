@@ -1,7 +1,7 @@
 """Two-way sync of a profile with the person's cloud account: the pure logic.
 
 Everything that syncs becomes a record: ``card:<id>``, ``capture:<id>``,
-``settings:profile``, and each device's own review counts
+``deck:<set name>`` (a set's details), ``settings:profile``, and each device's own review counts
 (``activity:<day>:<device>``, ``practiced:<device>``). Counts are kept per
 device and added up, so two devices reviewing on the same day both count.
 
@@ -19,7 +19,7 @@ SETTINGS_KEY = "settings:profile"
 SETTINGS_FIELDS = ("daily_goal", "accessibility", "onboarding", "study_plan", "nav_order")
 SCHEDULE_FIELDS = ("interval", "repetitions", "ease", "lapses", "last_score", "last_result", "next_review", "buried_until")
 COUNT_KINDS = ("activity", "practiced")
-KINDS = ("card", "capture", "settings") + COUNT_KINDS
+KINDS = ("card", "capture", "deck", "settings") + COUNT_KINDS
 
 
 def count_of(data):
@@ -81,6 +81,8 @@ def records_from_payload(payload, device_id, base):
         records[f"card:{card['id']}"] = dict(card)
     for capture in payload.get("captures", []):
         records[f"capture:{capture['id']}"] = dict(capture)
+    for info in payload.get("decks", []):
+        records[f"deck:{info['id']}"] = dict(info)
     records[SETTINGS_KEY] = {name: payload.get(name) for name in SETTINGS_FIELDS}
     others_activity, others_practiced = other_device_counts(base, device_id)
     # This device's share is whatever the local totals hold beyond what the
@@ -110,6 +112,9 @@ def payload_from_records(payload, records):
     capture_keys = [key for key in records if kind_of(key) == "capture"]
     new_captures = sorted((key for key in capture_keys if key not in set(capture_order)), key=lambda key: str(records[key].get("created_at", "")), reverse=True)
     result["captures"] = [dict(records[key]) for key in new_captures + [key for key in capture_order if key in records]]
+    deck_order = [f"deck:{item['id']}" for item in payload.get("decks", [])]
+    deck_keys = sorted(key for key in records if kind_of(key) == "deck" and key not in set(deck_order))
+    result["decks"] = [dict(records[key]) for key in [key for key in deck_order if key in records] + deck_keys]
     settings = records.get(SETTINGS_KEY) or {}
     for name in SETTINGS_FIELDS:
         if name in settings and settings[name] is not None:

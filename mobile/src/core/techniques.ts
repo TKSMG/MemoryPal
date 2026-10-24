@@ -112,3 +112,38 @@ export const TECHNIQUES: { key: string; title: string; blurb: string; make: (ite
   { key: 'chunk', title: 'Chunk map', blurb: 'Small groups are easier than one long list.', make: (items) => chunkMap(items) },
   { key: 'chain', title: 'Link chain', blurb: 'Each idea hands a clue to the next.', make: linkChain },
 ];
+
+export const TECHNIQUE_KEYS = ['acronym', 'story', 'peg', 'palace', 'chunk', 'chain'] as const;
+
+/**
+ * One memory hook per item from a technique, to save onto the cards those
+ * items came from (port of techniques.hooks_for). A list technique (acronym,
+ * chunk map) gives each item its place in the whole; the others give each
+ * item its own line (scene, peg, spot, link).
+ */
+export function hooksFor(kind: string, raw: string[]): string[] {
+  const items = raw.map((item) => String(item).split(/\s+/).filter(Boolean).join(' ')).filter(Boolean);
+  if (!items.length) return [];
+  if (kind === 'acronym') {
+    const letters = items.map((item) => item[0].toUpperCase()).join('');
+    return items.map((item) => `Acronym ${letters}: ${item[0].toUpperCase()} is for ${item}.`);
+  }
+  if (kind === 'chunk') {
+    const hooks: string[] = [];
+    const total = Math.floor((items.length + 2) / 3);
+    for (let start = 0; start < items.length; start += 3) {
+      const group = items.slice(start, start + 3);
+      for (let i = 0; i < group.length; i++) hooks.push(`Chunk ${start / 3 + 1} of ${total}: ${group.join(', ')}.`);
+    }
+    return hooks;
+  }
+  if (kind === 'chain') {
+    if (items.length === 1) return [`Start of a link chain: ${items[0]}.`];
+    const links = items.slice(0, -1).map((first, i) => `${first} leads to ${items[i + 1]}: imagine ${first} handing a bright clue to ${items[i + 1]}.`);
+    return [links[0], ...links];
+  }
+  const make = ({ story, peg: pegList, palace } as Record<string, (items: string[]) => string>)[kind];
+  if (!make) return [];
+  const lines = [...make(items).matchAll(/^\d+\. (.+)$/gm)].map((match) => match[1]);
+  return lines.length === items.length ? lines : [];
+}

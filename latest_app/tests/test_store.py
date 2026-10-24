@@ -10,7 +10,7 @@ os.environ["MEMORYPAL_DATA_DIR"] = _DATA_DIR
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from memorypal.core import add_days, today_iso  # noqa: E402
-from memorypal.models import Card  # noqa: E402
+from memorypal.models import Capture, Card  # noqa: E402
 from memorypal.store import MemoryStore  # noqa: E402
 
 
@@ -179,6 +179,76 @@ class DeckRenameTests(StoreTestCase):
         self.store.add_cards([Card(deck="", front="a", back="b")])
         self.assertEqual(self.store.rename_deck("General", "Misc"), 1)
         self.assertEqual(self.store.cards[0].deck, "Misc")
+
+
+class DeckDetailsTests(StoreTestCase):
+    def test_details_save_clean_and_persist(self):
+        self.store.set_deck_info(" Cardio ", exam_date="2026-11-02", ai_style="clinical cases", ai_examples="Why aspirin?", junk="x")
+        info = self.reload().deck_info("Cardio")
+        self.assertEqual((info.exam_date, info.ai_style, info.ai_examples), ("2026-11-02", "clinical cases", "Why aspirin?"))
+        self.store.set_deck_info("Cardio", exam_date="next week")
+        self.assertEqual(self.store.deck_info("Cardio").exam_date, "")
+        self.store.set_deck_info("Cardio", ai_style="", ai_examples="")
+        self.assertEqual(self.reload().deck_infos, [])  # nothing left: no record kept
+
+    def test_rename_moves_details_and_notes(self):
+        self.store.cards = []
+        self.store.add_cards([Card(deck="Bio", front="a", back="b")])
+        self.store.set_deck_info("Bio", exam_date="2026-11-02", about="Year 1")
+        self.store.set_deck_info("Biology", about="kept")
+        self.store.add_capture(Capture(title="Bio: Cells", notes="x"))   # saved before notes had a set
+        self.store.add_capture(Capture(title="Plants", notes="y", deck="Bio"))
+        self.store.add_capture(Capture(title="Art: Colour", notes="z"))
+        self.store.rename_deck("Bio", "Biology")
+        store = self.reload()
+        self.assertEqual(store.deck_info("Bio").about, "")
+        self.assertEqual((store.deck_info("Biology").about, store.deck_info("Biology").exam_date), ("kept", "2026-11-02"))
+        self.assertEqual(sorted((c.title, c.deck) for c in store.notes_for_deck("Biology")), [("Cells", "Biology"), ("Plants", "Biology")])
+        self.assertEqual([c.title for c in store.notes_for_deck("Art")], ["Art: Colour"])
+
+    def test_delete_set_keeps_its_notes(self):
+        self.store.cards = []
+        self.store.add_cards([Card(deck="Bio", front="a", back="b"), Card(deck="Art", front="c", back="d")])
+        self.store.set_deck_info("Bio", about="Year 1")
+        self.store.add_capture(Capture(title="Cells", notes="x", deck="Bio"))
+        self.assertEqual(self.store.delete_deck("Bio"), 1)
+        store = self.reload()
+        self.assertEqual([card.deck for card in store.cards], ["Art"])
+        self.assertEqual(store.deck_infos, [])
+        self.assertEqual([(c.title, c.deck) for c in store.captures], [("Cells", "")])
+
+    def test_two_windows_keep_each_others_details(self):
+        other = self.reload()
+        self.store.set_deck_info("Bio", about="from here")
+        other.set_deck_info("Art", about="from there")
+        store = self.reload()
+        self.assertEqual(sorted(info.id for info in store.deck_infos), ["Art", "Bio"])
+
+    def test_ai_cards_find_the_notes_they_came_from(self):
+        heart = Capture(title="Heart", deck="Cardio", notes="The heart has four chambers.\nAspirin stops platelets sticking together.", chunks=["The heart has four chambers.", "Aspirin stops platelets sticking together."])
+        other = Capture(title="Lungs", deck="Resp", notes="Aspirin stops platelets sticking together.")
+        self.store.captures = [other, heart]
+        card = Card(deck="Cardio", front="What does aspirin do?", back="Stops platelets", pathway="Made with AI > Heart", association='Made with AI, check it. Source: "aspirin stops platelets sticking-together"')
+        self.assertEqual(self.store.source_notes(card), (heart, 1))
+        by_title = Card(deck="Cardio", pathway="Made with AI > Heart", association="Made with AI, check it.")
+        self.assertEqual(self.store.source_notes(by_title), (heart, -1))
+        self.assertEqual(self.store.source_notes(Card(deck="Cardio", front="Mine")), (None, -1))
+
+    def test_technique_hooks_go_onto_each_card_once(self):
+        self.store.cards = []
+        self.store.add_cards([Card(deck="Heart", front="Pacemaker?", back="SA node"), Card(deck="Heart", front="Biggest chamber?", back="Left ventricle", association="Thick wall")])
+        self.store.add_cards([Card(deck="Other", front="x", back="y")])
+        self.assertEqual(self.store.technique_items("Heart")[1], ["SA node", "Left ventricle"])
+        self.assertEqual(self.store.add_technique_hooks("Heart", "acronym"), 2)
+        hooks = {card.front: card.association for card in self.reload().cards}
+        self.assertEqual(hooks["Pacemaker?"], "Acronym SL: S is for SA node.")
+        self.assertEqual(hooks["Biggest chamber?"], "Thick wall\nAcronym SL: L is for Left ventricle.")
+        self.assertEqual(hooks["x"], "")
+        self.assertEqual(self.store.add_technique_hooks("Heart", "acronym"), 0)
+
+    def test_damaged_details_are_skipped(self):
+        self.store.apply_raw({"decks": [{"id": "  "}, "nope", {"name": "A", "about": "x" * 2000}, {"id": "B"}, {"id": "A", "about": "second"}]})
+        self.assertEqual([(info.id, info.about) for info in self.store.deck_infos], [("A", "second")])
 
 
 if __name__ == "__main__":

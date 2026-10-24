@@ -38,6 +38,64 @@ export interface Capture {
   audio: string;
   video: string;
   created_at: string;
+  /** The set these notes belong to ('' for none). */
+  deck: string;
+}
+
+/**
+ * What a set knows about itself: cards name their set, this holds the rest.
+ * `id` is the set's name, so two devices describing one set share a record.
+ * A set with no details has no DeckInfo at all.
+ */
+export interface DeckInfo {
+  id: string;
+  /** YYYY-MM-DD, or ''. */
+  exam_date: string;
+  /** A line about the set, shown on its page. */
+  about: string;
+  /** "How should it look?" for Make with AI. */
+  ai_style: string;
+  /** Questions the teacher has asked, one per line. */
+  ai_examples: string;
+}
+
+export const DECK_INFO_FIELDS = ['exam_date', 'about', 'ai_style', 'ai_examples'] as const;
+export type DeckInfoField = (typeof DECK_INFO_FIELDS)[number];
+export const MAX_DECK_NAME = 120;
+const MAX_ABOUT = 1000;
+const MAX_AI_STYLE = 500;
+const MAX_AI_EXAMPLES = 8000;
+
+/** A set name as stored: single spaces, at most MAX_DECK_NAME characters. */
+export function deckName(value: unknown): string {
+  return String(value ?? '').split(/\s+/).filter(Boolean).join(' ').slice(0, MAX_DECK_NAME);
+}
+
+/** value if it is a real YYYY-MM-DD date, else ''. */
+export function isoDay(value: unknown): string {
+  const text = String(value ?? '').trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!match) return '';
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return year >= 1 && date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? text : '';
+}
+
+export function deckInfoFromDict(raw: Raw): DeckInfo {
+  const name = deckName(firstText(raw, ['id', 'name'], ''));
+  if (!name) throw new Error('a set needs a name');
+  const text = (field: string, limit: number) => String(raw[field] || '').trim().slice(0, limit);
+  return {
+    id: name,
+    exam_date: isoDay(raw.exam_date),
+    about: text('about', MAX_ABOUT),
+    ai_style: text('ai_style', MAX_AI_STYLE),
+    ai_examples: text('ai_examples', MAX_AI_EXAMPLES),
+  };
+}
+
+export function deckInfoEmpty(info: DeckInfo): boolean {
+  return !DECK_INFO_FIELDS.some((name) => info[name]);
 }
 
 export interface FeedbackEntry {
@@ -158,6 +216,7 @@ export function captureFromDict(raw: Raw): Capture {
     audio: text('audio'),
     video: text('video'),
     created_at: firstText(raw, ['created_at', 'createdAt'], nowLabel()),
+    deck: deckName(text('deck')),
   };
 }
 

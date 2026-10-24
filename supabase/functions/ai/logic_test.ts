@@ -1,5 +1,5 @@
 // deno test supabase/functions/ai/logic_test.ts
-import { AiError, base64Bytes, cleanNotes, cleanQuestions, ERRORS, geminiBody, limitsFrom, MAX_FILE_BYTES, modelJson, parseRequest, providerError, secondsToNextMinute, takeResult } from "./logic.ts";
+import { AiError, base64Bytes, cleanNotes, cleanQuestions, ERRORS, geminiBody, limitsFrom, MAX_FILE_BYTES, modelJson, parseRequest, promptFor, providerError, secondsToNextMinute, takeResult } from "./logic.ts";
 
 function assertEquals(actual: unknown, expected: unknown) {
   const a = JSON.stringify(actual);
@@ -46,6 +46,31 @@ Deno.test("the Gemini body uses JSON mode, a schema, safety settings and the fil
   if (!prompt.includes("What is a cell?") || !prompt.includes('"page"')) throw new Error(prompt);
 });
 
+Deno.test("the learner's style is clipped and fenced into the prompt", () => {
+  const request = parseRequest({ action: "notes", text: "Dates", style: "  one line per date:   year, then event " + "x".repeat(600) });
+  assertEquals(request.style.length, 500);
+  assertEquals(request.style.startsWith("one line per date: year, then event"), true);
+  const prompt = promptFor(request);
+  assertEquals(prompt.includes('The learner described how they want this'), true);
+  assertEquals(prompt.indexOf("Material:") < prompt.indexOf("The learner described"), true);
+  assertEquals(promptFor(parseRequest({ action: "questions", text: "x" })).includes("The learner described"), false);
+  assertEquals(promptFor(parseRequest({ action: "questions", text: "x" })).includes('"context"'), true);
+});
+
+Deno.test("teacher examples, or the set's own questions, set the pattern", () => {
+  const withExamples = parseRequest({ action: "questions", text: "x", examples: ["A 45-year-old man has chest pain. Next step?", "", 7, "y".repeat(500)], avoid: ["a", "b", "c"] });
+  assertEquals(withExamples.examples.length, 2);
+  assertEquals(withExamples.examples[1].length, 400);
+  const prompt = promptFor(withExamples);
+  assertEquals(prompt.includes("teacher has asked before"), true);
+  assertEquals(prompt.includes("Do not repeat these existing questions"), true);
+  const learned = promptFor(parseRequest({ action: "questions", text: "x", avoid: ["a", "b", "c"] }));
+  assertEquals(learned.includes("existing questions in this set (match their style"), true);
+  const few = promptFor(parseRequest({ action: "questions", text: "x", avoid: ["a"] }));
+  assertEquals(few.includes("match their style"), false);
+  assertEquals(parseRequest({ action: "questions", text: "x", examples: Array(40).fill("q") }).examples.length, 20);
+});
+
 Deno.test("model answers are read, and blocks are reported", () => {
   const answer = { candidates: [{ finishReason: "STOP", content: { parts: [{ text: '{"title":"T",' }, { text: '"sections":[],"key_terms":[]}' }] } }] };
   assertEquals(modelJson(answer), { title: "T", sections: [], key_terms: [] });
@@ -71,7 +96,7 @@ Deno.test("questions keep only well-formed ones", () => {
   const raw = {
     questions: [
       { type: "short", question: "What is a cell?", answer: "Unit of life" },
-      { type: "short", question: "What is a nucleus?", answer: "Control centre", page: 3 },
+      { type: "short", question: "What is a nucleus?", answer: "Control centre", page: 3, context: "  The nucleus is the   control centre. " },
       { type: "choice", question: "Powerhouse?", answer: "Mitochondria", options: ["Mitochondria", "Nucleus", "Ribosome", "Golgi"] },
       { type: "choice", question: "Too few options?", answer: "A", options: ["A", "B"] },
       { type: "truefalse", question: "Cells have walls", answer: "false." },
@@ -85,6 +110,8 @@ Deno.test("questions keep only well-formed ones", () => {
   const out = cleanQuestions(raw, 30, ["what is a CELL?"], true);
   assertEquals(out.map((q) => q.type), ["short", "choice", "truefalse", "cloze"]);
   assertEquals(out[0].page, 3);
+  assertEquals(out[0].context, "The nucleus is the control centre.");
+  assertEquals(out[1].context, "");
   assertEquals(out[1].options, ["Mitochondria", "Nucleus", "Ribosome", "Golgi"]);
   assertEquals(out[2].answer, "False");
   assertEquals(out[3].question, "The nucleus holds _____");
