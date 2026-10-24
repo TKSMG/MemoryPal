@@ -17,10 +17,10 @@ export default function Study() {
 
   const options: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; count?: number; href: Href }[] = [
     { icon: 'flash-outline', title: 'Quick 10', body: 'Due cards first, then shaky ones. About five minutes.', href: '/review?mode=quick' },
-    { icon: 'fitness-outline', title: theme.plain('Weak cards', 'Cards to practise more'), body: 'Cards you have missed or found hard, hardest first.', count: weak, href: '/review?mode=weak' },
+    { icon: 'fitness-outline', title: theme.plain('Weak cards', 'Cards to practise more'), body: 'Cards you have missed, found hard or not studied yet, hardest first.', count: weak, href: '/review?mode=weak' },
     { icon: 'sparkles-outline', title: 'New cards', body: 'Cards you haven’t studied yet, up to 20.', count: fresh, href: '/review?mode=new' },
     { icon: 'chatbubbles-outline', title: 'Talk-back study', body: 'Hands free: hear each question, say the answer, hear how you did.', href: '/talkback?mode=quick' },
-    { icon: 'list-circle-outline', title: 'Multiple-choice quiz', body: 'Pick the answer from four.', href: '/quiz' },
+    { icon: 'list-circle-outline', title: 'Quick quiz', body: 'Mixed questions: pick, match, fill in the blank, true or false.', href: '/quiz' },
     { icon: 'map-outline', title: 'Study plan', body: 'Your time and goal become steps for each day.', href: '/plan' },
   ];
 

@@ -48,5 +48,20 @@ class AnswerAssessmentTests(unittest.TestCase):
         self.assertEqual(result["bucket"], "Easy")
 
 
+class RelativeDayTests(unittest.TestCase):
+    def test_reads_like_speech(self):
+        from datetime import date
+        from memorypal.core import relative_day
+
+        today = date(2026, 10, 24)
+        self.assertEqual(relative_day("2026-10-20", today), "today")
+        self.assertEqual(relative_day("2026-10-24", today), "today")
+        self.assertEqual(relative_day("2026-10-25", today), "tomorrow")
+        self.assertEqual(relative_day("2026-10-28", today), "in 4 days")
+        self.assertEqual(relative_day("2026-11-03", today), "on 3 Nov")
+        self.assertEqual(relative_day("2027-01-05", today), "on 5 Jan 2027")
+        self.assertEqual(relative_day("someday", today), "someday")
+
+
 if __name__ == "__main__":
     unittest.main()

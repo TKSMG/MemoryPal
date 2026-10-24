@@ -438,3 +438,11 @@ This build is packaged as release 0.51.0.
 - AI questions name their topic so they make sense on their own, and each AI card quotes the sentence its answer came from. The phone's Talk-back screen no longer crashes in Expo Go.
 
 This build is packaged as release 0.52.0.
+
+## v93 - Says Things The Way People Do
+
+- Page titles match the tabs and read in sentence case on both apps: the desktop's "Dashboard" is Today, "Stats & Streaks" is Progress, "Decks" is Sets, and "deck" is "set" everywhere people read it.
+- Library rows say "Due tomorrow" and "Last: Got it" instead of a raw date and "New 0%"; set tiles separate new cards from ones that need focus, and their More menu holds Make with AI so the buttons fit.
+- Wording that explained how the app was built is gone from Spaced review and Study plan, and an empty review page offers a next step.
+- Quiz fixes: a true-or-false answer that ends in a full stop no longer gets a second one, everyday words like "over" aren't blanked out or offered as wrong answers, and the phone reads the question and choices from one button.
+- The phone's two-week chart labels its dates instead of an ambiguous run of single letters, compares with the week before, and Today shows "Start a streak today" instead of "0 days in a row".
