@@ -443,7 +443,13 @@ class ScrollFrame(ttk.Frame):
             if horizontal else None
         )
 
-        self.inner = ttk.Frame(self.viewport, style="Page.TFrame")
+        # A classic Tk frame, not ttk: a ttk widget redraws itself by
+        # painting its whole size into an off-screen bitmap and copying all
+        # of it back, for any exposed strip. This frame is as tall as the
+        # page, so each scroll step built and copied a page-sized bitmap
+        # (the cost grew with page length: the choppy Progress and Library
+        # pages). tk.Frame fills only what the system asks it to repaint.
+        self.inner = tk.Frame(self.viewport, bg=COLORS["bg"], bd=0, highlightthickness=0)
         self._window_id = self.viewport.create_window(0, 0, window=self.inner, anchor="nw")
 
         self.viewport.grid(row=0, column=0, sticky="nsew")
@@ -2765,27 +2771,6 @@ class MemoryPalApp(tk.Tk):
         self._tile_cache[key] = photo
         return photo
 
-    def corner_photo(self, radius, fill, under, corner):
-        """One antialiased quarter-circle corner (opaque, blended onto `under`), cached."""
-        cache = self.__dict__.setdefault("_corner_cache", {})
-        key = (radius, fill, under, corner)
-        if key in cache:
-            return cache[key]
-        fill_rgb, under_rgb = self.hex_to_rgb(fill), self.hex_to_rgb(under)
-        if not fill_rgb or not under_rgb:
-            return None
-        # The circle's centre sits at the inner corner of the r-by-r square.
-        cx = radius if corner in ("nw", "sw") else 0
-        cy = radius if corner in ("nw", "ne") else 0
-        pixels = bytearray()
-        for y in range(radius):
-            for x in range(radius):
-                cover = max(0.0, min(1.0, radius - math.hypot(x + 0.5 - cx, y + 0.5 - cy) + 0.5))
-                pixels.extend((*(int(round(under_rgb[i] + (fill_rgb[i] - under_rgb[i]) * cover)) for i in range(3)), 255))
-        photo = tk.PhotoImage(master=self, data=base64.b64encode(self.png_rgba(radius, radius, bytes(pixels))).decode("ascii"), format="png")
-        cache[key] = photo
-        return photo
-
     def widen_tile(self, small, radius, fill):
         """Grow a corner tile to a large 9-slice tile, using Tk's own copy.
 
@@ -3425,7 +3410,7 @@ class MemoryPalApp(tk.Tk):
         self.rail.pack_propagate(False)
         self.render_navigation_rail()
 
-        self.main = ttk.Frame(self.app_body, style="Page.TFrame")
+        self.main = self.page_frame(self.app_body)
         self.main.place(x=0, y=self.tab_bar_height(), relwidth=1, height=1)
         top = ttk.Frame(self.main, style="Header.TFrame", padding=0)
         top.pack(fill="x", padx=self.px(36), pady=(self.px(22), self.px(16)))
@@ -3472,7 +3457,7 @@ class MemoryPalApp(tk.Tk):
         profile_avatar = self.profile_avatar_button(action_strip)
         profile_avatar.pack(side="left")
 
-        self.content = ttk.Frame(self.main, style="Page.TFrame")
+        self.content = self.page_frame(self.main)
         self.content.pack(fill="both", expand=True, padx=self.px(36), pady=(0, self.px(18)))
         self.toast_var = tk.StringVar()
         # A rounded message pill (drawn on a canvas so its corners blend into
@@ -3572,158 +3557,25 @@ class MemoryPalApp(tk.Tk):
         }
 
     def show_view(self, view, transition=False):
-        """Switch pages behind a skeleton of the new page.
+        """Switch pages: the old page stays up until the new one is ready.
 
-        The placeholder goes up at once, the real page is built out of sight
-        beneath it, and it comes off with painting paused, so the finished page
-        appears in one pass. Re-showing the current page is an in-place
-        update and still uses the snapshot swap.
+        The tab and title change at once, so the click answers straight
+        away. The new page is then built out of sight with painting paused
+        and the window repaints once, finished. (A placeholder "skeleton"
+        used to go up first; on a page that builds in a fraction of a second
+        that read as a grey flash on every click.)
         """
         if getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False):
             self._show_view_now(view)
             return
-        skeleton = self.show_page_skeleton(view) if self.wants_skeleton(view) else None
-        if skeleton is None:
-            # Re-showing the same page (or the welcome page): an in-place
-            # update, built under the snapshot like other in-page changes.
-            self.run_hidden_change(lambda: self._show_view_now(view))
-            return
-        # A real page change: the skeleton is already on screen, so the page
-        # is built underneath it (out of sight) with no snapshot, then the
-        # skeleton comes off with painting paused, so the finished page is
-        # drawn in one pass rather than widget by widget.
-        try:
-            self._show_view_now(view)
-        finally:
-            frozen = self.set_redraw_frozen(True)
+        if view != getattr(self, "current_view", None) and view not in ("welcome", "signin") and hasattr(self, "title_label"):
             try:
-                if skeleton.winfo_exists():
-                    skeleton.destroy()
-                self.settle_layout()
-            finally:
-                if frozen:
-                    self.set_redraw_frozen(False)
+                self.title_label.configure(text=self.page_titles().get(view, ("", ""))[1])
+                self.refresh_nav_selection(view)
                 flush_pending_paint(self)
-
-    # The placeholder layout each page shows while it is built (default "grid").
-    SKELETON_PAGES = {
-        "library": "list", "decks": "list", "settings": "list", "feedback": "list", "capture": "list",
-        "stats": "grid", "dashboard": "grid", "training": "grid", "games": "grid", "elder": "grid", "tools": "grid",
-        "focus": "study", "review": "study", "talkback": "study", "quiz": "study", "testing": "study", "shuffle": "study",
-        "cuelab": "study", "plan": "study", "ainotes": "list",
-    }
-
-    def wants_skeleton(self, view):
-        """Every page change shows a skeleton, so all of them look and feel the same."""
-        if view == getattr(self, "current_view", None) or view in ("welcome", "signin"):
-            return False
-        return hasattr(self, "content") and not getattr(self, "tour", None)
-
-    def show_page_skeleton(self, view):
-        """Paint a placeholder of the page's layout at once, before building it.
-
-        The page itself still takes a moment to build; the skeleton is on
-        screen during that time so a click answers immediately instead of
-        the old page sitting still. The real page then replaces it in one
-        frame (the build runs under run_hidden_change).
-        """
-        try:
-            width, height = self.content.winfo_width(), self.content.winfo_height()
-            if width < 40 or height < 40:
-                return None
-            canvas = tk.Canvas(self.content, bg=COLORS["bg"], highlightthickness=0, bd=0, takefocus=0)
-            canvas.place(x=0, y=0, relwidth=1, relheight=1)
-            self.tk.call("raise", canvas._w)  # Canvas.lift() raises canvas items, not the widget
-            self.draw_page_skeleton(canvas, self.SKELETON_PAGES.get(view, "grid"), width, height)
-            _section, title = self.page_titles().get(view, ("", ""))
-            self.title_label.configure(text=title)
-            self.refresh_nav_selection(view)
-            self.update_idletasks()
-            flush_pending_paint(self)
-            return canvas
-        except (tk.TclError, AttributeError):
-            return None
-
-    def draw_page_skeleton(self, canvas, kind, width, height):
-        card = COLORS["surface"]
-        bar = self.tint(card, -7 if self.theme == "light" else 9)
-        radius, gap = self.px(14), self.px(16)
-        pad = self.px(22)
-
-        page_bg = canvas.cget("bg")
-
-        def block(x1, y1, x2, y2, fill, r=radius):
-            # Two rectangles plus four antialiased corners: a smoothed polygon
-            # has jagged, slightly lumpy corners on Windows.
-            r = max(1, min(r, (x2 - x1) // 2, (y2 - y1) // 2))
-            under = card if fill == bar else page_bg
-            canvas.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline="")
-            canvas.create_rectangle(x1, y1 + r, x2, y2 - r, fill=fill, outline="")
-            for corner, x, y in (("nw", x1, y1), ("ne", x2 - r, y1), ("sw", x1, y2 - r), ("se", x2 - r, y2 - r)):
-                image = self.corner_photo(r, fill, under, corner)
-                if image is None:
-                    canvas.create_rectangle(x, y, x + r, y + r, fill=fill, outline="")
-                else:
-                    canvas.create_image(x, y, image=image, anchor="nw")
-
-        def lines(x1, y1, x2, count=2):
-            span = x2 - x1
-            for index, share in enumerate((0.42, 0.78, 0.6)[:count]):
-                top = y1 + index * self.px(22)
-                block(x1, top, x1 + int(span * share), top + self.px(10), bar, self.px(5))
-
-        right = width - self.px(8)
-        y = 0
-        if kind == "list":
-            # A search/filter row, a row of buttons, then the list of cards.
-            control = self.px(40)
-            block(0, y, int(right * 0.6), y + control, card, self.px(9))
-            block(int(right * 0.6) + gap, y, right, y + control, card, self.px(9))
-            y += control + self.px(12)
-            third = (right - 2 * gap) // 3
-            for index in range(3):
-                x = index * (third + gap)
-                block(x, y, x + third, y + control, card, self.px(9))
-            y += control + gap
-            row = self.px(104)
-            while y < height:
-                block(0, y, right, y + row, card)
-                lines(pad, y + pad, right - pad, 3)
-                y += row + gap
-        elif kind == "study":
-            # One large working card (the question or the session), a row of
-            # buttons under it, then a smaller card.
-            big = max(self.px(200), int(height * 0.48))
-            block(0, y, right, y + big, card)
-            lines(pad, y + pad, right - pad, 3)
-            y += big + gap
-            control = self.px(40)
-            quarter = (right - 3 * gap) // 4
-            for index in range(4):
-                x = index * (quarter + gap)
-                block(x, y, x + quarter, y + control, card, self.px(9))
-            y += control + gap
-            while y < height:
-                block(0, y, right, y + self.px(140), card)
-                lines(pad, y + pad, right - pad, 2)
-                y += self.px(140) + gap
-        else:
-            tiles = 4 if width > self.px(900) else 2
-            tile_w = (right - gap * (tiles - 1)) // tiles
-            tile_h = self.px(112)
-            for index in range(tiles):
-                x = index * (tile_w + gap)
-                block(x, y, x + tile_w, y + tile_h, card)
-                lines(x + pad, y + pad, x + tile_w - pad, 2)
-            y += tile_h + gap
-            half = (right - gap) // 2
-            big = max(self.px(160), (height - y - gap) // 2)
-            while y < height:
-                block(0, y, half, y + big, card)
-                lines(pad, y + pad, half - pad, 3)
-                block(half + gap, y, right, y + big, card)
-                lines(half + gap + pad, y + pad, right - pad, 3)
-                y += big + gap
+            except (tk.TclError, AttributeError):
+                pass
+        self.run_hidden_change(lambda: self._show_view_now(view))
 
     def _show_view_now(self, view):
         # The small line above each title names the part of the app the page
@@ -3756,7 +3608,7 @@ class MemoryPalApp(tk.Tk):
         # the content area: the old page stays on screen (and the rail and
         # header never change) until the new page is fully laid out, then the
         # old one is removed to reveal it in a single step.
-        new_host = ttk.Frame(self.content, style="Page.TFrame")
+        new_host = self.page_frame(self.content)
         new_host.place(relx=0, rely=0, relwidth=1, relheight=1)
         if old_host is not None and old_host.winfo_exists():
             try:
@@ -4466,7 +4318,26 @@ class MemoryPalApp(tk.Tk):
         return result["value"]
 
     def card(self, parent, style="Card.TFrame", padding=24):
-        return ttk.Frame(parent, style=style, padding=self.px(padding))
+        """A rounded panel: a classic Tk frame with four corner pictures.
+
+        Not a ttk.Frame with a rounded image element: ttk repaints its whole
+        size for every exposed strip, so a tall card (the whole Testing or
+        Review page is one) cost its full area on every scroll step.
+        """
+        fill = self.style.lookup(style, "background") or COLORS["surface"]
+        pad = self.px(padding)
+        frame = tk.Frame(parent, bg=fill, padx=pad, pady=pad, bd=0, highlightthickness=0)
+        return self.round_tk_panel(frame)
+
+    @staticmethod
+    def page_frame(parent):
+        """A plain container on the page background.
+
+        A classic Tk frame rather than ttk.Frame: ttk repaints its whole
+        size off screen for every exposed strip (see ScrollFrame.inner), and
+        these containers span the page, so scrolling paid for all of them.
+        """
+        return tk.Frame(parent, bg=COLORS["bg"], bd=0, highlightthickness=0)
 
     def field_frame(self, parent):
         """The rounded frame a multi-line box sits in, drawn like the one-line
@@ -5900,7 +5771,7 @@ class MemoryPalApp(tk.Tk):
         order = {key: index for index, (key, _label, _short) in enumerate(self.ordered_nav_items())}
         pages = sorted(self.HUB_PAGES[hub], key=lambda key: order.get(key, len(order)))
 
-        tiles = ttk.Frame(page.inner, style="Page.TFrame")
+        tiles = self.page_frame(page.inner)
         tiles.pack(fill="both", expand=True, padx=(0, 8))
         for column in range(2):
             tiles.columnconfigure(column, weight=1, uniform=f"hub-{hub}")
@@ -5963,7 +5834,7 @@ class MemoryPalApp(tk.Tk):
             justify="left",
         ).pack(anchor="w", pady=(6, 0))
 
-        grid = ttk.Frame(page.inner, style="Page.TFrame")
+        grid = self.page_frame(page.inner)
         grid.pack(fill="both", expand=True, padx=(0, 8))
         for column in range(2):
             grid.columnconfigure(column, weight=1, uniform="training")
@@ -5988,7 +5859,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(older, text="Everyday memory track", style="AltH2.TLabel").pack(anchor="w")
         ttk.Label(older, text="Gentle activities for names, routines, attention, confidence, and daily reminders.", style="AltMuted.TLabel", wraplength=self.px(520)).pack(anchor="w", pady=(4, 0))
 
-        tiles = ttk.Frame(page.inner, style="Page.TFrame")
+        tiles = self.page_frame(page.inner)
         tiles.pack(fill="both", expand=True, padx=(0, 8))
         for column in range(2):
             tiles.columnconfigure(column, weight=1, uniform="techniques")
@@ -6131,7 +6002,7 @@ class MemoryPalApp(tk.Tk):
         )
         self.button_row(builder, [("Create Starter Set", load_everyday_starters, "Primary.TButton"), ("Open Caregiver Notes", lambda: self.show_view("capture"), "TButton")])
 
-        grid = ttk.Frame(page.inner, style="Page.TFrame")
+        grid = self.page_frame(page.inner)
         grid.pack(fill="x", padx=(0, 8), pady=(0, 16))
         idea_columns = 1 if self.accessibility_multiplier() > 1.1 else 2
         for column in range(idea_columns):
@@ -6792,7 +6663,7 @@ class MemoryPalApp(tk.Tk):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         summary = self.store.deck_summary()
-        toolbar = ttk.Frame(page.inner, style="Page.TFrame")
+        toolbar = self.page_frame(page.inner)
         toolbar.pack(fill="x", padx=(0, self.px(8)), pady=(0, self.px(12)))
         ttk.Button(toolbar, text="New set", style="Primary.TButton", cursor="hand2", command=self.new_set_dialog).pack(side="left")
         make_ai = ttk.Button(toolbar, text="Make with AI", cursor="hand2", command=lambda: self.open_ai_builder())
@@ -6810,7 +6681,7 @@ class MemoryPalApp(tk.Tk):
             ttk.Label(empty, text="Make a set to hold your first cards.", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 12))
             ttk.Button(empty, text="Make a study set", style="Primary.TButton", command=lambda: self.start_new_set()).pack(fill="x")
             return
-        grid = ttk.Frame(page.inner, style="Page.TFrame")
+        grid = self.page_frame(page.inner)
         grid.pack(fill="x", padx=(0, 8))
         for index, (deck, info) in enumerate(summary.items()):
             tile = self.hover_card(tk.Frame(grid, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20)))
@@ -7029,7 +6900,7 @@ class MemoryPalApp(tk.Tk):
             toggle = self.check_toggle(habit_row, var, label, wraplength=900)
             toggle.pack(fill="x", pady=(0, 6))
 
-        result_holder = ttk.Frame(page.inner, style="Page.TFrame")
+        result_holder = self.page_frame(page.inner)
         result_holder.pack(fill="both", expand=True, padx=(0, 8))
 
         def goal_key_for(label):
@@ -7117,7 +6988,7 @@ class MemoryPalApp(tk.Tk):
                 tab_host = tk.Frame(result_holder, bg=COLORS["bg"])
                 tab_host.pack(fill="x", pady=(0, 12))
                 tk.Label(tab_host, text="Jump to day:", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(anchor="w", pady=(0, 6))
-                day_steps_host = ttk.Frame(result_holder, style="Page.TFrame")
+                day_steps_host = self.page_frame(result_holder)
                 day_steps_host.pack(fill="both", expand=True)
                 day_var = tk.StringVar(value="1")
 
@@ -7502,7 +7373,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(picker, text="Card", style="CardMuted.TLabel").pack(anchor="w")
         self.select_button(picker, pick_var, options, on_change=lambda _value: render()).pack(fill="x", pady=(4, 0))
 
-        body = ttk.Frame(page.inner, style="Page.TFrame")
+        body = self.page_frame(page.inner)
         body.pack(fill="both", expand=True, padx=(0, 8))
 
         def current_card():
@@ -7629,7 +7500,7 @@ class MemoryPalApp(tk.Tk):
         draft = self.capture_draft()
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        wrapper = ttk.Frame(page.inner, style="Page.TFrame")
+        wrapper = self.page_frame(page.inner)
         wrapper.pack(fill="both", expand=True, padx=(0, self.px(8)))
         wrapper.columnconfigure(0, weight=3, uniform="capture")
         wrapper.columnconfigure(1, weight=2, uniform="capture")
@@ -9782,7 +9653,7 @@ class MemoryPalApp(tk.Tk):
         results_header.pack(fill="x", pady=(14, 8))
         ttk.Label(results_header, text="Round player", style="AltH2.TLabel").pack(anchor="w")
         ttk.Label(results_header, text="Build the path, then move through one round at a time instead of working through a long stack.", style="AltMuted.TLabel", wraplength=980).pack(anchor="w", pady=(4, 0))
-        results = ttk.Frame(page.inner, style="Page.TFrame")
+        results = self.page_frame(page.inner)
         results.pack(fill="x")
 
         def load(source):
@@ -10056,7 +9927,7 @@ class MemoryPalApp(tk.Tk):
         if getattr(self, "puzzle_deck", None) not in set_values:
             self.puzzle_deck = all_sets
         set_var = tk.StringVar(value=self.puzzle_deck)
-        set_row = ttk.Frame(page.inner, style="Page.TFrame")
+        set_row = self.page_frame(page.inner)
         set_row.pack(fill="x", padx=(0, 8), pady=(0, self.px(12)))
         ttk.Label(set_row, text="Use cards from", style="Muted.TLabel").pack(side="left", padx=(0, self.px(8)))
         self.select_button(set_row, set_var, set_values, on_change=lambda value: setattr(self, "puzzle_deck", value)).pack(side="left")
@@ -10064,7 +9935,7 @@ class MemoryPalApp(tk.Tk):
         def chosen_set():
             return None if set_var.get() == all_sets else set_var.get()
 
-        grid = ttk.Frame(page.inner, style="Page.TFrame")
+        grid = self.page_frame(page.inner)
         grid.pack(fill="both", expand=True, padx=(0, 8))
         for column in range(2):
             grid.columnconfigure(column, weight=1, uniform="puzzles")
@@ -10628,7 +10499,7 @@ class MemoryPalApp(tk.Tk):
         tk.Label(hero, text="Help make MemoryPal better", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
         tk.Label(hero, text="Tell us what's working, what's confusing, or what's broken. Notes stay on this computer until you send them.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1020), justify="left").pack(anchor="w", pady=(6, 0))
 
-        stats = ttk.Frame(page.inner, style="Page.TFrame")
+        stats = self.page_frame(page.inner)
         stats.pack(fill="x", padx=(0, 8), pady=(0, 16))
         stat_items = [
             ("Entries", str(summary["total"]), "notes saved on this computer", COLORS["primary"]),
@@ -11635,7 +11506,7 @@ class MemoryPalApp(tk.Tk):
         self.render_account_card(page.inner)
         self.render_ai_settings(page.inner)
 
-        grid = ttk.Frame(page.inner, style="Page.TFrame")
+        grid = self.page_frame(page.inner)
         grid.pack(fill="x", padx=(0, 8), pady=(0, 16))
         # Equal columns so neither card is squeezed; card text wraps to fit.
         grid.columnconfigure(0, weight=1, uniform="settings")
@@ -11941,7 +11812,7 @@ class MemoryPalApp(tk.Tk):
                     self.render_media_controls(item, card)
                     shown += 1
             if hidden:
-                more = ttk.Frame(page.inner, style="Page.TFrame")
+                more = self.page_frame(page.inner)
                 more.pack(fill="x", pady=(4, 12))
                 ttk.Label(more, text=f"Showing {shown} of {shown + hidden}. Search to narrow the list.", style="Muted.TLabel").pack(side="left")
                 ttk.Button(more, text=f"Show {min(page_size, hidden)} more", command=show_more).pack(side="right")
