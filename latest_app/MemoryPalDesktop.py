@@ -3547,7 +3547,7 @@ class MemoryPalApp(tk.Tk):
         status_row.grid(row=1, column=0, columnspan=2, sticky="w", pady=(self.px(6), 0))
         status_font = self.font("Segoe UI", 11)
         streak = self.store.current_streak()
-        streak_chip = tk.Label(status_row, text=f" {streak} day streak", bg=header_bg, fg=COLORS["muted"], padx=0, pady=self.px(2), font=status_font)
+        streak_chip = tk.Label(status_row, text=f"{streak} day streak", bg=header_bg, fg=COLORS["muted"], padx=0, pady=self.px(2), font=status_font)
         self.set_chip_icon(streak_chip, "flame", COLORS["warm_text"])
         streak_chip.pack(side="left", padx=(0, self.px(18)))
         self.streak_chip = streak_chip
@@ -3587,7 +3587,7 @@ class MemoryPalApp(tk.Tk):
         streak_chip = getattr(self, "streak_chip", None)
         if streak_chip is not None and streak_chip.winfo_exists():
             streak = self.store.current_streak()
-            streak_chip.configure(text=f" {streak} day streak")
+            streak_chip.configure(text=f"{streak} day streak")
         chip = getattr(self, "goal_chip", None)
         if chip is None or not chip.winfo_exists():
             return
@@ -11097,10 +11097,29 @@ class MemoryPalApp(tk.Tk):
         return "cloud", "Synced" if self.account.state.auto_sync else "Auto sync off"
 
     def set_chip_icon(self, chip, name, color):
-        """Put a line icon before a chip's text, sized to the text beside it."""
-        image = self.line_icon(name, max(14, self.px(17)), color)
-        if image is not None:
-            chip.configure(image=image, compound="left")
+        """Put a line icon before a chip's text, sized to the text beside it.
+
+        The gap is part of the picture (clear pixels on its right), not a
+        leading space: a space in Segoe UI is only a few pixels wide, so the
+        cloud and flame sat against their words, by different amounts.
+        """
+        size = max(14, self.px(17))
+        image = self.line_icon(name, size, color)
+        if image is None:
+            return
+        gap = max(4, self.px(6))
+        cache = self.__dict__.setdefault("_chip_icon_cache", {})
+        key = (str(image), gap)
+        padded = cache.get(key)
+        if padded is None:
+            try:
+                width, height = image.width(), image.height()
+                padded = tk.PhotoImage(master=self, width=width + gap, height=height)
+                self.tk.call(padded.name, "copy", image.name, "-to", 0, 0)
+            except (tk.TclError, AttributeError):
+                padded = image
+            cache[key] = padded
+        chip.configure(image=padded, compound="left")
 
     def refresh_sync_chip(self):
         chip = getattr(self, "sync_chip", None)
@@ -11110,7 +11129,7 @@ class MemoryPalApp(tk.Tk):
         if not text:
             chip.pack_forget()
             return
-        chip.configure(text=f" {text}")
+        chip.configure(text=text)
         self.set_chip_icon(chip, icon, COLORS["muted"])
         if not chip.winfo_manager():
             chip.pack(side="left")
