@@ -1267,16 +1267,26 @@ class MemoryPalApp(tk.Tk):
     def toggle_true_fullscreen(self):
         """F11 (Control-Command-F on a Mac): the system's own full screen."""
         target = not self.is_fullscreen
-        if not self.native_fullscreen(target):
-            try:
-                self.attributes("-fullscreen", target)
-            except tk.TclError as exc:
-                self.dialog_alert("Full screen isn't available", str(exc), "error")
-                return
-        self.settle_layout()
-        self.is_fullscreen = target
-        if getattr(self, "current_view", None) == "settings":
-            self.after_idle(lambda: self.show_view("settings"))
+        failed = []
+
+        def switch():
+            # One hidden change for all of it: the new size, the reflow of
+            # every page at that size, and Settings' button label. Done as
+            # separate passes, each one painted, which read as a flash.
+            if not self.native_fullscreen(target):
+                try:
+                    self.attributes("-fullscreen", target)
+                except tk.TclError as exc:
+                    failed.append(str(exc))
+                    return
+            self.is_fullscreen = target
+            self.settle_layout()
+            if getattr(self, "current_view", None) == "settings":
+                self._show_view_now("settings")
+
+        self.run_hidden_change(switch)
+        if failed:
+            self.dialog_alert("Full screen isn't available", failed[0], "error")
 
     def native_fullscreen(self, target):
         """Windows: switch by changing the window's style (see winfullscreen),
@@ -3508,7 +3518,22 @@ class MemoryPalApp(tk.Tk):
         if size == getattr(self, "_last_window_size", None):
             return
         self._last_window_size = size
-        self.after_idle(self.layout_app_body)
+        if getattr(self, "_resize_after", None) is None:
+            self._resize_after = self.after_idle(self._relayout_after_resize)
+
+    def _relayout_after_resize(self):
+        """Reflow at the new size with painting paused, then paint once.
+
+        Growing the window sets off a chain of layout passes (shell, page,
+        scroll region, rewrapped text), and each pass used to be painted as
+        it happened: the page visibly jumped through a few in-between
+        layouts. Paused, the system keeps the old picture (and fills new
+        space with the window's background) until the finished layout is
+        drawn in one go. Several size changes before an idle moment share
+        one reflow.
+        """
+        self._resize_after = None
+        self.run_hidden_change(self.layout_app_body)
 
     def nav_hint(self, key):
         return {
