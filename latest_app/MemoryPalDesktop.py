@@ -1245,7 +1245,13 @@ class MemoryPalApp(tk.Tk):
             # (On a Mac, ⌘K leaves Control-K's line delete alone.)
             for widget_class in ("Entry", "TEntry", "Text"):
                 self.bind_class(widget_class, sequence, self.open_page_finder)
-        self.bind("<Configure>", self.handle_window_configure, add="+")
+        # Every widget's <Configure> also runs the window's bindings (the
+        # window is in each widget's bindtags), and a Python handler pays for
+        # building an Event each time: a resize step on Progress sent about
+        # 150 of them through Python just to be ignored. Tcl checks the
+        # widget first, so only the window's own size changes reach Python.
+        resized = self.register(self.handle_window_resized)
+        self.tk.call("bind", self._w, "<Configure>", f'+if {{"%W" eq "{self._w}"}} {{{resized} %w %h}}')
         self.update_idletasks()
         self.tour = None
         # Map the window while it is still fully transparent, build and settle
@@ -3614,15 +3620,14 @@ class MemoryPalApp(tk.Tk):
         self.rail.place_configure(x=0, y=0, width=width, height=bar, relwidth=0, relheight=0)
         self.main.place_configure(x=0, y=bar, width=width, height=max(1, height - bar), relwidth=0, relheight=0)
 
-    def handle_window_configure(self, event):
-        if event.widget is not self:
-            return
-        if event.width <= 1 or event.height <= 1:
+    def handle_window_resized(self, width, height):
+        width, height = int(width), int(height)
+        if width <= 1 or height <= 1:
             return
         # <Configure> also fires when the window is only moved; relayout only
         # on a real size change, and let the existing widgets reflow in place
         # rather than hiding the whole app behind a cover.
-        size = (event.width, event.height)
+        size = (width, height)
         if size == getattr(self, "_last_window_size", None):
             return
         self._last_window_size = size
