@@ -1451,6 +1451,19 @@ class MemoryPalApp(tk.Tk):
                 pass
         return item
 
+    @staticmethod
+    def keep_shape_photo(canvas, photo):
+        """Hold on to every picture a canvas shows.
+
+        Tk drops a picture as soon as Python forgets it. Keeping only the last
+        one let the shape cache's clean-up throw away an earlier layer (the
+        hairline edge under a notice), so the edge came and went at random.
+        """
+        held = canvas.__dict__.setdefault("_memorypal_shapes", [])
+        held.append(photo)
+        del held[:-6]
+        canvas._memorypal_shape = photo
+
     def draw_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0):
         """Draw smoother custom UI shapes with Pillow or the built-in fallback."""
         modules = self.pillow_modules()
@@ -1490,7 +1503,7 @@ class MemoryPalApp(tk.Tk):
                     self.shape_photo_cache.clear()
                 self.shape_photo_cache[key] = photo
             canvas.create_image(0, 0, image=photo, anchor="nw")
-            canvas._memorypal_shape = photo
+            self.keep_shape_photo(canvas, photo)
             return True
         except Exception:
             return False
@@ -1512,7 +1525,7 @@ class MemoryPalApp(tk.Tk):
                     self.shape_photo_cache.clear()
                 self.shape_photo_cache[key] = photo
             canvas.create_image(0, 0, image=photo, anchor="nw")
-            canvas._memorypal_shape = photo
+            self.keep_shape_photo(canvas, photo)
             return True
         except Exception:
             return False
@@ -4276,7 +4289,7 @@ class MemoryPalApp(tk.Tk):
         place()
         self._toast_after = self.after(self.pace(2800), self.toast.place_forget)
 
-    def dialog_window(self, title, body="", parent=None, width=480):
+    def dialog_window(self, title, body="", parent=None, width=480, resizable=False):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
         # confirmations do not fall back to old stock Tk dialog boxes.
         owner = parent or self
@@ -4288,7 +4301,10 @@ class MemoryPalApp(tk.Tk):
         top.configure(bg=COLORS["bg"])
         self.apply_app_icon(top)
         self.own_window(top, owner)
-        top.resizable(False, False)
+        # Short questions keep their size, like system message boxes; long
+        # reading and editing dialogs can be dragged bigger, and their main
+        # text box grows with them.
+        top.resizable(resizable, resizable)
         top.configure(bg=COLORS["surface"])
         shell = tk.Frame(top, bg=COLORS["surface"], padx=self.px(24), pady=self.px(20))
         shell.pack(fill="both", expand=True)
@@ -4298,17 +4314,30 @@ class MemoryPalApp(tk.Tk):
             body_label = tk.Label(shell, text=body, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 11), wraplength=self.px(width - 70), justify="left", anchor="w")
             self.fit_wrap(body_label, pady=(0, self.px(12)))
         content = ttk.Frame(shell, style="Card.TFrame")
-        content.pack(fill="x")
+        content.pack(fill="both", expand=True) if resizable else content.pack(fill="x")
         actions = ttk.Frame(shell, style="Card.TFrame")
         actions.pack(fill="x", pady=(self.px(20), self.px(2)))
         top.dialog_owner = owner
         top.dialog_width = self.px(width)
         top.dialog_actions = actions
+        top.dialog_resizable = resizable
         return top, content, actions
 
     def present_dialog(self, top):
         # Shown only once its fields and buttons exist, so the height fits them.
         self.tidy_dialog_actions(top.dialog_actions)
+        # A text box asks for 80 characters of width by default, which made
+        # editing dialogs nearly as wide as the main window; let the
+        # dialog's own width decide instead (the boxes fill it).
+        stack = list(top.winfo_children())
+        while stack:
+            widget = stack.pop()
+            stack.extend(widget.winfo_children())
+            if isinstance(widget, tk.Text):
+                try:
+                    widget.configure(width=20)
+                except tk.TclError:
+                    pass
         # The buttons claim their place first, so on a short screen the
         # text runs out of room, never the way to answer or close.
         try:
@@ -4319,6 +4348,12 @@ class MemoryPalApp(tk.Tk):
         except (tk.TclError, IndexError):
             pass
         self.show_popup_window(top, top.dialog_owner, top.dialog_width, modal=True)
+        if getattr(top, "dialog_resizable", False):
+            try:
+                top.update_idletasks()
+                top.minsize(self.px(360), min(top.winfo_height(), self.px(320)))
+            except tk.TclError:
+                pass
 
     def tidy_dialog_actions(self, actions):
         """Lay a dialog's buttons out as system dialogs do: one row at the
@@ -4456,7 +4491,7 @@ class MemoryPalApp(tk.Tk):
         Fixing a confusing card is the main cure for a card that keeps being
         missed (a "leech"), so this is reachable from every card in Library.
         """
-        top, content, actions = self.dialog_window("Edit card", "Change the words on this card. Its review schedule stays the same.", width=620)
+        top, content, actions = self.dialog_window("Edit card", "Change the words on this card. Its review schedule stays the same.", width=620, resizable=True)
         fields = {}
 
         def field(label, name, value, lines=1):
@@ -4467,7 +4502,8 @@ class MemoryPalApp(tk.Tk):
             else:
                 widget = self.text_box(content, height=lines, font_size=11)
                 widget.insert("1.0", value or "")
-            widget.pack(fill="x")
+            # Text boxes share the extra room when the window is made bigger.
+            widget.pack(fill="x") if lines == 1 else widget.pack(fill="both", expand=True)
             fields[name] = widget
 
         field("Set", "deck", card.deck)
@@ -6947,7 +6983,7 @@ class MemoryPalApp(tk.Tk):
     def set_details_dialog(self, deck):
         """About, exam date, and Make with AI's style and teacher's questions for one set (synced)."""
         info = self.store.deck_info(deck)
-        top, content, actions = self.dialog_window(f"About {deck}", "Saved with the set and synced to your other devices.", width=620)
+        top, content, actions = self.dialog_window(f"About {deck}", "Saved with the set and synced to your other devices.", width=620, resizable=True)
         fields = {}
 
         def field(label, name, value, lines=1, hint=""):
@@ -6958,7 +6994,8 @@ class MemoryPalApp(tk.Tk):
             else:
                 widget = self.text_box(content, height=lines, font_size=11)
                 widget.insert("1.0", value or "")
-            widget.pack(fill="x")
+            # Text boxes share the extra room when the window is made bigger.
+            widget.pack(fill="x") if lines == 1 else widget.pack(fill="both", expand=True)
             if hint:
                 self.fit_wrap(tk.Label(content, text=hint, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(560)), pady=(self.px(4), 0))
             fields[name] = widget
@@ -8916,6 +8953,7 @@ class MemoryPalApp(tk.Tk):
             "MemoryPal can make study notes and practice questions from notes, a PDF or a picture you choose. Before you turn it on:",
             parent=parent,
             width=680,
+            resizable=True,
         )
         surface = COLORS["surface"]
         wrap = self.px(680 - 70)
@@ -9234,7 +9272,7 @@ class MemoryPalApp(tk.Tk):
     def edit_staged_item(self, item):
         """Change a staged card's question and answer before the set is saved. True if changed."""
         result = {"value": False}
-        top, content, actions = self.dialog_window("Edit card", "Change the question or answer. Nothing is saved until you save the set.", width=560)
+        top, content, actions = self.dialog_window("Edit card", "Change the question or answer. Nothing is saved until you save the set.", width=560, resizable=True)
         ttk.Label(content, text="Question", style="CardMuted.TLabel").pack(anchor="w")
         question = ttk.Entry(content, font=self.font("Segoe UI", 12))
         question.insert(0, item.get("prompt", ""))
@@ -9242,7 +9280,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(content, text="Answer", style="CardMuted.TLabel").pack(anchor="w")
         answer = self.text_box(content, 3, 12)
         answer.insert("1.0", item.get("answer", ""))
-        answer.pack(fill="x", pady=(self.px(4), 0))
+        answer.pack(fill="both", expand=True, pady=(self.px(4), 0))
         error = FormMessage(content, pady=(self.px(6), 0), text="", bg=COLORS["surface"], fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
 
         def submit():
@@ -12059,7 +12097,7 @@ class MemoryPalApp(tk.Tk):
         """Read saved notes in full; `bit` marks the one a card came from."""
         chunks = capture.chunks or split_study_bits(capture.notes)
         in_set = capture_deck(capture, self.store.decks())
-        top, content, actions = self.dialog_window(capture.title, "  \u00b7  ".join(part for part in (f"In {in_set}" if in_set else "Not in a set", capture.created_at) if part), width=720)
+        top, content, actions = self.dialog_window(capture.title, "  \u00b7  ".join(part for part in (f"In {in_set}" if in_set else "Not in a set", capture.created_at) if part), width=720, resizable=True)
         box = self.text_box(content, height=min(18, max(6, len(chunks) * 2)), font_size=11)
         box.tag_configure("source", background=COLORS["warm"], foreground=COLORS["ink"])
         for index, chunk in enumerate(chunks):
