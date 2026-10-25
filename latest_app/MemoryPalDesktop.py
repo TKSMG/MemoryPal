@@ -3532,7 +3532,9 @@ class MemoryPalApp(tk.Tk):
         # Streak, today's count and sync as one quiet line of text with
         # small symbols, not three coloured badges competing with the page.
         status_row = tk.Frame(top, bg=header_bg)
-        status_row.grid(row=1, column=0, sticky="w", pady=(self.px(6), 0))
+        # Under the title and the icons both, so a narrow window doesn't cut
+        # "Not signed in" short at the width of the title column.
+        status_row.grid(row=1, column=0, columnspan=2, sticky="w", pady=(self.px(6), 0))
         status_font = self.font("Segoe UI", 11)
         streak = self.store.current_streak()
         streak_chip = tk.Label(status_row, text=f" {streak} day streak", bg=header_bg, fg=COLORS["muted"], padx=0, pady=self.px(2), font=status_font)
