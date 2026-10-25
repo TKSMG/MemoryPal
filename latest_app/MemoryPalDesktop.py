@@ -2624,15 +2624,45 @@ class MemoryPalApp(tk.Tk):
     def pad(self, *values):
         return tuple(self.px(value) for value in values)
 
+    def screen_work_area(self):
+        """(left, top, width, height) of the screen minus the taskbar or Dock."""
+        screen_w, screen_h = self.winfo_screenwidth(), self.winfo_screenheight()
+        if sys.platform.startswith("win"):
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                rect = wintypes.RECT()
+                if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):  # SPI_GETWORKAREA
+                    return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
+            except (AttributeError, OSError, ValueError):
+                pass
+        if IS_MAC:
+            # The menu bar and a typical Dock.
+            return 0, 25, screen_w, screen_h - 25 - 70
+        return 0, 0, screen_w, screen_h - self.px(40)
+
     def _set_window_size(self):
-        screen_w = self.winfo_screenwidth()
-        screen_h = self.winfo_screenheight()
-        margin = self.px(96)
-        width = min(self.px(BASE_WINDOW[0]), max(self.px(980), screen_w - margin))
-        height = min(self.px(BASE_WINDOW[1]), max(self.px(640), screen_h - margin))
+        """Open at a size that suits the screen, centred a little above the
+        middle, and let the window shrink well below that.
+
+        The old minimum was the scaled design size: at 150% on a 1080p screen
+        it matched the starting height, so the window couldn't be made any
+        shorter and barely any narrower. Pages scroll, and the tabs fold to
+        icons when narrow, so the minimum only has to keep the layout whole.
+        """
+        left, top, work_w, work_h = self.screen_work_area()
+        # Leave room for the title bar and window frame around the client area.
+        frame_w, frame_h = self.px(16), self.px(40)
+        room_w, room_h = max(1, work_w - frame_w), max(1, work_h - frame_h)
+        # Most of a laptop screen, but not every pixel of a large monitor.
+        width = min(self.px(BASE_WINDOW[0]), max(min(self.px(980), room_w), round(room_w * 0.86)))
+        height = min(self.px(BASE_WINDOW[1]), max(min(self.px(640), room_h), round(room_h * 0.9)))
         min_width = min(self.px(BASE_MIN_WINDOW[0]), width)
         min_height = min(self.px(BASE_MIN_WINDOW[1]), height)
-        self.geometry(f"{width}x{height}")
+        x = left + max(0, (work_w - width - frame_w) // 2)
+        y = top + max(0, round((work_h - height - frame_h) * 0.4))
+        self.geometry(f"{width}x{height}+{x}+{y}")
         self.minsize(min_width, min_height)
 
     def _styles(self):

@@ -4,7 +4,8 @@ DEFAULT_PROFILE = "Default"
 
 BASE_DPI = 96
 BASE_WINDOW = (1420, 900)
-BASE_MIN_WINDOW = (1080, 720)
+# Small enough to snap to half a laptop screen; pages scroll below it.
+BASE_MIN_WINDOW = (760, 500)
 
 SELF_CHECK_ANSWER = "No saved answer. Use this as a self-check prompt, then rate yourself."
 
