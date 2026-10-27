@@ -104,8 +104,23 @@ def run(name, action, seconds=2.2, lead=0.35):
             distinct.append(index)
     for n, index in enumerate(distinct[:6]):
         png(os.path.join(OUT, f"{name}-mixed{n}.png"), fw, fh, frames[index][1])
+    where = [f"{frames[index][0] - frames[0][0]:.2f}s:{changed_box(frames[index][1], last, fw, fh)}" for index in distinct[:3]]
     png(os.path.join(OUT, f"{name}-after.png"), fw, fh, last)
-    print(f"{name:18} frames={len(frames):4} changes={changes:3} flash={peak:+.3f} mixed_frames={len(mixed):3} distinct_mixed={len(distinct)}")
+    print(f"{name:18} frames={len(frames):4} changes={changes:3} flash={peak:+.3f} mixed_frames={len(mixed):3} distinct_mixed={len(distinct)}"
+          + (f" differs_from_final={' '.join(where)}" if where else ""))
+
+
+def changed_box(a, b, w, h, step=8):
+    """Where a frame differs from another, as x0,y0-x1,y1 in pixels (sampled)."""
+    xs, ys = [], []
+    for y in range(0, h, step):
+        row = y * w * 4
+        for x in range(0, w, step):
+            i = row + x * 4
+            if abs(a[i] - b[i]) + abs(a[i + 1] - b[i + 1]) + abs(a[i + 2] - b[i + 2]) > 24:
+                xs.append(x)
+                ys.append(y)
+    return f"{min(xs)},{min(ys)}-{max(xs)},{max(ys)}" if xs else "none"
 
 
 def scroll_frame():
