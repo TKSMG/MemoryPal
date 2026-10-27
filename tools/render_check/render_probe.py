@@ -134,11 +134,24 @@ def resize():
     app.geometry(f"{app.winfo_width() - 200}x{app.winfo_height() - 120}")
 
 
+def prebuild_now():
+    # Build the rail pages out of sight, as the app does when left idle: the
+    # screen should not change at all.
+    if hasattr(app, "prebuild_page"):
+        app.forget_kept_pages()
+        for view in app.PREBUILD_PAGES:
+            if view != app.current_view:
+                app.prebuild_page(view)
+
+
 SCENARIOS = [
     ("switch_stats", lambda: app.show_view("stats")),
     ("switch_library", lambda: app.show_view("library")),
     ("switch_capture", lambda: app.show_view("capture")),
     ("switch_dashboard", lambda: app.show_view("dashboard")),
+    ("switch_kept_stats", lambda: app.show_view("stats")),
+    ("switch_kept_dashboard", lambda: app.show_view("dashboard")),
+    ("idle_prebuild", prebuild_now),
     ("wheel_scroll", wheel_burst),
     ("drag_scroll", drag_burst),
     ("fullscreen_on", app.toggle_true_fullscreen),

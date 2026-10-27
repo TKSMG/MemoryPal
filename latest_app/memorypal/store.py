@@ -382,6 +382,9 @@ class MemoryStore:
         self._loaded_feedback = {}
         # Called after every save (the desktop schedules a cloud sync).
         self.save_listeners = []
+        # Goes up on every save or synced change, so a screen built from the
+        # data can tell whether it is still current.
+        self.revision = 0
         self.load()
 
     def set_profile_paths(self):
@@ -595,6 +598,7 @@ class MemoryStore:
         # Synced payloads never carry this device's preferences: keep ours.
         if "preferences" in payload:
             self.preferences = normalize_preferences(payload.get("preferences"))
+        self.revision += 1
         self.remember_loaded_state()
 
     def file_stamp(self):
@@ -629,6 +633,7 @@ class MemoryStore:
             self.apply_saved_payload(payload)
         else:
             self.remember_loaded_state(payload)
+        self.revision += 1
         for listener in list(self.save_listeners):
             listener()
 

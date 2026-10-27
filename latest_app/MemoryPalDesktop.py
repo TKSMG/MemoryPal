@@ -1227,6 +1227,12 @@ class MemoryPalApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         if IS_MAC:
             self.install_mac_menus()
+        # Any key, click or pointer move counts as someone using the app, so
+        # background page building waits (bound in Tcl on the "all" tag with
+        # "+", which leaves every other binding in place).
+        noted = self.register(self.note_user_input)
+        for sequence in ("<KeyPress>", "<ButtonPress>", "<Motion>", "<MouseWheel>"):
+            self.tk.call("bind", "all", sequence, f"+{noted}")
         self.bind("<F11>", lambda _event: self.toggle_true_fullscreen())
         for sequence in ("<Control-Command-f>", "<Command-Control-f>"):
             try:
@@ -2172,6 +2178,7 @@ class MemoryPalApp(tk.Tk):
     def _rebuild_shell_covered(self, current, refresh_styles=False, cover=None, use_cover=True):
         if use_cover:
             cover = cover or self.start_root_cover()
+        self.kept_pages().clear()
         for child in self.winfo_children():
             if child is cover:
                 continue
@@ -3797,9 +3804,16 @@ class MemoryPalApp(tk.Tk):
         old_host = getattr(self, "view_host", None)
         # Rebuilding the page already on screen (a sync brought changes, a
         # setting changed) keeps its scroll position instead of jumping to the top.
-        keep_scroll = self.page_scroll_offset(old_host) if view == self.current_view else None
+        rebuilding = view == self.current_view
+        keep_scroll = self.page_scroll_offset(old_host) if rebuilding else None
+        leaving = self.current_view
         self.current_view = view
         self.refresh_nav_selection()
+
+        kept = None if rebuilding else self.take_kept_page(view)
+        if kept is not None:
+            self.show_kept_page(kept, old_host, leaving, titles[view][1])
+            return
 
         # Build the new page underneath the current one instead of blanking
         # the content area: the old page stays on screen (and the rail and
@@ -3840,12 +3854,176 @@ class MemoryPalApp(tk.Tk):
         self.title_label.configure(text=titles[view][1])
         if keep_scroll:
             self.restore_page_scroll(new_host, keep_scroll)
+        new_host._memorypal_page_key = self.page_state_key() if view in self.KEEP_ALIVE_PAGES else None
         if old_host is not None and old_host.winfo_exists() and old_host is not new_host:
-            old_host.destroy()
+            self.retire_page(old_host, leaving)
         self.update_idletasks()
         self.after_idle(self.layout_app_body)
         if getattr(self, "tour", None):
             self.render_tour_card()
+        self.schedule_prebuild()
+
+    # Pages built only from saved data. Like the tabs of a phone or desktop
+    # app, a page that was built once stays alive out of sight and comes
+    # straight back on the next visit, as long as nothing it shows has
+    # changed since (page_state_key). Pages with a session in progress
+    # (review, testing, quiz, capture...) always start fresh.
+    KEEP_ALIVE_PAGES = frozenset({"dashboard", "study", "create", "practice", "stats", "library", "decks", "plan", "focus", "training", "games"})
+
+    def page_state_key(self):
+        """Everything a kept page depends on: when it changes, the page is rebuilt."""
+        return (
+            id(self.store), getattr(self.store, "revision", 0), today_iso(), datetime.now().hour < 12, datetime.now().hour < 18,
+            self.theme, self.font_scale, self.ui_scale, self.deck_filter, getattr(self, "tour", None) is not None,
+        )
+
+    def kept_pages(self):
+        return self.__dict__.setdefault("_kept_pages", {})
+
+    def forget_kept_pages(self):
+        for host in self.kept_pages().values():
+            try:
+                if host.winfo_exists():
+                    host.destroy()
+            except tk.TclError:
+                pass
+        self.kept_pages().clear()
+
+    def retire_page(self, host, view):
+        """Keep a page that's being left for its next visit, or remove it."""
+        kept = self.kept_pages()
+        key = getattr(host, "_memorypal_page_key", None)
+        if view in self.KEEP_ALIVE_PAGES and key is not None and key == self.page_state_key():
+            stale = kept.pop(view, None)
+            if stale is not None and stale is not host and stale.winfo_exists():
+                stale.destroy()
+            host.place_forget()
+            kept[view] = host
+            return
+        host.destroy()
+
+    def take_kept_page(self, view):
+        host = self.kept_pages().pop(view, None)
+        if host is None:
+            return None
+        if not host.winfo_exists() or getattr(host, "_memorypal_page_key", None) != self.page_state_key():
+            if host.winfo_exists():
+                host.destroy()
+            return None
+        return host
+
+    def clear_hover_states(self, host):
+        """Undo the hover look on a kept page: it was hidden with the pointer
+        over whatever was clicked to leave it."""
+        stack = [host]
+        while stack:
+            widget = stack.pop()
+            try:
+                stack.extend(widget.winfo_children())
+                unhover = getattr(widget, "_memorypal_unhover", None)
+                if unhover is not None:
+                    unhover()
+                elif isinstance(widget, ttk.Widget) and widget.instate(["active"]):
+                    widget.state(["!active", "!pressed"])
+            except tk.TclError:
+                continue
+
+    # The rail's destinations, built ahead of the first visit while the app
+    # sits idle, the way tab apps load their tabs in the background.
+    PREBUILD_PAGES = ("dashboard", "study", "create", "practice", "stats")
+
+    def note_user_input(self, _event=None):
+        self._last_input = time.monotonic()
+
+    def schedule_prebuild(self, delay=1500):
+        if self.__dict__.get("_prebuild_after") is not None:
+            return
+        try:
+            self._prebuild_after = self.after(delay, self.prebuild_next_page)
+        except tk.TclError:
+            self._prebuild_after = None
+
+    def prebuild_next_page(self):
+        """Build one rail page out of sight, once nothing has happened for a moment."""
+        self._prebuild_after = None
+        if (getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False) or getattr(self, "tour", None)
+                or self.current_view in ("welcome", "signin") or getattr(self, "view_host", None) is None):
+            return
+        quiet = time.monotonic() - self.__dict__.get("_last_input", 0.0)
+        if quiet < 1.0:
+            # Someone is using the app: wait, so a click never queues behind a build.
+            self.schedule_prebuild(int((1.0 - quiet) * 1000) + 200)
+            return
+        kept, key = self.kept_pages(), self.page_state_key()
+        todo = [view for view in self.PREBUILD_PAGES
+                if view != self.current_view and getattr(kept.get(view), "_memorypal_page_key", None) != key]
+        if not todo:
+            return
+        self.prebuild_page(todo[0])
+        if len(todo) > 1:
+            self.schedule_prebuild(300)
+
+    def prebuild_page(self, view):
+        stale = self.kept_pages().pop(view, None)
+        if stale is not None and stale.winfo_exists():
+            stale.destroy()
+        showing, token = self.view_host, self.route_token
+        try:
+            focus = self.focus_get()
+        except (tk.TclError, KeyError):
+            focus = None
+        host = self.page_frame(self.content)
+        host.place(relx=0, rely=0, relwidth=1, relheight=1)
+        try:
+            self.tk.call("lower", host._w, showing._w)
+        except tk.TclError:
+            pass
+        self.view_host = host
+        self._building_view = True
+        try:
+            getattr(self, f"view_{view}")()
+            self.fit_wrap_tree(host)
+            self.update_idletasks()
+        except Exception:
+            if host.winfo_exists():
+                host.destroy()
+            return
+        finally:
+            self._building_view = False
+            if self.view_host is host:
+                self.view_host = showing
+        if self.route_token != token or not host.winfo_exists():
+            # The page sent the app somewhere else while building: drop it.
+            if host.winfo_exists():
+                host.destroy()
+            return
+        try:
+            if focus is not None and focus.winfo_exists() and self.focus_get() is not focus:
+                focus.focus_set()
+        except (tk.TclError, KeyError):
+            pass
+        host._memorypal_page_key = self.page_state_key()
+        host.place_forget()
+        self.kept_pages()[view] = host
+
+    def show_kept_page(self, host, old_host, leaving, title):
+        host.place(relx=0, rely=0, relwidth=1, relheight=1)
+        if old_host is not None and old_host.winfo_exists():
+            try:
+                self.tk.call("lower", host._w, old_host._w)
+            except tk.TclError:
+                pass
+        self.view_host = host
+        self.clear_hover_states(host)
+        # Lay it out at the window's current size before it shows.
+        self.update_idletasks()
+        self.refresh_header_status()
+        self.title_label.configure(text=title)
+        if old_host is not None and old_host.winfo_exists() and old_host is not host:
+            self.retire_page(old_host, leaving)
+        self.update_idletasks()
+        self.after_idle(self.layout_app_body)
+        self.schedule_prebuild()
 
     @staticmethod
     def page_scrollframe(host):
@@ -4800,6 +4978,9 @@ class MemoryPalApp(tk.Tk):
             # text); only clear the highlight once it is really outside.
             if not pointer_inside():
                 paint(normal)
+
+        # A kept page comes back without the pointer having left it.
+        frame._memorypal_unhover = lambda: None if pointer_inside() else paint(normal)
 
         def wire(widget):
             # Buttons and inputs inside keep their own behaviour.
