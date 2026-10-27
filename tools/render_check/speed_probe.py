@@ -1,6 +1,10 @@
 """Measure how long the desktop app takes to start and to open each page.
 
-python speed_probe.py
+python speed_probe.py [app folder ...]
+
+With several app folders (for example this branch's latest_app and a copy of
+main's), each is measured in turn, twice, on the same machine, so the
+numbers can be compared directly. Different CI machines vary by half.
 
 Starts the app twice on the same data folder (the second start finds the
 icons the first one saved), then opens each page: the first visit, and the
@@ -18,8 +22,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 VIEWS = ["dashboard", "stats", "library", "settings", "decks", "plan", "focus", "training", "games", "capture", "review"]
 
 
-def run_once():
-    sys.path.insert(0, os.path.join(HERE, "..", "..", "latest_app"))
+def run_once(app_dir):
+    sys.path.insert(0, app_dir)
     started = time.perf_counter()
     import MemoryPalDesktop as M
     from memorypal.models import Card
@@ -68,11 +72,14 @@ def run_once():
 
 if __name__ == "__main__":
     if "--child" in sys.argv:
-        run_once()
+        run_once(sys.argv[sys.argv.index("--child") + 1])
     else:
-        env = dict(os.environ, MEMORYPAL_DATA_DIR=tempfile.mkdtemp(prefix="mp-speed-"))
+        folders = [os.path.abspath(arg) for arg in sys.argv[1:]] or [os.path.join(HERE, "..", "..", "latest_app")]
         print(f"platform={sys.platform}")
-        for label, extra in (("cold start (no saved icons)", ["--start-only"]), ("warm start", [])):
-            print(f"-- {label}")
-            sys.stdout.flush()
-            subprocess.run([sys.executable, os.path.abspath(__file__), "--child", *extra], env=env, check=False)
+        for round_number in range(2 if len(folders) > 1 else 1):
+            for folder in folders:
+                env = dict(os.environ, MEMORYPAL_DATA_DIR=tempfile.mkdtemp(prefix="mp-speed-"))
+                for label, extra in (("cold start (no saved icons)", ["--start-only"]), ("warm start", [])):
+                    print(f"-- {os.path.basename(os.path.dirname(folder + os.sep)) if len(folders) == 1 else folder} round {round_number + 1}: {label}")
+                    sys.stdout.flush()
+                    subprocess.run([sys.executable, os.path.abspath(__file__), "--child", folder, *extra], env=env, check=False)
