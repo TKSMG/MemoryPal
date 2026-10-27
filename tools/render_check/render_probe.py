@@ -91,6 +91,13 @@ def run(name, action, seconds=2.2, lead=0.35):
         else:
             app.quit()
     app.after(20, wait)
+    beats = []
+
+    def beat():
+        beats.append(time.perf_counter())
+        if proc.poll() is None:
+            app.after(10, beat)
+    app.after(10, beat)
     app.mainloop()
     with open(out, "rb") as f:
         fw, fh, count = struct.unpack("<III", f.read(12))
@@ -124,6 +131,8 @@ def run(name, action, seconds=2.2, lead=0.35):
         times = [started] + [entry[0] for entry in CONFIGURES]
         gaps = [later - earlier for earlier, later in zip(times, times[1:])]
         extra += f" window_updates={len(CONFIGURES)} longest_stall={1000 * max(gaps or [0]):.0f}ms"
+        beat_gaps = [later - earlier for earlier, later in zip(beats, beats[1:])]
+        extra += f" timer_beats={len(beats)} longest_beat_gap={1000 * max(beat_gaps or [0]):.0f}ms"
     if name.startswith("drag_resize"):
         # Dragging the bottom-right corner must leave the top-left (the page
         # title) exactly where it was: any change there is the page jumping
@@ -134,6 +143,8 @@ def run(name, action, seconds=2.2, lead=0.35):
         extra += f" title_moved_frames={len(jumped)}"
         for n, index in enumerate(jumped[:4]):
             png(os.path.join(OUT, f"{name}-jump{n}.png"), fw, fh, frames[index][1])
+        for index in jumped[:1] + jumped[len(jumped) // 2:len(jumped) // 2 + 1]:
+            extra += f" jump@{frames[index][0] - frames[0][0]:.2f}s={best_fit(frames[index][1], first, fw, fh, box)}"
         if os.environ.get("PRINT_PNG") and jumped:
             # Artifacts can't always be fetched: the pictures go in the log too.
             import base64
@@ -144,6 +155,29 @@ def run(name, action, seconds=2.2, lead=0.35):
                     print(f"PNG {name} {label} t={frames[index][0]:.2f} " + base64.b64encode(handle.read()).decode("ascii"))
     print(f"{name:18} frames={len(frames):4} changes={changes:3} flash={peak:+.3f} mixed_frames={len(mixed):3} distinct_mixed={len(distinct)}"
           + (f" differs_from_final={' '.join(where)}" if where else "") + extra)
+
+
+def best_fit(frame, before, w, h, box):
+    """How the title area moved: the scale (about the top-left) and shift
+    that make the earlier picture match this frame best."""
+    x0, y0, x1, y1 = box
+    best = None
+    for scale in [1 + n * 0.02 for n in range(-10, 26)]:
+        for dx in range(-6, 7, 2):
+            for dy in range(-6, 7, 2):
+                total = count = 0
+                for y in range(y0, y1, 2):
+                    for x in range(x0, x1, 2):
+                        sx, sy = int((x - dx) / scale), int((y - dy) / scale)
+                        if not (0 <= sx < w and 0 <= sy < h):
+                            continue
+                        i, j = (y * w + x) * 4, (sy * w + sx) * 4
+                        total += abs(frame[i] - before[j]) + abs(frame[i + 1] - before[j + 1]) + abs(frame[i + 2] - before[j + 2])
+                        count += 1
+                err = total / max(1, count) / 3
+                if best is None or err < best[0]:
+                    best = (err, scale, dx, dy)
+    return f"scale{best[1]:.2f},shift{best[2]},{best[3]},err{best[0]:.1f}"
 
 
 def region_diff(a, b, w, box):
