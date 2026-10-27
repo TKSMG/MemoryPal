@@ -58,6 +58,9 @@ function RootStack() {
           // The tab group has no title, so a back label would read "(tabs)".
           headerBackButtonDisplayMode: 'minimal',
           contentStyle: { backgroundColor: c.bg },
+          // Screens underneath the one on top stop redrawing until they're
+          // back in front.
+          freezeOnBlur: true,
           // Reduce Motion swaps the slide for a cross-fade, so a change of
           // screen is still visible without the movement.
           animation: theme.reduceMotion ? 'fade' : 'default',

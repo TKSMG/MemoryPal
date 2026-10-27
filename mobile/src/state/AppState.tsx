@@ -280,7 +280,12 @@ const Context = createContext<AppState | null>(null);
 let singleton: AppState | null = null;
 function appState(): AppState {
   if (!singleton) {
-    const store = new MemoryStore(keyAdapter('memorypal-data'));
+    const store = new MemoryStore(keyAdapter('memorypal-data'), { deferWrites: true });
+    // Leaving the app (home button, app switcher, a call) writes any change
+    // still waiting, before the system can stop the app.
+    RNAppState.addEventListener('change', (state) => {
+      if (state !== 'active') store.flush();
+    });
     singleton = { store, prefs: new PrefsStore(), sync: new SyncController(store) };
   }
   return singleton;
