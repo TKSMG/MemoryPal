@@ -131,6 +131,8 @@ def run(name, action, seconds=2.2, lead=0.35):
         times = [started] + [entry[0] for entry in CONFIGURES]
         gaps = [later - earlier for earlier, later in zip(times, times[1:])]
         extra += f" window_updates={len(CONFIGURES)} longest_stall={1000 * max(gaps or [0]):.0f}ms"
+        if CONFIGURES:
+            extra += f" end={CONFIGURES[-1][3]}x{CONFIGURES[-1][4]}+{CONFIGURES[-1][1]}+{CONFIGURES[-1][2]}"
         beat_gaps = [later - earlier for earlier, later in zip(beats, beats[1:])]
         extra += f" timer_beats={len(beats)} longest_beat_gap={1000 * max(beat_gaps or [0]):.0f}ms"
     if name.startswith("drag_resize"):

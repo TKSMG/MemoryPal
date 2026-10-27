@@ -313,6 +313,19 @@ def set_fine_timers(enabled):
         return False
 
 
+def mouse_button_down():
+    """True while a mouse button is held anywhere (Windows; elsewhere False)."""
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+
+        state = ctypes.windll.user32.GetAsyncKeyState
+        return any(state(key) & 0x8000 for key in (0x01, 0x02, 0x04))  # left, right, middle
+    except (AttributeError, OSError):
+        return False
+
+
 def flush_pending_paint(widget):
     """Draw queued Expose events now instead of on a later event-loop pass."""
     try:
@@ -3687,6 +3700,10 @@ class MemoryPalApp(tk.Tk):
         self.main.place_configure(x=0, y=bar, width=width, height=max(1, height - bar), relwidth=0, relheight=0)
 
     def handle_window_resized(self, width, height):
+        # Moving or sizing the window is use too: Windows runs those drags in
+        # its own loop, which sends Tk no mouse events, and a page built
+        # "while idle" would stall the window under the mouse.
+        self.note_user_input()
         width, height = int(width), int(height)
         if width <= 1 or height <= 1:
             return
@@ -3950,6 +3967,9 @@ class MemoryPalApp(tk.Tk):
                 or self.current_view in ("welcome", "signin") or getattr(self, "view_host", None) is None):
             return
         quiet = time.monotonic() - self.__dict__.get("_last_input", 0.0)
+        if mouse_button_down():
+            # A press on the title bar or an edge, before the window moves.
+            quiet = 0.0
         if quiet < 1.0:
             # Someone is using the app: wait, so a click never queues behind a build.
             self.schedule_prebuild(int((1.0 - quiet) * 1000) + 200)
