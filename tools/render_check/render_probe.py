@@ -83,9 +83,15 @@ def run(name, action, seconds=2.2, lead=0.35):
     CONFIGURES.clear()
     started = time.perf_counter()
     action()
-    while proc.poll() is None:
-        app.update()
-        time.sleep(0.005)
+    # The real event loop, as the app runs it: Windows' move/size loop only
+    # hands Tk its events from inside mainloop.
+    def wait():
+        if proc.poll() is None:
+            app.after(20, wait)
+        else:
+            app.quit()
+    app.after(20, wait)
+    app.mainloop()
     with open(out, "rb") as f:
         fw, fh, count = struct.unpack("<III", f.read(12))
         frames = []
@@ -128,6 +134,14 @@ def run(name, action, seconds=2.2, lead=0.35):
         extra += f" title_moved_frames={len(jumped)}"
         for n, index in enumerate(jumped[:4]):
             png(os.path.join(OUT, f"{name}-jump{n}.png"), fw, fh, frames[index][1])
+        if os.environ.get("PRINT_PNG") and jumped:
+            # Artifacts can't always be fetched: the pictures go in the log too.
+            import base64
+            for label, index in (("before", 0), ("jump", jumped[0]), ("jump_mid", jumped[len(jumped) // 2])):
+                path = os.path.join(OUT, f"{name}-{label}-print.png")
+                png(path, fw, fh, frames[index][1])
+                with open(path, "rb") as handle:
+                    print(f"PNG {name} {label} t={frames[index][0]:.2f} " + base64.b64encode(handle.read()).decode("ascii"))
     print(f"{name:18} frames={len(frames):4} changes={changes:3} flash={peak:+.3f} mixed_frames={len(mixed):3} distinct_mixed={len(distinct)}"
           + (f" differs_from_final={' '.join(where)}" if where else "") + extra)
 
