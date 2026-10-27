@@ -47,7 +47,13 @@ jobs:
         shell: bash
         run: |
           mkdir -p probe-out render-out
-          python tools/render_check/speed_probe.py > probe.txt 2>&1 || true
+          if [ "${{ matrix.variant }}" = "branch" ]; then
+            # Main's app on this same machine too: runners differ in speed.
+            git fetch --depth=1 origin main && mkdir -p main_app && git archive FETCH_HEAD latest_app | tar -x -C main_app
+            python tools/render_check/speed_probe.py latest_app main_app/latest_app > probe.txt 2>&1 || true
+          else
+            python tools/render_check/speed_probe.py > probe.txt 2>&1 || true
+          fi
           PROBE_OUT=probe-out python tools/render_check/scroll_probe.py stats settings library >> probe.txt 2>&1 || true
           if [ "$RUNNER_OS" = "Windows" ]; then
             python tools/render_check/render_probe.py render-out >> probe.txt 2>&1 || true
