@@ -11,6 +11,9 @@ import time
 ctypes.windll.shcore.SetProcessDpiAwareness(2)
 user32 = ctypes.windll.user32
 x, y, dx, dy = (int(v) for v in sys.argv[1:5])
+# CI machines often have "Show window contents while dragging" off, which
+# drags only an outline and resizes once at the end; people have it on.
+user32.SystemParametersInfoW(0x0025, 1, None, 0x02)  # SPI_SETDRAGFULLWINDOWS, SPIF_SENDCHANGE
 seconds = float(sys.argv[5])
 LEFTDOWN, LEFTUP = 0x0002, 0x0004
 user32.SetCursorPos(x, y)
