@@ -195,6 +195,7 @@ Rules carried over from the desktop:
 - **Calm results:** Smart Check results and puzzle feedback are announced politely (live regions), and the simple-language wording matches the desktop's.
 - **Never rushed:** puzzles show a countdown and an "I'm ready" button. More time doubles every timer and slows the voice.
 - **Ending a session:** every review ends with a summary of how many cards were reviewed and remembered, and which were missed. Duolingo's end-of-lesson screen is the model.
+- **Speed, the native way:** tabs and screens out of sight are frozen (`freezeOnBlur`): they keep their place and catch up when shown, instead of redrawing on every change. Long lists use `ScreenList`, a virtualised `FlatList` that draws only the rows near the screen. The store saves in the background (`deferWrites`): a change updates the screens at once and reaches storage about 0.4s later, in one compact write for however many changes came in, and `flush()` writes it straight away whenever the app leaves the screen.
 
 Behaviour lives in `mobile/src/core/`, a line-by-line port of `latest_app/memorypal/`. Parity tests (`tools/parity/make_fixtures.py`) check that both versions give identical results. Change the logic on both sides together, regenerate the fixtures, and run the tests.
 
