@@ -312,6 +312,11 @@ SCENARIOS = [
     ("drag_resize_grow", drag_corner(160, 90)),
     ("drag_resize_shrink", drag_corner(-160, -90)),
     ("drag_resize_idle", idle_then(drag_corner(160, 90))),
+    # Pages kept from before the resize must show at the new size at once.
+    ("after_resize_kept_stats", lambda: app.show_view("stats")),
+    ("after_resize_kept_dashboard", lambda: app.show_view("dashboard")),
+    ("drag_resize_left", lambda: (lambda rect: drag(rect.left + 4, rect.top + (rect.bottom - rect.top) // 2, -120, 0))(window_rect())),
+    ("after_resize_kept_library", lambda: app.show_view("library")),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),
     ("text_large", lambda: app.update_accessibility_preference("text_size", "Large")),
