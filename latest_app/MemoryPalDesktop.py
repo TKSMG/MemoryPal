@@ -65,7 +65,7 @@ from memorypal.paths import (
 )
 from memorypal import cloud, cloud_config, drive, onboarding, progress, security, techniques
 from memorypal import feedback as feedback_report
-from memorypal import media
+from memorypal import iconcache, media
 from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
 from memorypal import ai, aiflow
 from memorypal import questions as quiz_questions
@@ -1775,7 +1775,9 @@ class MemoryPalApp(tk.Tk):
 
     def icon_coverage(self, name, size):
         """Antialiased coverage (0-255 per pixel) of a line icon at this size."""
-        cache = self.__dict__.setdefault("_icon_coverage_cache", {})
+        cache = self.__dict__.get("_icon_coverage_cache")
+        if cache is None:
+            cache = self._icon_coverage_cache = iconcache.load(self.icon_cache_path(), self.icon_cache_key())
         key = (name, size)
         if key in cache:
             return cache[key]
@@ -1816,9 +1818,21 @@ class MemoryPalApp(tk.Tk):
             return abs(outside) - half
 
         samples = 4
+        # Every distance above grows by at most 1 per unit moved, so a pixel
+        # whose centre is further than half its diagonal from every edge is
+        # wholly inside or outside: only pixels on an edge need the 16
+        # samples. Most of an icon is empty, so this is most of the work
+        # (it was about 1s of every start).
+        reach = math.sqrt(0.5) / unit
         coverage = bytearray(size * size)
         for py in range(size):
             for px in range(size):
+                centre = min(distance(shape, (px + 0.5) / unit, (py + 0.5) / unit) for shape in shapes)
+                if centre > reach:
+                    continue
+                if centre < -reach:
+                    coverage[py * size + px] = 255
+                    continue
                 hits = 0
                 for sy in range(samples):
                     gy = (py + (sy + 0.5) / samples) / unit
@@ -1828,7 +1842,32 @@ class MemoryPalApp(tk.Tk):
                             hits += 1
                 coverage[py * size + px] = round(255 * hits / (samples * samples))
         cache[key] = coverage
+        self.queue_icon_cache_save()
         return coverage
+
+    def icon_cache_path(self):
+        return app_paths.app_data_dir() / "icon-cache.bin"
+
+    def icon_cache_key(self):
+        # The stroke and sample count are part of the key: change them here
+        # too if the drawing above changes, so saved icons are redrawn.
+        return iconcache.shapes_key(sorted(self.LINE_ICONS.items()), sorted(self.LINE_ICON_WEIGHT.items()), 0.9, 4)
+
+    def queue_icon_cache_save(self):
+        # Save once things go quiet rather than after every new icon; a
+        # page can draw several at once.
+        if self.__dict__.get("_icon_save_after") is not None:
+            return
+        try:
+            self._icon_save_after = self.after(2000, self.save_icon_cache)
+        except tk.TclError:
+            self._icon_save_after = None
+
+    def save_icon_cache(self):
+        self._icon_save_after = None
+        cache = self.__dict__.get("_icon_coverage_cache")
+        if cache:
+            iconcache.save(self.icon_cache_path(), self.icon_cache_key(), cache)
 
     def line_icon(self, name, size, color):
         """A cached PhotoImage of a line icon in one colour, or None."""
@@ -7243,8 +7282,12 @@ class MemoryPalApp(tk.Tk):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         due = self.store.due_cards()
-        weak = [card for card in self.store.weak_cards() if card not in due]
-        new_cards = [card for card in self.store.cards if card.repetitions == 0 and card not in due and card not in weak]
+        # Compare by identity: `card in list` runs the dataclass __eq__ over
+        # every field of every card, which made this page slow with big sets.
+        taken = {id(card) for card in due}
+        weak = [card for card in self.store.weak_cards() if id(card) not in taken]
+        taken.update(id(card) for card in weak)
+        new_cards = [card for card in self.store.cards if card.repetitions == 0 and id(card) not in taken]
         hero = self.card(page.inner, "AltCard.TFrame")
         hero.pack(fill="x", padx=(0, 8), pady=(0, 12))
         ttk.Label(hero, text="Next best study queue", style="AltH2.TLabel").pack(anchor="w")

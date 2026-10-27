@@ -1,9 +1,9 @@
 name: Scroll probe
 
 # Run by hand (Actions > Scroll probe > Run workflow) after changing how
-# pages scroll, resize or switch: it measures frame pacing, torn frames and
-# flashes on real Windows and Mac machines and writes the numbers as a
-# notice on the run. "compare" also measures main, side by side.
+# pages scroll, resize or switch: it measures start and page-open times,
+# frame pacing, torn frames and flashes on real Windows and Mac machines and
+# writes the numbers as a notice on the run. "compare" also measures main, side by side.
 on:
   workflow_dispatch:
     inputs:
@@ -47,7 +47,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p probe-out render-out
-          PROBE_OUT=probe-out python tools/render_check/scroll_probe.py stats settings library > probe.txt 2>&1 || true
+          python tools/render_check/speed_probe.py > probe.txt 2>&1 || true
+          PROBE_OUT=probe-out python tools/render_check/scroll_probe.py stats settings library >> probe.txt 2>&1 || true
           if [ "$RUNNER_OS" = "Windows" ]; then
             python tools/render_check/render_probe.py render-out >> probe.txt 2>&1 || true
           fi
