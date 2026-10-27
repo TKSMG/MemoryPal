@@ -66,6 +66,10 @@ def diff(a, b, step=11):
     return total / max(1, count) / 3
 
 
+CONFIGURES = []
+app.bind("<Configure>", lambda e: CONFIGURES.append((time.perf_counter(), e.x, e.y, e.width, e.height)) if e.widget is app else None, add="+")
+
+
 def run(name, action, seconds=2.2, lead=0.35):
     app.update()
     x, y, w, h = app.winfo_rootx(), app.winfo_rooty(), app.winfo_screenwidth(), app.winfo_screenheight()
@@ -76,6 +80,8 @@ def run(name, action, seconds=2.2, lead=0.35):
     end = time.time() + lead
     while time.time() < end:
         app.update()
+    CONFIGURES.clear()
+    started = time.perf_counter()
     action()
     while proc.poll() is None:
         app.update()
@@ -106,8 +112,35 @@ def run(name, action, seconds=2.2, lead=0.35):
         png(os.path.join(OUT, f"{name}-mixed{n}.png"), fw, fh, frames[index][1])
     where = [f"{frames[index][0] - frames[0][0]:.2f}s:{changed_box(frames[index][1], last, fw, fh)}" for index in distinct[:3]]
     png(os.path.join(OUT, f"{name}-after.png"), fw, fh, last)
+    extra = ""
+    if name.startswith("drag_"):
+        # The longest the window went without following the mouse.
+        times = [started] + [entry[0] for entry in CONFIGURES]
+        gaps = [later - earlier for earlier, later in zip(times, times[1:])]
+        extra += f" window_updates={len(CONFIGURES)} longest_stall={1000 * max(gaps or [0]):.0f}ms"
+    if name.startswith("drag_resize"):
+        # Dragging the bottom-right corner must leave the top-left (the page
+        # title) exactly where it was: any change there is the page jumping
+        # or being stretched.
+        top = (app.tab_bar_height() + 4) // 4
+        box = (0, top, 260 // 4, top + 110 // 4)
+        jumped = [index for index, (_t, data) in enumerate(frames) if region_diff(data, first, fw, box) > 2.0]
+        extra += f" title_moved_frames={len(jumped)}"
+        for n, index in enumerate(jumped[:4]):
+            png(os.path.join(OUT, f"{name}-jump{n}.png"), fw, fh, frames[index][1])
     print(f"{name:18} frames={len(frames):4} changes={changes:3} flash={peak:+.3f} mixed_frames={len(mixed):3} distinct_mixed={len(distinct)}"
-          + (f" differs_from_final={' '.join(where)}" if where else ""))
+          + (f" differs_from_final={' '.join(where)}" if where else "") + extra)
+
+
+def region_diff(a, b, w, box):
+    x0, y0, x1, y1 = box
+    total = count = 0
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            i = (y * w + x) * 4
+            total += abs(a[i] - b[i]) + abs(a[i + 1] - b[i + 1]) + abs(a[i + 2] - b[i + 2])
+            count += 1
+    return total / max(1, count) / 3
 
 
 def changed_box(a, b, w, h, step=8):
@@ -159,6 +192,51 @@ def prebuild_now():
                 app.prebuild_page(view)
 
 
+def window_rect():
+    import ctypes
+    from ctypes import wintypes
+
+    rect = wintypes.RECT()
+    ctypes.windll.user32.GetWindowRect(app.window_handle(app), ctypes.byref(rect))
+    return rect
+
+
+def drag(x, y, dx, dy, seconds=1.2):
+    subprocess.Popen([sys.executable, os.path.join(HERE, "drag.py"), str(x), str(y), str(dx), str(dy), str(seconds)])
+
+
+def idle_then(action):
+    # As if the app had been left alone: the next idle build is due mid-drag.
+    def run_it():
+        if hasattr(app, "forget_kept_pages"):
+            app.forget_kept_pages()
+            app._last_input = 0.0
+            if app.__dict__.get("_prebuild_after") is not None:
+                app.after_cancel(app._prebuild_after)
+                app._prebuild_after = None
+            app.schedule_prebuild(250)
+        action()
+    return run_it
+
+
+def drag_corner(dx, dy):
+    def run_it():
+        rect = window_rect()
+        drag(rect.right - 4, rect.bottom - 4, dx, dy)
+    return run_it
+
+
+def drag_title():
+    rect = window_rect()
+    drag(rect.left + (rect.right - rect.left) // 3, rect.top + 12, 120, 70)
+
+
+def place_for_drag():
+    app.state("normal")
+    app.geometry(f"{app.winfo_screenwidth() * 3 // 5}x{app.winfo_screenheight() * 3 // 5}+20+20")
+    app.update()
+
+
 SCENARIOS = [
     ("switch_stats", lambda: app.show_view("stats")),
     ("switch_library", lambda: app.show_view("library")),
@@ -177,6 +255,13 @@ SCENARIOS = [
     ("grow", lambda: app.geometry(f"{app.winfo_screenwidth() - 40}x{app.winfo_screenheight() - 80}+0+0")),
     ("maximize", lambda: app.state("zoomed")),
     ("unmaximize", lambda: app.state("normal")),
+    ("drag_setup", place_for_drag),
+    ("drag_move", drag_title),
+    ("drag_move_idle", idle_then(drag_title)),
+    ("drag_setup2", place_for_drag),
+    ("drag_resize_grow", drag_corner(160, 90)),
+    ("drag_resize_shrink", drag_corner(-160, -90)),
+    ("drag_resize_idle", idle_then(drag_corner(160, 90))),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),
     ("text_large", lambda: app.update_accessibility_preference("text_size", "Large")),
