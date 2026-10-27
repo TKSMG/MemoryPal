@@ -47,10 +47,19 @@ def run_once(app_dir):
         return
 
     first, later = {}, {}
+    profile = None
+    if os.environ.get("SPEED_PROFILE") and "--first-folder" in sys.argv:
+        import cProfile
+
+        profile = cProfile.Profile()
     for view in VIEWS:
         mark = time.perf_counter()
+        if profile is not None:
+            profile.enable()
         app.show_view(view)
         app.update()
+        if profile is not None:
+            profile.disable()
         first[view] = 1000 * (time.perf_counter() - mark)
     for _ in range(3):
         for view in VIEWS:
@@ -67,6 +76,13 @@ def run_once(app_dir):
         rounds.append(1000 * (time.perf_counter() - mark))
     print(f"quiz round: first={rounds[0]:.0f} best={min(rounds):.0f}")
     print(f"page total: first={sum(first.values()):.0f} later={sum(later.values()):.0f}")
+    if profile is not None:
+        # Where first visits spend their time (SPEED_PROFILE=1).
+        import pstats
+
+        stats = pstats.Stats(profile, stream=sys.stdout)
+        stats.sort_stats("tottime").print_stats(15)
+        stats.sort_stats("cumulative").print_stats("MemoryPalDesktop", 30)
     app.destroy()
 
 
@@ -82,4 +98,6 @@ if __name__ == "__main__":
                 for label, extra in (("cold start (no saved icons)", ["--start-only"]), ("warm start", [])):
                     print(f"-- {os.path.basename(os.path.dirname(folder + os.sep)) if len(folders) == 1 else folder} round {round_number + 1}: {label}")
                     sys.stdout.flush()
+                    if folder == folders[0] and round_number == 0 and not extra:
+                        extra = ["--first-folder"]
                     subprocess.run([sys.executable, os.path.abspath(__file__), "--child", folder, *extra], env=env, check=False)
