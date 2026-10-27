@@ -1825,22 +1825,42 @@ class MemoryPalApp(tk.Tk):
         # (it was about 1s of every start).
         reach = math.sqrt(0.5) / unit
         coverage = bytearray(size * size)
-        for py in range(size):
-            for px in range(size):
-                centre = min(distance(shape, (px + 0.5) / unit, (py + 0.5) / unit) for shape in shapes)
-                if centre > reach:
+        # The same bound over 4x4 blocks: a block whose centre is far enough
+        # from every edge is wholly empty (or wholly inside) without looking
+        # at its pixels one by one.
+        block = 4
+        block_reach = reach + (block / 2) * math.sqrt(2) / unit
+        todo = []
+        for by in range(0, size, block):
+            for bx in range(0, size, block):
+                ys, xs = range(by, min(size, by + block)), range(bx, min(size, bx + block))
+                middle = min(distance(shape, (bx + block / 2) / unit, (by + block / 2) / unit) for shape in shapes)
+                if middle > block_reach:
                     continue
-                if centre < -reach:
-                    coverage[py * size + px] = 255
+                if middle < -block_reach:
+                    for py in ys:
+                        for px in xs:
+                            coverage[py * size + px] = 255
                     continue
-                hits = 0
-                for sy in range(samples):
-                    gy = (py + (sy + 0.5) / samples) / unit
-                    for sx in range(samples):
-                        gx = (px + (sx + 0.5) / samples) / unit
-                        if any(distance(shape, gx, gy) <= 0 for shape in shapes):
-                            hits += 1
-                coverage[py * size + px] = round(255 * hits / (samples * samples))
+                todo.extend((px, py) for py in ys for px in xs)
+        for px, py in todo:
+            gaps = [distance(shape, (px + 0.5) / unit, (py + 0.5) / unit) for shape in shapes]
+            centre = min(gaps)
+            if centre > reach:
+                continue
+            if centre < -reach:
+                coverage[py * size + px] = 255
+                continue
+            # Only shapes that come within reach of the centre can cover a sample.
+            near = [shape for shape, gap in zip(shapes, gaps) if gap <= reach]
+            hits = 0
+            for sy in range(samples):
+                gy = (py + (sy + 0.5) / samples) / unit
+                for sx in range(samples):
+                    gx = (px + (sx + 0.5) / samples) / unit
+                    if any(distance(shape, gx, gy) <= 0 for shape in near):
+                        hits += 1
+            coverage[py * size + px] = round(255 * hits / (samples * samples))
         cache[key] = coverage
         self.queue_icon_cache_save()
         return coverage

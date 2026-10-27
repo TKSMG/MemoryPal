@@ -50,7 +50,7 @@ jobs:
           if [ "${{ matrix.variant }}" = "branch" ]; then
             # Main's app on this same machine too: runners differ in speed.
             git fetch --depth=1 origin main && mkdir -p main_app && git archive FETCH_HEAD latest_app | tar -x -C main_app
-            python tools/render_check/speed_probe.py latest_app main_app/latest_app > probe.txt 2>&1 || true
+            SPEED_PROFILE=1 python tools/render_check/speed_probe.py latest_app main_app/latest_app > probe.txt 2>&1 || true
           else
             python tools/render_check/speed_probe.py > probe.txt 2>&1 || true
           fi
