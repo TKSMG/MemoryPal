@@ -2427,7 +2427,9 @@ class MemoryPalApp(tk.Tk):
                 return
             windowtheme.apply_windows(self.window_handle(window), dark, caption=COLORS["bg"], text=COLORS["ink"], border=COLORS["line"])
             windowtheme.set_background_brush(self.window_handle(window), COLORS["bg"])
-            windowtheme.smooth_live_resize(self.window_handle(window), self._relayout_during_drag if window is self else None)
+            if window is self:
+                self._window_hwnd = self.window_handle(window)
+                windowtheme.track_live_resize(self._window_hwnd)
             try:
                 fill = window.cget("bg") if window is not self else COLORS["bg"]
                 red, green, blue = (value // 257 for value in self.winfo_rgb(fill))
@@ -3715,33 +3717,23 @@ class MemoryPalApp(tk.Tk):
         if size == getattr(self, "_last_window_size", None):
             return
         self._last_window_size = size
+        if self.RELAYOUT_DURING_DRAG and windowtheme.live_resizing(self.__dict__.get("_window_hwnd")):
+            self._relayout_during_drag()
+            return
         if getattr(self, "_resize_after", None) is None:
             self._resize_after = self.after_idle(self._relayout_after_resize)
 
-    def _relayout_during_drag(self):
-        """Lay out at the new size before Windows shows it (edge drags).
+    # The probe turns this off to compare with the old way.
+    RELAYOUT_DURING_DRAG = True
 
-        Windows calls this from inside its move/size loop, so the page is
-        drawn at the new size in the same frame as the window's new edge.
-        Only Tk's own layout and drawing passes run here (no event pumping,
-        which could take the mouse messages the size loop is waiting for),
-        and painting isn't paused: it all happens before Windows shows the
-        frame anyway.
+    def _relayout_during_drag(self):
+        """Lay out at once while an edge is dragged.
+
+        During a drag each size step waits for its own repaint, so laying out
+        at the next idle moment let a moving top edge run ahead of the page
+        (it looked as if the page grew, then shrank back). Painting isn't
+        paused here: the steps are small and follow each other quickly.
         """
-        if getattr(self, "_hidden_active", False):
-            return
-        self.note_user_input()
-        pending = getattr(self, "_resize_after", None)
-        if pending is not None:
-            try:
-                self.after_cancel(pending)
-            except tk.TclError:
-                pass
-        self._resize_after = None
-        try:
-            self._last_window_size = (int(self.winfo_width()), int(self.winfo_height()))
-        except tk.TclError:
-            return
         for _ in range(3):
             self.layout_app_body()
             self.update_idletasks()
