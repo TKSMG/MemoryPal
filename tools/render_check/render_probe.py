@@ -345,8 +345,8 @@ def drag_corner(dx, dy):
 def drag_top(dy, anchor=1):
     def run_it():
         # anchor=0: Windows' default handling, to compare with the app's own.
-        if hasattr(M.windowtheme, "SYNC"):
-            M.windowtheme.ANCHOR = M.windowtheme.SYNC = bool(anchor)
+        if hasattr(app, "RELAYOUT_DURING_DRAG"):
+            app.RELAYOUT_DURING_DRAG = bool(anchor)
         rect = window_rect()
         drag(rect.left + (rect.right - rect.left) // 2, rect.top + 2, 0, dy)
     return run_it

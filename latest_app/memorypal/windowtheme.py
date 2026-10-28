@@ -211,30 +211,20 @@ def fill_on_erase(hwnd, hex_color):
 
 
 
-WM_NCCALCSIZE = 0x0083
-WM_WINDOWPOSCHANGED = 0x0047
+
 WM_ENTERSIZEMOVE = 0x0231
 WM_EXITSIZEMOVE = 0x0232
-WVR_VALIDRECTS = 0x0400
-SWP_NOSIZE = 0x0001
-_sizers = {}  # hwnd -> subclass callback; kept alive while installed
-# The probe turns these off to compare with Windows' default handling.
-ANCHOR = True
-SYNC = True
+_sizers = {}  # hwnd -> [subclass callback, sizing now]; kept alive while installed
 
 
-def smooth_live_resize(hwnd, relayout=None):
-    """Keep the page still under a moving window edge, as native apps do.
+def track_live_resize(hwnd):
+    """Note when the user is dragging the window's edge or title bar.
 
-    Dragging the top (or left) edge moves the window's top on screen while
-    the page inside is laid out again a moment later, so for a frame or
-    two the page sat lower than the edge, then caught up: it looked as if
-    it grew and shrank back. Two things fix that. Windows is told exactly
-    which old pixels are still good and that they belong at the new
-    top-left, and `relayout` runs before Windows shows the new size (inside
-    its WM_WINDOWPOSCHANGED, while an edge is being dragged), so the edge
-    and the page arrive in the same frame. Returns True if the hook is in
-    place.
+    Windows runs those drags in its own loop and Tk isn't told. The app
+    lays the page out at once during a drag (rather than at the next idle
+    moment) so the page keeps up with a moving edge. Only a flag is set
+    here: calling back into Tk from inside Windows' loop isn't safe.
+    Returns True if the hook is in place.
     """
     if not hwnd or not sys.platform.startswith("win"):
         return False
@@ -252,54 +242,27 @@ def smooth_live_resize(hwnd, relayout=None):
         comctl32.SetWindowSubclass.argtypes = (wintypes.HWND, SUBCLASSPROC, ctypes.c_size_t, ctypes.c_size_t)
         comctl32.RemoveWindowSubclass.argtypes = (wintypes.HWND, SUBCLASSPROC, ctypes.c_size_t)
 
-        class NCCALCSIZE_PARAMS(ctypes.Structure):
-            _fields_ = [("rgrc", wintypes.RECT * 3), ("lppos", ctypes.c_void_p)]
-
-        class WINDOWPOS(ctypes.Structure):
-            _fields_ = [("hwnd", wintypes.HWND), ("after", wintypes.HWND), ("x", ctypes.c_int), ("y", ctypes.c_int),
-                        ("cx", ctypes.c_int), ("cy", ctypes.c_int), ("flags", ctypes.c_uint)]
-
-        state = {"sizing": False, "busy": False}
-
         def procedure(window, message, wparam, lparam, _id, _data):
+            entry = _sizers.get(hwnd)
             if message == WM_NCDESTROY:
-                callback = _sizers.pop(hwnd, None)
-                if callback is not None:
-                    comctl32.RemoveWindowSubclass(window, callback, 0x4D51)
-                    _retired.append(callback)
-            elif message == WM_ENTERSIZEMOVE:
-                state["sizing"] = True
-            elif message == WM_EXITSIZEMOVE:
-                state["sizing"] = False
-            elif message == WM_NCCALCSIZE and wparam and lparam and ANCHOR:
-                params = NCCALCSIZE_PARAMS.from_address(lparam)
-                old = wintypes.RECT(params.rgrc[2].left, params.rgrc[2].top, params.rgrc[2].right, params.rgrc[2].bottom)
-                result = comctl32.DefSubclassProc(window, message, wparam, lparam)
-                new = params.rgrc[0]
-                width = min(old.right - old.left, new.right - new.left)
-                height = min(old.bottom - old.top, new.bottom - new.top)
-                if result == 0 and width > 0 and height > 0:
-                    params.rgrc[1] = wintypes.RECT(new.left, new.top, new.left + width, new.top + height)
-                    params.rgrc[2] = wintypes.RECT(old.left, old.top, old.left + width, old.top + height)
-                    return WVR_VALIDRECTS
-                return result
-            elif message == WM_WINDOWPOSCHANGED and lparam and relayout is not None and SYNC and state["sizing"] and not state["busy"]:
-                result = comctl32.DefSubclassProc(window, message, wparam, lparam)
-                if not WINDOWPOS.from_address(lparam).flags & SWP_NOSIZE:
-                    state["busy"] = True
-                    try:
-                        relayout()
-                    except Exception:  # never let a layout error escape into Windows
-                        pass
-                    finally:
-                        state["busy"] = False
-                return result
+                _sizers.pop(hwnd, None)
+                if entry is not None:
+                    comctl32.RemoveWindowSubclass(window, entry[0], 0x4D51)
+                    _retired.append(entry[0])
+            elif entry is not None and message in (WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE):
+                entry[1] = message == WM_ENTERSIZEMOVE
             return comctl32.DefSubclassProc(window, message, wparam, lparam)
 
         callback = SUBCLASSPROC(procedure)
         if not comctl32.SetWindowSubclass(hwnd, callback, 0x4D51, 0):
             return False
-        _sizers[hwnd] = callback
+        _sizers[hwnd] = [callback, False]
         return True
     except (AttributeError, OSError):
         return False
+
+
+def live_resizing(hwnd):
+    """True while the user drags this window's edge or title bar."""
+    entry = _sizers.get(hwnd)
+    return bool(entry and entry[1])
