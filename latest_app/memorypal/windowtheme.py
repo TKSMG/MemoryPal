@@ -210,26 +210,35 @@ def fill_on_erase(hwnd, hex_color):
         return False
 
 
+
 WM_NCCALCSIZE = 0x0083
+WM_WINDOWPOSCHANGED = 0x0047
+WM_ENTERSIZEMOVE = 0x0231
+WM_EXITSIZEMOVE = 0x0232
 WVR_VALIDRECTS = 0x0400
-_anchors = {}  # hwnd -> subclass callback; kept alive while installed
-ANCHOR_MODE = 1  # 0 leaves Windows' default (the probe compares both)
+SWP_NOSIZE = 0x0001
+_sizers = {}  # hwnd -> subclass callback; kept alive while installed
+# The probe turns these off to compare with Windows' default handling.
+ANCHOR = True
+SYNC = True
 
 
-def keep_content_top_left(hwnd):
-    """Keep the picture pinned to the window's top-left while an edge moves.
+def smooth_live_resize(hwnd, relayout=None):
+    """Keep the page still under a moving window edge, as native apps do.
 
-    Dragging the top (or left) edge moves the window's top on screen. Unless
-    told otherwise, Windows and the compositor can keep the old picture
-    where it was on screen for a frame, so the page looked pushed down from
-    the top, then snapped back when it was redrawn. Saying exactly which old
-    pixels are still good, and that they belong at the new top-left, is how
-    native apps keep their content still under a moving edge. Returns True
-    if the hook is in place.
+    Dragging the top (or left) edge moves the window's top on screen while
+    the page inside is laid out again a moment later, so for a frame or
+    two the page sat lower than the edge, then caught up: it looked as if
+    it grew and shrank back. Two things fix that. Windows is told exactly
+    which old pixels are still good and that they belong at the new
+    top-left, and `relayout` runs before Windows shows the new size (inside
+    its WM_WINDOWPOSCHANGED, while an edge is being dragged), so the edge
+    and the page arrive in the same frame. Returns True if the hook is in
+    place.
     """
     if not hwnd or not sys.platform.startswith("win"):
         return False
-    if hwnd in _anchors:
+    if hwnd in _sizers:
         return True
     try:
         import ctypes
@@ -246,13 +255,23 @@ def keep_content_top_left(hwnd):
         class NCCALCSIZE_PARAMS(ctypes.Structure):
             _fields_ = [("rgrc", wintypes.RECT * 3), ("lppos", ctypes.c_void_p)]
 
+        class WINDOWPOS(ctypes.Structure):
+            _fields_ = [("hwnd", wintypes.HWND), ("after", wintypes.HWND), ("x", ctypes.c_int), ("y", ctypes.c_int),
+                        ("cx", ctypes.c_int), ("cy", ctypes.c_int), ("flags", ctypes.c_uint)]
+
+        state = {"sizing": False, "busy": False}
+
         def procedure(window, message, wparam, lparam, _id, _data):
             if message == WM_NCDESTROY:
-                callback = _anchors.pop(hwnd, None)
+                callback = _sizers.pop(hwnd, None)
                 if callback is not None:
                     comctl32.RemoveWindowSubclass(window, callback, 0x4D51)
                     _retired.append(callback)
-            elif message == WM_NCCALCSIZE and wparam and lparam and ANCHOR_MODE:
+            elif message == WM_ENTERSIZEMOVE:
+                state["sizing"] = True
+            elif message == WM_EXITSIZEMOVE:
+                state["sizing"] = False
+            elif message == WM_NCCALCSIZE and wparam and lparam and ANCHOR:
                 params = NCCALCSIZE_PARAMS.from_address(lparam)
                 old = wintypes.RECT(params.rgrc[2].left, params.rgrc[2].top, params.rgrc[2].right, params.rgrc[2].bottom)
                 result = comctl32.DefSubclassProc(window, message, wparam, lparam)
@@ -264,12 +283,23 @@ def keep_content_top_left(hwnd):
                     params.rgrc[2] = wintypes.RECT(old.left, old.top, old.left + width, old.top + height)
                     return WVR_VALIDRECTS
                 return result
+            elif message == WM_WINDOWPOSCHANGED and lparam and relayout is not None and SYNC and state["sizing"] and not state["busy"]:
+                result = comctl32.DefSubclassProc(window, message, wparam, lparam)
+                if not WINDOWPOS.from_address(lparam).flags & SWP_NOSIZE:
+                    state["busy"] = True
+                    try:
+                        relayout()
+                    except Exception:  # never let a layout error escape into Windows
+                        pass
+                    finally:
+                        state["busy"] = False
+                return result
             return comctl32.DefSubclassProc(window, message, wparam, lparam)
 
         callback = SUBCLASSPROC(procedure)
         if not comctl32.SetWindowSubclass(hwnd, callback, 0x4D51, 0):
             return False
-        _anchors[hwnd] = callback
+        _sizers[hwnd] = callback
         return True
     except (AttributeError, OSError):
         return False
