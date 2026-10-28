@@ -72,10 +72,14 @@ app.bind("<Configure>", lambda e: CONFIGURES.append((time.perf_counter(), e.x, e
 
 def run(name, action, seconds=2.2, lead=0.35):
     app.update()
-    x, y, w, h = app.winfo_rootx(), app.winfo_rooty(), app.winfo_screenwidth(), app.winfo_screenheight()
+    # A drag of the top edge grows the window upwards: record from higher up.
+    lift = min(app.winfo_rooty(), 200) if name.startswith("drag_resize_top") else 0
+    x, y = app.winfo_rootx(), app.winfo_rooty() - lift
     w, h = app.winfo_screenwidth() - x, app.winfo_screenheight() - y
     out = os.path.join(OUT, f"{name}.bin")
-    proc = subprocess.Popen([sys.executable, os.path.join(HERE, "capture.py"), str(x), str(y), str(w), str(h), str(seconds), out], stdout=subprocess.PIPE, text=True)
+    start_top = window_rect().top
+    proc = subprocess.Popen([sys.executable, os.path.join(HERE, "capture.py"), str(x), str(y), str(w), str(h), str(seconds), out,
+                             str(app.window_handle(app) or 0)], stdout=subprocess.PIPE, text=True)
     proc.stdout.readline()  # wait until frames are being recorded
     end = time.time() + lead
     while time.time() < end:
@@ -102,8 +106,10 @@ def run(name, action, seconds=2.2, lead=0.35):
     with open(out, "rb") as f:
         fw, fh, count = struct.unpack("<III", f.read(12))
         frames = []
+        tops = []
         for _ in range(count):
-            (t,) = struct.unpack("<d", f.read(8))
+            t, top = struct.unpack("<di", f.read(12))
+            tops.append(top)
             frames.append((t, f.read(fw * fh * 4)))
     os.remove(out)
     first, last = frames[0][1], frames[-1][1]
@@ -135,7 +141,21 @@ def run(name, action, seconds=2.2, lead=0.35):
             extra += f" end={CONFIGURES[-1][3]}x{CONFIGURES[-1][4]}+{CONFIGURES[-1][1]}+{CONFIGURES[-1][2]}"
         beat_gaps = [later - earlier for earlier, later in zip(beats, beats[1:])]
         extra += f" timer_beats={len(beats)} longest_beat_gap={1000 * max(beat_gaps or [0]):.0f}ms"
-    if name.startswith("drag_resize"):
+    if name.startswith("drag_resize_top"):
+        # The page should move up with the window's top edge, frame by frame.
+        # Each frame: how far the title sits from where the edge says it
+        # should be (in quarter pixels). Windows keeps the old picture in
+        # place on screen while the edge moves, so a late repaint shows the
+        # page pushed down from the top, then snapping back.
+        top = (lift + app.tab_bar_height() + 4) // 4
+        box = (0, top, 260 // 4, top + 110 // 4)
+        offsets = []
+        for (_t, data), edge in zip(frames, tops):
+            expected = (edge - start_top) / 4
+            offsets.append(vertical_shift(data, first, fw, fh, box) - expected)
+        off = [value for value in offsets if abs(value) > 2.5]
+        extra += f" pushed_down_frames={len(off)} worst_offset={4 * max([abs(v) for v in offsets] or [0]):.0f}px"
+    elif name.startswith("drag_resize"):
         # Dragging the bottom-right corner must leave the top-left (the page
         # title) exactly where it was: any change there is the page jumping
         # or being stretched.
@@ -157,6 +177,27 @@ def run(name, action, seconds=2.2, lead=0.35):
                     print(f"PNG {name} {label} t={frames[index][0]:.2f} " + base64.b64encode(handle.read()).decode("ascii"))
     print(f"{name:18} frames={len(frames):4} changes={changes:3} flash={peak:+.3f} mixed_frames={len(mixed):3} distinct_mixed={len(distinct)}"
           + (f" differs_from_final={' '.join(where)}" if where else "") + extra)
+
+
+def vertical_shift(frame, before, w, h, box, reach=40):
+    """How far up or down (quarter pixels) the box's picture moved."""
+    x0, y0, x1, y1 = box
+    best = None
+    for dy in range(-reach, reach + 1):
+        total = count = 0
+        for y in range(y0, y1, 2):
+            ty = y + dy
+            if not (0 <= ty < h):
+                continue
+            for x in range(x0, x1, 2):
+                i, j = (ty * w + x) * 4, (y * w + x) * 4
+                total += abs(frame[i] - before[j]) + abs(frame[i + 1] - before[j + 1]) + abs(frame[i + 2] - before[j + 2])
+                count += 1
+        if count:
+            err = total / count
+            if best is None or err < best[0]:
+                best = (err, dy)
+    return best[1] if best else 0
 
 
 def best_fit(frame, before, w, h, box):
@@ -276,6 +317,16 @@ def drag_corner(dx, dy):
     return run_it
 
 
+def drag_top(dy, anchor=1):
+    def run_it():
+        # anchor=0: Windows' default handling, to compare with the app's own.
+        if hasattr(M.windowtheme, "ANCHOR_MODE"):
+            M.windowtheme.ANCHOR_MODE = anchor
+        rect = window_rect()
+        drag(rect.left + (rect.right - rect.left) // 2, rect.top + 2, 0, dy)
+    return run_it
+
+
 def drag_title():
     rect = window_rect()
     drag(rect.left + (rect.right - rect.left) // 3, rect.top + 12, 120, 70)
@@ -317,6 +368,11 @@ SCENARIOS = [
     ("after_resize_kept_dashboard", lambda: app.show_view("dashboard")),
     ("drag_resize_left", lambda: (lambda rect: drag(rect.left + 4, rect.top + (rect.bottom - rect.top) // 2, -120, 0))(window_rect())),
     ("after_resize_kept_library", lambda: app.show_view("library")),
+    ("drag_setup_top", lambda: (app.state("normal"), app.geometry(f"{app.winfo_screenwidth() * 3 // 5}x{app.winfo_screenheight() * 2 // 5}+20+{app.winfo_screenheight() // 3}"), app.update())),
+    ("drag_resize_top_grow", drag_top(-140)),
+    ("drag_resize_top_shrink", drag_top(140)),
+    ("drag_resize_top_grow_default", drag_top(-140, anchor=0)),
+    ("drag_resize_top_shrink_default", drag_top(140, anchor=0)),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),
     ("text_large", lambda: app.update_accessibility_preference("text_size", "Large")),
