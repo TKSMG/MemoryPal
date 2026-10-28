@@ -2427,6 +2427,7 @@ class MemoryPalApp(tk.Tk):
                 return
             windowtheme.apply_windows(self.window_handle(window), dark, caption=COLORS["bg"], text=COLORS["ink"], border=COLORS["line"])
             windowtheme.set_background_brush(self.window_handle(window), COLORS["bg"])
+            windowtheme.keep_content_top_left(self.window_handle(window))
             try:
                 fill = window.cget("bg") if window is not self else COLORS["bg"]
                 red, green, blue = (value // 257 for value in self.winfo_rgb(fill))

@@ -208,3 +208,68 @@ def fill_on_erase(hwnd, hex_color):
         return True
     except (AttributeError, OSError):
         return False
+
+
+WM_NCCALCSIZE = 0x0083
+WVR_VALIDRECTS = 0x0400
+_anchors = {}  # hwnd -> subclass callback; kept alive while installed
+ANCHOR_MODE = 1  # 0 leaves Windows' default (the probe compares both)
+
+
+def keep_content_top_left(hwnd):
+    """Keep the picture pinned to the window's top-left while an edge moves.
+
+    Dragging the top (or left) edge moves the window's top on screen. Unless
+    told otherwise, Windows and the compositor can keep the old picture
+    where it was on screen for a frame, so the page looked pushed down from
+    the top, then snapped back when it was redrawn. Saying exactly which old
+    pixels are still good, and that they belong at the new top-left, is how
+    native apps keep their content still under a moving edge. Returns True
+    if the hook is in place.
+    """
+    if not hwnd or not sys.platform.startswith("win"):
+        return False
+    if hwnd in _anchors:
+        return True
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        comctl32 = ctypes.windll.comctl32
+        LRESULT = ctypes.c_ssize_t
+        SUBCLASSPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM, ctypes.c_size_t, ctypes.c_size_t)
+        comctl32.DefSubclassProc.restype = LRESULT
+        comctl32.DefSubclassProc.argtypes = (wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM)
+        comctl32.SetWindowSubclass.argtypes = (wintypes.HWND, SUBCLASSPROC, ctypes.c_size_t, ctypes.c_size_t)
+        comctl32.RemoveWindowSubclass.argtypes = (wintypes.HWND, SUBCLASSPROC, ctypes.c_size_t)
+
+        class NCCALCSIZE_PARAMS(ctypes.Structure):
+            _fields_ = [("rgrc", wintypes.RECT * 3), ("lppos", ctypes.c_void_p)]
+
+        def procedure(window, message, wparam, lparam, _id, _data):
+            if message == WM_NCDESTROY:
+                callback = _anchors.pop(hwnd, None)
+                if callback is not None:
+                    comctl32.RemoveWindowSubclass(window, callback, 0x4D51)
+                    _retired.append(callback)
+            elif message == WM_NCCALCSIZE and wparam and lparam and ANCHOR_MODE:
+                params = NCCALCSIZE_PARAMS.from_address(lparam)
+                old = wintypes.RECT(params.rgrc[2].left, params.rgrc[2].top, params.rgrc[2].right, params.rgrc[2].bottom)
+                result = comctl32.DefSubclassProc(window, message, wparam, lparam)
+                new = params.rgrc[0]
+                width = min(old.right - old.left, new.right - new.left)
+                height = min(old.bottom - old.top, new.bottom - new.top)
+                if result == 0 and width > 0 and height > 0:
+                    params.rgrc[1] = wintypes.RECT(new.left, new.top, new.left + width, new.top + height)
+                    params.rgrc[2] = wintypes.RECT(old.left, old.top, old.left + width, old.top + height)
+                    return WVR_VALIDRECTS
+                return result
+            return comctl32.DefSubclassProc(window, message, wparam, lparam)
+
+        callback = SUBCLASSPROC(procedure)
+        if not comctl32.SetWindowSubclass(hwnd, callback, 0x4D51, 0):
+            return False
+        _anchors[hwnd] = callback
+        return True
+    except (AttributeError, OSError):
+        return False
