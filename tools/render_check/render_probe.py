@@ -149,12 +149,19 @@ def run(name, action, seconds=2.2, lead=0.35):
         # page pushed down from the top, then snapping back.
         top = (lift + app.tab_bar_height() + 4) // 4
         box = (0, top, 260 // 4, top + 110 // 4)
-        offsets = []
+        offsets, seen = [], []
+        edge0 = visible_top(first, fw, fh)
         for (_t, data), edge in zip(frames, tops):
             expected = (edge - start_top) / 4
-            offsets.append(vertical_shift(data, first, fw, fh, box) - expected)
+            shift = vertical_shift(data, first, fw, fh, box)
+            offsets.append(shift - expected)
+            # Against the edge as it is drawn on screen, which is what people
+            # see (the compositor can show the whole window late).
+            seen.append(shift - (visible_top(data, fw, fh) - edge0))
         off = [value for value in offsets if abs(value) > 2.5]
         extra += f" pushed_down_frames={len(off)} worst_offset={4 * max([abs(v) for v in offsets] or [0]):.0f}px"
+        off = [value for value in seen if abs(value) > 1.5]
+        extra += f" off_visible_edge_frames={len(off)} worst_vs_visible_edge={4 * max([abs(v) for v in seen] or [0]):.0f}px"
     elif name.startswith("drag_resize"):
         # Dragging the bottom-right corner must leave the top-left (the page
         # title) exactly where it was: any change there is the page jumping
@@ -177,6 +184,17 @@ def run(name, action, seconds=2.2, lead=0.35):
                     print(f"PNG {name} {label} t={frames[index][0]:.2f} " + base64.b64encode(handle.read()).decode("ascii"))
     print(f"{name:18} frames={len(frames):4} changes={changes:3} flash={peak:+.3f} mixed_frames={len(mixed):3} distinct_mixed={len(distinct)}"
           + (f" differs_from_final={' '.join(where)}" if where else "") + extra)
+
+
+def visible_top(frame, w, h, x=30):
+    """The first row (from the top) that isn't the desktop behind the window."""
+    i = x * 4
+    desk = frame[i:i + 3]
+    for y in range(h):
+        j = (y * w + x) * 4
+        if abs(frame[j] - desk[0]) + abs(frame[j + 1] - desk[1]) + abs(frame[j + 2] - desk[2]) > 40:
+            return y
+    return 0
 
 
 def vertical_shift(frame, before, w, h, box, reach=40):
