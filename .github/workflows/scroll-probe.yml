@@ -64,8 +64,8 @@ jobs:
             grep -v '^PNG \|^SERIES ' render.txt >> probe.txt || true
             grep '^PNG ' render.txt || true
           fi
+          grep '^SERIES ' render.txt >> probe.txt 2>/dev/null || true
           cat probe.txt
-          grep '^SERIES ' render.txt 2>/dev/null || true
           python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Scroll probe ${{ matrix.os }} ${{ matrix.variant }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
       - uses: actions/upload-artifact@v5
         if: ${{ always() && (!matrix.compare || inputs.compare) }}
