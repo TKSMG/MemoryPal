@@ -161,7 +161,8 @@ def run(name, action, seconds=2.2, lead=0.35):
         series = []
         for (t, data), edge in zip(frames, tops):
             series.append(f"{t - frames[0][0]:.2f}:{edge - start_top}/{4 * vertical_shift(data, first, fw, fh, box)}/{4 * (visible_top(data, fw, fh) - edge0)}")
-        print(f"SERIES {name} desk={tuple(first[120:123])} edge0={edge0} " + " ".join(series))
+        if name.endswith("_grow") or name.endswith("_grow_default"):
+            print(f"SERIES {name} desk={tuple(first[120:123])} edge0={edge0} " + " ".join(series))
         off = [value for value in offsets if abs(value) > 2.5]
         extra += f" pushed_down_frames={len(off)} worst_offset={4 * max([abs(v) for v in offsets] or [0]):.0f}px"
         off = [value for value in seen if abs(value) > 1.5]

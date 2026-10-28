@@ -11,6 +11,10 @@ on:
         description: "Also measure main"
         type: boolean
         default: false
+      render:
+        description: "Only these render scenarios (name starts, space separated)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -56,12 +60,12 @@ jobs:
           fi
           PROBE_OUT=probe-out python tools/render_check/scroll_probe.py stats settings library >> probe.txt 2>&1 || true
           if [ "$RUNNER_OS" = "Windows" ]; then
-            PRINT_PNG=1 python tools/render_check/render_probe.py render-out > render.txt 2>&1 || true
+            PRINT_PNG=1 python tools/render_check/render_probe.py render-out ${{ inputs.render }} > render.txt 2>&1 || true
             grep -v '^PNG \|^SERIES ' render.txt >> probe.txt || true
-            grep '^SERIES ' render.txt || true
             grep '^PNG ' render.txt || true
           fi
           cat probe.txt
+          grep '^SERIES ' render.txt 2>/dev/null || true
           python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Scroll probe ${{ matrix.os }} ${{ matrix.variant }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
       - uses: actions/upload-artifact@v5
         if: ${{ always() && (!matrix.compare || inputs.compare) }}
