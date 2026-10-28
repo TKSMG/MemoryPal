@@ -57,7 +57,8 @@ jobs:
           PROBE_OUT=probe-out python tools/render_check/scroll_probe.py stats settings library >> probe.txt 2>&1 || true
           if [ "$RUNNER_OS" = "Windows" ]; then
             PRINT_PNG=1 python tools/render_check/render_probe.py render-out > render.txt 2>&1 || true
-            grep -v '^PNG ' render.txt >> probe.txt || true
+            grep -v '^PNG \|^SERIES ' render.txt >> probe.txt || true
+            grep '^SERIES ' render.txt || true
             grep '^PNG ' render.txt || true
           fi
           cat probe.txt
