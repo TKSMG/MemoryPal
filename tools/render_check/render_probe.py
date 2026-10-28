@@ -163,7 +163,7 @@ def run(name, action, seconds=2.2, lead=0.35):
             if not 0.45 < t - frames[0][0] < 1.9:
                 continue
             series.append(f"{edge - start_top}/{4 * vertical_shift(data, first, fw, fh, box)}/{4 * (visible_top(data, fw, fh) - edge0)}")
-        if name.endswith("_grow") or name.endswith("_grow_default"):
+        if name.endswith("_grow"):
             print(f"SERIES {name} desk={tuple(first[120:123])} edge0={edge0} " + " ".join(series))
         off = [value for value in offsets if abs(value) > 2.5]
         extra += f" pushed_down_frames={len(off)} worst_offset={4 * max([abs(v) for v in offsets] or [0]):.0f}px"
@@ -342,11 +342,8 @@ def drag_corner(dx, dy):
     return run_it
 
 
-def drag_top(dy, anchor=1):
+def drag_top(dy):
     def run_it():
-        # anchor=0: Windows' default handling, to compare with the app's own.
-        if hasattr(app, "RELAYOUT_DURING_DRAG"):
-            app.RELAYOUT_DURING_DRAG = bool(anchor)
         rect = window_rect()
         drag(rect.left + (rect.right - rect.left) // 2, rect.top + 2, 0, dy)
     return run_it
@@ -396,8 +393,6 @@ SCENARIOS = [
     ("drag_setup_top", lambda: (app.state("normal"), app.geometry(f"{app.winfo_screenwidth() * 3 // 5}x{app.winfo_screenheight() * 2 // 5}+20+{app.winfo_screenheight() // 3}"), app.update())),
     ("drag_resize_top_grow", drag_top(-140)),
     ("drag_resize_top_shrink", drag_top(140)),
-    ("drag_resize_top_grow_default", drag_top(-140, anchor=0)),
-    ("drag_resize_top_shrink_default", drag_top(140, anchor=0)),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),
     ("text_large", lambda: app.update_accessibility_preference("text_size", "Large")),
