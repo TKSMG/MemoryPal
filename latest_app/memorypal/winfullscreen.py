@@ -91,6 +91,22 @@ def _api():
     return ctypes, user32, get_long, set_long, WINDOWPLACEMENT, MONITORINFO
 
 
+def monitor_rect(hwnd):
+    """(left, top, right, bottom) of the monitor the window is on, or None."""
+    if not hwnd or not sys.platform.startswith("win"):
+        return None
+    try:
+        ctypes, user32, _get_long, _set_long, _placement, MONITORINFO = _api()
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        if not user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ctypes.byref(info)):
+            return None
+        area = info.rcMonitor
+        return area.left, area.top, area.right, area.bottom
+    except (AttributeError, OSError, ValueError):
+        return None
+
+
 def enter(hwnd):
     """Make the window cover its monitor. Returns what `leave` needs, or None."""
     if not hwnd or not sys.platform.startswith("win"):

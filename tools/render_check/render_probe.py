@@ -131,7 +131,40 @@ def run(name, action, seconds=2.2, lead=0.35):
         png(os.path.join(OUT, f"{name}-mixed{n}.png"), fw, fh, frames[index][1])
     where = [f"{frames[index][0] - frames[0][0]:.2f}s:{changed_box(frames[index][1], last, fw, fh)}" for index in distinct[:3]]
     png(os.path.join(OUT, f"{name}-after.png"), fw, fh, last)
-    if name.startswith("fullscreen") and distinct:
+    if name.startswith("fullscreen"):
+        # With the fade, every frame should be the old or the new picture
+        # blended with the page colour; anything else is a glitch getting
+        # through (shifted, half drawn, desktop showing).
+        bg_hex = M.COLORS["bg"].lstrip("#")
+        bg = (int(bg_hex[4:6], 16), int(bg_hex[2:4], 16), int(bg_hex[0:2], 16))  # BGR like the frames
+        worst_off = (0.0, 0.0)
+        worst_index = 0
+        off_frames = 0
+        for frame_index, (t, data) in enumerate(frames):
+            best = None
+            for ref in (first, last):
+                num = den = 0.0
+                samples = []
+                for i in range(0, len(data), 4 * 13):
+                    for c in range(3):
+                        d, r = data[i + c] - ref[i + c], bg[c] - ref[i + c]
+                        num += d * r
+                        den += r * r
+                        samples.append((d, r))
+                a = max(0.0, min(1.0, num / den)) if den else 0.0
+                residual = sum(abs(d - a * r) for d, r in samples) / max(1, len(samples))
+                if best is None or residual < best:
+                    best = residual
+            if best > 3.0:
+                off_frames += 1
+            if best > worst_off[0]:
+                worst_off = (best, t - frames[0][0])
+                worst_index = frame_index
+        extra_fade = f" not_a_fade_frames={off_frames} worst_residual={worst_off[0]:.1f}@{worst_off[1]:.2f}s"
+    else:
+        extra_fade = ""
+        worst_off, worst_index = (0.0, 0.0), 0
+    if name.startswith("fullscreen") and worst_off[0] > 3.0:
         # A coarse colour map of each in-between frame (artifacts can't be
         # fetched): B blue, W white, L light, M mid, D dark, K near black.
         def cls(r, g, b):
@@ -139,7 +172,7 @@ def run(name, action, seconds=2.2, lead=0.35):
                 return "B"
             v = (r + g + b) / 3
             return "W" if v > 235 else "L" if v > 170 else "M" if v > 90 else "D" if v > 25 else "K"
-        shots = [("before", 0)] + [(f"mixed{n}", index) for n, index in enumerate(distinct[:3])] + [("after", len(frames) - 1)]
+        shots = [("before", 0), ("worst", worst_index), ("after", len(frames) - 1)]
         for label, index in shots:
             data = frames[index][1]
             blue = sum(1 for i in range(0, len(data), 4 * 7) if data[i] > data[i + 2] + 40 and data[i] > data[i + 1] + 15)
@@ -152,7 +185,7 @@ def run(name, action, seconds=2.2, lead=0.35):
                     i = (y * fw + x) * 4
                     row += cls(data[i + 2], data[i + 1], data[i])
                 print(f"MAP   {row}")
-    extra = ""
+    extra = extra_fade
     if name.startswith("fullscreen") and distinct:
         # What the in-between frame is: the old or the new picture, moved?
         m = frames[distinct[0]][1]
