@@ -20,7 +20,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import MemoryPalDesktop as M  # noqa: E402
 from memorypal.models import Card  # noqa: E402
 
+ALL_VIEWS = ["dashboard", "study", "create", "practice", "training", "elder", "stats", "decks", "plan", "focus", "cuelab",
+             "capture", "review", "testing", "quiz", "ainotes", "talkback", "shuffle", "tools", "games", "feedback",
+             "settings", "library"]
 VIEWS = sys.argv[1:] or ["dashboard", "library", "stats"]
+if VIEWS == ["all"]:
+    VIEWS = ALL_VIEWS
 
 M.enable_dpi_awareness()
 app = M.MemoryPalApp()
@@ -280,6 +285,10 @@ def tear_check(view):
 
 
 for view in VIEWS:
-    run(view)
-    tear_check(view)
+    try:
+        run(view)
+        if scroll_frame() is not None:
+            tear_check(view)
+    except Exception as exc:  # one page failing must not hide the others
+        print(f"{view}: probe failed: {exc!r}")
 app.destroy()
