@@ -131,14 +131,27 @@ def run(name, action, seconds=2.2, lead=0.35):
         png(os.path.join(OUT, f"{name}-mixed{n}.png"), fw, fh, frames[index][1])
     where = [f"{frames[index][0] - frames[0][0]:.2f}s:{changed_box(frames[index][1], last, fw, fh)}" for index in distinct[:3]]
     png(os.path.join(OUT, f"{name}-after.png"), fw, fh, last)
-    if os.environ.get("PRINT_PNG") and name.startswith("fullscreen") and distinct:
-        import base64
+    if name.startswith("fullscreen") and distinct:
+        # A coarse colour map of each in-between frame (artifacts can't be
+        # fetched): B blue, W white, L light, M mid, D dark, K near black.
+        def cls(r, g, b):
+            if b > r + 40 and b > g + 15:
+                return "B"
+            v = (r + g + b) / 3
+            return "W" if v > 235 else "L" if v > 170 else "M" if v > 90 else "D" if v > 25 else "K"
         shots = [("before", 0)] + [(f"mixed{n}", index) for n, index in enumerate(distinct[:3])] + [("after", len(frames) - 1)]
         for label, index in shots:
-            path = os.path.join(OUT, f"{name}-{label}-print.png")
-            png(path, fw, fh, frames[index][1])
-            with open(path, "rb") as handle:
-                print(f"PNG {name} {label} t={frames[index][0] - frames[0][0]:.2f} " + base64.b64encode(handle.read()).decode("ascii"))
+            data = frames[index][1]
+            blue = sum(1 for i in range(0, len(data), 4 * 7) if data[i] > data[i + 2] + 40 and data[i] > data[i + 1] + 15)
+            print(f"MAP {name} {label} t={frames[index][0] - frames[0][0]:.2f} blue={blue / max(1, len(data) // 28):.3f}")
+            for gy in range(14):
+                y = int((gy + 0.5) * fh / 14)
+                row = ""
+                for gx in range(40):
+                    x = int((gx + 0.5) * fw / 40)
+                    i = (y * fw + x) * 4
+                    row += cls(data[i + 2], data[i + 1], data[i])
+                print(f"MAP   {row}")
     extra = ""
     if name.startswith("fullscreen") and distinct:
         # What the in-between frame is: the old or the new picture, moved?
