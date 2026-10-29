@@ -4,8 +4,8 @@
   <!-- Geometry matches latest_app/memorypal/icon.py (LOGO_* constants) on a 1024 grid. -->
   <defs>
     <linearGradient id="mp-bg" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#3d64f2"/>
-      <stop offset="1" stop-color="#2a40c4"/>
+      <stop offset="0" stop-color="#1f7a66"/>
+      <stop offset="1" stop-color="#125c4c"/>
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" rx="230.4" fill="url(#mp-bg)"/>

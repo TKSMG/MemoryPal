@@ -62,8 +62,8 @@ LOGO_BOTTOM = 0.710                      # y where the legs end (round caps)
 LOGO_STROKE = 0.115
 LOGO_DOT = (0.775, 0.235, 0.066)         # amber recall dot: x, y, radius
 LOGO_COLORS = {
-    "top": "#3d64f2",
-    "bottom": "#2a40c4",
+    "top": "#1f7a66",
+    "bottom": "#125c4c",
     "mark": "#ffffff",
     "dot": "#ffb020",
 }
@@ -164,7 +164,7 @@ def render_icon_pixels(size, scale=None):
 
 
 MASTER_SIZE = 256
-MASTER_CACHE_VERSION = 3  # bump whenever the logo artwork changes
+MASTER_CACHE_VERSION = 4  # bump whenever the logo artwork changes
 
 
 def master_cache_path():
