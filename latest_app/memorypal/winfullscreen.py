@@ -30,7 +30,12 @@ SWP_NOMOVE = 0x0002
 SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
 SWP_FRAMECHANGED = 0x0020
+SWP_NOCOPYBITS = 0x0100
 SWP_NOOWNERZORDER = 0x0200
+
+# Experiment switch (render probe): don't let Windows copy the old client
+# pixels to the new client position when the frame changes.
+NO_COPY_BITS = False
 
 FRAME_STYLE = WS_CAPTION | WS_THICKFRAME
 FRAME_EXSTYLE = WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE
@@ -39,6 +44,10 @@ FRAME_EXSTYLE = WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_E
 def fullscreen_styles(style, exstyle):
     """The window styles while full screen: no caption, sizing frame or edges."""
     return style & ~FRAME_STYLE, exstyle & ~FRAME_EXSTYLE
+
+
+def _copy_flag():
+    return SWP_NOCOPYBITS if NO_COPY_BITS else 0
 
 
 def _api():
@@ -95,7 +104,7 @@ def enter(hwnd):
         set_long(hwnd, GWL_EXSTYLE, full_exstyle)
         area = info.rcMonitor
         user32.SetWindowPos(hwnd, None, area.left, area.top, area.right - area.left, area.bottom - area.top,
-                            SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED)
+                            SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | _copy_flag())
         return {"style": style, "exstyle": exstyle, "placement": placement}
     except (AttributeError, OSError, ValueError):
         return None
@@ -106,12 +115,24 @@ def leave(hwnd, saved):
     if not hwnd or not saved or not sys.platform.startswith("win"):
         return False
     try:
-        ctypes, user32, _get_long, set_long, _placement, _info = _api()
+        ctypes, user32, _get_long, set_long, _placement, MONITORINFO = _api()
         set_long(hwnd, GWL_STYLE, saved["style"])
         set_long(hwnd, GWL_EXSTYLE, saved["exstyle"])
+        placement = saved["placement"]
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        if NO_COPY_BITS and placement.showCmd == 1 and user32.GetMonitorInfoW(
+                user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ctypes.byref(info)):
+            # One move straight to the saved place, frame and size together.
+            # The saved place is in work-area coordinates.
+            rect = placement.rcNormalPosition
+            dx, dy = info.rcWork.left - info.rcMonitor.left, info.rcWork.top - info.rcMonitor.top
+            user32.SetWindowPos(hwnd, None, rect.left + dx, rect.top + dy, rect.right - rect.left, rect.bottom - rect.top,
+                                SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOCOPYBITS)
+            return True
         user32.SetWindowPlacement(hwnd, ctypes.byref(saved["placement"]))
         user32.SetWindowPos(hwnd, None, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED)
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | _copy_flag())
         return True
     except (AttributeError, OSError, KeyError):
         return False
