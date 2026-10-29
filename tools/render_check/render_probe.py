@@ -131,6 +131,14 @@ def run(name, action, seconds=2.2, lead=0.35):
         png(os.path.join(OUT, f"{name}-mixed{n}.png"), fw, fh, frames[index][1])
     where = [f"{frames[index][0] - frames[0][0]:.2f}s:{changed_box(frames[index][1], last, fw, fh)}" for index in distinct[:3]]
     png(os.path.join(OUT, f"{name}-after.png"), fw, fh, last)
+    if os.environ.get("PRINT_PNG") and name.startswith("fullscreen") and distinct:
+        import base64
+        shots = [("before", 0)] + [(f"mixed{n}", index) for n, index in enumerate(distinct[:3])] + [("after", len(frames) - 1)]
+        for label, index in shots:
+            path = os.path.join(OUT, f"{name}-{label}-print.png")
+            png(path, fw, fh, frames[index][1])
+            with open(path, "rb") as handle:
+                print(f"PNG {name} {label} t={frames[index][0] - frames[0][0]:.2f} " + base64.b64encode(handle.read()).decode("ascii"))
     extra = ""
     if name.startswith("fullscreen") and distinct:
         # What the in-between frame is: the old or the new picture, moved?
