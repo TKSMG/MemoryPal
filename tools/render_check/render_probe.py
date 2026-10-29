@@ -132,6 +132,10 @@ def run(name, action, seconds=2.2, lead=0.35):
     where = [f"{frames[index][0] - frames[0][0]:.2f}s:{changed_box(frames[index][1], last, fw, fh)}" for index in distinct[:3]]
     png(os.path.join(OUT, f"{name}-after.png"), fw, fh, last)
     extra = ""
+    if LAST_TIMING:
+        extra += f" busy={LAST_TIMING.pop():.0f}ms"
+        intervals = [b[0] - a[0] for a, b in zip(frames, frames[1:])]
+        extra += f" frame_interval={1000 * sum(intervals) / max(1, len(intervals)):.0f}ms"
     if name.startswith("drag_"):
         # The longest the window went without following the mouse.
         times = [started] + [entry[0] for entry in CONFIGURES]
@@ -342,6 +346,18 @@ def drag_corner(dx, dy):
     return run_it
 
 
+LAST_TIMING = []
+
+
+def timed(action):
+    # How long the change keeps the app busy (the old picture stays up meanwhile).
+    def run_it():
+        mark = time.perf_counter()
+        action()
+        LAST_TIMING.append(1000 * (time.perf_counter() - mark))
+    return run_it
+
+
 def drag_top(dy):
     def run_it():
         rect = window_rect()
@@ -370,8 +386,10 @@ SCENARIOS = [
     ("idle_prebuild", prebuild_now),
     ("wheel_scroll", wheel_burst),
     ("drag_scroll", drag_burst),
-    ("fullscreen_on", app.toggle_true_fullscreen),
-    ("fullscreen_off", app.toggle_true_fullscreen),
+    ("fullscreen_on", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_off", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_on_again", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_off_again", timed(app.toggle_true_fullscreen)),
     ("resize", resize),
     ("restore", lambda: app.state("normal")),
     ("shrink", lambda: app.geometry(f"{app.winfo_screenwidth() * 2 // 3}x{app.winfo_screenheight() * 2 // 3}+0+0")),
