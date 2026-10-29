@@ -76,6 +76,9 @@ export class MemoryAdapter implements StorageAdapter {
   }
 }
 
+/** How long a change waits to be written with any that follow it. */
+export const WRITE_DELAY_MS = 400;
+
 export const MAX_DAILY_GOAL = 500;
 export const MAX_INTERVAL = 365;
 
@@ -263,8 +266,15 @@ export class MemoryStore {
   version = 0;
 
   private listeners = new Set<() => void>();
+  private writeTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private adapter: StorageAdapter = new MemoryAdapter()) {
+  /**
+   * With `deferWrites` (the app), a change updates the screens straight away
+   * and reaches storage a moment later, in one write however many changes
+   * came in between, so a tap never waits on the disk. `flush()` writes
+   * anything still waiting; the app calls it whenever it leaves the screen.
+   */
+  constructor(private adapter: StorageAdapter = new MemoryAdapter(), private options: { deferWrites?: boolean } = {}) {
     this.load();
   }
 
@@ -336,13 +346,32 @@ export class MemoryStore {
 
   save() {
     this.loadProblem = '';
+    if (this.options.deferWrites) this.queueWrite();
+    else this.write();
+    this.version += 1;
+    this.listeners.forEach((listener) => listener());
+  }
+
+  /** Write any change that hasn't reached storage yet. */
+  flush() {
+    if (this.writeTimer) this.write();
+  }
+
+  private queueWrite() {
+    if (this.writeTimer) return;
+    this.writeTimer = setTimeout(() => this.write(), WRITE_DELAY_MS);
+  }
+
+  private write() {
+    if (this.writeTimer) clearTimeout(this.writeTimer);
+    this.writeTimer = null;
     try {
-      this.adapter.save(JSON.stringify(this.payload(), null, 2));
+      // Compact: indenting made the saved text about a third bigger, and it
+      // is written on every change.
+      this.adapter.save(JSON.stringify(this.payload()));
     } catch {
       // storage full or unavailable; the change stays in memory
     }
-    this.version += 1;
-    this.listeners.forEach((listener) => listener());
   }
 
   subscribe(listener: () => void): () => void {

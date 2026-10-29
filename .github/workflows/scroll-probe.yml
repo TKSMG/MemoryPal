@@ -1,9 +1,9 @@
 name: Scroll probe
 
 # Run by hand (Actions > Scroll probe > Run workflow) after changing how
-# pages scroll, resize or switch: it measures frame pacing, torn frames and
-# flashes on real Windows and Mac machines and writes the numbers as a
-# notice on the run. "compare" also measures main, side by side.
+# pages scroll, resize or switch: it measures start and page-open times,
+# frame pacing, torn frames and flashes on real Windows and Mac machines and
+# writes the numbers as a notice on the run. "compare" also measures main, side by side.
 on:
   workflow_dispatch:
     inputs:
@@ -11,6 +11,10 @@ on:
         description: "Also measure main"
         type: boolean
         default: false
+      render:
+        description: "Only these render scenarios (name starts, space separated)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -47,10 +51,20 @@ jobs:
         shell: bash
         run: |
           mkdir -p probe-out render-out
-          PROBE_OUT=probe-out python tools/render_check/scroll_probe.py stats settings library > probe.txt 2>&1 || true
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            python tools/render_check/render_probe.py render-out >> probe.txt 2>&1 || true
+          if [ "${{ matrix.variant }}" = "branch" ]; then
+            # Main's app on this same machine too: runners differ in speed.
+            git fetch --depth=1 origin main && mkdir -p main_app && git archive FETCH_HEAD latest_app | tar -x -C main_app
+            SPEED_PROFILE=1 python tools/render_check/speed_probe.py latest_app main_app/latest_app > probe.txt 2>&1 || true
+          else
+            python tools/render_check/speed_probe.py > probe.txt 2>&1 || true
           fi
+          PROBE_OUT=probe-out python tools/render_check/scroll_probe.py stats settings library >> probe.txt 2>&1 || true
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            PRINT_PNG=1 python tools/render_check/render_probe.py render-out ${{ inputs.render }} > render.txt 2>&1 || true
+            grep -v '^PNG \|^SERIES ' render.txt >> probe.txt || true
+            grep '^PNG ' render.txt || true
+          fi
+          grep '^SERIES ' render.txt >> probe.txt 2>/dev/null || true
           cat probe.txt
           python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Scroll probe ${{ matrix.os }} ${{ matrix.variant }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
       - uses: actions/upload-artifact@v5

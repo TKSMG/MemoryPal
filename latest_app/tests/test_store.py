@@ -251,5 +251,16 @@ class DeckDetailsTests(StoreTestCase):
         self.assertEqual([(info.id, info.about) for info in self.store.deck_infos], [("A", "second")])
 
 
+class RevisionTests(StoreTestCase):
+    def test_every_save_and_synced_change_moves_the_revision(self):
+        store = MemoryStore()
+        start = store.revision
+        store.save()
+        self.assertGreater(store.revision, start)
+        saved = store.revision
+        store.apply_saved_payload(store.payload())
+        self.assertGreater(store.revision, saved)
+
+
 if __name__ == "__main__":
     unittest.main()
