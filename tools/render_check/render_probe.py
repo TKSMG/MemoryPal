@@ -370,6 +370,13 @@ def drag_corner(dx, dy):
     return run_it
 
 
+def set_transitions(enabled):
+    import ctypes
+
+    value = ctypes.c_int(0 if enabled else 1)
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(ctypes.c_void_p(app.window_handle(app)), 3, ctypes.byref(value), 4)  # DWMWA_TRANSITIONS_FORCEDISABLED
+
+
 LAST_TIMING = []
 
 
@@ -414,6 +421,10 @@ SCENARIOS = [
     ("fullscreen_off", timed(app.toggle_true_fullscreen)),
     ("fullscreen_on_again", timed(app.toggle_true_fullscreen)),
     ("fullscreen_off_again", timed(app.toggle_true_fullscreen)),
+    # Experiment: the same with the compositor's window animations turned off.
+    ("fullscreen_notrans_on", timed(lambda: (set_transitions(False), app.toggle_true_fullscreen()))),
+    ("fullscreen_notrans_off", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_notrans_restore", lambda: set_transitions(True)),
     ("resize", resize),
     ("restore", lambda: app.state("normal")),
     ("shrink", lambda: app.geometry(f"{app.winfo_screenwidth() * 2 // 3}x{app.winfo_screenheight() * 2 // 3}+0+0")),
