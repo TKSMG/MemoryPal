@@ -1336,8 +1336,107 @@ class MemoryPalApp(tk.Tk):
         menubar.add_cascade(label="Help", menu=help_menu)
         self.configure(menu=menubar)
 
+    # Full screen on Windows fades through the page colour, as Firefox and
+    # macOS do: the window's frame, size and every page's layout all change
+    # at once, and Windows composes the screen while that is under way, so
+    # one or two half-switched frames (shifted, or showing the desktop) got
+    # through however the switch was ordered. A cover over the monitor hides
+    # them and turns the switch into one deliberate fade.
+    FULLSCREEN_FADE_OUT_MS = 90
+    FULLSCREEN_FADE_IN_MS = 150
+
     def toggle_true_fullscreen(self):
         """F11 (Control-Command-F on a Mac): the system's own full screen."""
+        if getattr(self, "_fullscreen_fading", False):
+            return
+        cover = self.fullscreen_cover()
+        if cover is None:
+            self.switch_fullscreen()
+            return
+        self._fullscreen_fading = True
+        focus = self.focus_get()
+
+        def finish():
+            try:
+                cover.withdraw()
+            except tk.TclError:
+                pass
+            self._fullscreen_fading = False
+            try:
+                if focus is not None and focus.winfo_exists():
+                    focus.focus_force()
+            except (tk.TclError, KeyError):
+                pass
+
+        def reveal():
+            # Two frames for the finished window to reach the screen under
+            # the cover, then fade the cover away.
+            self.after(34, lambda: self.fade_cover(cover, 1.0, 0.0, self.FULLSCREEN_FADE_IN_MS, finish))
+
+        def switch():
+            try:
+                self.switch_fullscreen()
+            finally:
+                self.place_cover(cover)
+                self.update_idletasks()
+                reveal()
+
+        self.fade_cover(cover, 0.0, 1.0, self.FULLSCREEN_FADE_OUT_MS, switch)
+
+    def fullscreen_cover(self):
+        """A borderless window over the monitor, in the page colour, shown
+        see-through (Windows only; None elsewhere or if it can't be made)."""
+        if not sys.platform.startswith("win"):
+            return None
+        try:
+            if not self.winfo_viewable():
+                return None
+            cover = getattr(self, "_fullscreen_cover", None)
+            if cover is None or not cover.winfo_exists():
+                cover = tk.Toplevel(self, bd=0, highlightthickness=0)
+                cover.withdraw()
+                cover.overrideredirect(True)
+                cover.attributes("-alpha", 0.0)
+                cover.attributes("-topmost", True)
+                self._fullscreen_cover = cover
+            cover.configure(bg=COLORS["bg"], cursor="")
+            cover.attributes("-alpha", 0.0)
+            if not self.place_cover(cover):
+                return None
+            cover.deiconify()
+            cover.lift()
+            cover.update_idletasks()
+            return cover
+        except tk.TclError:
+            return None
+
+    def place_cover(self, cover):
+        rect = winfullscreen.monitor_rect(self.window_handle(self))
+        if rect is None:
+            return False
+        left, top, right, bottom = rect
+        cover.geometry(f"{right - left}x{bottom - top}+{left}+{top}")
+        return True
+
+    def fade_cover(self, cover, start, end, ms, done):
+        """Animate the cover's opacity by the clock (not per step), eased."""
+        began = time.perf_counter()
+
+        def step():
+            t = min(1.0, (time.perf_counter() - began) * 1000.0 / ms)
+            eased = t * t * (3 - 2 * t)
+            try:
+                cover.attributes("-alpha", start + (end - start) * eased)
+            except tk.TclError:
+                t = 1.0
+            if t < 1.0:
+                self.after(8, step)
+            else:
+                done()
+
+        step()
+
+    def switch_fullscreen(self):
         target = not self.is_fullscreen
         failed = []
 
