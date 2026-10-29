@@ -132,6 +132,30 @@ def run(name, action, seconds=2.2, lead=0.35):
     where = [f"{frames[index][0] - frames[0][0]:.2f}s:{changed_box(frames[index][1], last, fw, fh)}" for index in distinct[:3]]
     png(os.path.join(OUT, f"{name}-after.png"), fw, fh, last)
     extra = ""
+    if name.startswith("fullscreen") and distinct:
+        # What the in-between frame is: the old or the new picture, moved?
+        m = frames[distinct[0]][1]
+        box = (2, 2, 60, 30)
+        for label, ref in (("old", first), ("new", last)):
+            best = None
+            for dy in range(-14, 15):
+                for dx in range(-14, 15):
+                    total = count = 0
+                    for y in range(box[1], box[3], 2):
+                        for x in range(box[0], box[2], 2):
+                            sx, sy = x - dx, y - dy
+                            if 0 <= sx < fw and 0 <= sy < fh:
+                                i, j = (y * fw + x) * 4, (sy * fw + sx) * 4
+                                total += abs(m[i] - ref[j]) + abs(m[i + 1] - ref[j + 1]) + abs(m[i + 2] - ref[j + 2])
+                                count += 1
+                    err = total / max(1, count) / 3
+                    if best is None or err < best[0]:
+                        best = (err, dx, dy)
+            extra += f" mid_vs_{label}=shift{4 * best[1]},{4 * best[2]}px,err{best[0]:.1f}"
+        # How much of it is plain background (nothing drawn yet).
+        bg = m[(fh // 2 * fw + fw // 2) * 4:(fh // 2 * fw + fw // 2) * 4 + 3]
+        rows = [y for y in range(0, fh, 4) if all(abs(m[(y * fw + x) * 4] - last[(y * fw + x) * 4]) < 10 for x in range(0, fw, 8))]
+        extra += f" mid_rows_matching_new={len(rows)}/{len(range(0, fh, 4))}"
     if LAST_TIMING:
         extra += f" busy={LAST_TIMING.pop():.0f}ms"
         intervals = [b[0] - a[0] for a, b in zip(frames, frames[1:])]
