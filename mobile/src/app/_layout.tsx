@@ -71,6 +71,7 @@ function RootStack() {
         <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="review" options={{ title: 'Review' }} />
         <Stack.Screen name="talkback" options={{ title: 'Talk-back study' }} />
+        <Stack.Screen name="talk-live" options={{ title: 'Live tutor' }} />
         <Stack.Screen name="quiz" options={{ title: 'Quick quiz' }} />
         <Stack.Screen name="add" options={{ title: 'New set', presentation: 'modal', headerRight: () => <SheetButton label="Done" bold /> }} />
         <Stack.Screen name="card/[id]" options={{ title: 'Edit card', presentation: 'modal', headerLeft: () => <SheetButton label="Cancel" /> }} />
