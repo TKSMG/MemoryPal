@@ -485,6 +485,8 @@ SCENARIOS = [
     # Pages kept from before the resize must show at the new size at once.
     ("after_resize_kept_stats", lambda: app.show_view("stats")),
     ("after_resize_kept_dashboard", lambda: app.show_view("dashboard")),
+    ("drag_resize_bottom_grow", lambda: (lambda rect: drag(rect.left + (rect.right - rect.left) // 2, rect.bottom - 4, 0, 160))(window_rect())),
+    ("drag_resize_bottom_shrink", lambda: (lambda rect: drag(rect.left + (rect.right - rect.left) // 2, rect.bottom - 4, 0, -160))(window_rect())),
     ("drag_resize_left", lambda: (lambda rect: drag(rect.left + 4, rect.top + (rect.bottom - rect.top) // 2, -120, 0))(window_rect())),
     ("after_resize_kept_library", lambda: app.show_view("library")),
     ("drag_setup_top", lambda: (app.state("normal"), app.geometry(f"{app.winfo_screenwidth() * 3 // 5}x{app.winfo_screenheight() * 2 // 5}+20+{app.winfo_screenheight() // 3}"), app.update())),
