@@ -18,6 +18,7 @@ A question is a plain dict (see make_question). build_quiz picks the cards
 and types for a whole round.
 """
 
+import functools
 import re
 
 from .core import STOP_WORDS, comparable_text, hangman_hint, normalize_space, split_study_bits, strip_list_marker, today_iso, token_words
@@ -176,15 +177,22 @@ def cloze_words(text, like):
     A word that starts a sentence takes the blanked word's capitalisation,
     so a capital letter gives nothing away; other capitals (names) stay.
     """
+    return list(_cloze_words(text, bool(re.match(r"[A-Z]", like))))
+
+
+# A round looks through every other card's text for each question, so the
+# same texts are cleaned again and again; these remember the results.
+@functools.lru_cache(maxsize=4096)
+def _cloze_words(text, capital):
     out = []
     for match in WORD_RE.finditer(text):
         word = match.group(0)
         if word.lower() in STOP_WORDS or word.lower() in CLOZE_FILLER or (len(word) < 4 and not re.search(r"[0-9]", word)):
             continue
         if match.start() == 0 or re.search(r"[.!?]\s+$", text[: match.start()]):
-            word = (word[:1].upper() if re.match(r"[A-Z]", like) else word[:1].lower()) + word[1:]
+            word = (word[:1].upper() if capital else word[:1].lower()) + word[1:]
         out.append(word)
-    return out
+    return tuple(out)
 
 
 def blank_out(text, start, end):
@@ -297,12 +305,11 @@ def pick_distractors(answer, candidates, count, rng, deck=""):
     seen = {comparable_text(answer)}
     tiers = [[], [], [], []]
     for text, source_deck in candidates:
-        text = normalize_space(text)
-        key = comparable_text(text)
+        text, key, text_kind = _distractor_facts(text)
         if not key or key in seen:
             continue
         seen.add(key)
-        same_kind = answer_kind(text) == kind
+        same_kind = text_kind == kind
         same_deck = source_deck == deck
         tiers[0 if same_deck and same_kind else 1 if same_kind else 2 if same_deck else 3].append(text)
     picked = []
@@ -310,6 +317,12 @@ def pick_distractors(answer, candidates, count, rng, deck=""):
         rng.shuffle(tier)
         picked.extend(tier)
     return picked[:count]
+
+
+@functools.lru_cache(maxsize=4096)
+def _distractor_facts(text):
+    text = normalize_space(text)
+    return text, comparable_text(text), answer_kind(text)
 
 
 def with_answer(answer, distractors, rng):

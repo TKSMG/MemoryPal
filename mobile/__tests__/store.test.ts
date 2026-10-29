@@ -2,7 +2,7 @@ import { addDays, todayIso } from '../src/core/dates';
 import { Capture, newCard } from '../src/core/models';
 import { addTechniqueHooks, deleteDeck, renameDeck, techniqueItems } from '../src/features/decks';
 import { buildMultiDayPlan, MAX_PLAN_DAYS, planForToday } from '../src/core/planning';
-import { MemoryAdapter, MemoryStore } from '../src/core/store';
+import { MemoryAdapter, MemoryStore, WRITE_DELAY_MS } from '../src/core/store';
 
 function fresh() {
   const adapter = new MemoryAdapter();
@@ -192,5 +192,36 @@ describe('set details and notes', () => {
     const hooks = Object.fromEntries(reload().cards.map((card) => [card.front, card.association]));
     expect(hooks).toEqual({ 'Pacemaker?': 'Acronym SL: S is for SA node.', 'Biggest chamber?': 'Thick wall\nAcronym SL: L is for Left ventricle.', x: '' });
     expect(addTechniqueHooks(store, 'Heart', 'acronym')).toBe(0);
+  });
+});
+
+describe('deferred writes', () => {
+  afterEach(() => jest.useRealTimers());
+
+  test('changes show at once and reach storage in one later write', () => {
+    jest.useFakeTimers();
+    const adapter = new MemoryAdapter();
+    const writes: string[] = [];
+    const counting = { load: () => adapter.load(), save: (text: string) => { writes.push(text); adapter.save(text); } };
+    const store = new MemoryStore(counting, { deferWrites: true });
+    jest.runAllTimers();
+    writes.length = 0;
+    const version = store.version;
+    store.addCards([newCard({ deck: 'A', front: 'one', back: '1' })]);
+    store.addCards([newCard({ deck: 'A', front: 'two', back: '2' })]);
+    expect(store.version).toBe(version + 2);
+    expect(writes).toHaveLength(0);
+    jest.advanceTimersByTime(WRITE_DELAY_MS);
+    expect(writes).toHaveLength(1);
+    expect(new MemoryStore(adapter).cards.map((card) => card.front)).toEqual(expect.arrayContaining(['one', 'two']));
+  });
+
+  test('flush writes what is waiting straight away', () => {
+    jest.useFakeTimers();
+    const adapter = new MemoryAdapter();
+    const store = new MemoryStore(adapter, { deferWrites: true });
+    store.addCards([newCard({ deck: 'A', front: 'kept', back: 'yes' })]);
+    store.flush();
+    expect(new MemoryStore(adapter).cards.some((card) => card.front === 'kept')).toBe(true);
   });
 });

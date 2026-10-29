@@ -43,6 +43,10 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Tabs out of sight keep their place but stop redrawing on every
+        // change (a rating in Review re-rendered all five), and catch up
+        // when shown again, as native tab apps do.
+        freezeOnBlur: true,
         tabBarActiveTintColor: theme.colors.link,
         tabBarInactiveTintColor: theme.colors.muted,
         tabBarAllowFontScaling: false,
