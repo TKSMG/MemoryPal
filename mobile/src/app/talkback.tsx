@@ -11,9 +11,10 @@ import { AccessibilityInfo, Animated, Easing, Platform, View } from 'react-nativ
 
 import { answerAssessment } from '../core/smartCheck';
 import { buildQueue, Mode } from '../features/queue';
+import { liveAudioAvailable } from '../features/liveAudio';
 import { makeEars, prepareRecognition } from '../features/recognition';
 import { Snapshot, TalkbackSession, talkCards, Voice } from '../features/talkback';
-import { useStore } from '../state/AppState';
+import { usePrefs, useStore, useSync } from '../state/AppState';
 import { Button, EmptyState, Field, ProgressBar, Row, Screen, Txt } from '../ui/components';
 import { speakAsync, stopSpeaking } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
@@ -84,6 +85,11 @@ export default function Talkback() {
   // The typed answer belongs to one card, so it starts empty on the next.
   const [draft, setDraft] = useState({ index: -1, text: '' });
   const slow = store.accessibility.more_time;
+  const [prefs] = usePrefs();
+  const sync = useSync();
+  // The live tutor needs AI on, an account, and the full app (not Expo Go or the browser).
+  const live = prefs.ai_allowed && sync.configured && sync.account.signedIn && liveAudioAvailable();
+  const openLive = () => router.replace(`/talk-live?mode=${encodeURIComponent(params.mode || 'due')}${params.deck ? `&deck=${encodeURIComponent(params.deck)}` : ''}`);
 
   // Answered cards only: a card with no saved answer has nothing to check against.
   const queue = useMemo(() => talkCards(buildQueue(store, (params.mode as Mode) || 'due', params.deck || null).filter((card) => card.back.trim())), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -158,7 +164,17 @@ export default function Talkback() {
             : 'Each question is read aloud. Say your answer and MemoryPal checks it, tells you how it went, and moves on.'}
         </Txt>
         <Txt variant="muted">{`${queue.length} card${queue.length === 1 ? '' : 's'}. Pause, repeat, skip or type at any time. Speech is recognised on the phone where it supports it.`}</Txt>
-        <Button kind="primary" label={starting ? 'Starting…' : 'Start'} icon="play" onPress={start} disabled={starting} />
+        {live ? (
+          <>
+            <Button kind="primary" label="Talk with the AI tutor" icon="chatbubble-ellipses-outline" onPress={openLive} sublabel="A real conversation: interrupt, ask why, get hints" />
+            <Button label={starting ? 'Starting…' : 'Classic Talk-back'} icon="play" onPress={start} disabled={starting} sublabel="Works offline, no AI" />
+          </>
+        ) : (
+          <Button kind="primary" label={starting ? 'Starting…' : 'Start'} icon="play" onPress={start} disabled={starting} />
+        )}
+        {!live && liveAudioAvailable() && !prefs.ai_allowed ? (
+          <Button kind="ghost" label="Try the live AI tutor" icon="sparkles-outline" onPress={() => router.push('/ai-consent')} hint="Turns on AI features first" />
+        ) : null}
       </Screen>
     );
   }
