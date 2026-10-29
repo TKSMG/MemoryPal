@@ -40,7 +40,7 @@ Custom Canvas shapes should use antialiased image drawing when Pillow is availab
 
 The app can reuse the feeling of the startup fade after layout changes without fading the whole app window. Build the new state first, then fade away a temporary same-color overlay so the background shell stays solid.
 
-The logo is a lowercase "m" drawn as one unbroken white line of two arches (one idea leading to the next), with a single amber dot at the top right for the idea you just recalled. It sits on a flat blue tile with only a gentle top-to-bottom shade. The earlier blue-to-violet gradient, sparkle and bead-like nodes were dropped in v70: sparkles and glossy purple gradients are what generic AI-made apps look like, and the beads blurred at small sizes. Keep it flat: no shadows, glows, sparkles or extra colours. The mark is simple enough to need no special small-size version; it stays crisp at 16px.
+The logo is a lowercase "m" drawn as one unbroken white line of two arches (one idea leading to the next), with a single amber dot at the top right for the idea you just recalled. It sits on a flat pine-green tile (blue until v96) with only a gentle top-to-bottom shade. The earlier blue-to-violet gradient, sparkle and bead-like nodes were dropped in v70: sparkles and glossy purple gradients are what generic AI-made apps look like, and the beads blurred at small sizes. Keep it flat: no shadows, glows, sparkles or extra colours. The mark is simple enough to need no special small-size version; it stays crisp at 16px.
 
 The navigation mark should use the generated MemoryPal logo as the standard product mark. A plain letter should only appear as an emergency fallback if the logo renderer fails.
 
@@ -63,6 +63,18 @@ Data trust also covers damaged files and two open windows:
 - A card deleted in one window stays deleted, even when another window saved in the meantime.
 - Two profile names that would share a data folder ("My Profile" and "my-profile") are refused, because deleting one would have deleted the other's cards.
 
+## Palette and lists (v96)
+
+Until v96 the colours were the stock set most generated apps share: a bright blue accent, violet as the second colour, and navy-slate dark surfaces. Together with grids of identical icon cards, that is the look people now read as "made by AI". v96 replaces both:
+
+- Light mode is warm paper (`#f4f2ed`) and near-black ink, not cool blue-white. Dark mode is neutral graphite (`#141413`), not navy.
+- One accent, pine green (`#146b5a` light, `#63c9ae` dark), used for the main action, the current tab, links and live counts. The logo's amber is the only warm colour, kept for streaks and badges. Violet is now a muted plum.
+- Rating colours keep their meaning (red again, amber hard, green good, blue easy) at lower saturation.
+- The desktop and phone palettes are the same values (`constants.py` and `mobile/src/ui/theme.ts`), and both still meet WCAG AA.
+- Pages that lead to other pages (Study, Create, Practice, Memory Gym, Today's study modes) are lists in one rounded panel: a line icon, the name, one line about it, a live count when there is one, and a chevron. The whole row is the target, and Tab, Enter and Space work on it. Don't go back to rows of same-size cards, each with an Open button.
+- Use the app's line icons, not emoji, next to the app's own text. Emoji stay only in the badge gallery for now.
+- Dropdowns use a line chevron, not clam's filled triangle. Quiz answers are left-aligned rows.
+
 ## Design System (v70)
 
 These rules came out of a full review against Khan Academy, Duolingo and NeuroNation. All three feel professional for the same reasons: one clear next action, a consistent set of controls, real type hierarchy, and colour used only to mean something.
@@ -70,7 +82,7 @@ These rules came out of a full review against Khan Academy, Duolingo and NeuroNa
 Colour and contrast:
 
 - Every text/background pair meets WCAG AA (4.5:1). That includes white text on primary, green, danger and violet in light mode, and those colours used as text on cards.
-- Filled controls never hard-code white text. `on_color(fill)` picks white or dark ink, whichever reads better. Bright dark-mode accents such as `#65afff` get dark text, because white on them is only 2.3:1.
+- Filled controls never hard-code white text. `on_color(fill)` picks white or dark ink, whichever reads better. Bright dark-mode accents such as the pine `#63c9ae` get dark text, because white on them is only 2:1.
 - Colours are tokens in `constants.py` (`primary`, `rail_active`, `rail_text`, `rail_muted`, `focus`, `on_light`, ...). Don't use hex literals in views.
 - A secondary button that would vanish into a tinted card is lifted to the card colour automatically.
 
