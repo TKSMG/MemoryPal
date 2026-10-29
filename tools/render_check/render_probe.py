@@ -370,9 +370,9 @@ def drag_corner(dx, dy):
     return run_it
 
 
-def set_nocopy(enabled):
+def set_twostep(enabled):
     from memorypal import winfullscreen
-    winfullscreen.NO_COPY_BITS = enabled
+    winfullscreen.TWO_STEP = enabled
 
 
 def set_transitions(enabled):
@@ -430,11 +430,11 @@ SCENARIOS = [
     ("fullscreen_notrans_on", timed(lambda: (set_transitions(False), app.toggle_true_fullscreen()))),
     ("fullscreen_notrans_off", timed(app.toggle_true_fullscreen)),
     ("fullscreen_notrans_restore", lambda: set_transitions(True)),
-    ("fullscreen_nocopy_on", timed(lambda: (set_nocopy(True), app.toggle_true_fullscreen()))),
-    ("fullscreen_nocopy_off", timed(app.toggle_true_fullscreen)),
-    ("fullscreen_nocopy_on_again", timed(app.toggle_true_fullscreen)),
-    ("fullscreen_nocopy_off_again", timed(app.toggle_true_fullscreen)),
-    ("fullscreen_nocopy_restore", lambda: set_nocopy(False)),
+    ("fullscreen_twostep_on", timed(lambda: (set_twostep(True), app.toggle_true_fullscreen()))),
+    ("fullscreen_twostep_off", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_twostep_on_again", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_twostep_off_again", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_twostep_restore", lambda: set_twostep(False)),
     ("resize", resize),
     ("restore", lambda: app.state("normal")),
     ("shrink", lambda: app.geometry(f"{app.winfo_screenwidth() * 2 // 3}x{app.winfo_screenheight() * 2 // 3}+0+0")),
