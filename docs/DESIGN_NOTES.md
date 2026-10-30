@@ -40,7 +40,7 @@ Custom Canvas shapes should use antialiased image drawing when Pillow is availab
 
 The app can reuse the feeling of the startup fade after layout changes without fading the whole app window. Build the new state first, then fade away a temporary same-color overlay so the background shell stays solid.
 
-The logo is a lowercase "m" drawn as one unbroken white line of two arches (one idea leading to the next), with a single amber dot at the top right for the idea you just recalled. It sits on a flat blue tile with only a gentle top-to-bottom shade. The earlier blue-to-violet gradient, sparkle and bead-like nodes were dropped in v70: sparkles and glossy purple gradients are what generic AI-made apps look like, and the beads blurred at small sizes. Keep it flat: no shadows, glows, sparkles or extra colours. The mark is simple enough to need no special small-size version; it stays crisp at 16px.
+The logo (v96) is a study card: a white card on a flat pine-green tile, with its top-right corner turned over in amber, as if you were peeking at the answer, and a green lowercase "m" of two arches on the card. The card says "flashcards" before anyone reads a word. The amber corner is the recall moment that the earlier amber dot stood for. Before v96 the logo was a white "m" with an amber dot on a blue tile. The blue-to-violet gradient, sparkle and bead-like nodes were dropped in v70: sparkles and glossy purple gradients are what generic AI-made apps look like, and the beads blurred at small sizes. Keep it flat: no shadows, glows, sparkles or extra colours. The mark is simple enough to need no special small-size version; it stays crisp at 16px.
 
 The navigation mark should use the generated MemoryPal logo as the standard product mark. A plain letter should only appear as an emergency fallback if the logo renderer fails.
 
@@ -63,6 +63,18 @@ Data trust also covers damaged files and two open windows:
 - A card deleted in one window stays deleted, even when another window saved in the meantime.
 - Two profile names that would share a data folder ("My Profile" and "my-profile") are refused, because deleting one would have deleted the other's cards.
 
+## Palette and lists (v96)
+
+Until v96 the colours were the stock set most generated apps share: a bright blue accent, violet as the second colour, and navy-slate dark surfaces. Together with grids of identical icon cards, that is the look people now read as "made by AI". v96 replaces both:
+
+- Light mode is warm paper (`#f4f2ed`) and near-black ink, not cool blue-white. Dark mode is neutral graphite (`#141413`), not navy.
+- One accent, pine green (`#146b5a` light, `#63c9ae` dark), used for the main action, the current tab, links and live counts. The logo's amber is the only warm colour, kept for streaks and badges. Violet is now a muted plum.
+- Rating colours keep their meaning (red again, amber hard, green good, blue easy) at lower saturation.
+- The desktop and phone palettes are the same values (`constants.py` and `mobile/src/ui/theme.ts`), and both still meet WCAG AA.
+- Pages that lead to other pages (Study, Create, Practice, Today's study modes) are lists in one rounded panel: a line icon, the name, one line about it, a live count when there is one, and a chevron. The whole row is the target, and Tab, Enter and Space work on it. Don't go back to rows of same-size cards, each with an Open button.
+- Use the app's line icons, not emoji, next to the app's own text. Emoji stay only in the badge gallery for now.
+- Dropdowns use a line chevron, not clam's filled triangle. Quiz answers are left-aligned rows.
+
 ## Design System (v70)
 
 These rules came out of a full review against Khan Academy, Duolingo and NeuroNation. All three feel professional for the same reasons: one clear next action, a consistent set of controls, real type hierarchy, and colour used only to mean something.
@@ -70,7 +82,7 @@ These rules came out of a full review against Khan Academy, Duolingo and NeuroNa
 Colour and contrast:
 
 - Every text/background pair meets WCAG AA (4.5:1). That includes white text on primary, green, danger and violet in light mode, and those colours used as text on cards.
-- Filled controls never hard-code white text. `on_color(fill)` picks white or dark ink, whichever reads better. Bright dark-mode accents such as `#65afff` get dark text, because white on them is only 2.3:1.
+- Filled controls never hard-code white text. `on_color(fill)` picks white or dark ink, whichever reads better. Bright dark-mode accents such as the pine `#63c9ae` get dark text, because white on them is only 2:1.
 - Colours are tokens in `constants.py` (`primary`, `rail_active`, `rail_text`, `rail_muted`, `focus`, `on_light`, ...). Don't use hex literals in views.
 - A secondary button that would vanish into a tinted card is lifted to the card colour automatically.
 
@@ -101,12 +113,25 @@ Destructive actions: never put them next to everyday actions. Reset all data liv
 The rail used to hold 17 pages. Duolingo has 5 tabs and Khan Academy about 4, and scanning 17 labels was slow, especially for older users. The pages are now grouped into five destinations (`HUBS` and `HUB_PAGES` in `MemoryPalDesktop.py`):
 
 - **Today**: Dashboard, which also leads to the Study Plan.
-- **Study**: a hub page with Review, Focus, Quiz, Repetition and Test Lab.
-- **Create**: a hub page with Capture, Decks, Library and Cue Lab.
-- **Practice**: a hub page with Memory Gym, Everyday Memory, Associations and Puzzles.
+- **Study**: what's due and one Start review button, then Quick 10, Weak cards, New cards, Talk-back, Quick quiz and Study plan.
+- **Create**: New set, Paste notes and Make with AI, then Sets and Library.
+- **Practice**: Memory techniques, Puzzles and Everyday Memory (Everyday Memory first for the everyday and caregiver personas).
 - **Progress**: Stats.
 
-Hub pages show one tile per page, with a live count where it helps ("4 cards due now"). The tiles follow the profile's page order, so Everyday Memory comes first for the everyday and caregiver personas. Settings → Page Order now sets that order inside each destination. Every page stays reachable through Ctrl+K and Back. Feedback moves into Settings or the help menu once testing ends.
+Every page stays reachable through Ctrl+K and Back.
+
+### One page per job (v97)
+
+The desktop had 22 pages behind those five tabs, about a third of them repeating each other, while the phone did the same work with about 12 screens. The desktop now matches the phone:
+
+- Focus and Test Lab were Review under other names. Review is now one page that runs in modes (due, Quick 10, weak, new, gentle), as on the phone. Each mode takes its card list when it starts.
+- Repetition Path kept its items only in a page draft, never as cards, so they didn't sync or get scheduled. It was removed; plan steps that pointed at it now start weak-card practice.
+- Cue Lab moved into Edit card: hint ideas go into the memory hook, and Picture, Sound and Video menus attach media to that card.
+- Memory Gym only linked to pages one click away, so it went.
+- Feedback is a dialog over the page it is about, not a page of its own.
+- Settings → Page order went: with five fixed tabs it only shuffled tiles.
+
+Don't add a page for something that can be a mode of an existing page or a section of a dialog.
 
 ## Platform Conventions
 
@@ -156,7 +181,7 @@ The Dashboard should answer "what do I do now?" with today's plan steps first, t
 
 ## First Run And Onboarding
 
-A new profile should not open on a page full of tools. The Welcome screen asks one plain question (who is using MemoryPal?) and uses the answer to set page order, text size, and calmer defaults. Every choice stays editable in Settings, and choosing again resets only the settings the persona controls.
+A new profile should not open on a page full of tools. The Welcome screen asks one plain question (who is using MemoryPal?) and uses the answer to set Today's study modes, text size, and calmer defaults. Every choice stays editable in Settings, and choosing again resets only the settings the persona controls.
 
 Existing profiles skip the Welcome screen. People already using the app should never be interrupted by setup they did not ask for.
 

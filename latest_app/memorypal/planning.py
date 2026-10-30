@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 STUDY_HABIT_OPTIONS = [
     ("mnemonics", "I remember better with mnemonics, stories, or images"),
-    ("repetition", "I like structured repetition drilling"),
+    ("repetition", "I like extra drilling on weak cards"),
     ("quick_mc", "I prefer quick multiple choice over typing answers"),
     ("games", "I like short recall-game breaks to reset focus"),
     ("breaks", "I focus better with short rest breaks (Pomodoro style)"),
@@ -106,7 +106,7 @@ def build_study_plan(store, minutes, deck_choice, habits, goal, on=None, since=N
             add("Warm-up: quick multiple choice", 0.15, "quiz", "Fast recall check to see where you stand before the clock starts.", quiz_mode="choices")
         add("Focused review", 0.45, review_view, "Work through due and weak cards with Smart Check, prioritising the ones you keep missing. " + review_detail(len(due), round(minutes * 0.45)))
         if "repetition" in habits:
-            add("Repetition drilling", 0.20, "shuffle", "Run the 5, 5-4, 5-4-3, 3-2-1 pattern on your weakest items for extra reps right before the test.")
+            add("Drill weak cards", 0.20, "focus", "Go through your weakest cards again, hardest first, for extra reps right before the test.")
         add("Final confidence pass", 0.20, "quiz", "One more quick pass. Multiple choice if you're short on time, self-check if you have a few extra minutes.", quiz_mode=self_check_mode)
     elif goal == "exam_prep":
         if due or weak:
@@ -114,14 +114,14 @@ def build_study_plan(store, minutes, deck_choice, habits, goal, on=None, since=N
         add("Spaced review", 0.33, review_view, "Work through what's due with Smart Check so nothing quietly slips. " + review_detail(len(due), round(minutes * 0.33)))
         if "mnemonics" in habits:
             add("Strengthen weak hooks", 0.15, "tools", "Build a fresh association for your shakiest cards while there's still time to let it sink in.")
-        add("Repetition drilling", 0.20, "shuffle", "Run the repetition path on your weakest items so they're solid well before exam day.")
+        add("Drill weak cards", 0.20, "focus", "Go through your weakest cards again, hardest first, so they're solid well before exam day.")
         add("Self-check quiz", 0.20, "quiz", "Confirm recall without leaning on the saved answer.", quiz_mode=self_check_mode)
     else:
         add("Spaced review", 0.35, review_view, "Work through everything due with Smart Check so your intervals stay honest. " + review_detail(len(due), round(minutes * 0.35)))
         if "mnemonics" in habits:
             add("Strengthen weak hooks", 0.20, "tools", "Build a fresh association for anything you recently rated Again or Review.")
         if "repetition" in habits:
-            add("Repetition path", 0.20, "shuffle", "Walk the backward-then-forward pattern on your weakest deck items.")
+            add("Drill weak cards", 0.20, "focus", "Go through your weakest cards again, hardest first, until each one comes easily.")
         add("Self-check quiz", 0.15 if (habits & {"mnemonics", "repetition"}) else 0.25, "quiz", "Confirm recall without leaning on the saved answer.", quiz_mode=self_check_mode)
 
     if fresh and has_cards and deck_choice != "New material" and minutes > SHORT_SESSION_MINUTES and goal != "cram":
