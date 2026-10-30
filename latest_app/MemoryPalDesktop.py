@@ -1761,6 +1761,9 @@ class MemoryPalApp(tk.Tk):
         ],
         "check": [("seg", 5, 12.5, 9.8, 17.3), ("seg", 9.8, 17.3, 19, 7)],
         "back": [("seg", 19.5, 12, 4.5, 12), ("seg", 4.5, 12, 10.5, 6), ("seg", 4.5, 12, 10.5, 18)],
+        "chevron": [("seg", 9.5, 6, 15.5, 12), ("seg", 15.5, 12, 9.5, 18)],
+        "chevron_down": [("seg", 6.5, 9.5, 12, 15), ("seg", 12, 15, 17.5, 9.5)],
+        "award": [("circle", 12, 9, 5.5), ("seg", 8.6, 13.4, 7, 21), ("seg", 7, 21, 12, 18.6), ("seg", 12, 18.6, 17, 21), ("seg", 17, 21, 15.4, 13.4)],
         "help": [("circle", 12, 12, 9), ("arc", 12, 9.6, 2.6, 180, 405), ("seg", 13.84, 11.44, 12, 13.2), ("seg", 12, 13.2, 12, 14), ("dot", 12, 16.9, 1.2)],
         "moon": [("arc", 12, 12, 8.5, 7.07, 262.93), ("arc", 16.5, 7.5, 6.8, 54.64, 215.36)],
         "backup": [("seg", 12, 3.5, 12, 14.5), ("seg", 7.5, 10, 12, 14.5), ("seg", 16.5, 10, 12, 14.5), ("seg", 4, 15, 4, 20), ("seg", 4, 20, 20, 20), ("seg", 20, 20, 20, 15)],
@@ -2498,29 +2501,29 @@ class MemoryPalApp(tk.Tk):
             return
         if self.theme == "light":
             COLORS.update({
-                "bg": "#eef3fb",
+                "bg": "#f1eee7",
                 "surface": "#ffffff",
-                "alt": "#dbe8f7",
-                "muted": "#25324a",
-                "line": "#8da4bf",
-                "soft_line": "#6f86a3",
-                "primary": "#005fcc",
-                "primary_dark": "#004b9f",
-                "rail": "#07111f",
-                "rail_hover": "#13233b",
+                "alt": "#e3ddd0",
+                "muted": "#35322c",
+                "line": "#9c9584",
+                "soft_line": "#7d7767",
+                "primary": "#0b5446",
+                "primary_dark": "#073f34",
+                "rail": "#0c0c0b",
+                "rail_hover": "#211f1c",
             })
         else:
             COLORS.update({
-                "bg": "#0b1220",
-                "surface": "#101b2d",
-                "alt": "#1d2c45",
-                "muted": "#d5dfef",
-                "line": "#74859f",
-                "soft_line": "#91a2bd",
-                "primary": "#8dccff",
-                "primary_dark": "#5eb6ff",
-                "rail": "#050914",
-                "rail_hover": "#172640",
+                "bg": "#0b0b0a",
+                "surface": "#151514",
+                "alt": "#2a2926",
+                "muted": "#dcd8cf",
+                "line": "#838076",
+                "soft_line": "#9c988d",
+                "primary": "#8be0c8",
+                "primary_dark": "#63c9ae",
+                "rail": "#050505",
+                "rail_hover": "#1d1d1b",
             })
 
     def apply_theme_palette(self):
@@ -2646,7 +2649,7 @@ class MemoryPalApp(tk.Tk):
         return max(2, self.px(3 if self.strong_focus_outline() else 2))
 
     def focus_color(self):
-        return COLORS.get("focus", "#f5b301")
+        return COLORS.get("focus", "#f2c14e")
 
     def keyboard_link(self, widget, handler):
         """Make a clickable label reachable with Tab and work with Enter or Space."""
@@ -2883,8 +2886,11 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("ActiveTabBar.TButton", padding=self.pad(14, 8), space=self.px(8), foreground=COLORS["primary"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.map("ActiveTabBar.TButton", foreground=[("active", COLORS["primary"])])
 
+        for name in ("Choice.TButton", "Choice.Good.TButton", "Choice.Again.TButton"):
+            self.style.configure(name, anchor="w", padding=self.pad(18, 12))
+
         # Keyboard focus is always visible (a ring inside the button).
-        for name in ("TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TabBar.TButton", "ActiveTabBar.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton", "Link.TButton"):
+        for name in ("Choice.TButton", "Choice.Good.TButton", "Choice.Again.TButton", "TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TabBar.TButton", "ActiveTabBar.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton", "Link.TButton"):
             self.style.configure(name, focuscolor=self.focus_color(), focusthickness=self.focus_thickness())
         self.install_rounded_controls()
 
@@ -2903,6 +2909,11 @@ class MemoryPalApp(tk.Tk):
             "Review.TButton": ("TButton", rating("review_bg"), COLORS["surface"]),
             "Good.TButton": ("TButton", rating("good_bg"), COLORS["surface"]),
             "Easy.TButton": ("TButton", rating("easy_bg"), COLORS["surface"]),
+            # Quiz answers: full-width rows that read left to right like a
+            # list, instead of a label floating in the middle of a wide bar.
+            "Choice.TButton": ("TButton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
+            "Choice.Good.TButton": ("TButton", rating("good_bg"), COLORS["surface"]),
+            "Choice.Again.TButton": ("TButton", rating("again_bg"), COLORS["surface"]),
             "Nav.TButton": ("TButton", (COLORS["rail"], COLORS["rail_hover"], COLORS["rail_hover"], COLORS["rail"]), COLORS["rail"]),
             "ActiveNav.TButton": ("TButton", (COLORS["rail_active"],) * 3 + (COLORS["rail"],), COLORS["rail"]),
             "TabBar.TButton": ("TButton", (COLORS["bg"], COLORS["surface_soft"], COLORS["alt"]), COLORS["bg"]),
@@ -3050,7 +3061,7 @@ class MemoryPalApp(tk.Tk):
                 focus_hover=self.rounded_tile(COLORS["input"], bg, ring=ring, ring_width=width),
                 keyboard_only=True,
             )
-            self.style.layout(style, [(element, {"sticky": "nsew", "children": self.inner_layout(widget_class)})])
+            self.style.layout(style, [(element, {"sticky": "nsew", "children": self.select_inner_layout()})])
             self.set_corner_background(style, bg)
             return
         element = self.rounded_element(
@@ -3092,6 +3103,22 @@ class MemoryPalApp(tk.Tk):
         if len(children) == 1 and children[0][0].endswith(".focus"):
             children = children[0][1].get("children", [])
         return children
+
+    def select_inner_layout(self):
+        """A dropdown's insides with a line chevron in place of clam's small
+        filled triangle, which looked borrowed from another toolkit."""
+        children = self.inner_layout("TMenubutton")
+        name = f"SelectChevron{self._style_generation}"
+        if name not in self._rounded_elements:
+            image = self.line_icon("chevron_down", self.px(16), COLORS["muted"])
+            if image is None:
+                return children
+            try:
+                self.style.element_create(name, "image", image, sticky="", padding=(self.px(10), 0, 0, 0))
+            except tk.TclError:
+                return children
+            self._rounded_elements[name] = image
+        return [(name, options) if element.endswith(".indicator") else (element, options) for element, options in children]
 
     def track_focus_source(self):
         """Show the focus ring on buttons only when focus came from the keyboard.
@@ -3285,7 +3312,7 @@ class MemoryPalApp(tk.Tk):
         # A soft secondary button on a tinted card of almost the same colour
         # vanishes (e.g. surface_soft on alt); lift it to the card colour.
         # (Only the soft secondary styles; nav items match the rail on purpose.)
-        liftable = base in ("TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton")
+        liftable = base in ("TButton", "Choice.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton")
         blends_in = liftable and self.contrast(fills[0], behind) < 1.12
         if behind == default_bg.lower() and not blends_in:
             return base
@@ -3346,18 +3373,20 @@ class MemoryPalApp(tk.Tk):
             canvas.create_oval(size - radius * 2, 1, size - 1, radius * 2, fill=COLORS["primary"], outline="")
             canvas.create_oval(1, size - radius * 2, radius * 2, size - 1, fill=COLORS["primary"], outline="")
             canvas.create_oval(size - radius * 2, size - radius * 2, size - 1, size - 1, fill=COLORS["primary"], outline="")
-        # The same lowercase "m" of two arches and amber dot as icon.py.
-        ink = self.on_color(COLORS["primary"])
-        stroke = max(2, int(size * 0.11))
-        legs = [size * value for value in (0.27, 0.50, 0.73)]
-        arch_y, bottom = size * 0.43, size * 0.71
+        # The same study card, folded corner and "m" as icon.py, in flat shapes.
+        left, top, right, bottom = (size * value for value in (0.172, 0.244, 0.828, 0.756))
+        fold = size * 0.146
+        canvas.create_polygon(left, top, right - fold, top, right, top + fold, right, bottom, left, bottom, fill="#ffffff", outline="")
+        canvas.create_polygon(right - fold, top, right - fold, top + fold, right, top + fold, fill="#ffb020", outline="")
+        ink = COLORS["primary_dark"] if self.theme == "light" else "#146b5a"
+        stroke = max(2, int(size * 0.09))
+        legs = [size * value for value in (0.295, 0.480, 0.666)]
+        arch_y, foot = size * 0.474, size * 0.674
         half = (legs[1] - legs[0]) / 2
         for leg in legs:
-            canvas.create_line(leg, arch_y, leg, bottom, fill=ink, width=stroke, capstyle="round")
-        for left in legs[:2]:
-            canvas.create_arc(left, arch_y - half, left + 2 * half, arch_y + half, start=0, extent=180, style="arc", outline=ink, width=stroke)
-        dot = size * 0.066
-        canvas.create_oval(size * 0.775 - dot, size * 0.235 - dot, size * 0.775 + dot, size * 0.235 + dot, fill="#ffb020", outline="")
+            canvas.create_line(leg, arch_y, leg, foot, fill=ink, width=stroke, capstyle="round")
+        for start in legs[:2]:
+            canvas.create_arc(start, arch_y - half, start + 2 * half, arch_y + half, start=0, extent=180, style="arc", outline=ink, width=stroke)
 
     def ensure_nav_item_visible(self, key):
         """Every tab always shows, so this only moves the selection."""
@@ -4876,7 +4905,7 @@ class MemoryPalApp(tk.Tk):
         #65afff fail with white (2.3:1), so they get dark text instead."""
         if self.contrast(COLORS["white"], fill) >= 4.5:
             return COLORS["white"]
-        dark = COLORS.get("on_light", "#0b1020")
+        dark = COLORS.get("on_light", "#14130f")
         return dark if self.contrast(dark, fill) > self.contrast(COLORS["white"], fill) else COLORS["white"]
 
     def row_button(self, parent, label, command, style_name):
@@ -4900,12 +4929,14 @@ class MemoryPalApp(tk.Tk):
             cache[key] = corners
         return cache[key]
 
-    def round_tk_panel(self, frame, radius=None):
+    def round_tk_panel(self, frame, radius=None, force=False):
         """Round a plain tk.Frame panel's corners onto what it sits on.
 
         Four small corner pictures are placed over the frame's corners, which
         are always padding; the panel stays one native window, so it costs
-        nothing extra to scroll.
+        nothing extra to scroll. With force, corners go on even while the
+        panel matches what's under it (a list row that only shows its shape
+        once it is tinted on hover).
         """
         radius = radius or self.px(12)
         if getattr(frame, "_mp_corners", None):
@@ -4915,7 +4946,7 @@ class MemoryPalApp(tk.Tk):
             under = self.surface_behind(frame)
         except tk.TclError:
             return frame
-        if under == fill.lower():
+        if under == fill.lower() and not force:
             return frame
         photos = self.tk_corner_photos(radius, fill, under)
         corners = []
@@ -6213,8 +6244,51 @@ class MemoryPalApp(tk.Tk):
             return f"{count} set{'s' if count != 1 else ''}"
         return ""
 
+    def link_list(self, parent, rows):
+        """Pages to go to, as one rounded panel of rows (icon, name, a line
+        about it, an optional live count, a chevron), the way system settings
+        list their panes. The whole row is the click and keyboard target.
+
+        rows: (icon, title, body, note, command). This replaced grids of
+        identical icon cards with an Open button in each: a wall of
+        same-size boxes is the look of a generated template, and a list
+        reads faster and keeps every name on one left edge.
+        """
+        panel = tk.Frame(parent, bg=COLORS["surface"], padx=self.px(6), pady=self.px(6), bd=0, highlightthickness=0)
+        self.round_tk_panel(panel)
+        panel.columnconfigure(0, weight=1)
+        hover = self.tint(COLORS["surface"], -5 if self.theme == "light" else 7)
+        for index, (icon, title, body, note, command) in enumerate(rows):
+            if index:
+                tk.Frame(panel, bg=COLORS["line"], height=1, bd=0, highlightthickness=0).grid(row=index * 2 - 1, column=0, sticky="ew", padx=(self.px(58), self.px(14)))
+            row = tk.Frame(panel, bg=COLORS["surface"], padx=self.px(14), pady=self.px(12), bd=0, highlightthickness=0, takefocus=1)
+            row.grid(row=index * 2, column=0, sticky="ew")
+            row.columnconfigure(1, weight=1)
+            image = self.line_icon(icon, self.px(22), COLORS["primary"])
+            if image is not None:
+                glyph = tk.Label(row, image=image, bg=COLORS["surface"], bd=0, padx=0, pady=0)
+                glyph.image = image
+                glyph.grid(row=0, column=0, rowspan=2, sticky="w", padx=(self.px(2), self.px(18)))
+            tk.Label(row, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").grid(row=0, column=1, sticky="ew")
+            if body:
+                tk.Label(row, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="w", justify="left", wraplength=self.px(760)).grid(row=1, column=1, sticky="ew", pady=(self.px(2), 0))
+            if note:
+                tk.Label(row, text=note, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), anchor="e").grid(row=0, column=2, rowspan=2, sticky="e", padx=(self.px(16), 0))
+            chevron = self.line_icon("chevron", self.px(16), COLORS["muted"])
+            if chevron is not None:
+                mark = tk.Label(row, image=chevron, bg=COLORS["surface"], bd=0, padx=0, pady=0)
+                mark.image = chevron
+                mark.grid(row=0, column=3, rowspan=2, sticky="e", padx=(self.px(12), 0))
+            self.round_tk_panel(row, radius=self.px(8), force=True)
+            self.hover_card(row, command=command)
+            row.bind("<Return>", lambda _event, run=command: run(), add="+")
+            row.bind("<space>", lambda _event, run=command: run(), add="+")
+            row.bind("<FocusIn>", lambda _event, widget=row: self.recolor_panel(widget, hover), add="+")
+            row.bind("<FocusOut>", lambda _event, widget=row: self.recolor_panel(widget, COLORS["surface"]), add="+")
+        return panel
+
     def view_hub(self, hub):
-        """A section page: one clickable tile per page it holds, in this profile's page order."""
+        """A section page: one row per page it holds, in this profile's page order."""
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         intro = ttk.Label(page.inner, text=self.HUB_INTROS.get(hub, ""), style="Muted.TLabel", wraplength=self.px(1040))
@@ -6223,115 +6297,47 @@ class MemoryPalApp(tk.Tk):
         labels = {key: label for key, label, _short in self.default_nav_items()}
         order = {key: index for index, (key, _label, _short) in enumerate(self.ordered_nav_items())}
         pages = sorted(self.HUB_PAGES[hub], key=lambda key: order.get(key, len(order)))
-
-        tiles = self.page_frame(page.inner)
-        tiles.pack(fill="both", expand=True, padx=(0, 8))
-        for column in range(2):
-            tiles.columnconfigure(column, weight=1, uniform=f"hub-{hub}")
-        for index, key in enumerate(pages):
-            row, column = divmod(index, 2)
-            title = self.page_titles().get(key, ("", labels.get(key, key)))[1]
-            tile = self.hover_card(
-                tk.Frame(tiles, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18)),
-                command=lambda view=key: self.show_view(view),
-            )
-            tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
-            self.icon_badge(tile, key).pack(anchor="w", pady=(0, self.px(10)))
-            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
-            tk.Label(tile, text=self.nav_hint(key), bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(500), justify="left", anchor="w").pack(fill="x", pady=(self.px(5), 0))
-            note = self.hub_page_note(key)
-            if note:
-                tk.Label(tile, text=note, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x", pady=(self.px(8), 0))
-            # The whole tile is clickable; the button is a quiet secondary one
-            # (five bright filled buttons competed with each other and with the
-            # page's real next step) that gives keyboard users a focus stop.
-            # Packed to the bottom so the buttons in a row line up even when
-            # one tile's description runs to an extra line.
-            ttk.Button(tile, text="Open", style="TButton", command=lambda view=key: self.show_view(view)).pack(side="bottom", anchor="w", pady=(self.px(14), 0))
-
-        # Rows share the visible height (up to a comfortable cap), so four
-        # tiles fill the page instead of sitting in its top half above an
-        # empty band. Hubs with more tiles than fit simply scroll.
-        rows = max(1, (len(pages) + 1) // 2)
-        gutter = self.px(12)
-        cap = self.px(250)
-
-        def fit_rows(_event=None):
-            try:
-                if not tiles.winfo_exists():
-                    return
-                spare = page.viewport.winfo_height() - intro.winfo_height() - self.px(14) - self.px(18)
-            except tk.TclError:
-                return
-            height = max(0, min(cap, int(spare / rows) - gutter))
-            for row in range(rows):
-                tiles.rowconfigure(row, minsize=height + gutter)
-
-        page.viewport.bind("<Configure>", fit_rows, add="+")
-        self.after_idle(fit_rows)
+        rows = [
+            (key, self.page_titles().get(key, ("", labels.get(key, key)))[1], self.nav_hint(key), self.hub_page_note(key), lambda view=key: self.show_view(view))
+            for key in pages
+        ]
+        self.link_list(page.inner, rows).pack(fill="x", padx=(0, 8))
 
     def view_training(self):
+        """Evidence-based techniques, in two groups: studying for school and
+        everyday memory. The page title already names the page, so there is
+        no second heading card, and each group is a plain section heading
+        over its own list rather than a box that looks like a button."""
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
+        ttk.Label(
+            page.inner,
+            text="Pick a technique to practise. Each one opens the part of MemoryPal that trains it, with your own cards.",
+            style="Muted.TLabel",
+            wraplength=self.px(1040),
+        ).pack(anchor="w", padx=(0, 8), pady=(0, self.px(18)))
 
-        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(26)))
-        hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        tk.Label(hero, text="Memory Gym", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        tk.Label(
-            hero,
-            text="Choose a study path or a gentle recall path. The same saved cards, notes, images, audio, and video cues stay available across the app.",
-            bg=COLORS["surface"],
-            fg=COLORS["muted"],
-            font=self.font("Segoe UI", 12),
-            wraplength=self.px(1020),
-            justify="left",
-        ).pack(anchor="w", pady=(6, 0))
-
-        grid = self.page_frame(page.inner)
-        grid.pack(fill="both", expand=True, padx=(0, 8))
-        for column in range(2):
-            grid.columnconfigure(column, weight=1, uniform="training")
-
-        def technique_tile(parent, row, column, title, body, target, _color=None):
-            # Same tile as the hub pages: an icon badge in the one accent, the
-            # whole tile clickable, and a quiet button at the bottom.
-            tile = self.hover_card(tk.Frame(parent, bg=COLORS["surface"], padx=self.px(20), pady=self.px(18)), command=lambda view=target: self.show_view(view))
-            tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
-            self.icon_badge(tile, target, 36).pack(anchor="w", pady=(0, self.px(10)))
-            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
-            tk.Label(tile, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(500), justify="left", anchor="w").pack(fill="x", pady=(self.px(5), 0))
-            ttk.Button(tile, text="Open", style="TButton", cursor="hand2", command=lambda view=target: self.show_view(view)).pack(side="bottom", anchor="w", pady=(self.px(14), 0))
-
-        student = self.card(grid, "AltCard.TFrame", 22)
-        student.grid(row=0, column=0, sticky="nsew", padx=(0, self.px(12)), pady=(0, self.px(12)))
-        ttk.Label(student, text="Student study track", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(student, text="Best for school topics, exam prep, language learning, and revision sessions.", style="AltMuted.TLabel", wraplength=self.px(520)).pack(anchor="w", pady=(4, 0))
-
-        older = self.card(grid, "AltCard.TFrame", 22)
-        older.grid(row=0, column=1, sticky="nsew", pady=(0, self.px(12)))
-        ttk.Label(older, text="Everyday memory track", style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(older, text="Gentle activities for names, routines, attention, confidence, and daily reminders.", style="AltMuted.TLabel", wraplength=self.px(520)).pack(anchor="w", pady=(4, 0))
-
-        tiles = self.page_frame(page.inner)
-        tiles.pack(fill="both", expand=True, padx=(0, 8))
-        for column in range(2):
-            tiles.columnconfigure(column, weight=1, uniform="techniques")
-
-        techniques = [
-            ("Retrieval practice", "Answer first, reveal later, and let Smart Check place the card in the right review bucket.", "testing", COLORS["primary"]),
-            ("Spaced practice", "Review across time instead of cramming. Due cards and the study plan help pace each session.", "review", COLORS["green"]),
-            ("Interleaving", "Mix related topics so practice feels closer to a real test and less like memorizing one block.", "quiz", COLORS["orange"]),
-            ("Elaboration", "Ask why, how, and what it connects to. Associations turns plain notes into stronger hooks.", "tools", COLORS["violet"]),
-            ("Concrete examples", "Attach real examples, images, notes, and media cues so abstract ideas have something to stick to.", "capture", COLORS["pink"]),
-            ("Dual coding", "Pair words with visual, audio, or video cues in Cue Lab for more than one route back to the memory.", "cuelab", COLORS["cyan"]),
-            ("Spaced retrieval", "Practice small answers at increasing intervals, useful for names, routines, and important facts.", "shuffle", COLORS["green"]),
-            ("Attention games", "Use short puzzle rounds such as visual search, missing item, pair recall, and n-back warmups.", "games", COLORS["primary"]),
-            ("Category sorting", "Group everyday or school items to strengthen organization and long-term recall.", "games", COLORS["orange"]),
-            ("Routine recall", "Practise short step-by-step routines with a calm show-hide-check flow.", "games", COLORS["pink"]),
+        groups = [
+            ("Study techniques", "For school topics, exam prep, languages and revision.", [
+                ("Retrieval practice", "Answer first, reveal later, and let Smart Check place the card in the right review bucket.", "testing"),
+                ("Spaced practice", "Review across time instead of cramming. Due cards and the study plan pace each session.", "review"),
+                ("Interleaving", "Mix related topics so practice feels closer to a real test and less like memorizing one block.", "quiz"),
+                ("Elaboration", "Ask why, how, and what it connects to. Associations turns plain notes into stronger hooks.", "tools"),
+                ("Concrete examples", "Attach real examples, images, notes and media cues so abstract ideas have something to stick to.", "capture"),
+                ("Dual coding", "Pair words with visual, audio or video cues in Cue Lab for more than one route back to the memory.", "cuelab"),
+            ]),
+            ("Everyday memory", "Gentle practice for names, routines, attention and daily reminders.", [
+                ("Spaced retrieval", "Practise small answers at growing intervals: names, routines and important facts.", "shuffle"),
+                ("Attention games", "Short puzzle rounds such as visual search, missing item, pair recall and n-back warmups.", "games"),
+                ("Category sorting", "Group everyday or school items to strengthen organisation and long-term recall.", "games"),
+                ("Routine recall", "Practise short step-by-step routines with a calm show, hide and check flow.", "games"),
+            ]),
         ]
-        for index, item in enumerate(techniques):
-            row, column = divmod(index, 2)
-            technique_tile(tiles, row, column, *item)
+        for number, (heading, blurb, items) in enumerate(groups):
+            tk.Label(page.inner, text=heading, bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16), anchor="w").pack(fill="x", padx=(0, 8), pady=(self.px(10) if number else 0, 0))
+            tk.Label(page.inner, text=blurb, bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="w").pack(fill="x", padx=(0, 8), pady=(self.px(2), self.px(10)))
+            rows = [(target, title, body, "", lambda view=target: self.show_view(view)) for title, body, target in items]
+            self.link_list(page.inner, rows).pack(fill="x", padx=(0, 8), pady=(0, self.px(18)))
 
     def view_elder(self):
         draft = self.view_drafts.get("elder", {})
@@ -6865,13 +6871,18 @@ class MemoryPalApp(tk.Tk):
         head.pack(fill="x", padx=(0, 8), pady=(self.px(4), self.px(10)))
         tk.Label(head, text="Study modes", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(side="left")
         tk.Label(head, text=f"{subtitle}  \u2022  {shortcut('K')} jumps to any page", bg=COLORS["bg"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0), pady=(self.px(4), 0))
-        panels = self.panel_row(parent, len(modes))
-        for panel, (icon, title, body, action, color) in zip(panels, modes):
-            card = self.hover_card(panel, command=action)
-            # Line icons in a tinted badge, matching the hub tiles.
-            self.icon_badge(card, icon).pack(anchor="w")
-            tk.Label(card, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").pack(fill="x", pady=(self.px(6), 0))
-            tk.Label(card, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(4), 0))
+        # Two short lists side by side, like the hub pages, rather than a
+        # fourth row of same-size cards under the stat cards.
+        columns = self.page_frame(parent)
+        columns.pack(fill="x", padx=(0, 8), pady=(0, self.px(12)))
+        columns.columnconfigure(0, weight=1, uniform="modes")
+        columns.columnconfigure(1, weight=1, uniform="modes")
+        half = (len(modes) + 1) // 2
+        for column, chunk in enumerate((modes[:half], modes[half:])):
+            if not chunk:
+                continue
+            rows = [(icon, title, body, "", action) for icon, title, body, action, _color in chunk]
+            self.link_list(columns, rows).grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0))
 
     def render_next_badge(self, parent):
         badges = progress.achievements(self.store)
@@ -6880,18 +6891,23 @@ class MemoryPalApp(tk.Tk):
         (panel,) = self.panel_row(parent, 1)
         card = self.hover_card(panel, command=lambda: self.show_view("stats"))
         card.columnconfigure(1, weight=1)
+        award = self.line_icon("award", self.px(30), COLORS["flame"])
         if upcoming:
-            tk.Label(card, text=upcoming["icon"], bg=COLORS["surface"], font=self.font("Segoe UI Emoji", 26)).grid(row=0, column=0, rowspan=3, sticky="nw", padx=(0, self.px(16)))
+            if award is not None:
+                mark = tk.Label(card, image=award, bg=COLORS["surface"], bd=0)
+                mark.image = award
+                mark.grid(row=0, column=0, rowspan=3, sticky="nw", padx=(0, self.px(16)), pady=(self.px(2), 0))
             tk.Label(card, text=f"Next badge: {upcoming['title']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").grid(row=0, column=1, sticky="ew")
             tk.Label(card, text=f"{upcoming['body']}  {upcoming['current']} / {upcoming['target']}", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").grid(row=1, column=1, sticky="ew", pady=(self.px(2), self.px(8)))
             self.meter(card, upcoming["current"] / upcoming["target"], COLORS["primary"], 10).grid(row=2, column=1, sticky="ew")
         else:
-            tk.Label(card, text="\U0001F3C6  Every badge earned. Legendary!", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14)).grid(row=0, column=0, columnspan=2, sticky="w")
+            tk.Label(card, text="Every badge earned", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14)).grid(row=0, column=1, sticky="w")
+        # A plain count and a link; the row of emoji that used to sit here
+        # looked pasted in next to the app's own line icons.
         shelf = tk.Frame(card, bg=COLORS["surface"])
-        shelf.grid(row=0, column=2, rowspan=3, sticky="e", padx=(self.px(20), 0))
-        icons = "".join(badge["icon"] for badge in earned[:6]) or "\u2014"
-        tk.Label(shelf, text=icons, bg=COLORS["surface"], font=self.font("Segoe UI Emoji", 16)).pack(anchor="e")
-        tk.Label(shelf, text=f"{len(earned)} of {len(badges)} badges  \u2022  see all", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="e")
+        shelf.grid(row=0, column=2, rowspan=3, sticky="e", padx=(self.px(24), 0))
+        tk.Label(shelf, text=f"{len(earned)} of {len(badges)}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(anchor="e")
+        tk.Label(shelf, text="badges \u00b7 see all", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 10)).pack(anchor="e")
 
     def quick_session(self):
         if self.store.due_cards():
@@ -8949,12 +8965,12 @@ class MemoryPalApp(tk.Tk):
     def render_quiz_options(self, host, body, item):
         answered = self.quiz.get("answered")
         for index, option in enumerate(item["options"]):
-            style = "TButton"
+            style = "Choice.TButton"
             if answered:
                 if index == item["answer_index"]:
-                    style = "Good.TButton"
+                    style = "Choice.Good.TButton"
                 elif index == answered.get("picked"):
-                    style = "Again.TButton"
+                    style = "Choice.Again.TButton"
             mark = "  ✓" if answered and index == item["answer_index"] else ""
             number = f"{index + 1}.  " if index < 4 else ""
             button = ttk.Button(body, text=number + option + mark, style=style, cursor="hand2",

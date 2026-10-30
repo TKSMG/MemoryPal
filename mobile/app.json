@@ -102,7 +102,7 @@
       "package": "app.memorypal.mobile",
       "allowBackup": false,
       "adaptiveIcon": {
-        "backgroundColor": "#3451db",
+        "backgroundColor": "#186b59",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -133,10 +133,10 @@
         {
           "image": "./assets/splash-icon.png",
           "imageWidth": 120,
-          "backgroundColor": "#f6f8fc",
+          "backgroundColor": "#f4f2ed",
           "dark": {
             "image": "./assets/splash-icon.png",
-            "backgroundColor": "#111827"
+            "backgroundColor": "#141413"
           }
         }
       ],
@@ -165,7 +165,7 @@
         "expo-notifications",
         {
           "icon": "./assets/android-icon-monochrome.png",
-          "color": "#2563eb"
+          "color": "#146b5a"
         }
       ]
     ]
