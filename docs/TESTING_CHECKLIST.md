@@ -61,7 +61,7 @@ These need a Supabase project with the `ai` function deployed (see `supabase/fun
 - Desktop: choose A PDF or picture, then Choose a file, and try a text PDF, a scanned PDF and a PNG or JPEG photo of a page. Confirm cards made from a picture show that picture, and cards from a PDF say which page they came from (with the page's picture when the page has one).
 - Phone: try Choose a PDF, Take a photo and Choose a photo, then Make notes and Make questions with each. Confirm the camera permission is asked only the first time you take a photo, and that refusing it shows a calm message suggesting Choose a photo instead. Not yet tried on a real phone.
 - Choose a file over 8 MB and confirm "That file is larger than 8 MB" instead of a send. On the desktop, choose a file that isn't a PDF or picture and confirm "That file can't be used".
-- Press Report on an AI card or AI notes. On the desktop, confirm Feedback Log opens with an "AI content report" note filled in and nothing is sent until you press a send button. On the phone, confirm an email to MemoryPal opens with the notes filled in (or a "No email app" message).
+- Press Report on an AI card or AI notes. On the desktop, confirm the Send feedback dialog opens with an "AI content report" note filled in and nothing is sent until you press Send, Email it or Save as file. On the phone, confirm an email to MemoryPal opens with the notes filled in (or a "No email app" message).
 - Watch the "AI uses left today" count go down after each request. Use all 10 and confirm the next request shows "You've used today's AI requests. They reset tomorrow" and the rest of the app keeps working.
 - Turn Wi-Fi off and press Make notes. Confirm a calm offline message ("Couldn't reach the MemoryPal cloud" on the desktop, "Needs internet" on the phone) and that nothing is lost.
 - Turn AI off in Settings and confirm Make with AI asks for consent again before anything is sent. Turn it back on and confirm the AI screen appears again.
@@ -98,7 +98,7 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 
 ## Talk-Back And Read Aloud
 
-- Confirm every card, question, answer and note has one read-aloud button: Test Lab, Review, Quick Quiz, Library, the set builder and AI notes on the desktop; review, quiz and AI notes on the phone. Pressing it again while speaking stops the voice.
+- Confirm every card, question, answer and note has one read-aloud button: Review, Quick Quiz, Library, the set builder and AI notes on the desktop; review, quiz and AI notes on the phone. Pressing it again while speaking stops the voice.
 - Desktop (Windows): open Study > Talk-back study. Confirm each question is read aloud ("Question 1 ..."), the status then says "Listening. Say your answer.", and saying the answer gives "Correct." or "Not quite. The answer is ...". Not yet tried on a real Windows PC with a microphone.
 - Desktop (Windows): say "I don't know" and confirm the answer is given and the card counts as missed. Stay silent and confirm "Didn't catch that", then a pause with a Resume button after repeated silence.
 - Desktop (Windows): with no microphone or no speech recogniser installed, confirm Talk-back switches to typed answers with a short message instead of failing.
@@ -158,15 +158,13 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Confirm the Dashboard action cards reflow from three columns on wide/fullscreen layouts down to two or one columns on smaller/scaled windows without hiding the bottom rows.
 - Open Everyday Memory and confirm the Today board, gentle review button, caregiver card builder, starter cards, and care note are readable.
 - Add a Person card, Routine card, Place card, and Reminder card from Everyday Memory, then confirm they appear in the Library under the Everyday Memory deck.
-- Use Start Gentle Review from Everyday Memory and confirm it opens Test Lab with an everyday-memory card when one exists.
+- Use Start Gentle Review from Everyday Memory and confirm Review opens on an everyday-memory card when one exists, with the rating buttons and "Gentle review · N left".
 - On a shorter window, scroll inside the left navigation area and confirm every section stays reachable.
 - Open each main page in a shorter window and confirm mouse wheel, Page Down, and End can reach the last control with a little bottom breathing room.
-- Open Settings, move a page up/down in Page Order, apply the change, and confirm the left navigation updates.
 - In Settings, change Accessibility text size to Large and Extra Large, then confirm the app rebuilds without clipping major controls.
 - Turn on Higher Contrast and confirm muted labels, borders, inputs, and navigation remain clear in dark and light mode.
 - Turn on Reduce Motion and confirm page switches and popups avoid unnecessary fades.
-- Use Senior Layout and confirm Everyday Memory moves near the top of the navigation and accessibility options stay enabled.
-- Reset Page Order and confirm the default navigation order returns.
+- Use Senior Layout and confirm accessibility options stay enabled.
 - Open Settings from the pinned bottom navigation item.
 - Resize the window smaller than fullscreen and check that no main button disappears.
 - On Capture, resize the app narrower and confirm the horizontal scrollbar can reach the right-side captured/cue panel.
@@ -248,9 +246,12 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 
 ## Study Modes
 
-- Open Memory Gym and confirm the student-study and everyday-memory tracks are visible.
-- Use Memory Gym buttons to open Test Lab, Review, Quiz, Associations, Capture, Cue Lab, Repetition, and Puzzles.
-- Start a due card from Review and confirm it opens in Test Lab.
+- Open Study and confirm it shows the number due, Start review, and the list: Quick 10, Weak cards, New cards, Talk-back study, Quick quiz, Study plan.
+- Start review and confirm the line above the card reads "Due cards · N left" and goes down by one after each rating; after the last card you are back on Study.
+- Start Weak cards and New cards and confirm each shows its own name and count, and ends after its cards (at most 20).
+- Start Quick 10 with nothing due and no weak cards and confirm a fast quiz opens instead.
+- Open Review from the page finder (Ctrl+K) with nothing due and confirm "You're all caught up" with Practise weak cards and Quick quiz.
+- Open a study plan step that drills weak cards (or one saved before v97 that named Focus, Test Lab or Repetition) and confirm weak-card review starts.
 - Type a close answer and use Smart Check.
 - Type the correct answer without repeating the question wording and confirm Smart Check still scores it as correct.
 - Type an incorrect answer for a proper noun such as Paris and confirm the missing-cue text stays readable.
@@ -260,22 +261,20 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Use Undo last rating after a review.
 - Use Skip for today and confirm the card leaves the due queue.
 
-## Repetition
+## Cues in Edit card
 
-- Add at least five repetition items.
-- Set start to `5` and range to `3`.
-- Confirm the pattern is `5`, `5-4`, `5-4-3`, then `3-2-1`.
-- Use Previous and Next Round.
-- Smart Check a round and reveal the answer.
+- Open a card in Library with Edit, press First letters, Key words and Memory sentence, and confirm each adds a line to the memory hook (Cancel leaves the card unchanged).
+- Use Picture > Choose a picture, Sound > Make a spoken cue, and Video > Choose a video file, and confirm the line under them lists what is attached; then remove each one.
+- On Windows, use Sound > Record your voice and Video > Record with the camera.
 
 ## Techniques And Puzzles
 
-- In Associations, paste 12 or more ideas and generate a Peg list; confirm every idea gets a different peg and items past ten use a twist such as "giant golden".
+- In Memory techniques, paste 12 or more ideas and generate a Peg list; confirm every idea gets a different peg and items past ten use a twist such as "giant golden".
 - Generate a Memory palace for 25 or more ideas and confirm no two ideas share the same spot.
 - Generate a Mini-story and confirm scenes are not reused for different ideas.
 - Generate an Acronym and confirm it also shows an acrostic sentence.
 - Separate ideas with commas, new lines, semicolons, pipes, and `/n`, and confirm each is split correctly.
-- In Associations, build a technique plan for retrieval practice, spaced practice, interleaving, elaboration, concrete examples, dual coding, and spaced retrieval.
+- In Memory techniques, build a technique plan for retrieval practice, spaced practice, interleaving, elaboration, concrete examples, dual coding, and spaced retrieval.
 - In Puzzles, play Sequence Recall, Word Recall, Pair Recall, Missing Item, Visual Search, N-Back Lite, Category Sort, and Routine Recall.
 - Confirm Visual Search marks only correct target tiles.
 - Confirm N-Back Lite advances item by item and keeps score.
@@ -284,7 +283,7 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 
 ## Smoothness And Text
 
-- On pages that add or remove rows (Capture, Study Plan, Feedback Log), confirm the section updates in one step without a flash or jump.
+- On pages that add or remove rows (Capture, Study Plan), confirm the section updates in one step without a flash or jump.
 - Open a dialog, type straight away without clicking it, and confirm the text goes into the dialog. Close it and confirm typing goes back to the main window.
 - Press and hold a flat button and confirm its text does not shift.
 - Drag across text in a label, double-click a word, triple-click a line, press Ctrl+C, and paste elsewhere to confirm the copy worked.
@@ -322,14 +321,13 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Confirm the Study Plan page scrolls correctly and no button is cut off.
 - Check the Stats page after completing reviews.
 - Confirm Stats shows this week, active days, best day, weak-card count, streak, daily goal, heatmap, and deck breakdown.
-- Add a note in Feedback Log and confirm it stays after switching pages.
-- Close and reopen the app, then confirm Feedback Log still shows the saved note.
-- Export Feedback Log with Export as Spreadsheet and confirm the CSV opens with rating, category, page, note, and created date.
-- Press Send Feedback Now while online and confirm a "Sent!" message appears and the notes are marked as sent (they are not offered again).
-- Confirm the Feedback Log never shows the team's email address (not on the page, in messages, or in a saved feedback file).
-- Turn Wi-Fi off, press Send Feedback Now, and confirm a calm offline message appears and the notes stay saved.
-- Press Email Feedback and confirm the mail app (or Gmail link) opens with the report filled in; with a long report, confirm the file to attach is saved and shown in File Explorer.
-- Press Save Feedback File and confirm the text report contains the notes, Windows version, text size, and theme, but not the profile name or any cards.
+- Press Feedback (top right) on any page and confirm the dialog names that page ("about: Review").
+- Press Send while online and confirm a "Sent!" message appears, the dialog closes, and the notes are marked as sent (they are not offered again).
+- In Settings, use Export feedback notes and confirm the CSV opens with rating, category, page, note, and created date.
+- Confirm the dialog never shows the team's email address (not in the dialog, in messages, or in a saved feedback file).
+- Turn Wi-Fi off, press Send, and confirm a calm offline message appears above the dialog and the note stays saved.
+- Press Email it and confirm the mail app (or Gmail link) opens with the report filled in; with a long report, confirm the file to attach is saved and shown in File Explorer.
+- Press Save as file and confirm the text report contains the notes, Windows version, text size, and theme, but not the profile name or any cards.
 - Confirm the app stays responsive (no freeze) while a send is in progress.
 - Switch profiles and confirm each profile has separate data.
 - Confirm each profile can keep a different navigation order.

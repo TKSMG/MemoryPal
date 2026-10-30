@@ -19,7 +19,7 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-VIEWS = ["dashboard", "stats", "library", "settings", "decks", "plan", "focus", "training", "games", "capture", "review"]
+VIEWS = ["dashboard", "stats", "library", "settings", "decks", "plan", "study", "practice", "games", "capture", "review"]
 
 
 def run_once(app_dir):

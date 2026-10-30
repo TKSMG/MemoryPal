@@ -9,7 +9,7 @@ PERSONAS = {
     "student": {
         "title": "I'm studying",
         "body": "School, university, exams, or learning a language. Turn notes into cards and practise on a schedule.",
-        "nav": ["dashboard", "plan", "capture", "review", "testing", "quiz", "decks", "tools", "shuffle", "stats"],
+        "nav": ["dashboard", "plan", "capture", "review", "quiz", "decks", "tools", "stats"],
         "accessibility": {},
         "tour": [
             ("dashboard", "Your home page", "Each day starts here: your study plan's steps for today, your streak and level, and study modes like Quick 10 or Exam cram."),
@@ -23,7 +23,7 @@ PERSONAS = {
     "everyday": {
         "title": "Help with everyday memory",
         "body": "Names, routines, where things are kept, and gentle daily practice. Larger text and a calmer pace.",
-        "nav": ["dashboard", "elder", "review", "testing", "games", "capture", "library", "stats"],
+        "nav": ["dashboard", "elder", "review", "games", "capture", "library", "stats"],
         "accessibility": {"text_size": "Large", "simple_language": True, "more_time": True, "reduce_motion": True},
         "tour": [
             ("dashboard", "Your home page", "Start here each day. Pick Gentle review or Daily puzzles, and watch your streak grow."),
@@ -49,11 +49,11 @@ PERSONAS = {
     "general": {
         "title": "Just exploring",
         "body": "Curious about memory training. See the main tools and try a few puzzles.",
-        "nav": ["dashboard", "training", "capture", "review", "games", "plan", "tools", "stats"],
+        "nav": ["dashboard", "tools", "capture", "review", "games", "plan", "stats"],
         "accessibility": {},
         "tour": [
             ("dashboard", "Your home page", "What to do today, your streak and level, and quick study modes. Press Ctrl+K any time to jump to a page."),
-            ("training", "Memory Gym", "Every technique MemoryPal offers, with a short explanation of why it works."),
+            ("tools", "Memory techniques", "Turn a list into an acronym, a story, a peg list or a memory palace route."),
             ("capture", "Add something to learn", "Type or paste anything you want to remember."),
             ("review", "Practise on a schedule", "Answer, check, and rate. MemoryPal decides when to show each card again."),
             ("games", "Quick puzzles", "Short recall games for a warm-up or a break."),

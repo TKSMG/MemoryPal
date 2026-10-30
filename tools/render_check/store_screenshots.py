@@ -100,7 +100,7 @@ pump(1.0)
 print(f"screen {screen_w}x{screen_h}, window {WIDTH}x{HEIGHT}")
 for number, (view, name) in enumerate([
     ("dashboard", "today"),
-    ("testing", "review"),
+    ("review", "review"),
     ("study", "study"),
     ("library", "library"),
     ("stats", "progress"),
