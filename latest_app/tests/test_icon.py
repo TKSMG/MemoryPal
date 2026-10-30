@@ -16,26 +16,19 @@ class IconTests(unittest.TestCase):
             self.assertLess(pixels[size - 1][size - 1][3], 40)
             self.assertEqual(pixels[size // 2][size // 2][3], 255)
 
-    def test_m_is_white_with_green_folds(self):
-        size = 64
-        pixels = icon.render_icon_pixels(size)
-        unit = size / icon.LOGO_GRID
-        # The middle of the left leg is solid white.
-        red, green, blue, _alpha = pixels[int(700 * unit)][int(262 * unit)]
+    def test_mark_is_white_on_the_left_stroke(self):
+        size = 32
+        x, y = icon.LOGO_LEGS[0], (icon.LOGO_ARCH_Y + icon.LOGO_BOTTOM) / 2
+        red, green, blue, _alpha = icon.icon_pixels(size)[int(y * size)][int(x * size)]
         self.assertGreater(min(red, green, blue), 200)
-        # The notch between the legs, under the V, shows the green tile.
-        red, green, blue, _alpha = pixels[int(760 * unit)][int(512 * unit)]
-        self.assertLess(red, 80)
-        # A fold point on the left hemisphere is drawn in the fold colour.
-        x, y = icon.logo_fold_lines()[0][0]
-        self.assertTrue(icon.on_fold(x, y))
-        self.assertTrue(icon.inside_mark(x, y))
 
-    def test_folds_are_mirrored(self):
-        lines = icon.logo_fold_lines()
-        left, right = lines[0], lines[1]
-        self.assertAlmostEqual(left[0][0] + right[0][0], icon.LOGO_GRID)
-        self.assertEqual(left[0][1], right[0][1])
+    def test_recall_dot_is_amber_and_clear_of_the_mark(self):
+        size = 64
+        x, y, _radius = icon.LOGO_DOT
+        red, green, blue, _alpha = icon.render_icon_pixels(size)[int(y * size)][int(x * size)]
+        self.assertGreater(red, 200)
+        self.assertLess(blue, 120)
+        self.assertGreater(icon.logo_mark_distance(x * size, y * size, size), icon.LOGO_DOT[2] * size)
 
     def test_master_cache_name_tracks_artwork_version(self):
         self.assertIn(f"v{icon.MASTER_CACHE_VERSION}", icon.master_cache_path().name)

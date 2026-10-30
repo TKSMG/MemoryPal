@@ -52,7 +52,6 @@ from memorypal.core import (
     split_study_bits,
     today_iso,
 )
-from memorypal import icon as icon_module
 from memorypal.icon import ensure_icon_file, icon_pixels
 from memorypal.models import Card, Capture, FeedbackEntry, iso_day, sample_cards
 from memorypal.paths import (
@@ -3374,12 +3373,18 @@ class MemoryPalApp(tk.Tk):
             canvas.create_oval(size - radius * 2, 1, size - 1, radius * 2, fill=COLORS["primary"], outline="")
             canvas.create_oval(1, size - radius * 2, radius * 2, size - 1, fill=COLORS["primary"], outline="")
             canvas.create_oval(size - radius * 2, size - radius * 2, size - 1, size - 1, fill=COLORS["primary"], outline="")
-        # The same brain M as icon.py, as a flat polygon and fold lines.
-        unit = size / icon_module.LOGO_GRID
-        canvas.create_polygon(*[value * unit for point in icon_module.logo_outline() for value in point], fill="#ffffff", outline="")
-        ink = icon_module.LOGO_COLORS["fold"]
-        for line in icon_module.logo_fold_lines():
-            canvas.create_line(*[value * unit for point in line for value in point], fill=ink, width=max(1, int(icon_module.LOGO_FOLD_WIDTH * unit)), capstyle="round", joinstyle="round")
+        # The same lowercase "m" of two arches and amber dot as icon.py.
+        ink = self.on_color(COLORS["primary"])
+        stroke = max(2, int(size * 0.11))
+        legs = [size * value for value in (0.27, 0.50, 0.73)]
+        arch_y, bottom = size * 0.43, size * 0.71
+        half = (legs[1] - legs[0]) / 2
+        for leg in legs:
+            canvas.create_line(leg, arch_y, leg, bottom, fill=ink, width=stroke, capstyle="round")
+        for left in legs[:2]:
+            canvas.create_arc(left, arch_y - half, left + 2 * half, arch_y + half, start=0, extent=180, style="arc", outline=ink, width=stroke)
+        dot = size * 0.066
+        canvas.create_oval(size * 0.775 - dot, size * 0.235 - dot, size * 0.775 + dot, size * 0.235 + dot, fill="#ffb020", outline="")
 
     def ensure_nav_item_visible(self, key):
         """Every tab always shows, so this only moves the selection."""
