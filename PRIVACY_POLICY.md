@@ -13,9 +13,10 @@ request.
 - **Sync goes through your own Google Drive, not our servers.** If you connect Google Drive, your
   cards are kept in a hidden MemoryPal folder in your own Google account (see "Syncing with
   Google Drive").
-- **AI features are optional.** The welcome asks whether to use them, with "Yes" chosen unless
-  you change it, and they can be turned off in Settings. They need an account. Only the notes or
-  file you choose are sent, and only when you press an AI button (see "AI features").
+- **AI features come on with your account, and you can turn them off.** They need an account,
+  and you agree to them when you create one or sign in. You can turn them off at any time in
+  Settings. Only the notes or file you choose (or, for the live tutor, your voice) are sent, and
+  only when you press an AI button (see "AI features").
 - **A MemoryPal account is optional.** It is only needed for AI features.
 - **We don't sell your data, show ads, or use tracking or analytics tools.**
 - **Accounts are for people 13 and older.**
@@ -82,11 +83,13 @@ iOS Keychain or the Android Keystore), never your password.
 
 ## AI features
 
-MemoryPal can make study notes and practice questions from your notes, a PDF or a photo. This
-is optional:
+MemoryPal can make study notes and practice questions from your notes, a PDF or a photo. AI
+features are on by default once you have an account, and you can turn them off:
 
-- It only works when you are signed in and have said yes to it, in the welcome or on the AI
-  screen. You can turn it off again in Settings.
+- It only works when you are signed in. Creating an account or signing in means you agree to
+  these AI features, as described here. You can turn them off at any time in Settings, and
+  turning them back on shows this information again first. Nothing is sent until you press an
+  AI button.
 - Only what you choose is sent: the text, or the one file, you picked for that request, anything
   you typed under "How should it look?" or "Questions your teacher has asked", and a list of your
   existing card questions in that set, so the AI doesn't repeat them and can follow their style.

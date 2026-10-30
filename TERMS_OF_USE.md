@@ -1,9 +1,9 @@
 # MemoryPal Terms of Use
 
-Last updated: October 21, 2026
+Last updated: October 30, 2026
 
 These terms apply when you use MemoryPal, made by Kirthik Sai Mouli Parthiban ("we"). By creating
-an account you agree to them and to the [Privacy Policy](PRIVACY_POLICY.md).
+or signing in to an account you agree to them and to the [Privacy Policy](PRIVACY_POLICY.md).
 
 ## 1. Using MemoryPal
 
@@ -31,8 +31,10 @@ the right to use. We don't look at, share or publish your content.
 
 ## 5. AI features
 
-AI features are optional and need a MemoryPal account. They send the text or file you choose to Google's
-Gemini API to make notes and questions (see the Privacy Policy). **AI can be wrong**, so check
+AI features need a MemoryPal account and are on by default once you have one; you can turn them
+off at any time in Settings. They send the text or file you choose (or, for the live tutor, your
+voice) to Google's Gemini API to make notes and questions or to talk through your cards (see the
+Privacy Policy). **AI can be wrong**, so check
 AI-made cards before relying on them. Only send material you have the right to use, and don't
 send private or sensitive information. Don't use AI features to make harmful, hateful, sexual or
 illegal content. Each account has a daily AI limit, which we may change or pause.
