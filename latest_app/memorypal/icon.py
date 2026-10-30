@@ -51,22 +51,57 @@ def dot_alpha(px, py, cx, cy, radius, softness=0.16):
 
 # Logo geometry, as fractions of the icon size. assets/memorypal-logo.svg
 # uses the same numbers on a 1024 grid, so the SVG and every rendered size
-# match. The mark is a lowercase "m" drawn as one unbroken line of two
-# arches (one idea leading to the next), with an amber dot for the idea you
-# just recalled. Flat colour, no gloss or sparkle, so it stays calm and reads
-# cleanly from 16px to 1024px.
+# match. The mark is a study card: a white card with its top-right corner
+# turned over in amber (peeking at the answer), carrying a lowercase "m"
+# drawn as one line of two arches. Flat colour, no gloss or sparkle, so it
+# says "flashcards" at a glance and reads cleanly from 16px to 1024px.
 LOGO_RADIUS = 0.225                      # tile corner radius
-LOGO_LEGS = (0.270, 0.500, 0.730)        # x of the three upright strokes
-LOGO_ARCH_Y = 0.430                      # y where the arches meet the legs
-LOGO_BOTTOM = 0.710                      # y where the legs end (round caps)
-LOGO_STROKE = 0.115
-LOGO_DOT = (0.775, 0.235, 0.066)         # amber recall dot: x, y, radius
+LOGO_CARD = (0.172, 0.244, 0.828, 0.756)  # card left, top, right, bottom
+LOGO_CARD_RADIUS = 0.047                 # card corner radius
+LOGO_FOLD = 0.146                        # size of the turned-over corner
+LOGO_LEGS = (0.295, 0.480, 0.666)        # x of the three upright strokes
+LOGO_ARCH_Y = 0.474                      # y where the arches meet the legs
+LOGO_BOTTOM = 0.674                      # y where the legs end (round caps)
+LOGO_STROKE = 0.090
 LOGO_COLORS = {
     "top": "#1f7a66",
     "bottom": "#125c4c",
-    "mark": "#ffffff",
-    "dot": "#ffb020",
+    "card": "#ffffff",
+    "fold": "#ffb020",
+    "mark": "#146b5a",
 }
+
+
+def card_distance(px, py, canvas):
+    """Signed distance to the card: a rounded rectangle with its top-right corner cut off."""
+    left, top, right, bottom = (value * canvas for value in LOGO_CARD)
+    radius, fold = LOGO_CARD_RADIUS * canvas, LOGO_FOLD * canvas
+    cx, cy = (left + right) / 2, (top + bottom) / 2
+    qx = abs(px - cx) - ((right - left) / 2 - radius)
+    qy = abs(py - cy) - ((bottom - top) / 2 - radius)
+    box = math.hypot(max(qx, 0), max(qy, 0)) + min(max(qx, qy), 0) - radius
+    return max(box, fold_cut_distance(px, py, canvas))
+
+
+def fold_cut_distance(px, py, canvas):
+    """Signed distance to the diagonal where the corner is folded (positive beyond it)."""
+    _left, top, right, _bottom = (value * canvas for value in LOGO_CARD)
+    fold = LOGO_FOLD * canvas
+    return ((px - (right - fold)) - (py - top)) / math.sqrt(2)
+
+
+def fold_distance(px, py, canvas):
+    """Signed distance to the turned-over corner: the triangle under the fold line."""
+    _left, top, right, _bottom = (value * canvas for value in LOGO_CARD)
+    fold = LOGO_FOLD * canvas
+    return max((right - fold) - px, py - (top + fold), fold_cut_distance(px, py, canvas))
+
+
+def paint_logo(base, px, py, canvas, edge):
+    """The card, its folded corner and the "m", painted over `base` (RGBA list)."""
+    color = blend(base, rgba(LOGO_COLORS["card"]), coverage(card_distance(px, py, canvas), edge))
+    color = blend(color, rgba(LOGO_COLORS["fold"]), coverage(fold_distance(px, py, canvas), edge))
+    return blend(color, rgba(LOGO_COLORS["mark"]), coverage(logo_mark_distance(px, py, canvas), edge))
 
 
 def arch_distance(px, py, cx, cy, radius):
@@ -77,7 +112,7 @@ def arch_distance(px, py, cx, cy, radius):
 
 
 def logo_mark_distance(px, py, canvas):
-    """Signed distance (in pixels) from a point to the white "m" stroke."""
+    """Signed distance (in pixels) from a point to the "m" stroke."""
     x = [value * canvas for value in LOGO_LEGS]
     arch_y, bottom = LOGO_ARCH_Y * canvas, LOGO_BOTTOM * canvas
     radius = (x[1] - x[0]) / 2
@@ -110,7 +145,7 @@ def rounded_square_distance(x, y, size, radius):
 def render_icon_pixels(size, scale=None):
     """Draw the MemoryPal logo as RGBA rows (pure Python, no Pillow needed).
 
-    The mark is two strokes and a dot on a flat tile, so it needs no
+    The card, fold and "m" are a few flat shapes, so the logo needs no
     simplified small-size variant: it stays crisp down to 16px.
     """
     scale = scale or (4 if size <= 64 else 3 if size <= 128 else 2)
@@ -118,10 +153,7 @@ def render_icon_pixels(size, scale=None):
     edge = max(1.0, scale * 1.0)
     top = rgba(LOGO_COLORS["top"])
     bottom = rgba(LOGO_COLORS["bottom"])
-    mark = rgba(LOGO_COLORS["mark"])
-    dot_color = rgba(LOGO_COLORS["dot"])
     radius = canvas * LOGO_RADIUS
-    dot_x, dot_y, dot_r = (value * canvas for value in LOGO_DOT)
 
     pixels = []
     for y in range(canvas):
@@ -135,8 +167,7 @@ def render_icon_pixels(size, scale=None):
             if shape <= 0:
                 row.append([0, 0, 0, 0])
                 continue
-            color = blend(base, mark, coverage(logo_mark_distance(px, py, canvas), edge))
-            color = blend(color, dot_color, coverage(math.hypot(px - dot_x, py - dot_y) - dot_r, edge))
+            color = paint_logo(base, px, py, canvas, edge)
             color[3] = clamp_color(255 * shape)
             row.append(color)
         pixels.append(row)
@@ -164,7 +195,7 @@ def render_icon_pixels(size, scale=None):
 
 
 MASTER_SIZE = 256
-MASTER_CACHE_VERSION = 4  # bump whenever the logo artwork changes
+MASTER_CACHE_VERSION = 5  # bump whenever the logo artwork changes
 
 
 def master_cache_path():
