@@ -17,9 +17,13 @@ export interface DevicePrefs {
   haptics: boolean;
   /** Question ids ("<card id>:<type>") from the last quiz round, so the next one avoids them. */
   quiz_recent: string[];
-  /** The person allowed AI features on the one-time AI screen (off withdraws it). */
+  /**
+   * AI features are on. Starts on (Kirthik's call, 2026-10-30): agreeing to
+   * the Terms when creating or signing in to the account AI needs is the
+   * consent. Turning it off in Settings is kept; turning it back on shows the AI screen.
+   */
   ai_allowed: boolean;
-  /** When they allowed it (ISO time), or ''. */
+  /** When they last allowed it on the AI screen (ISO time), or ''. */
   ai_allowed_at: string;
   /** A daily reminder when cards are due (asks for notification permission when turned on). */
   reminders: boolean;
@@ -30,7 +34,7 @@ export interface DevicePrefs {
 }
 
 const DEFAULT_PREFS: DevicePrefs = {
-  theme: 'system', haptics: true, quiz_recent: [], ai_allowed: false, ai_allowed_at: '',
+  theme: 'system', haptics: true, quiz_recent: [], ai_allowed: true, ai_allowed_at: '',
   reminders: false, reminder_time: '19:00', badge: true,
 };
 

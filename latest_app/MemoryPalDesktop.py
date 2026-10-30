@@ -5972,7 +5972,7 @@ class MemoryPalApp(tk.Tk):
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(30), pady=self.px(28)))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Label(hero, text=f"Welcome to MemoryPal, {active_profile_name()}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        tk.Label(hero, text="Four quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
+        tk.Label(hero, text="Three quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
 
         who = self.card(page.inner, "Card.TFrame", 22)
         who.pack(fill="x", padx=(0, 8), pady=(0, 16))
@@ -6037,32 +6037,6 @@ class MemoryPalApp(tk.Tk):
         self.check_toggle(voice, read_aloud, "Yes, read questions and answers aloud to me", fit=True).pack(fill="x", pady=(0, self.px(10)))
         self.button_row(voice, [("Test the Voice", lambda: self.speak("Hello. This is how MemoryPal sounds when it reads to you."), "TButton")])
 
-        # AI is chosen here, with what it means in plain words, and starts on
-        # (Kirthik's call, 2026-10-24): picking "Yes" and finishing the
-        # welcome is the same consent as the AI screen, recorded with a time.
-        # Choosing again from Settings keeps the current answer.
-        redo = bool(self.store.onboarding.get("done"))
-        use_ai = tk.StringVar(value="No thanks" if redo and not aiflow.has_consent(self.ai_prefs()) else "Yes, use AI")
-        ai_card = self.card(page.inner, "Card.TFrame", 22)
-        ai_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        ttk.Label(ai_card, text="4. Use AI to make notes and practice questions?", style="H2.TLabel").pack(anchor="w", pady=(0, 6))
-        self.fit_wrap(ttk.Label(
-            ai_card,
-            text=(
-                "Only what you choose is sent, when you press an AI button: it goes through MemoryPal's server to Google's Gemini API. "
-                "On Gemini's free tier Google may keep it, use it to improve its products, and people at Google may read it, so don't send "
-                f"private or sensitive information. AI needs a MemoryPal account (up to {aiflow.AI_DAILY_LIMIT} requests a day) and can be turned off in Settings."
-            ),
-            style="CardMuted.TLabel", wraplength=self.px(1000), justify="left",
-        ), pady=(0, self.px(10)))
-        self.pill_group(ai_card, use_ai, ["Yes, use AI", "No thanks"], max_columns=2).pack(fill="x")
-        links = tk.Frame(ai_card, bg=COLORS["surface"])
-        links.pack(fill="x", pady=(self.px(10), 0))
-        for index, (label, url) in enumerate((label, url) for label, url in (("Privacy policy", cloud_config.PRIVACY_URL), ("Google's Gemini API terms", aiflow.GEMINI_TERMS_URL)) if url):
-            link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2")
-            link.pack(side="left", padx=(0 if index == 0 else self.px(16), 0))
-            self.keyboard_link(link, lambda _event, address=url: open_web_page(address))
-        state["use_ai"] = use_ai
 
         finish = self.card(page.inner, "AltCard.TFrame", 22)
         finish.pack(fill="x", padx=(0, 8), pady=(0, 16))
@@ -6071,17 +6045,14 @@ class MemoryPalApp(tk.Tk):
         self.button_row(
             finish,
             [
-                ("Start the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), True, use_ai.get() == "Yes, use AI"), "Primary.TButton"),
-                ("Skip the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), False, use_ai.get() == "Yes, use AI"), "TButton"),
+                ("Start the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), True), "Primary.TButton"),
+                ("Skip the Tour", lambda: self.finish_welcome(state["persona"], text_size.get(), read_aloud.get(), False), "TButton"),
             ],
             "AltCard.TFrame",
         )
 
-    def finish_welcome(self, persona_key, text_size, read_aloud, take_tour, use_ai=None):
+    def finish_welcome(self, persona_key, text_size, read_aloud, take_tour):
         persona_key = persona_key if persona_key in onboarding.PERSONAS else "general"
-        if use_ai is not None and use_ai != aiflow.has_consent(self.ai_prefs()):
-            prefs = self.ai_prefs()
-            self.store.preferences = aiflow.normalize_preferences(aiflow.give_consent(prefs) if use_ai else aiflow.withdraw_consent(prefs))
         data = onboarding.persona(persona_key)
         prefs = dict(self.accessibility)
         # Redoing the welcome with a different answer shouldn't keep the old
@@ -9506,7 +9477,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(card, text="AI features", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(
             card,
-            text="Make study notes and practice questions from your notes, a PDF or a picture. Off until you allow it, and it needs a MemoryPal account. "
+            text="Make study notes and practice questions from your notes, a PDF or a picture. On unless you turn it off here, and it needs a MemoryPal account. "
                  "Only what you choose is sent, to Google's Gemini API through MemoryPal's server. On Gemini's free tier Google may keep it, use it to improve its products, and people may read it, so don't send private or sensitive information.",
             style="CardMuted.TLabel",
             wraplength=self.px(1040),
@@ -11720,15 +11691,8 @@ class MemoryPalApp(tk.Tk):
                 row.pack(fill="x", pady=(self.px(12), 0))
                 # The app's own tick box: Tk's native one drew a white-edged
                 # square that didn't match the theme.
-                self.check_toggle(row, agreed, "I agree to the Terms of Use and Privacy Policy", wraplength=560).pack(anchor="w", fill="x")
-                links = tk.Frame(row, bg=COLORS["surface"])
-                links.pack(anchor="w", padx=(self.px(24), 0))
-                for label, url in (("Read the Terms of Use", cloud_config.TERMS_URL), ("Read the Privacy Policy", cloud_config.PRIVACY_URL)):
-                    if not url:
-                        continue
-                    link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
-                    link.pack(side="left", padx=(0, self.px(14)))
-                    self.keyboard_link(link, lambda _event, target=url: open_web_page(target))
+                self.check_toggle(row, agreed, "I agree to the Terms of Use and Privacy Policy, including AI features", wraplength=560).pack(anchor="w", fill="x")
+                self.terms_links(row, indent=True)
                 return {"agreed": agreed.get}
 
             def created(result, _values):
@@ -11791,8 +11755,24 @@ class MemoryPalApp(tk.Tk):
             [("email", "Email", False), ("password", "Password", True)],
             "Sign in", sign_in, signed_in,
             extra_links=[("Forgot your password?", self.open_reset_dialog), ("New here? Create an account", lambda: self.open_account_dialog("create"))],
+            footer=lambda content: self.terms_links(content, "By signing in you agree to the Terms of Use and Privacy Policy, including AI features.") or {},
             browser_check=True,
         )
+
+    def terms_links(self, parent, lead="", indent=False):
+        """The AI note and Terms/Privacy links where people agree to the Terms (agreeing turns AI on)."""
+        box = tk.Frame(parent, bg=COLORS["surface"])
+        box.pack(fill="x", padx=(self.px(24) if indent else 0, 0), pady=(self.px(6), 0))
+        text = f"{lead} {aiflow.AI_TERMS_NOTE}".strip()
+        tk.Label(box, text=text, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(470), justify="left", anchor="w").pack(anchor="w", fill="x")
+        links = tk.Frame(box, bg=COLORS["surface"])
+        links.pack(anchor="w", pady=(self.px(4), 0))
+        for label, url in (("Read the Terms of Use", cloud_config.TERMS_URL), ("Read the Privacy Policy", cloud_config.PRIVACY_URL)):
+            if not url:
+                continue
+            link = tk.Label(links, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
+            link.pack(side="left", padx=(0, self.px(14)))
+            self.keyboard_link(link, lambda _event, target=url: open_web_page(target))
 
     def open_second_step_dialog(self, session, on_done):
         """Ask for the authenticator code after the password (two-step sign-in)."""

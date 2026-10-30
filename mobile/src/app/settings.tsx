@@ -144,7 +144,7 @@ export default function Settings() {
           value={prefs.ai_allowed}
           onChange={(value) => (value ? router.push('/ai-consent') : setPrefs({ ai_allowed: false, ai_allowed_at: '' }))}
         />
-        <Txt variant="small">{`Needs a MemoryPal account. Each account can make up to ${AI_DAILY_LIMIT} AI requests a day. AI goes through MemoryPal’s server to Google’s Gemini API (free tier, so Google may keep and read what is sent). Turning this off stops all AI requests.`}</Txt>
+        <Txt variant="small">{`Needs a MemoryPal account. Each account can make up to ${AI_DAILY_LIMIT} AI requests a day. AI goes through MemoryPal’s server to Google’s Gemini API (free tier, so Google may keep and read what is sent). Turning this off stops all AI requests, including the live tutor.`}</Txt>
       </Card>
 
       <SectionTitle>Appearance</SectionTitle>
