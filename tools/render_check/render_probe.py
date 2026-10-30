@@ -116,6 +116,11 @@ def run(name, action, seconds=2.2, lead=0.35):
         app.update()
     CONFIGURES.clear()
     STEP_TIMES.clear()
+    profiler = None
+    if name in os.environ.get("PROFILE_SCENARIOS", "").split():
+        import cProfile
+        profiler = cProfile.Profile()
+        profiler.enable()
     started = time.perf_counter()
     action()
     # The real event loop, as the app runs it: Windows' move/size loop only
@@ -134,6 +139,15 @@ def run(name, action, seconds=2.2, lead=0.35):
             app.after(10, beat)
     app.after(10, beat)
     app.mainloop()
+    if profiler is not None:
+        import io
+        import pstats
+        profiler.disable()
+        text = io.StringIO()
+        pstats.Stats(profiler, stream=text).sort_stats("tottime").print_stats(22)
+        for line in text.getvalue().splitlines():
+            if line.strip():
+                print("PROF " + line[:150])
     with open(out, "rb") as f:
         fw, fh, count = struct.unpack("<III", f.read(12))
         frames = []
