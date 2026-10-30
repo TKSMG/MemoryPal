@@ -64,7 +64,7 @@ jobs:
           fi
           PROBE_OUT=probe-out python tools/render_check/scroll_probe.py ${{ inputs.scroll || 'stats settings library' }} >> probe.txt 2>&1 || true
           if [ "$RUNNER_OS" = "Windows" ]; then
-            PRINT_PNG=1 python tools/render_check/render_probe.py render-out ${{ inputs.render }} > render.txt 2>&1 || true
+            PROFILE_SCENARIOS="drag_resize_grow sys_maximize" PRINT_PNG=1 python tools/render_check/render_probe.py render-out ${{ inputs.render }} > render.txt 2>&1 || true
             grep -v '^PNG \|^SERIES ' render.txt >> probe.txt || true
             grep '^PNG ' render.txt || true
           fi
