@@ -71,7 +71,7 @@ Until v96 the colours were the stock set most generated apps share: a bright blu
 - One accent, pine green (`#146b5a` light, `#63c9ae` dark), used for the main action, the current tab, links and live counts. The logo's amber is the only warm colour, kept for streaks and badges. Violet is now a muted plum.
 - Rating colours keep their meaning (red again, amber hard, green good, blue easy) at lower saturation.
 - The desktop and phone palettes are the same values (`constants.py` and `mobile/src/ui/theme.ts`), and both still meet WCAG AA.
-- Pages that lead to other pages (Study, Create, Practice, Memory Gym, Today's study modes) are lists in one rounded panel: a line icon, the name, one line about it, a live count when there is one, and a chevron. The whole row is the target, and Tab, Enter and Space work on it. Don't go back to rows of same-size cards, each with an Open button.
+- Pages that lead to other pages (Study, Create, Practice, Today's study modes) are lists in one rounded panel: a line icon, the name, one line about it, a live count when there is one, and a chevron. The whole row is the target, and Tab, Enter and Space work on it. Don't go back to rows of same-size cards, each with an Open button.
 - Use the app's line icons, not emoji, next to the app's own text. Emoji stay only in the badge gallery for now.
 - Dropdowns use a line chevron, not clam's filled triangle. Quiz answers are left-aligned rows.
 
@@ -113,12 +113,25 @@ Destructive actions: never put them next to everyday actions. Reset all data liv
 The rail used to hold 17 pages. Duolingo has 5 tabs and Khan Academy about 4, and scanning 17 labels was slow, especially for older users. The pages are now grouped into five destinations (`HUBS` and `HUB_PAGES` in `MemoryPalDesktop.py`):
 
 - **Today**: Dashboard, which also leads to the Study Plan.
-- **Study**: a hub page with Review, Focus, Quiz, Repetition and Test Lab.
-- **Create**: a hub page with Capture, Decks, Library and Cue Lab.
-- **Practice**: a hub page with Memory Gym, Everyday Memory, Associations and Puzzles.
+- **Study**: what's due and one Start review button, then Quick 10, Weak cards, New cards, Talk-back, Quick quiz and Study plan.
+- **Create**: New set, Paste notes and Make with AI, then Sets and Library.
+- **Practice**: Memory techniques, Puzzles and Everyday Memory (Everyday Memory first for the everyday and caregiver personas).
 - **Progress**: Stats.
 
-Hub pages show one tile per page, with a live count where it helps ("4 cards due now"). The tiles follow the profile's page order, so Everyday Memory comes first for the everyday and caregiver personas. Settings → Page Order now sets that order inside each destination. Every page stays reachable through Ctrl+K and Back. Feedback moves into Settings or the help menu once testing ends.
+Every page stays reachable through Ctrl+K and Back.
+
+### One page per job (v97)
+
+The desktop had 22 pages behind those five tabs, about a third of them repeating each other, while the phone did the same work with about 12 screens. The desktop now matches the phone:
+
+- Focus and Test Lab were Review under other names. Review is now one page that runs in modes (due, Quick 10, weak, new, gentle), as on the phone. Each mode takes its card list when it starts.
+- Repetition Path kept its items only in a page draft, never as cards, so they didn't sync or get scheduled. It was removed; plan steps that pointed at it now start weak-card practice.
+- Cue Lab moved into Edit card: hint ideas go into the memory hook, and Picture, Sound and Video menus attach media to that card.
+- Memory Gym only linked to pages one click away, so it went.
+- Feedback is a dialog over the page it is about, not a page of its own.
+- Settings → Page order went: with five fixed tabs it only shuffled tiles.
+
+Don't add a page for something that can be a mode of an existing page or a section of a dialog.
 
 ## Platform Conventions
 
@@ -168,7 +181,7 @@ The Dashboard should answer "what do I do now?" with today's plan steps first, t
 
 ## First Run And Onboarding
 
-A new profile should not open on a page full of tools. The Welcome screen asks one plain question (who is using MemoryPal?) and uses the answer to set page order, text size, and calmer defaults. Every choice stays editable in Settings, and choosing again resets only the settings the persona controls.
+A new profile should not open on a page full of tools. The Welcome screen asks one plain question (who is using MemoryPal?) and uses the answer to set Today's study modes, text size, and calmer defaults. Every choice stays editable in Settings, and choosing again resets only the settings the persona controls.
 
 Existing profiles skip the Welcome screen. People already using the app should never be interrupted by setup they did not ask for.
 
