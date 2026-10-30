@@ -8,8 +8,8 @@ from memorypal.onboarding import PERSONA_ORDER, PERSONAS, persona, tour_steps  #
 from memorypal.store import PERSONAS as STORE_PERSONAS, default_accessibility  # noqa: E402
 
 KNOWN_VIEWS = {
-    "dashboard", "training", "elder", "decks", "plan", "focus", "capture", "review", "testing",
-    "quiz", "shuffle", "tools", "cuelab", "games", "library", "stats", "feedback", "settings",
+    "dashboard", "elder", "decks", "plan", "capture", "review",
+    "quiz", "tools", "games", "library", "stats", "settings",
 }
 
 

@@ -5,7 +5,7 @@ import { MemoryStore, StudyPlan } from './store';
 
 export const STUDY_HABIT_OPTIONS: [string, string][] = [
   ['mnemonics', 'I remember better with mnemonics, stories, or images'],
-  ['repetition', 'I like structured repetition drilling'],
+  ['repetition', 'I like extra drilling on weak cards'],
   ['quick_mc', 'I prefer quick multiple choice over typing answers'],
   ['games', 'I like short recall-game breaks to reset focus'],
   ['breaks', 'I focus better with short rest breaks (Pomodoro style)'],
@@ -35,7 +35,8 @@ export const MAX_PLAN_MINUTES = 24 * 60;
 
 export type Goal = 'cram' | 'exam_prep' | 'long_term';
 
-/** Where a step sends the person: the desktop page key it was built for. */
+/** Where a step sends the person: the desktop page key it was built for.
+ * 'shuffle' (the old repetition path) only appears in plans saved before it was removed. */
 export type StepView = 'capture' | 'tools' | 'quiz' | 'review' | 'focus' | 'shuffle' | 'testing' | 'games' | 'stats' | 'break';
 
 export interface PlanStep {
@@ -116,18 +117,18 @@ export function buildStudyPlan(
   } else if (goal === 'cram') {
     if (due.length || weak.length) add('Warm-up: quick multiple choice', 0.15, 'quiz', 'Fast recall check to see where you stand before the clock starts.', { quiz_mode: 'choices' });
     add('Focused review', 0.45, reviewView, 'Work through due and weak cards with Smart Check, prioritising the ones you keep missing. ' + reviewDetail(due.length, pyRound(minutes * 0.45)));
-    if (habits.has('repetition')) add('Repetition drilling', 0.2, 'shuffle', 'Run the 5, 5-4, 5-4-3, 3-2-1 pattern on your weakest items for extra reps right before the test.');
+    if (habits.has('repetition')) add('Drill weak cards', 0.2, 'focus', 'Go through your weakest cards again, hardest first, for extra reps right before the test.');
     add('Final confidence pass', 0.2, 'quiz', "One more quick pass. Multiple choice if you're short on time, self-check if you have a few extra minutes.", { quiz_mode: selfCheckMode });
   } else if (goal === 'exam_prep') {
     if (due.length || weak.length) add('Quick warm-up', 0.12, 'quiz', 'A short recall check to activate what you already know before digging in.', { quiz_mode: 'choices' });
     add('Spaced review', 0.33, reviewView, "Work through what's due with Smart Check so nothing quietly slips. " + reviewDetail(due.length, pyRound(minutes * 0.33)));
     if (habits.has('mnemonics')) add('Strengthen weak hooks', 0.15, 'tools', "Build a fresh association for your shakiest cards while there's still time to let it sink in.");
-    add('Repetition drilling', 0.2, 'shuffle', "Run the repetition path on your weakest items so they're solid well before exam day.");
+    add('Drill weak cards', 0.2, 'focus', "Go through your weakest cards again, hardest first, so they're solid well before exam day.");
     add('Self-check quiz', 0.2, 'quiz', 'Confirm recall without leaning on the saved answer.', { quiz_mode: selfCheckMode });
   } else {
     add('Spaced review', 0.35, reviewView, 'Work through everything due with Smart Check so your intervals stay honest. ' + reviewDetail(due.length, pyRound(minutes * 0.35)));
     if (habits.has('mnemonics')) add('Strengthen weak hooks', 0.2, 'tools', 'Build a fresh association for anything you recently rated Again or Review.');
-    if (habits.has('repetition')) add('Repetition path', 0.2, 'shuffle', 'Walk the backward-then-forward pattern on your weakest deck items.');
+    if (habits.has('repetition')) add('Drill weak cards', 0.2, 'focus', 'Go through your weakest cards again, hardest first, until each one comes easily.');
     add('Self-check quiz', habits.has('mnemonics') || habits.has('repetition') ? 0.15 : 0.25, 'quiz', 'Confirm recall without leaning on the saved answer.', { quiz_mode: selfCheckMode });
   }
 

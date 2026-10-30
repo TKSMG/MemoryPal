@@ -34,10 +34,10 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 
 1. Take the guided tour.
 2. **Capture** - paste a few notes or type 3-5 question/answer cards.
-3. **Review / Test Lab** - answer a card, press Smart Check, then rate it.
+3. **Review** - answer a card, press Smart Check, then rate it. Also try Weak cards and Quick 10 from the Study tab.
 4. **Read aloud** - press a Read aloud button on a card.
 5. **Study Plan** - build a plan for today, then a plan over several days.
-6. **Associations** - paste 12 or more items and try Peg list and Memory palace.
+6. **Memory techniques** (Practice tab) - paste 12 or more items and try Peg list and Memory palace.
 7. **Puzzles** - play one or two games.
 8. **Settings** - try Large text, Higher contrast, and More time.
 9. **Quick Quiz** - play a round and notice the different kinds of question: pick the answer, fill in the blank, true or false, match the pairs, what comes next, and type the answer. A second round should give different questions.
@@ -46,8 +46,8 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 
 ## 4. Send feedback
 
-- In the app, open **Feedback Log** and add notes as you go (a rating, what page, and what happened).
-- When you're done, press **Send Feedback Now** to send them straight to the MemoryPal team (needs internet). If that doesn't work, use **Email Feedback** or **Save Feedback File** instead.
+- In the app, press **Feedback** at the top right while you're on the page you want to talk about. Give a rating and say what happened; the page is noted for you.
+- Press **Send** to send it straight to the MemoryPal team (needs internet). If that doesn't work, use **Email it** or **Save as file** instead. Notes you don't send yet are kept and go with the next one you send.
 - Only your notes plus your Windows version, text size, and theme are sent. Your profile name and study cards are never included.
 - For crashes or odd behaviour, a screenshot and one sentence about what you clicked is very helpful.
 - Please also mention your Windows version and screen scaling (for example 100%, 125%, or 150%).
