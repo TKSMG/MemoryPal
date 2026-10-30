@@ -52,6 +52,7 @@ from memorypal.core import (
     split_study_bits,
     today_iso,
 )
+from memorypal import icon as icon_module
 from memorypal.icon import ensure_icon_file, icon_pixels
 from memorypal.models import Card, Capture, FeedbackEntry, iso_day, sample_cards
 from memorypal.paths import (
@@ -3373,20 +3374,12 @@ class MemoryPalApp(tk.Tk):
             canvas.create_oval(size - radius * 2, 1, size - 1, radius * 2, fill=COLORS["primary"], outline="")
             canvas.create_oval(1, size - radius * 2, radius * 2, size - 1, fill=COLORS["primary"], outline="")
             canvas.create_oval(size - radius * 2, size - radius * 2, size - 1, size - 1, fill=COLORS["primary"], outline="")
-        # The same study card, folded corner and "m" as icon.py, in flat shapes.
-        left, top, right, bottom = (size * value for value in (0.172, 0.244, 0.828, 0.756))
-        fold = size * 0.146
-        canvas.create_polygon(left, top, right - fold, top, right, top + fold, right, bottom, left, bottom, fill="#ffffff", outline="")
-        canvas.create_polygon(right - fold, top, right - fold, top + fold, right, top + fold, fill="#ffb020", outline="")
-        ink = COLORS["primary_dark"] if self.theme == "light" else "#146b5a"
-        stroke = max(2, int(size * 0.09))
-        legs = [size * value for value in (0.295, 0.480, 0.666)]
-        arch_y, foot = size * 0.474, size * 0.674
-        half = (legs[1] - legs[0]) / 2
-        for leg in legs:
-            canvas.create_line(leg, arch_y, leg, foot, fill=ink, width=stroke, capstyle="round")
-        for start in legs[:2]:
-            canvas.create_arc(start, arch_y - half, start + 2 * half, arch_y + half, start=0, extent=180, style="arc", outline=ink, width=stroke)
+        # The same brain M as icon.py, as a flat polygon and fold lines.
+        unit = size / icon_module.LOGO_GRID
+        canvas.create_polygon(*[value * unit for point in icon_module.logo_outline() for value in point], fill="#ffffff", outline="")
+        ink = icon_module.LOGO_COLORS["fold"]
+        for line in icon_module.logo_fold_lines():
+            canvas.create_line(*[value * unit for point in line for value in point], fill=ink, width=max(1, int(icon_module.LOGO_FOLD_WIDTH * unit)), capstyle="round", joinstyle="round")
 
     def ensure_nav_item_visible(self, key):
         """Every tab always shows, so this only moves the selection."""

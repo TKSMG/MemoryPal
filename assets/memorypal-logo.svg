@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
   <title id="title">MemoryPal Logo</title>
-  <desc id="desc">A rounded green tile holding a white study card. The card's top-right corner is turned over in amber, and a green lowercase "m" of two arches sits on the card.</desc>
-  <!-- Geometry matches latest_app/memorypal/icon.py (LOGO_* constants) on a 1024 grid. -->
+  <desc id="desc">A rounded green tile with a white capital M whose top is a brain: two bumpy hemispheres meet in the M's middle notch, with green folds in each.</desc>
+  <!-- Paths match latest_app/memorypal/icon.py (LOGO_BRAIN, LOGO_FOLDS, LOGO_SHIFT_Y) on a 1024 grid. -->
   <defs>
     <linearGradient id="mp-bg" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#1f7a66"/>
@@ -9,8 +9,9 @@
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" rx="230.4" fill="url(#mp-bg)"/>
-  <path d="M224.3 250 H698.5 L848 399.5 V726 A48 48 0 0 1 800 774 H224.3 A48 48 0 0 1 176.3 726 V298 A48 48 0 0 1 224.3 250 Z" fill="#ffffff"/>
-  <path d="M698.5 250 V399.5 H848 Z" fill="#ffb020"/>
-  <path d="M302 690 V485.4 A95 95 0 0 1 492 485.4 A95 95 0 0 1 682 485.4 V690 M492 485.4 V690"
-        fill="none" stroke="#146b5a" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(0 12)">
+    <path d="M196 770 V470 C176 410 196 350 246 322 C250 262 302 220 362 226 C402 196 466 206 492 250 C502 268 508 288 512 312 C516 288 522 268 532 250 C558 206 622 196 662 226 C722 220 774 262 778 322 C828 350 848 410 828 470 V770 C828 787 814 800 797 800 H727 C710 800 696 787 696 770 V520 L560 650 C534 676 490 676 464 650 L328 520 V770 C328 787 314 800 297 800 H227 C210 800 196 787 196 770 Z" fill="#ffffff"/>
+    <path d="M250 420 C280 380 300 440 336 400 C368 364 392 410 430 380 M300 330 C330 300 360 330 388 300 M774 420 C744 380 724 440 688 400 C656 364 632 410 594 380 M724 330 C694 300 664 330 636 300"
+          fill="none" stroke="#146b5a" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
 </svg>

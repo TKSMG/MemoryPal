@@ -4,9 +4,9 @@
 
 Writes mobile/assets/:
 - icon.png                      1024 full-bleed square (iOS and stores round the corners)
-- android-icon-foreground.png   the card alone, inside Android's adaptive-icon safe zone
+- android-icon-foreground.png   the M alone, inside Android's adaptive-icon safe zone
 - android-icon-background.png   the green tile colour, edge to edge
-- android-icon-monochrome.png   white card with the "m" cut out, for Android themed icons
+- android-icon-monochrome.png   white M with the folds cut out, for Android themed icons
 - splash-icon.png               the rounded tile, for the launch screen
 - favicon.png                   48px rounded tile for the web build
 """
@@ -36,16 +36,17 @@ def png(path, size, rows):
     print("wrote", path)
 
 
-def render(size, tile=True, rounded=False, mark_scale=1.0, mono=False, logo=True, supersample=2):
-    """The logo with options: square or rounded tile (or none), and the card scaled about the centre.
+def render(size, tile=True, rounded=False, mark_scale=1.0, mono=False, logo=True, supersample=4):
+    """The logo with options: square or rounded tile (or none), and the M scaled about the centre.
 
-    Without a tile the card stands alone on transparency (Android's adaptive
-    foreground). mono gives the card's silhouette in white with the "m" cut
+    Without a tile the M stands alone on transparency (Android's adaptive
+    foreground). mono gives the M's silhouette in white with the folds cut
     out, for Android themed icons, which use only the alpha channel.
     """
     canvas = size * supersample
     edge = float(supersample)
     top, bottom = icon.rgba(icon.LOGO_COLORS["top"]), icon.rgba(icon.LOGO_COLORS["bottom"])
+    mark_rgba, fold_rgba = icon.rgba(icon.LOGO_COLORS["mark"]), icon.rgba(icon.LOGO_COLORS["fold"])
     centre = canvas / 2
     rows = []
     for y in range(size):
@@ -57,22 +58,14 @@ def render(size, tile=True, rounded=False, mark_scale=1.0, mono=False, logo=True
                     px, py = x * supersample + sx + 0.5, y * supersample + sy + 0.5
                     # Map the point back into the unscaled logo's coordinates.
                     mx, my = centre + (px - centre) / mark_scale, centre + (py - centre) / mark_scale
-                    card_edge = edge / mark_scale
+                    mark, fold = icon.mark_samples(mx, my, canvas) if logo else (False, False)
                     if tile:
                         alpha = 255 * (icon.coverage(icon.rounded_square_distance(px, py, canvas, canvas * icon.LOGO_RADIUS), edge) if rounded else 1.0)
-                        color = icon.blend(top, bottom, py / canvas)
-                        if logo:
-                            color = icon.paint_logo(color, mx, my, canvas, card_edge)
+                        color = fold_rgba if fold else mark_rgba if mark else icon.blend(top, bottom, py / canvas)
+                    elif mono:
+                        color, alpha = mark_rgba, 255 if mark and not fold else 0
                     else:
-                        card = icon.coverage(icon.card_distance(mx, my, canvas), card_edge)
-                        fold = icon.coverage(icon.fold_distance(mx, my, canvas), card_edge)
-                        shape = max(card, fold)
-                        if mono:
-                            color = [255, 255, 255, 0]
-                            alpha = 255 * shape * (1 - icon.coverage(icon.logo_mark_distance(mx, my, canvas), card_edge))
-                        else:
-                            color = icon.paint_logo(icon.rgba(icon.LOGO_COLORS["card"]), mx, my, canvas, card_edge)
-                            alpha = 255 * shape
+                        color, alpha = (fold_rgba if fold else mark_rgba), 255 if mark else 0
                     acc[0] += color[0] * alpha
                     acc[1] += color[1] * alpha
                     acc[2] += color[2] * alpha
@@ -92,10 +85,10 @@ def main():
     # Android shows the middle ~66% of a foreground layer; keep the mark inside it.
     png(OUT / "android-icon-foreground.png", 1024, render(1024, tile=False, mark_scale=0.72))
     png(OUT / "android-icon-background.png", 1024, render(1024, tile=True, rounded=False, logo=False))
-    # Themed icons use only the alpha channel: the card's outline with the "m" cut out.
+    # Themed icons use only the alpha channel: the M's outline with the folds cut out.
     png(OUT / "android-icon-monochrome.png", 1024, render(1024, tile=False, mark_scale=0.72, mono=True))
     png(OUT / "splash-icon.png", 512, render(512, tile=True, rounded=True))
-    png(OUT / "favicon.png", 48, render(48, tile=True, rounded=True, supersample=4))
+    png(OUT / "favicon.png", 48, render(48, tile=True, rounded=True, supersample=8))
 
 
 if __name__ == "__main__":

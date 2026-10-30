@@ -16,26 +16,26 @@ class IconTests(unittest.TestCase):
             self.assertLess(pixels[size - 1][size - 1][3], 40)
             self.assertEqual(pixels[size // 2][size // 2][3], 255)
 
-    def test_mark_is_dark_ink_on_a_white_card(self):
+    def test_m_is_white_with_green_folds(self):
         size = 64
         pixels = icon.render_icon_pixels(size)
-        x, y = icon.LOGO_LEGS[0], (icon.LOGO_ARCH_Y + icon.LOGO_BOTTOM) / 2
-        red, green, blue, _alpha = pixels[int(y * size)][int(x * size)]
-        self.assertLess(max(red, green, blue), 140)
-        # Between the legs, below the arches, the card shows through white.
-        x = (icon.LOGO_LEGS[0] + icon.LOGO_LEGS[1]) / 2
-        red, green, blue, _alpha = pixels[int(icon.LOGO_BOTTOM * size) - 2][int(x * size)]
+        unit = size / icon.LOGO_GRID
+        # The middle of the left leg is solid white.
+        red, green, blue, _alpha = pixels[int(700 * unit)][int(262 * unit)]
         self.assertGreater(min(red, green, blue), 200)
+        # The notch between the legs, under the V, shows the green tile.
+        red, green, blue, _alpha = pixels[int(760 * unit)][int(512 * unit)]
+        self.assertLess(red, 80)
+        # A fold point on the left hemisphere is drawn in the fold colour.
+        x, y = icon.logo_fold_lines()[0][0]
+        self.assertTrue(icon.on_fold(x, y))
+        self.assertTrue(icon.inside_mark(x, y))
 
-    def test_folded_corner_is_amber_and_cut_from_the_card(self):
-        size = 64
-        _left, top, right, _bottom = icon.LOGO_CARD
-        x, y = right - icon.LOGO_FOLD * 3 / 4, top + icon.LOGO_FOLD * 3 / 4
-        red, green, blue, _alpha = icon.render_icon_pixels(size)[int(y * size)][int(x * size)]
-        self.assertGreater(red, 200)
-        self.assertLess(blue, 120)
-        # The card's own top-right corner is gone: that spot is the tile.
-        self.assertGreater(icon.card_distance((right - 0.01) * size, (top + 0.01) * size, size), 0)
+    def test_folds_are_mirrored(self):
+        lines = icon.logo_fold_lines()
+        left, right = lines[0], lines[1]
+        self.assertAlmostEqual(left[0][0] + right[0][0], icon.LOGO_GRID)
+        self.assertEqual(left[0][1], right[0][1])
 
     def test_master_cache_name_tracks_artwork_version(self):
         self.assertIn(f"v{icon.MASTER_CACHE_VERSION}", icon.master_cache_path().name)

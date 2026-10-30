@@ -49,76 +49,137 @@ def dot_alpha(px, py, cx, cy, radius, softness=0.16):
     return max(0, min(1, (radius + edge - distance) / edge))
 
 
-# Logo geometry, as fractions of the icon size. assets/memorypal-logo.svg
-# uses the same numbers on a 1024 grid, so the SVG and every rendered size
-# match. The mark is a study card: a white card with its top-right corner
-# turned over in amber (peeking at the answer), carrying a lowercase "m"
-# drawn as one line of two arches. Flat colour, no gloss or sparkle, so it
-# says "flashcards" at a glance and reads cleanly from 16px to 1024px.
+# Logo geometry, on a 1024 grid (scaled to any size). assets/memorypal-logo.svg
+# uses the same paths, so the SVG and every rendered size match. The mark is
+# a capital "M" whose top is a brain: two bumpy hemispheres meet in the M's
+# middle notch, with green folds in each. It reads as "memory" and as the
+# app's initial at once. Flat colour, no gloss or sparkle, and it stays
+# readable down to 16px.
 LOGO_RADIUS = 0.225                      # tile corner radius
-LOGO_CARD = (0.172, 0.244, 0.828, 0.756)  # card left, top, right, bottom
-LOGO_CARD_RADIUS = 0.047                 # card corner radius
-LOGO_FOLD = 0.146                        # size of the turned-over corner
-LOGO_LEGS = (0.295, 0.480, 0.666)        # x of the three upright strokes
-LOGO_ARCH_Y = 0.474                      # y where the arches meet the legs
-LOGO_BOTTOM = 0.674                      # y where the legs end (round caps)
-LOGO_STROKE = 0.090
+LOGO_GRID = 1024.0
+LOGO_SHIFT_Y = 12                        # optical centring: the brain top is heavier
+# The silhouette: ("M", x, y), ("L", x, y), ("V", y), ("H", x), ("C", x1, y1, x2, y2, x, y).
+LOGO_BRAIN = (
+    ("M", 196, 770), ("V", 470), ("C", 176, 410, 196, 350, 246, 322), ("C", 250, 262, 302, 220, 362, 226),
+    ("C", 402, 196, 466, 206, 492, 250), ("C", 502, 268, 508, 288, 512, 312), ("C", 516, 288, 522, 268, 532, 250),
+    ("C", 558, 206, 622, 196, 662, 226), ("C", 722, 220, 774, 262, 778, 322), ("C", 828, 350, 848, 410, 828, 470),
+    ("V", 770), ("C", 828, 787, 814, 800, 797, 800), ("H", 727), ("C", 710, 800, 696, 787, 696, 770), ("V", 520),
+    ("L", 560, 650), ("C", 534, 676, 490, 676, 464, 650), ("L", 328, 520), ("V", 770),
+    ("C", 328, 787, 314, 800, 297, 800), ("H", 227), ("C", 210, 800, 196, 787, 196, 770),
+)
+# The folds: open strokes on the left hemisphere, mirrored for the right.
+LOGO_FOLDS = (
+    (("M", 250, 420), ("C", 280, 380, 300, 440, 336, 400), ("C", 368, 364, 392, 410, 430, 380)),
+    (("M", 300, 330), ("C", 330, 300, 360, 330, 388, 300)),
+)
+LOGO_FOLD_WIDTH = 24
 LOGO_COLORS = {
     "top": "#1f7a66",
     "bottom": "#125c4c",
-    "card": "#ffffff",
-    "fold": "#ffb020",
-    "mark": "#146b5a",
+    "mark": "#ffffff",
+    "fold": "#146b5a",
 }
 
 
-def card_distance(px, py, canvas):
-    """Signed distance to the card: a rounded rectangle with its top-right corner cut off."""
-    left, top, right, bottom = (value * canvas for value in LOGO_CARD)
-    radius, fold = LOGO_CARD_RADIUS * canvas, LOGO_FOLD * canvas
-    cx, cy = (left + right) / 2, (top + bottom) / 2
-    qx = abs(px - cx) - ((right - left) / 2 - radius)
-    qy = abs(py - cy) - ((bottom - top) / 2 - radius)
-    box = math.hypot(max(qx, 0), max(qy, 0)) + min(max(qx, qy), 0) - radius
-    return max(box, fold_cut_distance(px, py, canvas))
+def flatten_path(commands, steps=16):
+    """Points along a path of lines and cubic curves (1024-grid units)."""
+    points = []
+    x = y = 0.0
+    for command in commands:
+        kind, values = command[0], command[1:]
+        if kind in ("M", "L"):
+            x, y = values
+            points.append((x, y))
+        elif kind == "H":
+            x = values[0]
+            points.append((x, y))
+        elif kind == "V":
+            y = values[0]
+            points.append((x, y))
+        elif kind == "C":
+            x1, y1, x2, y2, x3, y3 = values
+            for step in range(1, steps + 1):
+                t = step / steps
+                u = 1 - t
+                points.append((u * u * u * x + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3,
+                               u * u * u * y + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3))
+            x, y = x3, y3
+    return points
 
 
-def fold_cut_distance(px, py, canvas):
-    """Signed distance to the diagonal where the corner is folded (positive beyond it)."""
-    _left, top, right, _bottom = (value * canvas for value in LOGO_CARD)
-    fold = LOGO_FOLD * canvas
-    return ((px - (right - fold)) - (py - top)) / math.sqrt(2)
+@lru_cache(maxsize=1)
+def logo_outline():
+    """The brain-M silhouette as a closed polygon, shifted for optical centring."""
+    return tuple((x, y + LOGO_SHIFT_Y) for x, y in flatten_path(LOGO_BRAIN))
 
 
-def fold_distance(px, py, canvas):
-    """Signed distance to the turned-over corner: the triangle under the fold line."""
-    _left, top, right, _bottom = (value * canvas for value in LOGO_CARD)
-    fold = LOGO_FOLD * canvas
-    return max((right - fold) - px, py - (top + fold), fold_cut_distance(px, py, canvas))
+@lru_cache(maxsize=1)
+def logo_fold_lines():
+    """Each fold as a polyline, with the right hemisphere's mirror copies."""
+    lines = []
+    for fold in LOGO_FOLDS:
+        points = [(x, y + LOGO_SHIFT_Y) for x, y in flatten_path(fold, steps=12)]
+        lines.append(tuple(points))
+        lines.append(tuple((LOGO_GRID - x, y) for x, y in points))
+    return tuple(lines)
 
 
-def paint_logo(base, px, py, canvas, edge):
-    """The card, its folded corner and the "m", painted over `base` (RGBA list)."""
-    color = blend(base, rgba(LOGO_COLORS["card"]), coverage(card_distance(px, py, canvas), edge))
-    color = blend(color, rgba(LOGO_COLORS["fold"]), coverage(fold_distance(px, py, canvas), edge))
-    return blend(color, rgba(LOGO_COLORS["mark"]), coverage(logo_mark_distance(px, py, canvas), edge))
+@lru_cache(maxsize=4096)
+def outline_spans(y):
+    """The x ranges inside the silhouette on the horizontal line at `y` (grid units)."""
+    outline = logo_outline()
+    crossings = []
+    for index, (x1, y1) in enumerate(outline):
+        x2, y2 = outline[index - 1]
+        if (y1 <= y < y2) or (y2 <= y < y1):
+            crossings.append(x1 + (y - y1) * (x2 - x1) / (y2 - y1))
+    crossings.sort()
+    return tuple(zip(crossings[::2], crossings[1::2]))
 
 
-def arch_distance(px, py, cx, cy, radius):
-    """Distance to the upper half of a circle (an arch)."""
-    if py <= cy:
-        return abs(math.hypot(px - cx, py - cy) - radius)
-    return min(math.hypot(px - (cx - radius), py - cy), math.hypot(px - (cx + radius), py - cy))
+def inside_mark(gx, gy):
+    """True where a point (grid units) is inside the M silhouette."""
+    return any(left <= gx < right for left, right in outline_spans(round(gy * 4) / 4))
 
 
-def logo_mark_distance(px, py, canvas):
-    """Signed distance (in pixels) from a point to the "m" stroke."""
-    x = [value * canvas for value in LOGO_LEGS]
-    arch_y, bottom = LOGO_ARCH_Y * canvas, LOGO_BOTTOM * canvas
-    radius = (x[1] - x[0]) / 2
-    legs = min(segment_distance(px, py, leg, arch_y, leg, bottom) for leg in x)
-    arches = min(arch_distance(px, py, x[0] + radius, arch_y, radius), arch_distance(px, py, x[1] + radius, arch_y, radius))
-    return min(legs, arches) - canvas * LOGO_STROKE / 2
+@lru_cache(maxsize=1)
+def fold_boxes():
+    pad = LOGO_FOLD_WIDTH
+    return tuple((min(x for x, _ in line) - pad, min(y for _, y in line) - pad, max(x for x, _ in line) + pad, max(y for _, y in line) + pad, line) for line in logo_fold_lines())
+
+
+def on_fold(gx, gy):
+    """True where a point (grid units) is on one of the folds' strokes."""
+    half = LOGO_FOLD_WIDTH / 2
+    for left, top, right, bottom, line in fold_boxes():
+        if left <= gx <= right and top <= gy <= bottom:
+            for index in range(1, len(line)):
+                (x1, y1), (x2, y2) = line[index - 1], line[index]
+                if segment_distance(gx, gy, x1, y1, x2, y2) <= half:
+                    return True
+    return False
+
+
+def mark_samples(px, py, canvas):
+    """(mark, fold) for one sample point: whether it falls on the M and on a fold."""
+    gx, gy = px * LOGO_GRID / canvas, py * LOGO_GRID / canvas
+    if not inside_mark(gx, gy):
+        return False, False
+    return True, on_fold(gx, gy)
+
+
+def paint_logo(base, px, py, canvas, edge=None):
+    """The brain M over `base` (RGBA list) at one sample point.
+
+    Edges are smoothed by supersampling (each pixel averages many samples),
+    not here, because the outline is a polygon rather than a distance field.
+    """
+    mark, fold = mark_samples(px, py, canvas)
+    if fold:
+        return rgba(LOGO_COLORS["fold"])
+    if mark:
+        return rgba(LOGO_COLORS["mark"])
+    return list(base)
 
 
 def segment_distance(px, py, x1, y1, x2, y2):
@@ -195,7 +256,7 @@ def render_icon_pixels(size, scale=None):
 
 
 MASTER_SIZE = 256
-MASTER_CACHE_VERSION = 5  # bump whenever the logo artwork changes
+MASTER_CACHE_VERSION = 6  # bump whenever the logo artwork changes
 
 
 def master_cache_path():
@@ -217,7 +278,7 @@ def master_pixels():
     except (OSError, zlib.error):
         raw = b""
     if len(raw) != expected:
-        pixels = render_icon_pixels(MASTER_SIZE, scale=1)
+        pixels = render_icon_pixels(MASTER_SIZE, scale=4)
         raw = bytes(channel for row in pixels for pixel in row for channel in pixel)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
