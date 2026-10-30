@@ -21,6 +21,7 @@ and types for a whole round.
 import functools
 import re
 
+from . import richtext
 from .core import STOP_WORDS, comparable_text, hangman_hint, normalize_space, split_study_bits, strip_list_marker, today_iso, token_words
 
 M32 = 0xFFFFFFFF
@@ -215,7 +216,8 @@ def question_for_bit(bit):
     Returns {"prompt", "answer", "type", "source"}; type is definition,
     list, date, cloze or hint. Rule-based and conservative.
     """
-    text = normalize_space(strip_list_marker(normalize_space(bit)))
+    marked_text = normalize_space(strip_list_marker(normalize_space(bit)))
+    text = normalize_space(richtext.plain(marked_text))
     while text and text[-1] in ".!;":
         text = text[:-1].rstrip()
     words = words_of(text)
@@ -223,7 +225,15 @@ def question_for_bit(bit):
         return None
 
     def made(prompt, answer, kind):
-        return {"prompt": prompt, "answer": answer, "type": kind, "source": normalize_space(bit)}
+        return {"prompt": prompt, "answer": answer, "type": kind, "source": normalize_space(richtext.plain(bit))}
+
+    # Words the notes made bold or highlighted are the ones to remember.
+    filled = richtext.blank_marked(marked_text, BLANK)
+    if filled and words_of(filled[0].replace(BLANK, " ")):
+        sentence = filled[0]
+        while sentence and sentence[-1] in ".!;":
+            sentence = sentence[:-1].rstrip()
+        return made(f"Fill in the blank: {sentence}", filled[1], "cloze")
 
     colon = re.match(r"^([^:]{1,60}):\s+(.+)$", text)
     if colon and len(words_of(colon.group(1))) <= 6 and not re.search(r"[0-9]$", colon.group(1)):
