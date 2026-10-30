@@ -10,16 +10,12 @@
  * supabase/functions/ai/live.ts); the audio goes straight to Google.
  */
 import type { Assessment } from '../core/smartCheck';
-import { base64ToBytes, bytesToBase64, Resampler, utf8 } from './pcm';
+import { pcmMs, utf8 } from './pcm';
 import type { Outcome, TalkCard } from './talkback';
 
 export const LIVE_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
 export const MIC_RATE = 16000;
 export const MODEL_RATE = 24000;
-/** How far ahead of the speaker audio is handed to the player. Anything handed over still plays after an interruption, so keep it short. */
-export const LEAD_MS = 250;
-const PUMP_MS = 40;
-const BYTES_PER_MS = (MIC_RATE * 2) / 1000;
 const START_LINE = '(The learner pressed Start and is listening. Greet them in one short line and ask the first card.)';
 const LAST_MINUTE_LINE = '(About one minute is left. After the current card, give the short summary, say goodbye and call end_session.)';
 
@@ -34,11 +30,13 @@ export interface LiveSocket {
 }
 
 export interface LiveAudio {
-  /** Starts the echo-cancelled microphone; `onMic` gets 16 kHz PCM. */
-  start(onMic: (pcm: Uint8Array) => void): Promise<void>;
+  /** Starts the echo-cancelled microphone; `onMic` gets base64 16 kHz PCM. */
+  start(onMic: (base64: string) => void): Promise<void>;
   setMuted(muted: boolean): void;
-  /** Plays 16 kHz PCM after whatever is already playing. */
-  play(pcm: Uint8Array): void;
+  /** Plays base64 24 kHz PCM after whatever is already playing. */
+  play(base64: string): void;
+  /** Drops speech that hasn't been played yet. */
+  clear(): void;
   stop(): void;
 }
 
@@ -96,10 +94,8 @@ const RESULT_SET = new Set<Outcome>(['right', 'close', 'wrong', 'skipped']);
 export class LiveTutor {
   private phase: LivePhase = 'connecting';
   private socket: LiveSocket | null = null;
-  private resampler = new Resampler(MODEL_RATE, MIC_RATE);
-  private queue: Uint8Array[] = [];
-  private aheadUntil = 0;
-  private pumpTimer: ReturnType<typeof setInterval> | null = null;
+  /** When the speech handed to the player so far will have finished. */
+  private speechUntil = 0;
   private clockTimer: ReturnType<typeof setInterval> | null = null;
   private endTimer: ReturnType<typeof setTimeout> | null = null;
   private startedAt = 0;
@@ -191,8 +187,8 @@ export class LiveTutor {
     this.startedAt = this.now();
     this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: START_LINE }] }], turnComplete: true } });
     this.options.audio
-      .start((pcm) => {
-        if (this.phase === 'live' && !this.muted) this.send({ realtimeInput: { audio: { data: bytesToBase64(pcm), mimeType: `audio/pcm;rate=${MIC_RATE}` } } });
+      .start((data) => {
+        if (this.phase === 'live' && !this.muted) this.send({ realtimeInput: { audio: { data, mimeType: `audio/pcm;rate=${MIC_RATE}` } } });
       })
       .catch(() => this.fail('The microphone couldn’t be started. Check that MemoryPal may use it in Settings.'));
     this.clockTimer = setInterval(() => this.tick(), 1000);
@@ -216,8 +212,8 @@ export class LiveTutor {
       const audio = part?.inlineData?.data;
       if (typeof audio === 'string' && audio) {
         this.openTutorTurn();
-        this.queue.push(this.resampler.push(base64ToBytes(audio)));
-        this.pump();
+        this.options.audio.play(audio);
+        this.speechUntil = Math.max(this.speechUntil, this.now()) + pcmMs(audio, MODEL_RATE);
       }
     }
     const output = (content.outputTranscription as { text?: unknown } | undefined)?.text;
@@ -227,9 +223,8 @@ export class LiveTutor {
     }
     if (content.interrupted) {
       // The learner spoke over the tutor: drop what hasn't been played.
-      this.queue = [];
-      this.aheadUntil = Math.min(this.aheadUntil, this.now());
-      this.resampler.reset();
+      this.options.audio.clear();
+      this.speechUntil = Math.min(this.speechUntil, this.now());
     }
     if (content.turnComplete || content.interrupted) this.tutorTurnOpen = false;
     this.emit();
@@ -275,30 +270,8 @@ export class LiveTutor {
   }
 
   // ---------------------------------------------------------------- timing
-  /** Hands audio to the player a little ahead of the speaker, so an interruption stops it quickly. */
-  private pump() {
-    const now = this.now();
-    if (this.aheadUntil < now) this.aheadUntil = now;
-    while (this.queue.length && this.aheadUntil - now < LEAD_MS) {
-      const chunk = this.queue.shift() as Uint8Array;
-      if (!chunk.length) continue;
-      this.options.audio.play(chunk);
-      this.aheadUntil += chunk.length / BYTES_PER_MS;
-    }
-    if (this.queue.length && !this.pumpTimer) {
-      this.pumpTimer = setInterval(() => {
-        this.pump();
-        if (!this.queue.length && this.pumpTimer) {
-          clearInterval(this.pumpTimer);
-          this.pumpTimer = null;
-        }
-      }, PUMP_MS);
-    }
-  }
-
   private speechLeftMs(): number {
-    const queued = this.queue.reduce((sum, chunk) => sum + chunk.length, 0) / BYTES_PER_MS;
-    return Math.max(0, this.aheadUntil - this.now()) + queued;
+    return Math.max(0, this.speechUntil - this.now());
   }
 
   private tick() {
@@ -343,10 +316,9 @@ export class LiveTutor {
   }
 
   private teardown() {
-    for (const timer of [this.pumpTimer, this.clockTimer]) if (timer) clearInterval(timer);
+    if (this.clockTimer) clearInterval(this.clockTimer);
     if (this.endTimer) clearTimeout(this.endTimer);
-    this.pumpTimer = this.clockTimer = this.endTimer = null;
-    this.queue = [];
+    this.clockTimer = this.endTimer = null;
     try {
       this.options.audio.stop();
     } catch {
@@ -371,7 +343,7 @@ export class LiveTutor {
 
   private makeSnapshot(): LiveSnapshot {
     const now = this.now();
-    const tutorTalking = this.phase === 'live' && (this.queue.length > 0 || this.aheadUntil > now);
+    const tutorTalking = this.phase === 'live' && this.speechUntil > now;
     const youTalking = this.phase === 'live' && !tutorTalking && now - this.youHeardAt < 1200;
     return {
       phase: this.phase,

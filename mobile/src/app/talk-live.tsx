@@ -78,7 +78,7 @@ export default function TalkLive() {
       const mic = await prepareLiveMic();
       if (!live) return;
       if (mic !== 'granted') {
-        setStartError(mic === 'denied' ? 'Microphone access is off. Allow it in the phone’s Settings, or use classic Talk-back and type your answers.' : 'Live conversations need the full MemoryPal app on Android 10 or later, or an iPhone. Classic Talk-back works here.');
+        setStartError(mic === 'denied' ? 'Microphone access is off. Allow it in the phone’s Settings, or use classic Talk-back and type your answers.' : 'Live conversations need the full MemoryPal app on a phone (not Expo Go or the browser). Classic Talk-back works here.');
         return;
       }
       const audio = makeLiveAudio((who, value) => {
