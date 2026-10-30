@@ -3373,18 +3373,20 @@ class MemoryPalApp(tk.Tk):
             canvas.create_oval(size - radius * 2, 1, size - 1, radius * 2, fill=COLORS["primary"], outline="")
             canvas.create_oval(1, size - radius * 2, radius * 2, size - 1, fill=COLORS["primary"], outline="")
             canvas.create_oval(size - radius * 2, size - radius * 2, size - 1, size - 1, fill=COLORS["primary"], outline="")
-        # The same lowercase "m" of two arches and amber dot as icon.py.
-        ink = self.on_color(COLORS["primary"])
-        stroke = max(2, int(size * 0.11))
-        legs = [size * value for value in (0.27, 0.50, 0.73)]
-        arch_y, bottom = size * 0.43, size * 0.71
+        # The same study card, folded corner and "m" as icon.py, in flat shapes.
+        left, top, right, bottom = (size * value for value in (0.172, 0.244, 0.828, 0.756))
+        fold = size * 0.146
+        canvas.create_polygon(left, top, right - fold, top, right, top + fold, right, bottom, left, bottom, fill="#ffffff", outline="")
+        canvas.create_polygon(right - fold, top, right - fold, top + fold, right, top + fold, fill="#ffb020", outline="")
+        ink = COLORS["primary_dark"] if self.theme == "light" else "#146b5a"
+        stroke = max(2, int(size * 0.09))
+        legs = [size * value for value in (0.295, 0.480, 0.666)]
+        arch_y, foot = size * 0.474, size * 0.674
         half = (legs[1] - legs[0]) / 2
         for leg in legs:
-            canvas.create_line(leg, arch_y, leg, bottom, fill=ink, width=stroke, capstyle="round")
-        for left in legs[:2]:
-            canvas.create_arc(left, arch_y - half, left + 2 * half, arch_y + half, start=0, extent=180, style="arc", outline=ink, width=stroke)
-        dot = size * 0.066
-        canvas.create_oval(size * 0.775 - dot, size * 0.235 - dot, size * 0.775 + dot, size * 0.235 + dot, fill="#ffb020", outline="")
+            canvas.create_line(leg, arch_y, leg, foot, fill=ink, width=stroke, capstyle="round")
+        for start in legs[:2]:
+            canvas.create_arc(start, arch_y - half, start + 2 * half, arch_y + half, start=0, extent=180, style="arc", outline=ink, width=stroke)
 
     def ensure_nav_item_visible(self, key):
         """Every tab always shows, so this only moves the selection."""
