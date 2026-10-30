@@ -470,3 +470,11 @@ This build is packaged as release 0.52.0.
 - Notices ("AI notes and questions are on") always show their thin edge. Clearing the shape-picture cache sometimes threw away the edge layer, so it came and went.
 - The main window can be resized again. Its minimum was the full design size, so at 150% on a 1080p screen it equalled the starting height and the window couldn't be made shorter. It can now shrink to about half a laptop screen. It opens at most of the screen's free area (taskbar excluded), centred a little above the middle, and the streak and sync line under the page title no longer gets cut short in a narrow window. Its flame and cloud symbols have a fixed gap before their words instead of a narrow space.
 - Main and plain buttons are the same height everywhere (the main one used a larger font). An error message's OK button is the usual accent colour; red is kept for buttons that delete things. Set details' hints wrap to the width of the window.
+
+## v97 - One Page Per Job
+
+- The desktop now matches the phone tab for tab. Study shows what's due with one Start review button, then Quick 10, Weak cards, New cards, Talk-back, Quick quiz and Study plan as a list; Create has New set, Paste notes and Make with AI above Sets and Library; Practice lists Memory techniques, Puzzles and Everyday Memory with a short "Why these work".
+- Review is one page that runs in modes (due, Quick 10, weak, new, gentle), each taking its cards when it starts and showing how many are left. The Focus and Test Lab pages, which repeated it, are gone, and Gentle review now has the rating buttons.
+- Memory Gym (links to pages one click away), Repetition Path (items kept only in a page draft, never as cards) and the Settings page-order list are gone. Plan steps that drilled with Repetition Path now drill weak cards, on both apps.
+- Cue Lab moved into Edit card: First letters, Key words and Memory sentence add a hint to the memory hook, and Picture, Sound and Video menus attach media to that card.
+- Feedback is a dialog over the page it is about, which it names for you, instead of a page of its own. Export feedback notes is in Settings.
