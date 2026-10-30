@@ -14,7 +14,7 @@ import { sendNotesToAi, takeRowsForBuilder } from '../features/aiHandoff';
 import { aiPage } from '../features/aiHelpers';
 import { blankRow, hasContent, readyRows, Row, splitPasted } from '../features/setBuilder';
 import { useStore } from '../state/AppState';
-import { AiTag, Button, Card, Disclosure, Field, IconButton, ListGroup, ListRow, MIN_TOUCH, Pills, Row as HRow, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
+import { AiTag, Button, Card, Disclosure, Field, IconButton, ListGroup, ListRow, MIN_TOUCH, Pills, RichField, Row as HRow, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
 import { confirm, notify } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
@@ -207,12 +207,11 @@ export default function Add() {
       </ListGroup>
 
       <Disclosure title="Paste notes or a list" open={pasteOpen} onToggle={() => setPasteOpen((value) => !value)}>
-        <Field
+        <RichField
           label="Notes or list"
-          hint="A list like “Question :: Answer” keeps its pairs. Notes become one card per sentence, which you can edit before saving."
+          hint="A list like “Question :: Answer” keeps its pairs. Notes become one card per sentence, which you can edit before saving. Bold or highlighted words become the blank to fill in."
           value={pasted}
           onChangeText={setPasted}
-          multiline
           placeholder={'Capital of France :: Paris\nThe heart is a muscle that pumps blood.'}
           style={{ minHeight: 140 }}
         />

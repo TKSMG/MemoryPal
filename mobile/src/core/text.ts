@@ -1,5 +1,6 @@
 /** Text parsing, ported from memorypal/core.py. */
 import { splitlines, strip } from './py';
+import { balanceBits } from './richtext';
 
 export function normalizeSpace(value: string | null | undefined): string {
   return strip((value ?? '').replace(/\s+/g, ' '));
@@ -16,7 +17,12 @@ export function stripListMarker(line: string): string {
   return strip(line.replace(LIST_MARKER, ''));
 }
 
+/** Notes as study bits; marks a split cuts through are closed and reopened (richtext.balanceBits). */
 export function splitStudyBits(raw: string | null | undefined): string[] {
+  return balanceBits(rawStudyBits(raw));
+}
+
+function rawStudyBits(raw: string | null | undefined): string[] {
   let text = (raw ?? '').replace(TYPED_NEWLINE, '\n');
   if (/(?:^|\s)1[.)]\s/.test(text) && /\s2[.)]\s/.test(text)) {
     // An inline numbered list ("1. foo 2. bar") becomes one item per line.

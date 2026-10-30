@@ -5,8 +5,9 @@
 import { addDays, daysBetween, now, parseIso, todayIso, addDaysTo, isoDate } from './dates';
 import { Card, Capture, DECK_INFO_FIELDS, DeckInfo, DeckInfoField, FeedbackEntry, captureFromDict, cardFromDict, deckInfoEmpty, deckInfoFromDict, deckName, feedbackFromDict, newCard, sampleCards } from './models';
 import { Assessment } from './smartCheck';
-import { pyMod, pyRound } from './py';
-import { splitStudyBits } from './text';
+import { pyMod, pyRound, strip } from './py';
+import { AI_NOTE } from './questions';
+import { normalizeSpace, splitStudyBits } from './text';
 
 export type TextSize = 'Comfort' | 'Large' | 'Extra Large';
 
@@ -502,6 +503,22 @@ export class MemoryStore {
   addCapture(capture: Capture) {
     this.captures = [capture, ...this.captures];
     this.save();
+  }
+
+  /** Save edited notes: a new title and text, split into study bits again. AI notes keep their first line. */
+  updateCapture(id: string, title: string, text: string): Capture | undefined {
+    const capture = this.findCapture(id);
+    if (!capture) return undefined;
+    const body = strip(text);
+    const updated: Capture = {
+      ...capture,
+      title: normalizeSpace(title) || capture.title,
+      notes: capture.notes.startsWith(AI_NOTE) ? `${AI_NOTE}\n${body}` : body,
+      chunks: splitStudyBits(body),
+    };
+    this.captures = this.captures.map((item) => (item.id === id ? updated : item));
+    this.save();
+    return updated;
   }
 
   findCapture(id: string): Capture | undefined {

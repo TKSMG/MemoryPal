@@ -44,6 +44,7 @@ LIGHT_COLORS = {
     "input": "#fffdf9",
     "warm": "#fbf0de",
     "warm_text": "#94500e",
+    "mark": "#fae38a",  # highlighted words in notes, under ink text
     "again_bg": "#fbe6e1",
     "again_fg": "#a52a1d",
     "review_bg": "#f9edcf",
@@ -90,6 +91,7 @@ DARK_COLORS = {
     "input": "#181816",
     "warm": "#2c2317",
     "warm_text": "#f2b872",
+    "mark": "#5c4a12",
     "again_bg": "#3a1d1a",
     "again_fg": "#ff9585",
     "review_bg": "#372b13",

@@ -165,6 +165,19 @@ describe('set details and notes', () => {
     expect(again.captures.filter((c) => c.title !== 'Art: Colour').map((c) => c.deck)).toEqual(['', '']);
   });
 
+  test('edited notes are split again, keep their marks and the AI label', () => {
+    const { store, reload } = fresh();
+    store.addCapture(capture({ title: 'Mine', notes: 'old', chunks: ['old'] }));
+    store.addCapture(capture({ title: 'AI', notes: 'Made with AI, check it.\nold', chunks: ['old'] }));
+    const [made, mine] = store.captures;
+    store.updateCapture(mine.id, '  New  title ', '**One** fact\nTwo ==facts==\n');
+    const again = reload().findCapture(mine.id);
+    expect([again?.title, again?.notes, again?.chunks]).toEqual(['New title', '**One** fact\nTwo ==facts==', ['**One** fact', 'Two ==facts==']]);
+    store.updateCapture(made.id, '', 'Edited');
+    expect([store.findCapture(made.id)?.title, store.findCapture(made.id)?.notes]).toEqual(['AI', 'Made with AI, check it.\nEdited']);
+    expect(store.updateCapture('missing', 'x', 'y')).toBeUndefined();
+  });
+
   test('damaged details are skipped', () => {
     const { store } = fresh();
     store.applyRaw({ decks: [{ id: '  ' }, 'nope', { name: 'A', about: 'x'.repeat(2000) }, { id: 'B' }, { id: 'A', about: 'second' }] });

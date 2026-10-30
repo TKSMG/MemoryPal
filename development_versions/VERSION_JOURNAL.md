@@ -478,3 +478,11 @@ This build is packaged as release 0.52.0.
 - Memory Gym (links to pages one click away), Repetition Path (items kept only in a page draft, never as cards) and the Settings page-order list are gone. Plan steps that drilled with Repetition Path now drill weak cards, on both apps.
 - Cue Lab moved into Edit card: First letters, Key words and Memory sentence add a hint to the memory hook, and Picture, Sound and Video menus attach media to that card.
 - Feedback is a dialog over the page it is about, which it names for you, instead of a page of its own. Export feedback notes is in Settings.
+
+## v98 - Bold, Italics and Highlighting
+
+Notes can now be bold, italic or highlighted on the desktop and the phone, and saved notes can be edited. Words made bold or highlighted become the blank when notes are turned into questions.
+
+- B, I and Highlight buttons sit over the Paste notes box and in the new Edit notes (Library > Read > Edit on the desktop, Edit notes on the phone's notes page). Desktop shortcuts: Ctrl/Cmd+B, Ctrl/Cmd+I, Ctrl/Cmd+Shift+H.
+- The formatting is stored as Markdown-style marks in the text (`**bold**`, `_italic_`, `==highlight==`), so nothing about saving or syncing changed. Marks only count next to words, so "2 * 3", "a == b" and snake_case stay as typed.
+- The desktop box shows the formatting as you type with the marks faint; the phone shows "How it looks" under the box. Read aloud, Library previews and cards skip the marks.

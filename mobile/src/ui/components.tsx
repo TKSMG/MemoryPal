@@ -24,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useStore } from '../state/AppState';
 import { onSpeakingChange, speak, speakingOwner, stopSpeaking } from './feedback';
+import { hasMarks, plain, spans, Style, toggle } from '../core/richtext';
 import { pressedShade, Theme, useTheme } from './theme';
 
 export type IconName = keyof typeof Ionicons.glyphMap;
@@ -340,7 +341,7 @@ export function Pills<T extends string>({ options, value, onChange, label }: { o
   );
 }
 
-export function Field({ label, hint, ref, accessory, ...input }: TextInputProps & { label: string; hint?: string; ref?: Ref<TextInput>; /** A control beside the label, such as a speaker button. */ accessory?: ReactNode }) {
+export function Field({ label, hint, ref, accessory, toolbar, ...input }: TextInputProps & { label: string; hint?: string; ref?: Ref<TextInput>; /** A control beside the label, such as a speaker button. */ accessory?: ReactNode; /** Controls just above the box, such as the formatting buttons. */ toolbar?: ReactNode }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
   return (
@@ -354,6 +355,7 @@ export function Field({ label, hint, ref, accessory, ...input }: TextInputProps 
         <Txt variant="h3">{label}</Txt>
       )}
       {hint ? <Txt variant="muted">{hint}</Txt> : null}
+      {toolbar}
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor={theme.colors.muted}
@@ -384,6 +386,98 @@ export function Field({ label, hint, ref, accessory, ...input }: TextInputProps 
           input.style,
         ]}
       />
+    </View>
+  );
+}
+
+// ------------------------------------------------- bold, italics, highlight
+/**
+ * Text with its **bold**, _italic_ and ==highlight== marks shown as
+ * formatting (core/richtext.ts). Plain text shows as it is.
+ */
+export function RichText({ text, variant = 'body', color, style }: { text: string; variant?: Variant; color?: string; style?: StyleProp<TextStyle> }) {
+  const theme = useTheme();
+  const parts = spans(text);
+  return (
+    <Txt variant={variant} color={color} style={style} accessibilityLabel={plain(text)}>
+      {parts.map((span, index) => (
+        <Text
+          key={index}
+          style={[
+            span.bold && { fontWeight: '700' },
+            span.italic && { fontStyle: 'italic' },
+            span.highlight && { backgroundColor: theme.colors.mark, color: theme.colors.ink },
+          ]}
+        >
+          {span.text}
+        </Text>
+      ))}
+    </Txt>
+  );
+}
+
+const FORMATS: { style: Style; label: string; name: string }[] = [
+  { style: 'bold', label: 'B', name: 'Bold' },
+  { style: 'italic', label: 'I', name: 'Italics' },
+  { style: 'highlight', label: 'Highlight', name: 'Highlight' },
+];
+
+/**
+ * A notes box with B, I and Highlight buttons. Select words, then tap one;
+ * the marks go into the text (so it saves and syncs as plain text) and a
+ * preview under the box shows how the notes will look.
+ */
+export function RichField({ value, onChangeText, ...input }: TextInputProps & { label: string; hint?: string; value: string; onChangeText: (text: string) => void }) {
+  const theme = useTheme();
+  const selection = useRef({ start: value.length, end: value.length });
+  // Set for one render after a button press so the same words stay selected.
+  const [placed, setPlaced] = useState<{ start: number; end: number } | undefined>(undefined);
+  const apply = (style: Style) => {
+    const [text, start, end] = toggle(value, selection.current.start, selection.current.end, style);
+    onChangeText(text);
+    selection.current = { start, end };
+    setPlaced({ start, end });
+  };
+  const bar = (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+      {FORMATS.map((format) => (
+        <Pressable
+          key={format.style}
+          onPress={() => apply(format.style)}
+          accessibilityRole="button"
+          accessibilityLabel={format.name}
+          accessibilityHint={format.style === 'italic' ? 'Makes the selected words italic' : `Makes the selected words ${format.style === 'bold' ? 'bold' : 'highlighted'}. Questions made from these notes blank them out`}
+          style={({ pressed }) => [
+            styles.formatButton,
+            { backgroundColor: format.style === 'highlight' ? theme.colors.mark : pressed ? theme.colors.alt : theme.colors.surfaceSoft, opacity: pressed && format.style === 'highlight' ? 0.75 : 1 },
+          ]}
+        >
+          <Text maxFontSizeMultiplier={1.6} style={{ color: theme.colors.ink, fontSize: theme.font(16), fontWeight: format.style === 'bold' ? '700' : '500', fontStyle: format.style === 'italic' ? 'italic' : 'normal' }}>{format.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+  return (
+    <View style={{ gap: 8 }}>
+      <Field
+        {...input}
+        multiline
+        value={value}
+        onChangeText={onChangeText}
+        selection={placed}
+        onSelectionChange={(event) => {
+          selection.current = event.nativeEvent.selection;
+          if (placed) setPlaced(undefined);
+          input.onSelectionChange?.(event);
+        }}
+        toolbar={bar}
+      />
+      {hasMarks(value) ? (
+        <Card tone="alt">
+          <Txt variant="label">How it looks</Txt>
+          <RichText text={value} />
+        </Card>
+      ) : null}
     </View>
   );
 }
@@ -577,6 +671,7 @@ const styles = StyleSheet.create({
   inlineButton: { paddingHorizontal: 6, marginHorizontal: -6 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   // The primary border is the focus ring, so the browser's own outline is dropped on web.
+  formatButton: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   inputFocused: { borderWidth: 2, paddingHorizontal: 13, paddingVertical: 11, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : null) },
   // The pressed highlight reaches a little past the text, so the row reads as one target.
   group: { borderRadius: 16, overflow: 'hidden' },

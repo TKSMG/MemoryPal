@@ -16,6 +16,7 @@ import { todayIso } from './dates';
 import type { Card } from './models';
 import { newCard } from './models';
 import { splitlines, strip } from './py';
+import { blankMarked, plain } from './richtext';
 import { comparableText, hangmanHint, normalizeSpace, splitStudyBits, STOP_WORDS, stripListMarker, tokenWords } from './text';
 
 const M32 = 0x100000000;
@@ -235,11 +236,20 @@ const DEFINITION_PROMPTS: Record<string, (subject: string) => string> = {
 
 /** A real question from one sentence of notes, or null. Rule-based and conservative. */
 export function questionForBit(bit: string): NoteQuestion | null {
-  let text = normalizeSpace(stripListMarker(normalizeSpace(bit)));
+  const markedText = normalizeSpace(stripListMarker(normalizeSpace(bit)));
+  let text = normalizeSpace(plain(markedText));
   while (text && '.!;'.includes(text[text.length - 1])) text = text.slice(0, -1).replace(/\s+$/, '');
   const words = wordsOf(text);
   if (!words.length || text.endsWith('?')) return null;
-  const made = (prompt: string, answer: string, type: NoteQuestion['type']): NoteQuestion => ({ prompt, answer, type, source: normalizeSpace(bit) });
+  const made = (prompt: string, answer: string, type: NoteQuestion['type']): NoteQuestion => ({ prompt, answer, type, source: normalizeSpace(plain(bit)) });
+
+  // Words the notes made bold or highlighted are the ones to remember.
+  const filled = blankMarked(markedText, BLANK);
+  if (filled && wordsOf(filled[0].split(BLANK).join(' ')).length) {
+    let sentence = filled[0];
+    while (sentence && '.!;'.includes(sentence[sentence.length - 1])) sentence = sentence.slice(0, -1).replace(/\s+$/, '');
+    return made(`Fill in the blank: ${sentence}`, filled[1], 'cloze');
+  }
 
   const colon = /^([^:]{1,60}):\s+(.+)$/u.exec(text);
   if (colon && wordsOf(colon[1]).length <= 6 && !/[0-9]$/.test(colon[1])) {

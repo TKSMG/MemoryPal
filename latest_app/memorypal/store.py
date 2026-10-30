@@ -988,6 +988,23 @@ class MemoryStore:
         self.captures.insert(0, capture)
         self.save()
 
+    def update_capture(self, capture_id, title, text):
+        """Save edited notes: a new title and text, split into study bits again.
+
+        AI notes keep their "Made with AI" first line, so they still show as AI notes.
+        """
+        capture = self.find_capture(capture_id)
+        if capture is None:
+            return None
+        from .ai import AI_NOTE
+
+        text = str(text or "").strip()
+        capture.title = " ".join(str(title or "").split()) or capture.title
+        capture.notes = f"{AI_NOTE}\n{text}" if capture.notes.startswith(AI_NOTE) else text
+        capture.chunks = split_study_bits(text)
+        self.save()
+        return capture
+
     MAX_INTERVAL = 365
 
     @staticmethod

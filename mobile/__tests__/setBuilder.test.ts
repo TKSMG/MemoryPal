@@ -4,6 +4,12 @@ import { deleteDeck, renameDeck } from '../src/features/decks';
 import { blankRow, readyRows, rowFromSentence, splitPasted } from '../src/features/setBuilder';
 
 describe('set builder', () => {
+  test('bold or highlighted words become the blank; other marks are dropped', () => {
+    expect(rowFromSentence('The capital of France is ==Paris==.')).toEqual({ front: 'Fill in the blank: The capital of France is _____', back: 'Paris' });
+    expect(rowFromSentence('Mitosis: _cell_ division')).toEqual({ front: 'Mitosis', back: 'cell division' });
+    expect(splitPasted('**Q** :: _A_').rows.map((row) => [row.front, row.back])).toEqual([['Q', 'A']]);
+  });
+
   test('a question/answer list keeps its pairs', () => {
     const { rows, fromNotes } = splitPasted('Capital of France :: Paris\nCapital of Spain => Madrid\nhola\thello');
     expect(fromNotes).toBe(false);

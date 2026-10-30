@@ -3,6 +3,8 @@
  * or by pasting notes or a list. Phone-only helpers; the shared parsing lives
  * in core/text.ts and is used unchanged.
  */
+import { BLANK } from '../core/questions';
+import { blankMarked, plain } from '../core/richtext';
 import { normalizeSpace, parsePromptAnswerLines, splitStudyBits } from '../core/text';
 
 export interface Row {
@@ -42,7 +44,10 @@ const DEFINITION = /^(.{2,60}?)(\s*[:=]\s*|\s+(?:is|are|was|were|means|refers to
 
 /** One sentence of notes as a question and answer the person can edit. */
 export function rowFromSentence(sentence: string): Pick<Row, 'front' | 'back'> {
-  const text = normalizeSpace(sentence).replace(/[.;]+$/, '');
+  // Bold or highlighted words are the ones to remember: blank them out.
+  const filled = blankMarked(normalizeSpace(sentence), BLANK);
+  if (filled && normalizeSpace(filled[0].split(BLANK).join(' '))) return { front: `Fill in the blank: ${filled[0].replace(/[.;]+$/, '')}`, back: filled[1] };
+  const text = normalizeSpace(plain(sentence)).replace(/[.;]+$/, '');
   const match = DEFINITION.exec(text);
   if (match) {
     // "The heart is…" reads "What is the heart?"; names keep their capitals.
@@ -70,7 +75,7 @@ export interface Split {
  * keeps its pairs; anything else is notes, split into sentences or lines.
  */
 export function splitPasted(raw: string): Split {
-  const pairs = parsePromptAnswerLines(raw);
+  const pairs = parsePromptAnswerLines(plain(raw));
   const lines = raw.split(/\r?\n/).filter((line) => line.trim()).length;
   const delimited = raw.split(/\r?\n/).filter((line) => /\t|::|=>|\s-\s/.test(line)).length;
   if (pairs.length && delimited >= Math.max(1, Math.ceil(lines / 2))) {

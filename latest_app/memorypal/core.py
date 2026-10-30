@@ -11,6 +11,8 @@ from pathlib import Path
 from uuid import uuid4
 import xml.etree.ElementTree as ET
 
+from .richtext import balance_bits
+
 
 def clamp(value, low, high):
     return max(low, min(high, value))
@@ -95,6 +97,10 @@ def strip_list_marker(line):
 
 
 def split_study_bits(raw):
+    return balance_bits(_split_study_bits(raw))
+
+
+def _split_study_bits(raw):
     # Pasted notes are usually messy, so this accepts common separators before
     # falling back to sentences or comma-separated fragments.
     raw = TYPED_NEWLINE.sub("\n", raw or "")

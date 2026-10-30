@@ -33,6 +33,8 @@ export interface Palette {
   onDanger: string;
   warm: string;
   warmText: string;
+  /** Highlighted words in notes, under ink text. */
+  mark: string;
   again: [string, string];
   review: [string, string];
   good: [string, string];
@@ -68,6 +70,7 @@ const LIGHT: Palette = {
   onDanger: '#ffffff',
   warm: '#fbf0de',
   warmText: '#94500e',
+  mark: '#fae38a',
   again: ['#fbe6e1', '#a52a1d'],
   review: ['#f9edcf', '#7f5100'],
   good: ['#e3f1df', '#2b6a21'],
@@ -99,6 +102,7 @@ const DARK: Palette = {
   onDanger: '#ffffff',
   warm: '#2c2317',
   warmText: '#f2b872',
+  mark: '#5c4a12',
   again: ['#3a1d1a', '#ff9585'],
   review: ['#372b13', '#f2c560'],
   good: ['#1c3320', '#8cdb80'],

@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "latest_app"))
 
 from difflib import SequenceMatcher  # noqa: E402
 
-from memorypal import progress, security, techniques  # noqa: E402
+from memorypal import progress, richtext, security, techniques  # noqa: E402
 from memorypal.core import add_days, answer_assessment, parse_prompt_answer_lines, split_study_bits, text_tokens, today_iso  # noqa: E402
 from memorypal.models import Card  # noqa: E402
 from memorypal.planning import build_multi_day_plan, build_study_plan  # noqa: E402
@@ -432,6 +432,30 @@ def quiz_cards():
     ]
 
 
+RICH_TEXTS = [
+    "**big** and _slanted_ and ==bright==", "*one* ***two***", "2 * 3 * 4", "2*3*4", "snake_case_name", "a == b",
+    "Q ==> A", "**not closed", "un**frig**ly", "**a ==b** c==", "_x_y_", "**  spaced**", "== ==", "***", "café **été**",
+    "The capital of France is ==Paris==.", "**Mitochondria** make energy", "**a** **b** c", "Only _italic_ here",
+    "In 1945 the **war** ended", "Ünï_cödé_ _ünï_", "", "*", "**x*", "==a== ==b==",
+]
+TOGGLES = [
+    ("hello world", 0, 5, "bold"), ("**hello** world", 2, 7, "bold"), ("**hello** world", 0, 9, "bold"), ("**hello** world", 0, 9, "italic"),
+    ("**hello**", 2, 7, "italic"), ("***hello***", 3, 8, "italic"), ("***hello***", 3, 8, "bold"), ("*hi*", 1, 3, "italic"),
+    ("_hi_", 1, 3, "italic"), ("_hi_", 0, 4, "italic"), ("ab", 1, 1, "italic"), ("say hi ", 3, 7, "highlight"),
+    ("==hi==", 2, 4, "highlight"), ("==hi==", 0, 6, "highlight"), ("***x***", 0, 7, "italic"), ("ab ", 3, 3, "bold"), ("abc", 9, -2, "bold"),
+]
+BALANCE = [["**Hi", "There** now"], ["a ==> b", "c"], ["plain", "text"], ["==one", "two== _three", "four_"], ["**a", "b", "c**"]]
+
+
+def richtext_cases():
+    return {
+        "texts": [{"text": t, "spans": richtext.spans(t), "plain": richtext.plain(t), "marked": richtext.marked(t), "blank": list(richtext.blank_marked(t) or []) or None} for t in RICH_TEXTS],
+        "toggles": [{"args": [t, a, b, st], "result": list(richtext.toggle(t, a, b, st))} for t, a, b, st in TOGGLES],
+        "balance": [{"bits": bits, "result": richtext.balance_bits(bits)} for bits in BALANCE],
+        "split": [{"raw": raw, "bits": split_study_bits(raw)} for raw in ("**Hi. There** now. Fine", "==A, b==, c", "1. **one** 2. _two_")],
+    }
+
+
 def question_cases():
     from memorypal import questions as q
 
@@ -452,7 +476,8 @@ def question_cases():
     for index, card in enumerate(cards):
         for kind in q.TYPES:
             singles.append({"card": card["id"], "type": kind, "seed": index, "question": q.card_question(card, kind, cards, q.Rng(index * 7 + len(kind)))})
-    bits = [bit for text in NOTE_TEXTS for bit in text.replace("|", "\n").replace(";", "\n").split("\n")] + ["  - The Nile is the longest river.  ", "Pi is about 3.14 and never ends", "AI", "x: y", "Gold is Au"]
+    bits = [bit for text in NOTE_TEXTS for bit in text.replace("|", "\n").replace(";", "\n").split("\n")] + ["  - The Nile is the longest river.  ", "Pi is about 3.14 and never ends", "AI", "x: y", "Gold is Au",
+                                                                                                                 "The capital of France is ==Paris==.", "- **Mitochondria** make energy!", "_Paris_ is the capital of France", "**Everything bold**", "In **1945** the war ended", "What is **this**?"]
     return {
         "today": QUIZ_TODAY,
         "rng": rng_cases,
@@ -552,6 +577,7 @@ def main():
         "progress": progress_cases(specs),
         "today_check": today_iso(),
         "questions": question_cases(),
+        "richtext": richtext_cases(),
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(fixtures, indent=1, ensure_ascii=False), encoding="utf-8")
