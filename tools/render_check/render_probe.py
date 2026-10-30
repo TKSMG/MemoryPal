@@ -26,6 +26,15 @@ os.makedirs(OUT, exist_ok=True)
 WANTED = sys.argv[2:]
 
 M.enable_dpi_awareness()
+if sys.platform.startswith("win"):
+    # CI desktops have the minimise/maximise animation off; most PCs have it on.
+    import ctypes
+
+    class ANIMATIONINFO(ctypes.Structure):
+        _fields_ = [("cbSize", ctypes.c_uint), ("iMinAnimate", ctypes.c_int)]
+
+    info = ANIMATIONINFO(ctypes.sizeof(ANIMATIONINFO), 1)
+    ctypes.windll.user32.SystemParametersInfoW(0x0049, ctypes.sizeof(info), ctypes.byref(info), 0)  # SPI_SETANIMATION
 app = M.MemoryPalApp()
 app.store.onboarding = {"done": True, "persona": "student"}
 app.store.add_cards([Card(deck=f"Deck {n % 6}", front=f"Question number {n} about something long enough to wrap", back=f"Answer {n} " * 6) for n in range(150)])
@@ -186,7 +195,7 @@ def run(name, action, seconds=2.2, lead=0.35):
     else:
         extra_fade = ""
         worst_off, worst_index = (0.0, 0.0), 0
-    if name.startswith("fullscreen") and worst_off[0] > 3.0:
+    if (name.startswith("fullscreen") and worst_off[0] > 3.0) or (name.startswith(("sys_", "maximize", "restore")) and distinct):
         # A coarse colour map of each in-between frame (artifacts can't be
         # fetched): B blue, W white, L light, M mid, D dark, K near black.
         def cls(r, g, b):
@@ -194,7 +203,8 @@ def run(name, action, seconds=2.2, lead=0.35):
                 return "B"
             v = (r + g + b) / 3
             return "W" if v > 235 else "L" if v > 170 else "M" if v > 90 else "D" if v > 25 else "K"
-        shots = [("before", 0), ("worst", worst_index), ("after", len(frames) - 1)]
+        shots = ([("before", 0), ("worst", worst_index), ("after", len(frames) - 1)] if name.startswith("fullscreen")
+                 else [("before", 0)] + [(f"mixed{n}", i) for n, i in enumerate(distinct[:3])] + [("after", len(frames) - 1)])
         for label, index in shots:
             data = frames[index][1]
             blue = sum(1 for i in range(0, len(data), 4 * 7) if data[i] > data[i + 2] + 40 and data[i] > data[i + 1] + 15)
@@ -402,6 +412,12 @@ def drag_burst():
         app.after(n * 12, lambda n=n: frame._scrollbar_yview("moveto", str(n / 60)))
 
 
+def syscommand(command):
+    # What the title bar's maximise / restore button sends.
+    import ctypes
+    ctypes.windll.user32.PostMessageW(app.window_handle(app), 0x0112, command, 0)  # WM_SYSCOMMAND
+
+
 def resize():
     app.geometry(f"{app.winfo_width() - 200}x{app.winfo_height() - 120}")
 
@@ -500,6 +516,9 @@ SCENARIOS = [
     ("shrink", lambda: app.geometry(f"{app.winfo_screenwidth() * 2 // 3}x{app.winfo_screenheight() * 2 // 3}+0+0")),
     ("grow", lambda: app.geometry(f"{app.winfo_screenwidth() - 40}x{app.winfo_screenheight() - 80}+0+0")),
     ("maximize", lambda: app.state("zoomed")),
+    ("sys_restore", lambda: syscommand(0xF120)),
+    ("sys_maximize", lambda: syscommand(0xF030)),
+    ("sys_restore_again", lambda: syscommand(0xF120)),
     ("unmaximize", lambda: app.state("normal")),
     ("drag_setup", place_for_drag),
     ("drag_move", drag_title),
