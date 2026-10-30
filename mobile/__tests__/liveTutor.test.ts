@@ -1,48 +1,21 @@
 /** Live Talk-back: audio helpers and the Gemini Live conversation flow, with a fake socket and fake audio. */
-import { base64ToBytes, bytesToBase64, Resampler, utf8 } from '../src/features/pcm';
-import { LEAD_MS, liveAssessment, LiveAudio, LiveSocket, LiveTutor } from '../src/features/liveTutor';
+import { base64Length, pcmMs, utf8 } from '../src/features/pcm';
+import { liveAssessment, LiveAudio, LiveSocket, LiveTutor } from '../src/features/liveTutor';
 import type { Outcome, TalkCard } from '../src/features/talkback';
 import { startLive } from '../src/cloud/ai';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { supabaseUrl: 'https://proj.supabase.co/', supabasePublishableKey: 'sb_publishable_x' } } } }));
 
-function pcm(samples: number[]): Uint8Array {
-  const bytes = new Uint8Array(samples.length * 2);
-  const view = new DataView(bytes.buffer);
-  samples.forEach((value, i) => view.setInt16(i * 2, value, true));
-  return bytes;
-}
-
-function samplesOf(bytes: Uint8Array): number[] {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return Array.from({ length: bytes.length / 2 }, (_, i) => view.getInt16(i * 2, true));
-}
+const b64 = (bytes: number) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
 
 describe('audio helpers', () => {
-  test('base64 round-trips every length and matches the standard encoding', () => {
-    for (let n = 0; n < 10; n++) {
-      const bytes = Uint8Array.from({ length: n }, (_, i) => (i * 97 + 13) & 0xff);
-      const text = bytesToBase64(bytes);
-      expect(text).toBe(btoa(String.fromCharCode(...bytes)));
-      expect(Array.from(base64ToBytes(text))).toEqual(Array.from(bytes));
-    }
+  test('base64 length and play time', () => {
+    for (let n = 0; n < 8; n++) expect(base64Length(b64(n))).toBe(n);
+    expect(pcmMs(b64(4800), 24000)).toBe(100);
   });
 
   test('UTF-8 frames decode', () => {
     expect(utf8(new TextEncoder().encode('{"a":"café ✓"}'))).toBe('{"a":"café ✓"}');
-  });
-
-  test('24 kHz becomes 16 kHz with no gaps across chunks, odd bytes kept', () => {
-    const ramp = Array.from({ length: 300 }, (_, i) => i * 10);
-    const whole = samplesOf(new Resampler(24000, 16000).push(pcm(ramp)));
-    const streamed = new Resampler(24000, 16000);
-    const bytes = pcm(ramp);
-    const parts = [bytes.subarray(0, 101), bytes.subarray(101, 333), bytes.subarray(333)];
-    const joined = parts.flatMap((part) => samplesOf(streamed.push(part)));
-    expect(joined).toEqual(whole);
-    expect(whole.length).toBe(200);
-    // A ramp stays a ramp: every output step is 1.5 input samples.
-    expect(whole.slice(0, 4)).toEqual([0, 15, 30, 45]);
   });
 });
 
@@ -69,11 +42,12 @@ class FakeSocket implements LiveSocket {
 
 function setup(minutes = 10) {
   let now = 1_000_000;
-  const played: Uint8Array[] = [];
-  let mic: ((pcm: Uint8Array) => void) | null = null;
-  const audio: LiveAudio & { muted: boolean; stopped: boolean } = {
+  const played: string[] = [];
+  let mic: ((data: string) => void) | null = null;
+  const audio: LiveAudio & { muted: boolean; stopped: boolean; cleared: number } = {
     muted: false,
     stopped: false,
+    cleared: 0,
     async start(onMic) {
       mic = onMic;
     },
@@ -82,6 +56,9 @@ function setup(minutes = 10) {
     },
     play(chunk) {
       played.push(chunk);
+    },
+    clear() {
+      this.cleared += 1;
     },
     stop() {
       this.stopped = true;
@@ -108,7 +85,7 @@ function setup(minutes = 10) {
     audio,
     played,
     rated,
-    mic: (chunk: Uint8Array) => mic?.(chunk),
+    mic: (chunk: string) => mic?.(chunk),
     advance: (ms: number) => {
       now += ms;
       jest.advanceTimersByTime(ms);
@@ -116,7 +93,7 @@ function setup(minutes = 10) {
   };
 }
 
-const audioMessage = (ms: number) => ({ serverContent: { modelTurn: { parts: [{ inlineData: { data: bytesToBase64(new Uint8Array(ms * 48)), mimeType: 'audio/pcm;rate=24000' } }] } } });
+const audioMessage = (ms: number) => ({ serverContent: { modelTurn: { parts: [{ inlineData: { data: b64(ms * 48), mimeType: 'audio/pcm;rate=24000' } }] } } });
 
 describe('live tutor conversation', () => {
   beforeEach(() => jest.useFakeTimers());
@@ -133,24 +110,20 @@ describe('live tutor conversation', () => {
     await Promise.resolve();
     expect(tutor.getSnapshot().phase).toBe('live');
     expect((ws.sent[1].clientContent as { turnComplete: boolean }).turnComplete).toBe(true);
-    mic(new Uint8Array([1, 2, 3, 4]));
-    expect(ws.sent[2]).toEqual({ realtimeInput: { audio: { data: bytesToBase64(new Uint8Array([1, 2, 3, 4])), mimeType: 'audio/pcm;rate=16000' } } });
+    mic('AQIDBA==');
+    expect(ws.sent[2]).toEqual({ realtimeInput: { audio: { data: 'AQIDBA==', mimeType: 'audio/pcm;rate=16000' } } });
   });
 
-  test('speech is handed to the player only a little ahead, and an interruption drops the rest', () => {
-    const { tutor, ws, played, advance } = setup();
+  test('speech plays as it arrives, and talking over the tutor clears it', () => {
+    const { tutor, ws, played, audio, advance } = setup();
     ws.server({ setupComplete: {} });
     for (let i = 0; i < 10; i++) ws.server(audioMessage(100)); // one second of speech
-    const playedMs = () => played.reduce((sum, chunk) => sum + chunk.length, 0) / 32;
-    expect(playedMs()).toBeLessThanOrEqual(LEAD_MS + 100);
+    expect(played.length).toBe(10);
     expect(tutor.getSnapshot().speaking).toBe('tutor');
     advance(200);
-    const before = playedMs();
-    expect(before).toBeGreaterThan(LEAD_MS);
     ws.server({ serverContent: { interrupted: true } });
-    advance(2000);
-    expect(playedMs()).toBe(before);
-    expect(playedMs()).toBeLessThan(800);
+    expect(audio.cleared).toBe(1);
+    expect(tutor.getSnapshot().speaking).not.toBe('tutor');
   });
 
   test('captions follow each turn', () => {
@@ -210,7 +183,7 @@ describe('live tutor conversation', () => {
     expect(audio.muted).toBe(true);
     expect(ws.sent[ws.sent.length - 1]).toEqual({ realtimeInput: { audioStreamEnd: true } });
     const count = ws.sent.length;
-    mic(new Uint8Array([1, 2]));
+    mic('AQI=');
     expect(ws.sent.length).toBe(count);
     ws.onclose?.({ code: 1006 });
     expect(tutor.getSnapshot().phase).toBe('error');

@@ -6,7 +6,6 @@
     "@expo/metro-runtime": "~57.0.16",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-google-signin/google-signin": "16.1.5",
-    "@speechmatics/expo-two-way-audio": "0.1.2",
     "expo": "~57.0.27",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.21",
