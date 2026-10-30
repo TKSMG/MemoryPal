@@ -88,17 +88,17 @@ Plans can also cover several days or weeks. The multi-day planner looks ahead at
 - The last day before a test is a light confidence pass followed by rest, because sleep helps recall more than a late-night cram.
 - Days with a lot of due cards get more time instead of a fixed block.
 
-## Memory Gym
+## Study, Create and Practice
 
-Memory Gym is the page that brings the main practice paths together.
+The app has five tabs, the same on the desktop and the phone: Today, Study, Create, Practice and Progress.
 
-It has a student study track for school material and an everyday memory track for gentler recall work.
+Study opens on what is due and one Start button, then lists the other ways through the cards: Quick 10, Weak cards, New cards, Talk-back and Quick quiz.
 
-The student track points toward retrieval practice, spaced practice, interleaving, elaboration, concrete examples, and dual coding.
+Create holds the ways to add cards (New set, Paste notes, Make with AI) and where they are kept (Sets and Library).
 
-The everyday memory track points toward spaced retrieval, names, routines, attention games, and cue-based practice.
+Practice holds memory techniques, puzzles and Everyday Memory, with a short note on why each kind of practice works.
 
-The goal is to make the app easier to approach for different people without making the home page too crowded.
+Until v97 the desktop also had Memory Gym, Focus, Test Lab, Repetition Path and Cue Lab pages. They repeated other pages, so they were folded in: Focus and Test Lab became Review's modes, cues moved into Edit card, and Memory Gym's links were already one click away.
 
 ## Everyday Memory
 
@@ -195,13 +195,11 @@ This is useful when one PC is shared, when a learner wants separate subjects, or
 
 Each profile keeps its own cards, captures, activity, streak, and attachments.
 
-## Test Lab
+## Review
 
-Test Lab is the focused answering page.
+Review is the focused answering page: the prompt, an answer box, Reveal, the Smart Check result with its bucket highlight, and the rating buttons stay together.
 
-Review cards and self-check quiz cards can open there so the prompt, answer box, reveal button, Smart Check result, bucket highlight, and rating controls stay together.
-
-This keeps review cleaner than placing every control under the normal review prompt.
+It runs in modes: due cards, Quick 10 (due first, then shaky ones), Weak cards, New cards, and Gentle review for Everyday Memory. Each mode takes its list of cards when it starts and says how many are left.
 
 ## Smart Check
 
@@ -220,34 +218,13 @@ Two kinds of answer look close in wording but are wrong, so Smart Check never ca
 
 Numbers have to match exactly; small typos are only forgiven in words. "1,000" and "1000" count as the same number.
 
-## Repetition Path
-
-Repetition Path practises a group of study bits in a controlled order.
-
-Current rule:
-
-If the start item is 5 and the range is 3, the app practises:
-
-```text
-5
-5-4
-5-4-3
-3-2-1
-```
-
-This keeps attention on the newer item while still walking back through older material.
-
-The latest interface uses a round player instead of showing every generated round at once.
-
-This makes practice less overwhelming and keeps the answer box close to the current prompts.
-
 ## Quick Quiz
 
 Quick Quiz has two modes.
 
 Self Check:
 
-The learner sees the question, opens Test Lab, answers, reveals, or uses Smart Check.
+The learner sees the question, answers, then reveals it and says how it went.
 
 Multiple Choice:
 
@@ -446,7 +423,7 @@ The navigation rail stays put. It used to collapse, but a page that shifted side
 
 Every page fits in the rail on a normal laptop screen. On a short window or with very large text, the rail pages through the list instead.
 
-The page order can be changed in Settings. A student might want Decks, Study Plan, and Test Lab near the top, while an older adult or caregiver might want Everyday Memory, Capture, Puzzles, and Review first.
+The Welcome questions decide what comes first: a student sees exam modes on Today, while an older adult or caregiver sees Everyday Memory first under Practice.
 
 Ctrl+K finds any page or common action, and Back (Alt+Left) returns to the previous page, so nobody has to hunt.
 
@@ -607,15 +584,13 @@ For accessibility:
 MemoryPal combines:
 
 - Small study bits.
-- Memory Gym.
 - Everyday Memory.
 - Accessibility settings.
-- Focus queue.
+- Review modes for due, weak and new cards.
 - Prompt and answer practice.
 - Spaced review.
 - Smart Check.
-- Repetition paths.
-- Associations.
+- Memory techniques.
 - Technique planning.
 - Recall puzzles.
 - Category sorting.
