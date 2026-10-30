@@ -470,3 +470,11 @@ This build is packaged as release 0.52.0.
 - Notices ("AI notes and questions are on") always show their thin edge. Clearing the shape-picture cache sometimes threw away the edge layer, so it came and went.
 - The main window can be resized again. Its minimum was the full design size, so at 150% on a 1080p screen it equalled the starting height and the window couldn't be made shorter. It can now shrink to about half a laptop screen. It opens at most of the screen's free area (taskbar excluded), centred a little above the middle, and the streak and sync line under the page title no longer gets cut short in a narrow window. Its flame and cloud symbols have a fixed gap before their words instead of a narrow space.
 - Main and plain buttons are the same height everywhere (the main one used a larger font). An error message's OK button is the usual accent colour; red is kept for buttons that delete things. Set details' hints wrap to the width of the window.
+
+## v98 - Bold, Italics and Highlighting
+
+Notes can now be bold, italic or highlighted on the desktop and the phone, and saved notes can be edited. Words made bold or highlighted become the blank when notes are turned into questions.
+
+- B, I and Highlight buttons sit over the Paste notes box and in the new Edit notes (Library > Read > Edit on the desktop, Edit notes on the phone's notes page). Desktop shortcuts: Ctrl/Cmd+B, Ctrl/Cmd+I, Ctrl/Cmd+Shift+H.
+- The formatting is stored as Markdown-style marks in the text (`**bold**`, `_italic_`, `==highlight==`), so nothing about saving or syncing changed. Marks only count next to words, so "2 * 3", "a == b" and snake_case stay as typed.
+- The desktop box shows the formatting as you type with the marks faint; the phone shows "How it looks" under the box. Read aloud, Library previews and cards skip the marks.

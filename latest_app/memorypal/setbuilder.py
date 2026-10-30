@@ -5,6 +5,7 @@ The set builder page stages cards as plain dicts ({"prompt", "answer",
 Card is created. Kept free of Tk so it can be tested.
 """
 
+from . import richtext
 from .core import normalize_space, parse_prompt_answer_lines, split_study_bits
 
 DEFAULT_PROMPT = "What should I recall from bit {n}?"
@@ -27,7 +28,8 @@ def notes_to_items(text, prompt_template=DEFAULT_PROMPT, make_questions=False):
     tab-separated, as spreadsheets and Quizlet export) become that card. Any
     other line, sentence or list item becomes a recall card: the prompt
     template on the front ({n} is its number, {total} how many there are)
-    and the note itself on the back.
+    and the note itself on the back. Note cards keep the note as typed,
+    bold and highlights included, in "source", for the saved notes.
 
     With make_questions, a note that reads as a fact becomes a real question
     instead ("Paris is the capital of France" -> "What is Paris?", a date or
@@ -39,7 +41,7 @@ def notes_to_items(text, prompt_template=DEFAULT_PROMPT, make_questions=False):
     notes = []
     for bit in split_study_bits(text or ""):
         if _has_delimiter(bit):
-            parsed = parse_prompt_answer_lines(bit)
+            parsed = parse_prompt_answer_lines(richtext.plain(bit))
             if parsed and not parsed[0]["prompt"].startswith("Study bit "):
                 items.extend({"prompt": item["prompt"], "answer": item["answer"], "kind": "qa"} for item in parsed)
                 continue
@@ -52,12 +54,12 @@ def notes_to_items(text, prompt_template=DEFAULT_PROMPT, make_questions=False):
     for number, (slot, note) in enumerate(notes, 1):
         made = question_for_bit(note) if make_questions else None
         if made is not None and made["type"] != "hint":
-            items[slot] = {"prompt": made["prompt"], "answer": made["answer"], "kind": "note"}
+            items[slot] = {"prompt": made["prompt"], "answer": made["answer"], "kind": "note", "source": note}
             continue
         front = template.replace("{n}", str(number)).replace("{total}", str(total))
         if front == template and total > 1:
             front = f"{front} ({number}/{total})"
-        items[slot] = {"prompt": front, "answer": note, "kind": "note"}
+        items[slot] = {"prompt": front, "answer": normalize_space(richtext.plain(note)), "kind": "note", "source": note}
     return items
 
 

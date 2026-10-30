@@ -15,6 +15,7 @@ import { Entries, entriesAfter, entriesOf, newestStamp, nextStamp, payloadFromRe
 import { acronym, chunkMap, hooksFor, linkChain, palace, parseIdeas, pegList, story } from '../src/core/techniques';
 import { answerKind, buildQuiz, cardQuestion, clozeCandidates, isGenericFront, listItems, noteQuestions, questionForBit, QuestionType, QuizCard, Rng } from '../src/core/questions';
 import { parsePromptAnswerLines, splitStudyBits, textTokens } from '../src/core/text';
+import { balanceBits, blankMarked, marked, plain, spans, Style, toggle } from '../src/core/richtext';
 
 type Spec = (typeof fixtures.plan_cards)[number];
 
@@ -35,6 +36,19 @@ const strip = (step: PlanStep) => ({
 });
 
 describe('parity with the desktop logic', () => {
+  test('bold, italics and highlighting read the same', () => {
+    const rich = fixtures.richtext;
+    for (const item of rich.texts) {
+      expect({ text: item.text, spans: spans(item.text), plain: plain(item.text), marked: marked(item.text), blank: blankMarked(item.text) }).toEqual({ text: item.text, spans: item.spans, plain: item.plain, marked: item.marked, blank: item.blank });
+    }
+    for (const item of rich.toggles) {
+      const [text, start, end, style] = item.args as [string, number, number, Style];
+      expect({ args: item.args, result: toggle(text, start, end, style) }).toEqual({ args: item.args, result: item.result });
+    }
+    for (const item of rich.balance) expect(balanceBits(item.bits)).toEqual(item.result);
+    for (const item of rich.split) expect(splitStudyBits(item.raw)).toEqual(item.bits);
+  });
+
   test('Smart Check scores every case the same', () => {
     for (const item of fixtures.smart_check) {
       expect({ case: [item.response, item.expected], result: answerAssessment(item.response, item.expected, item.context) }).toEqual({ case: [item.response, item.expected], result: item.result });

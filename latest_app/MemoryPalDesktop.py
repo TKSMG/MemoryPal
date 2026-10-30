@@ -67,7 +67,7 @@ from memorypal import cloud, cloud_config, drive, onboarding, progress, security
 from memorypal import feedback as feedback_report
 from memorypal import iconcache, media
 from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
-from memorypal import ai, aiflow
+from memorypal import ai, aiflow, richtext
 from memorypal import questions as quiz_questions
 from memorypal.speech import Speaker
 from memorypal.planning import (
@@ -4834,6 +4834,119 @@ class MemoryPalApp(tk.Tk):
         self.follow_focus(field, box)
         return box
 
+    # Bold, italics and highlighting (memorypal/richtext.py). Notes keep the
+    # marks as plain text; these tags show them in tk.Text boxes.
+    RICH_FONT_TAGS = {(True, False): "rt_b", (False, True): "rt_i", (True, True): "rt_bi"}
+
+    def rich_tags(self, box, font_size=12):
+        base = self.font("Segoe UI", font_size)
+        bold = self.font("Segoe UI Semibold", font_size)
+        box.tag_configure("rt_b", font=bold)
+        box.tag_configure("rt_i", font=(*base, "italic"))
+        box.tag_configure("rt_bi", font=(*bold, "italic"))
+        box.tag_configure("rt_hl", background=COLORS["mark"], foreground=COLORS["ink"])
+        box.tag_configure("rt_mark", foreground=COLORS["muted"])
+        # Highlight shows over the "source" band, marks stay faint inside it,
+        # and a selection still shows over both.
+        for tag in ("rt_hl", "rt_mark", "sel"):
+            box.tag_raise(tag)
+
+    def insert_rich(self, box, text, *tags):
+        """Insert text at the end of a tk.Text with its marks shown as formatting."""
+        for span in richtext.spans(text):
+            span_tags = list(tags)
+            font_tag = self.RICH_FONT_TAGS.get((span["bold"], span["italic"]))
+            if font_tag:
+                span_tags.append(font_tag)
+            if span["highlight"]:
+                span_tags.append("rt_hl")
+            box.insert("end", span["text"], tuple(span_tags))
+
+    def restyle_rich(self, box):
+        """Show the marks in an editable box as formatting, with the marks faint."""
+        text = box.get("1.0", "end-1c")
+        for tag in ("rt_b", "rt_i", "rt_bi", "rt_hl", "rt_mark"):
+            box.tag_remove(tag, "1.0", "end")
+        if not richtext.has_marks(text):
+            return
+        active = {richtext.BOLD: False, richtext.ITALIC: False, richtext.HIGHLIGHT: False}
+        for start, end, kind, _raw in richtext.tokens(text):
+            first, last = f"1.0+{start}c", f"1.0+{end}c"
+            if kind != "text":
+                active[kind] = not active[kind]
+                box.tag_add("rt_mark", first, last)
+                continue
+            font_tag = self.RICH_FONT_TAGS.get((active[richtext.BOLD], active[richtext.ITALIC]))
+            if font_tag:
+                box.tag_add(font_tag, first, last)
+            if active[richtext.HIGHLIGHT]:
+                box.tag_add("rt_hl", first, last)
+
+    def toggle_rich(self, box, style):
+        """The B / I / Highlight buttons: add or remove the style on the selection."""
+        text = box.get("1.0", "end-1c")
+        offset = lambda index: int((box.count("1.0", index, "chars") or (0,))[0])
+        if box.tag_ranges("sel"):
+            start, end = offset("sel.first"), offset("sel.last")
+        else:
+            start = end = offset("insert")
+        new, new_start, new_end = richtext.toggle(text, start, end, style)
+        # Replace only the part that changed, so the view and undo stay put.
+        head = 0
+        while head < min(len(text), len(new)) and text[head] == new[head]:
+            head += 1
+        tail = 0
+        while tail < min(len(text), len(new)) - head and text[-1 - tail] == new[-1 - tail]:
+            tail += 1
+        box.delete(f"1.0+{head}c", f"1.0+{len(text) - tail}c")
+        box.insert(f"1.0+{head}c", new[head:len(new) - tail])
+        box.tag_remove("sel", "1.0", "end")
+        if new_start != new_end:
+            box.tag_add("sel", f"1.0+{new_start}c", f"1.0+{new_end}c")
+        box.mark_set("insert", f"1.0+{new_end}c")
+        box.focus_set()
+        self.restyle_rich(box)
+        return "break"
+
+    def format_bar(self, parent, box, bg=None, font_size=12):
+        """B, I and Highlight buttons for a notes box, with Ctrl/Cmd+B, I and Shift+H.
+
+        The box shows the formatting as you type; the marks (**, _ and ==)
+        stay in the text, faint, so what is saved is plain text.
+        """
+        bg = bg or COLORS["surface"]
+        self.rich_tags(box, font_size)
+        bar = tk.Frame(parent, bg=bg)
+        buttons = (
+            ("B", richtext.BOLD, self.font("Segoe UI Semibold", 11), "Bold", shortcut("B")),
+            ("I", richtext.ITALIC, (*self.font("Segoe UI", 11), "italic"), "Italics", shortcut("I")),
+            ("Highlight", richtext.HIGHLIGHT, self.font("Segoe UI", 10), "Highlight", shortcut("Shift+H")),
+        )
+        for index, (label, style, font, name, keys) in enumerate(buttons):
+            button = tk.Label(bar, text=label, font=font, bg=COLORS["mark"] if style == richtext.HIGHLIGHT else COLORS["alt"], fg=COLORS["ink"], padx=self.px(10), pady=self.px(2), cursor="hand2", takefocus=1)
+            button.pack(side="left", padx=(0 if index == 0 else self.px(6), 0))
+            button.bind("<Button-1>", lambda _event, style=style: self.toggle_rich(box, style))
+            button.bind("<KeyPress-space>", lambda _event, style=style: self.toggle_rich(box, style))
+            button.bind("<Return>", lambda _event, style=style: self.toggle_rich(box, style))
+            hint = "Highlight the words that matter most." if style == richtext.HIGHLIGHT else f"{name} for the selected words."
+            self.add_tooltip(button, f"{hint} ({keys}) Bold or highlighted words become the blank when questions are made from these notes." if style != richtext.ITALIC else f"{hint} ({keys})")
+        tk.Label(bar, text="Select words, then choose a style.", bg=bg, fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0))
+        # The box's own bindings run first, so these win over Tk's Ctrl+I (tab) and Ctrl+H (backspace).
+        box.bind(f"<{MOD}-b>", lambda _event: self.toggle_rich(box, richtext.BOLD))
+        box.bind(f"<{MOD}-B>", lambda _event: self.toggle_rich(box, richtext.BOLD))
+        box.bind(f"<{MOD}-i>", lambda _event: self.toggle_rich(box, richtext.ITALIC))
+        box.bind(f"<{MOD}-I>", lambda _event: self.toggle_rich(box, richtext.ITALIC))
+        box.bind(f"<{MOD}-H>", lambda _event: self.toggle_rich(box, richtext.HIGHLIGHT))
+
+        def changed(_event):
+            if box.edit_modified():
+                self.restyle_rich(box)
+                box.edit_modified(False)
+
+        box.bind("<<Modified>>", changed, add="+")
+        self.restyle_rich(box)
+        return bar
+
     def answer_area(self, parent, title="Your answer", hint="Type what you remember, then check or reveal.", height=4):
         panel = self.card(parent, "AltCard.TFrame", 18)
         panel.pack(fill="x", pady=(0, self.px(10)))
@@ -8028,6 +8141,7 @@ class MemoryPalApp(tk.Tk):
         self.fit_wrap(ttk.Label(paste_panel, text="Paste or type notes. Lines like \"Question => Answer\" (or tab-separated, as spreadsheets and Quizlet export) become that card; every other line or sentence becomes a recall card.", style="CardMuted.TLabel", wraplength=self.px(560)), pady=(0, self.px(8)))
         notes = self.text_box(paste_panel, 8, 12)
         notes.insert("1.0", draft.get("notes", ""))
+        self.format_bar(paste_panel, notes, bg=surface).pack(fill="x", pady=(0, self.px(8)))
         notes.pack(fill="x", pady=(0, self.px(12)))
         paste_actions = ttk.Frame(paste_panel, style="Card.TFrame")
         paste_actions.pack(fill="x")
@@ -8339,7 +8453,7 @@ class MemoryPalApp(tk.Tk):
 
         ttk.Button(typed_actions, text="Add card", cursor="hand2", command=add_typed).pack(side="left")
         ttk.Button(paste_actions, text="Split into cards", cursor="hand2", command=split_notes).pack(side="left")
-        self.speak_button(paste_actions, lambda: notes.get("1.0", "end")).pack(side="left", padx=(self.px(8), 0))
+        self.speak_button(paste_actions, lambda: richtext.plain(notes.get("1.0", "end"))).pack(side="left", padx=(self.px(8), 0))
         question.bind("<Return>", lambda _event: (answer.focus_set(), "break")[1])
         answer.bind("<Return>", add_typed)
         answer.bind("<KP_Enter>", add_typed)
@@ -8366,7 +8480,7 @@ class MemoryPalApp(tk.Tk):
             if not items and not any(self.pending_media.values()):
                 self.toast_message("Add at least one card first.")
                 return
-            chunks = [f"{item['prompt']} => {item['answer'] or SELF_CHECK_ANSWER}" if item["kind"] in ("qa", "ai") else item["answer"] for item in items]
+            chunks = [f"{item['prompt']} => {item['answer'] or SELF_CHECK_ANSWER}" if item["kind"] in ("qa", "ai") else item.get("source") or item["answer"] for item in items]
             self.store.add_capture(Capture(title=name, deck=name, notes="\n".join(chunks), chunks=chunks, **self.pending_media))
             new_cards = []
             for index, item in enumerate(items, 1):
@@ -9932,7 +10046,7 @@ class MemoryPalApp(tk.Tk):
         made = quiz_questions.question_for_bit(bit)
         if made is not None and made["type"] != "hint":
             return made["prompt"], made["answer"]
-        return fallback, normalize_space(bit)
+        return fallback, normalize_space(richtext.plain(bit))
 
     def card_prompt(self, card):
         """A card's front, or a real question when the front is a generic "bit N" one."""
@@ -10242,7 +10356,7 @@ class MemoryPalApp(tk.Tk):
         """Words to practise with: saved notes and cards, or one set's when `deck` is given."""
         bits = []
         for capture in self.store.notes_for_deck(deck) if deck else self.store.captures:
-            bits.extend(capture.chunks or split_study_bits(capture.notes))
+            bits.extend(richtext.plain(bit) for bit in capture.chunks or split_study_bits(capture.notes))
         for card in self.store.cards:
             if not deck or (card.deck or "General") == deck:
                 bits.extend([card.front, card.back])
@@ -12257,10 +12371,10 @@ class MemoryPalApp(tk.Tk):
                     capture_head.pack(fill="x")
                     remove = ttk.Button(capture_head, text="Delete", command=lambda c=capture: self.delete_notes(c, render))
                     remove.pack(side="right")
-                    read = ttk.Button(capture_head, text="Read", command=lambda c=capture: self.open_notes(c))
+                    read = ttk.Button(capture_head, text="Read", command=lambda c=capture: self.open_notes(c, on_done=render))
                     read.pack(side="right", padx=(0, self.px(6)))
-                    self.add_tooltip(read, "Read all of these notes, or make questions from them.")
-                    self.speak_button(capture_head, ". ".join([capture.title] + chunks), compact=True).pack(side="right", padx=(0, self.px(6)))
+                    self.add_tooltip(read, "Read all of these notes, edit them, or make questions from them.")
+                    self.speak_button(capture_head, richtext.plain(". ".join([capture.title] + chunks)), compact=True).pack(side="right", padx=(0, self.px(6)))
                     in_set = capture_deck(capture, sets)
                     ttk.Label(capture_head, text="  \u00b7  ".join(part for part in ("Notes", in_set, capture.created_at) if part), style="CardMuted.TLabel").pack(side="left", anchor="w")
                     ttk.Label(item, text=capture.title, style="H2.TLabel", wraplength=1060).pack(anchor="w", pady=(6, 5))
@@ -12268,7 +12382,7 @@ class MemoryPalApp(tk.Tk):
                         self.ai_tag(item, lambda c=capture: c.notes, kind="notes").pack(anchor="w", pady=(0, self.px(6)))
                     ttk.Label(item, text=f"{len(chunks)} study bits", style="CardMuted.TLabel").pack(anchor="w")
                     for index, chunk in enumerate(chunks[:5], 1):
-                        ttk.Label(item, text=f"{index}. {chunk}", style="Card.TLabel", wraplength=1080).pack(anchor="w", pady=(2, 0))
+                        ttk.Label(item, text=f"{index}. {richtext.plain(chunk)}", style="Card.TLabel", wraplength=1080).pack(anchor="w", pady=(2, 0))
                     self.render_media_controls(item, capture)
                     shown += 1
             card_pool = self.store.cards
@@ -12325,18 +12439,20 @@ class MemoryPalApp(tk.Tk):
 
         render()
 
-    def open_notes(self, capture, bit=-1):
+    def open_notes(self, capture, bit=-1, on_done=None):
         """Read saved notes in full; `bit` marks the one a card came from."""
         chunks = capture.chunks or split_study_bits(capture.notes)
         in_set = capture_deck(capture, self.store.decks())
         top, content, actions = self.dialog_window(capture.title, "  \u00b7  ".join(part for part in (f"In {in_set}" if in_set else "Not in a set", capture.created_at) if part), width=720, resizable=True)
         box = self.text_box(content, height=min(18, max(6, len(chunks) * 2)), font_size=11)
         box.tag_configure("source", background=COLORS["warm"], foreground=COLORS["ink"])
+        self.rich_tags(box, 11)
         for index, chunk in enumerate(chunks):
             start = box.index("end-1c")
-            box.insert("end", ("\u2192 " if index == bit else "\u2022 ") + chunk + "\n\n")
-            if index == bit:
-                box.tag_add("source", start, f"{start} lineend")
+            tags = ("source",) if index == bit else ()
+            box.insert("end", "\u2192 " if index == bit else "\u2022 ", tags)
+            self.insert_rich(box, chunk, *tags)
+            box.insert("end", "\n\n")
         box.configure(state="disabled")
         box.pack(fill="both", expand=True)
         if 0 <= bit < len(chunks):
@@ -12348,15 +12464,68 @@ class MemoryPalApp(tk.Tk):
             self._ai_prefill_text = "\n".join(chunks)
             self.open_ai_builder(in_set or None)
 
-        self.speak_button(actions, ". ".join([capture.title] + chunks)).grid(row=0, column=0, sticky="w", padx=(0, self.px(8)))
+        def edit():
+            top.destroy()
+            if self.edit_notes(capture):
+                if on_done:
+                    on_done()
+                self.open_notes(capture, on_done=on_done)
+
+        self.speak_button(actions, richtext.plain(". ".join([capture.title] + chunks))).grid(row=0, column=0, sticky="w", padx=(0, self.px(8)))
         make = ttk.Button(actions, text="Make questions from these notes", command=make_questions)
         make.grid(row=0, column=1, sticky="ew", padx=(0, self.px(8)))
-        self.solid_button(actions, "Close", top.destroy).grid(row=0, column=2, sticky="ew")
+        edit_button = ttk.Button(actions, text="Edit", command=edit)
+        edit_button.grid(row=0, column=2, sticky="ew", padx=(0, self.px(8)))
+        self.add_tooltip(edit_button, "Change these notes, and make words bold, italic or highlighted.")
+        self.solid_button(actions, "Close", top.destroy).grid(row=0, column=3, sticky="ew")
         actions.columnconfigure(1, weight=1)
         actions.columnconfigure(2, weight=1)
+        actions.columnconfigure(3, weight=1)
         self.present_dialog(top)
         top.bind("<Escape>", lambda _event: top.destroy())
         top.wait_window()
+
+    def notes_edit_text(self, capture):
+        """Saved notes as one editable text: one study bit per line."""
+        return "\n".join(capture.chunks or split_study_bits(capture.notes))
+
+    def edit_notes(self, capture):
+        """Edit saved notes' title and text, with bold, italics and highlighting. True when saved."""
+        top, content, actions = self.dialog_window("Edit notes", "Each line is one study bit. Select words and use B, I or Highlight to mark what matters.", width=760, resizable=True)
+        surface = COLORS["surface"]
+        tk.Label(content, text="Title", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(0, self.px(4)))
+        title = ttk.Entry(content)
+        title.insert(0, capture.title)
+        title.pack(fill="x")
+        tk.Label(content, text="Notes", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(12), self.px(4)))
+        box = self.text_box(content, height=16, font_size=12)
+        box.insert("1.0", self.notes_edit_text(capture))
+        box.edit_modified(False)
+        self.format_bar(content, box, bg=surface).pack(fill="x", pady=(0, self.px(8)))
+        box.pack(fill="both", expand=True)
+        error = FormMessage(content, pady=(self.px(6), 0), text="", bg=surface, fg=COLORS["again_fg"], font=self.font("Segoe UI", 10), anchor="w")
+        result = {"saved": False}
+
+        def save():
+            text = box.get("1.0", "end").strip()
+            if not normalize_space(text):
+                error.configure(text="Notes need some text. To remove them, use Delete in the Library.")
+                return
+            self.store.update_capture(capture.id, title.get(), text)
+            result["saved"] = True
+            top.destroy()
+            self.toast_message("Notes saved.")
+
+        ttk.Button(actions, text="Cancel", command=top.destroy).grid(row=0, column=0, sticky="ew", padx=(0, self.px(8)))
+        self.solid_button(actions, "Save", save).grid(row=0, column=1, sticky="ew")
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=2)
+        self.present_dialog(top)
+        top.bind("<Escape>", lambda _event: top.destroy())
+        top.bind(f"<{MOD}-Return>", lambda _event: save())
+        box.focus_set()
+        top.wait_window()
+        return result["saved"]
 
     def delete_notes(self, capture, on_done=None):
         if not self.dialog_confirm("Delete these notes?", f"\u201c{capture.title[:80]}\u201d will be removed. Cards made from them stay. This can't be undone.", "Delete", destructive=True):

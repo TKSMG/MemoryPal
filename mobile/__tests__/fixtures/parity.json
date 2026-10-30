@@ -153278,7 +153278,7 @@
    ]
   ]
  },
- "today_check": "2026-10-24",
+ "today_check": "2026-10-30",
  "questions": {
   "today": "2026-10-18",
   "rng": [
@@ -171016,6 +171016,55 @@
      "type": "definition",
      "source": "Gold is Au"
     }
+   },
+   {
+    "bit": "The capital of France is ==Paris==.",
+    "question": {
+     "prompt": "Fill in the blank: The capital of France is _____",
+     "answer": "Paris",
+     "type": "cloze",
+     "source": "The capital of France is Paris."
+    }
+   },
+   {
+    "bit": "- **Mitochondria** make energy!",
+    "question": {
+     "prompt": "Fill in the blank: _____ make energy",
+     "answer": "Mitochondria",
+     "type": "cloze",
+     "source": "- Mitochondria make energy!"
+    }
+   },
+   {
+    "bit": "_Paris_ is the capital of France",
+    "question": {
+     "prompt": "What is Paris?",
+     "answer": "the capital of France",
+     "type": "definition",
+     "source": "Paris is the capital of France"
+    }
+   },
+   {
+    "bit": "**Everything bold**",
+    "question": {
+     "prompt": "What is this? E_________ b___",
+     "answer": "Everything bold",
+     "type": "hint",
+     "source": "Everything bold"
+    }
+   },
+   {
+    "bit": "In **1945** the war ended",
+    "question": {
+     "prompt": "Fill in the blank: In _____ the war ended",
+     "answer": "1945",
+     "type": "cloze",
+     "source": "In 1945 the war ended"
+    }
+   },
+   {
+    "bit": "What is **this**?",
+    "question": null
    }
   ],
   "lists": [
@@ -171508,6 +171557,856 @@
     "back": "x",
     "deck": "",
     "generic": true
+   }
+  ]
+ },
+ "richtext": {
+  "texts": [
+   {
+    "text": "**big** and _slanted_ and ==bright==",
+    "spans": [
+     {
+      "text": "big",
+      "bold": true,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": " and ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "slanted",
+      "bold": false,
+      "italic": true,
+      "highlight": false
+     },
+     {
+      "text": " and ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "bright",
+      "bold": false,
+      "italic": false,
+      "highlight": true
+     }
+    ],
+    "plain": "big and slanted and bright",
+    "marked": [
+     "big",
+     "bright"
+    ],
+    "blank": [
+     "_____ and slanted and _____",
+     "big, bright"
+    ]
+   },
+   {
+    "text": "*one* ***two***",
+    "spans": [
+     {
+      "text": "one",
+      "bold": false,
+      "italic": true,
+      "highlight": false
+     },
+     {
+      "text": " ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "two",
+      "bold": true,
+      "italic": true,
+      "highlight": false
+     }
+    ],
+    "plain": "one two",
+    "marked": [
+     "two"
+    ],
+    "blank": [
+     "one _____",
+     "two"
+    ]
+   },
+   {
+    "text": "2 * 3 * 4",
+    "spans": [
+     {
+      "text": "2 * 3 * 4",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "2 * 3 * 4",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "2*3*4",
+    "spans": [
+     {
+      "text": "2*3*4",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "2*3*4",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "snake_case_name",
+    "spans": [
+     {
+      "text": "snake_case_name",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "snake_case_name",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "a == b",
+    "spans": [
+     {
+      "text": "a == b",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "a == b",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "Q ==> A",
+    "spans": [
+     {
+      "text": "Q ==> A",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "Q ==> A",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "**not closed",
+    "spans": [
+     {
+      "text": "**not closed",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "**not closed",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "un**frig**ly",
+    "spans": [
+     {
+      "text": "un",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "frig",
+      "bold": true,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "ly",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "unfrigly",
+    "marked": [
+     "frig"
+    ],
+    "blank": [
+     "un_____ly",
+     "frig"
+    ]
+   },
+   {
+    "text": "**a ==b** c==",
+    "spans": [
+     {
+      "text": "a ",
+      "bold": true,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "b",
+      "bold": true,
+      "italic": false,
+      "highlight": true
+     },
+     {
+      "text": " c",
+      "bold": false,
+      "italic": false,
+      "highlight": true
+     }
+    ],
+    "plain": "a b c",
+    "marked": [
+     "a",
+     "b",
+     "c"
+    ],
+    "blank": [
+     "_____",
+     "a, b, c"
+    ]
+   },
+   {
+    "text": "_x_y_",
+    "spans": [
+     {
+      "text": "x_y",
+      "bold": false,
+      "italic": true,
+      "highlight": false
+     }
+    ],
+    "plain": "x_y",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "**  spaced**",
+    "spans": [
+     {
+      "text": "**  spaced**",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "**  spaced**",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "== ==",
+    "spans": [
+     {
+      "text": "== ==",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "== ==",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "***",
+    "spans": [
+     {
+      "text": "***",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "***",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "café **été**",
+    "spans": [
+     {
+      "text": "café ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "été",
+      "bold": true,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "café été",
+    "marked": [
+     "été"
+    ],
+    "blank": [
+     "café _____",
+     "été"
+    ]
+   },
+   {
+    "text": "The capital of France is ==Paris==.",
+    "spans": [
+     {
+      "text": "The capital of France is ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "Paris",
+      "bold": false,
+      "italic": false,
+      "highlight": true
+     },
+     {
+      "text": ".",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "The capital of France is Paris.",
+    "marked": [
+     "Paris"
+    ],
+    "blank": [
+     "The capital of France is _____.",
+     "Paris"
+    ]
+   },
+   {
+    "text": "**Mitochondria** make energy",
+    "spans": [
+     {
+      "text": "Mitochondria",
+      "bold": true,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": " make energy",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "Mitochondria make energy",
+    "marked": [
+     "Mitochondria"
+    ],
+    "blank": [
+     "_____ make energy",
+     "Mitochondria"
+    ]
+   },
+   {
+    "text": "**a** **b** c",
+    "spans": [
+     {
+      "text": "a",
+      "bold": true,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": " ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "b",
+      "bold": true,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": " c",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "a b c",
+    "marked": [
+     "a",
+     "b"
+    ],
+    "blank": [
+     "_____ _____ c",
+     "a, b"
+    ]
+   },
+   {
+    "text": "Only _italic_ here",
+    "spans": [
+     {
+      "text": "Only ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "italic",
+      "bold": false,
+      "italic": true,
+      "highlight": false
+     },
+     {
+      "text": " here",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "Only italic here",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "In 1945 the **war** ended",
+    "spans": [
+     {
+      "text": "In 1945 the ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "war",
+      "bold": true,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": " ended",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "In 1945 the war ended",
+    "marked": [
+     "war"
+    ],
+    "blank": [
+     "In 1945 the _____ ended",
+     "war"
+    ]
+   },
+   {
+    "text": "Ünï_cödé_ _ünï_",
+    "spans": [
+     {
+      "text": "Ünï_cödé_ ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "ünï",
+      "bold": false,
+      "italic": true,
+      "highlight": false
+     }
+    ],
+    "plain": "Ünï_cödé_ ünï",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "",
+    "spans": [],
+    "plain": "",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "*",
+    "spans": [
+     {
+      "text": "*",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "*",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "**x*",
+    "spans": [
+     {
+      "text": "**x*",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     }
+    ],
+    "plain": "**x*",
+    "marked": [],
+    "blank": null
+   },
+   {
+    "text": "==a== ==b==",
+    "spans": [
+     {
+      "text": "a",
+      "bold": false,
+      "italic": false,
+      "highlight": true
+     },
+     {
+      "text": " ",
+      "bold": false,
+      "italic": false,
+      "highlight": false
+     },
+     {
+      "text": "b",
+      "bold": false,
+      "italic": false,
+      "highlight": true
+     }
+    ],
+    "plain": "a b",
+    "marked": [
+     "a",
+     "b"
+    ],
+    "blank": [
+     "_____ _____",
+     "a, b"
+    ]
+   }
+  ],
+  "toggles": [
+   {
+    "args": [
+     "hello world",
+     0,
+     5,
+     "bold"
+    ],
+    "result": [
+     "**hello** world",
+     2,
+     7
+    ]
+   },
+   {
+    "args": [
+     "**hello** world",
+     2,
+     7,
+     "bold"
+    ],
+    "result": [
+     "hello world",
+     0,
+     5
+    ]
+   },
+   {
+    "args": [
+     "**hello** world",
+     0,
+     9,
+     "bold"
+    ],
+    "result": [
+     "hello world",
+     0,
+     5
+    ]
+   },
+   {
+    "args": [
+     "**hello** world",
+     0,
+     9,
+     "italic"
+    ],
+    "result": [
+     "***hello*** world",
+     1,
+     10
+    ]
+   },
+   {
+    "args": [
+     "**hello**",
+     2,
+     7,
+     "italic"
+    ],
+    "result": [
+     "***hello***",
+     3,
+     8
+    ]
+   },
+   {
+    "args": [
+     "***hello***",
+     3,
+     8,
+     "italic"
+    ],
+    "result": [
+     "**hello**",
+     2,
+     7
+    ]
+   },
+   {
+    "args": [
+     "***hello***",
+     3,
+     8,
+     "bold"
+    ],
+    "result": [
+     "*hello*",
+     1,
+     6
+    ]
+   },
+   {
+    "args": [
+     "*hi*",
+     1,
+     3,
+     "italic"
+    ],
+    "result": [
+     "hi",
+     0,
+     2
+    ]
+   },
+   {
+    "args": [
+     "_hi_",
+     1,
+     3,
+     "italic"
+    ],
+    "result": [
+     "hi",
+     0,
+     2
+    ]
+   },
+   {
+    "args": [
+     "_hi_",
+     0,
+     4,
+     "italic"
+    ],
+    "result": [
+     "hi",
+     0,
+     2
+    ]
+   },
+   {
+    "args": [
+     "ab",
+     1,
+     1,
+     "italic"
+    ],
+    "result": [
+     "a**b",
+     2,
+     2
+    ]
+   },
+   {
+    "args": [
+     "say hi ",
+     3,
+     7,
+     "highlight"
+    ],
+    "result": [
+     "say ==hi== ",
+     6,
+     8
+    ]
+   },
+   {
+    "args": [
+     "==hi==",
+     2,
+     4,
+     "highlight"
+    ],
+    "result": [
+     "hi",
+     0,
+     2
+    ]
+   },
+   {
+    "args": [
+     "==hi==",
+     0,
+     6,
+     "highlight"
+    ],
+    "result": [
+     "hi",
+     0,
+     2
+    ]
+   },
+   {
+    "args": [
+     "***x***",
+     0,
+     7,
+     "italic"
+    ],
+    "result": [
+     "**x**",
+     0,
+     5
+    ]
+   },
+   {
+    "args": [
+     "ab ",
+     3,
+     3,
+     "bold"
+    ],
+    "result": [
+     "ab ****",
+     5,
+     5
+    ]
+   },
+   {
+    "args": [
+     "abc",
+     9,
+     -2,
+     "bold"
+    ],
+    "result": [
+     "**abc**",
+     2,
+     5
+    ]
+   }
+  ],
+  "balance": [
+   {
+    "bits": [
+     "**Hi",
+     "There** now"
+    ],
+    "result": [
+     "**Hi**",
+     "**There** now"
+    ]
+   },
+   {
+    "bits": [
+     "a ==> b",
+     "c"
+    ],
+    "result": [
+     "a ==> b",
+     "c"
+    ]
+   },
+   {
+    "bits": [
+     "plain",
+     "text"
+    ],
+    "result": [
+     "plain",
+     "text"
+    ]
+   },
+   {
+    "bits": [
+     "==one",
+     "two== _three",
+     "four_"
+    ],
+    "result": [
+     "==one==",
+     "==two== _three_",
+     "_four_"
+    ]
+   },
+   {
+    "bits": [
+     "**a",
+     "b",
+     "c**"
+    ],
+    "result": [
+     "**a",
+     "b",
+     "c**"
+    ]
+   }
+  ],
+  "split": [
+   {
+    "raw": "**Hi. There** now. Fine",
+    "bits": [
+     "**Hi**",
+     "**There** now",
+     "Fine"
+    ]
+   },
+   {
+    "raw": "==A, b==, c",
+    "bits": [
+     "==A==",
+     "==b==",
+     "c"
+    ]
+   },
+   {
+    "raw": "1. **one** 2. _two_",
+    "bits": [
+     "**one**",
+     "_two_"
+    ]
    }
   ]
  }
