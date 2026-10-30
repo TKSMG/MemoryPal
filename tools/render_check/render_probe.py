@@ -67,6 +67,27 @@ def diff(a, b, step=11):
 
 
 CONFIGURES = []
+# Where a resize step's time goes (Windows): the whole relayout, and the
+# repaint that ends it.
+STEP_TIMES = {}
+
+
+def _clocked(owner, attr, key):
+    original = getattr(owner, attr)
+
+    def wrapper(*args, **kwargs):
+        began = time.perf_counter()
+        try:
+            return original(*args, **kwargs)
+        finally:
+            STEP_TIMES.setdefault(key, []).append((time.perf_counter() - began) * 1000)
+    setattr(owner, attr, wrapper)
+
+
+_clocked(M.MemoryPalApp, "_relayout_after_resize", "relayout")
+_clocked(M.MemoryPalApp, "settle_layout", "settle")
+_clocked(M, "set_window_redraw", "redraw")
+_clocked(M, "flush_pending_paint", "paint")
 app.bind("<Configure>", lambda e: CONFIGURES.append((time.perf_counter(), e.x, e.y, e.width, e.height)) if e.widget is app else None, add="+")
 
 
@@ -85,6 +106,7 @@ def run(name, action, seconds=2.2, lead=0.35):
     while time.time() < end:
         app.update()
     CONFIGURES.clear()
+    STEP_TIMES.clear()
     started = time.perf_counter()
     action()
     # The real event loop, as the app runs it: Windows' move/size loop only
@@ -223,6 +245,10 @@ def run(name, action, seconds=2.2, lead=0.35):
             extra += f" end={CONFIGURES[-1][3]}x{CONFIGURES[-1][4]}+{CONFIGURES[-1][1]}+{CONFIGURES[-1][2]}"
         beat_gaps = [later - earlier for earlier, later in zip(beats, beats[1:])]
         extra += f" timer_beats={len(beats)} longest_beat_gap={1000 * max(beat_gaps or [0]):.0f}ms"
+        for key in ("relayout", "settle", "redraw", "paint"):
+            values = STEP_TIMES.get(key, [])
+            if values:
+                extra += f" {key}={len(values)}x{sum(values) / len(values):.0f}/{max(values):.0f}ms"
     if name.startswith("drag_resize_top"):
         # The page should move up with the window's top edge, frame by frame.
         # Each frame: how far the title sits from where the edge says it
