@@ -3828,6 +3828,18 @@ class MemoryPalApp(tk.Tk):
         one reflow.
         """
         self._resize_after = None
+        width = self.winfo_width()
+        if width == getattr(self, "_relayout_width", None):
+            # Only the height changed (dragging the top or bottom edge): no
+            # text rewraps and nothing moves sideways, the page just gets a
+            # taller or shorter view. Pausing painting and repainting the
+            # whole window for that cost ~30ms a step on Windows (fewer
+            # than 30 updates a second, so the drag looked jerky); Tk's own
+            # repaint of the uncovered strip is a few milliseconds.
+            self.layout_app_body()
+            self.update_idletasks()
+            return
+        self._relayout_width = width
         self.run_hidden_change(self.layout_app_body)
 
     def nav_hint(self, key):
