@@ -11,7 +11,13 @@
 //     "count"?: number, "avoid"?: string[], "title"?: string }
 // -> 200 { "ok": true, "action", "result": Notes | { "questions": Question[] }, "remaining": number }
 // -> 4xx/5xx { "ok": false, "error": code, "message": text }
+//
+//   { "action": "live", "cards": [{ "key": "c1", "front", "back" }], "deck"?, "voice"? }
+// -> 200 { "ok": true, "action": "live", "result": { "token", "model", "setup", "minutes" }, "remaining" }
+//   A one-use Live API token for a spoken Talk-back conversation (see live.ts).
+//   One conversation counts as one AI request.
 
+import { LIVE_SESSION_MINUTES, liveSetup, liveTokenBody, parseLiveRequest, tokenFrom } from "./live.ts";
 import { AiError, cleanNotes, cleanQuestions, ERRORS, geminiBody, limitsFrom, modelJson, parseRequest, providerError, secondsToNextMinute, takeResult } from "./logic.ts";
 
 const env = (name: string, fallback = "") => Deno.env.get(name) ?? fallback;
@@ -21,6 +27,7 @@ const SERVICE_KEY = env("SUPABASE_SERVICE_ROLE_KEY") || env("SUPABASE_SECRET_KEY
 const GEMINI_KEY = env("GEMINI_API_KEY");
 const GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3.5-flash-lite").trim() || "gemini-3.5-flash-lite";
 const LIMITS = limitsFrom((name) => Deno.env.get(name));
+const GEMINI_LIVE_MODEL = env("GEMINI_LIVE_MODEL", "gemini-3.8-live").trim() || "gemini-3.8-live";
 const GEMINI_TIMEOUT_MS = 100_000;
 // The base64 of an 8 MB file plus some text, with room to spare.
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
@@ -121,6 +128,32 @@ async function gemini(body: Record<string, unknown>): Promise<unknown> {
   return response.json().catch(() => null);
 }
 
+/** A one-use Live API token locked to the tutor set-up; falls back to locking the model only. */
+async function liveToken(setup: Record<string, unknown>): Promise<string> {
+  const post = (lockConfig: boolean) =>
+    fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY },
+      body: JSON.stringify(liveTokenBody(setup, new Date(), lockConfig)),
+    });
+  let response: Response;
+  try {
+    response = await post(true);
+    if (response.status === 400) {
+      // The locked set-up was refused: still lock the model, and the app sends the set-up itself.
+      console.error("auth_tokens with config", (await response.text().catch(() => "")).slice(0, 500));
+      response = await post(false);
+    }
+  } catch {
+    throw new AiError("busy", "The AI took too long to answer. Try again.");
+  }
+  if (!response.ok) {
+    console.error("auth_tokens", response.status, (await response.text().catch(() => "")).slice(0, 500));
+    throw providerError(response.status);
+  }
+  return tokenFrom(await response.json().catch(() => null));
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (request.method !== "POST") return failure(new AiError("bad_request", "Use POST."));
@@ -138,6 +171,15 @@ Deno.serve(async (request) => {
       body = JSON.parse(raw);
     } catch {
       throw new AiError("bad_request", "Send a JSON object.");
+    }
+    if ((body as { action?: unknown } | null)?.action === "live") {
+      const live = parseLiveRequest(body);
+      const used = await takeAllowance(userId);
+      charged = true;
+      const setup = liveSetup(live, GEMINI_LIVE_MODEL);
+      const token = await liveToken(setup);
+      const result = { token, model: GEMINI_LIVE_MODEL, setup, minutes: LIVE_SESSION_MINUTES };
+      return reply(200, { ok: true, action: "live", result, remaining: Math.max(0, LIMITS.daily - used) });
     }
     const input = parseRequest(body);
 
