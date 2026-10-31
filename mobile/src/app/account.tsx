@@ -13,6 +13,7 @@ import { useCaptcha } from '../cloud/captcha';
 import { leakedMessage, pwnedCount } from '../cloud/pwned';
 import { readSecret, writeSecret } from '../cloud/secrets';
 import { accountAgeCheck, AGE_RETRY_SECONDS, AttemptLimiter, MIN_PASSWORD, passwordProblems, passwordStrength, STRENGTH_LABELS, UNDER_AGE_MESSAGE, waitMessage } from '../core/security';
+import { AI_TERMS_NOTE } from '../features/aiHelpers';
 import { useStore, useSync } from '../state/AppState';
 import { Button, Card, Field, Pills, ProgressBar, Row, Screen, ToggleRow, Txt } from '../ui/components';
 import { confirm, notify } from '../ui/feedback';
@@ -509,7 +510,17 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
         ) : null}
         {mode === 'create' ? (
           <>
-            <ToggleRow label="I agree to the Terms of Use and Privacy Policy" value={agreed} onChange={setAgreed} />
+            <ToggleRow label="I agree to the Terms of Use and Privacy Policy, including AI features" value={agreed} onChange={setAgreed} />
+            <Txt variant="small">{AI_TERMS_NOTE}</Txt>
+            <Row wrap>
+              {links.terms ? <Button kind="ghost" compact label="Read the Terms of Use" onPress={() => Linking.openURL(links.terms).catch(() => undefined)} /> : null}
+              {links.privacy ? <Button kind="ghost" compact label="Read the Privacy Policy" onPress={() => Linking.openURL(links.privacy).catch(() => undefined)} /> : null}
+            </Row>
+          </>
+        ) : null}
+        {mode === 'signin' ? (
+          <>
+            <Txt variant="small">{`By signing in you agree to the Terms of Use and Privacy Policy, including AI features. ${AI_TERMS_NOTE}`}</Txt>
             <Row wrap>
               {links.terms ? <Button kind="ghost" compact label="Read the Terms of Use" onPress={() => Linking.openURL(links.terms).catch(() => undefined)} /> : null}
               {links.privacy ? <Button kind="ghost" compact label="Read the Privacy Policy" onPress={() => Linking.openURL(links.privacy).catch(() => undefined)} /> : null}

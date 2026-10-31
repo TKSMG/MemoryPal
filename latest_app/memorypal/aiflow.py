@@ -28,6 +28,13 @@ QUIZ_RECENT_MAX = 60
 # The server's default daily allowance (supabase/functions/ai, AI_DAILY_LIMIT).
 AI_DAILY_LIMIT = 10
 GEMINI_TERMS_URL = "https://ai.google.dev/gemini-api/terms"
+# Shown where people agree to the Terms (creating an account, signing in),
+# since agreeing turns AI on. Matches PRIVACY_POLICY.md "AI features".
+AI_TERMS_NOTE = (
+    "AI features come on with your account. When you press an AI button, only what you choose is sent to Google's Gemini API. "
+    "On its free tier Google may keep it, use it to improve its products, and people at Google may read it, so don't send private "
+    "or sensitive information. AI can be wrong. You can turn AI off at any time in Settings."
+)
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 PDF_SUFFIX = ".pdf"
 SOURCE_SUFFIXES = (PDF_SUFFIX,) + IMAGE_SUFFIXES
@@ -37,10 +44,13 @@ REPORT_CATEGORY = "AI content report"
 
 # ------------------------------------------------------------- preferences
 def default_preferences():
+    # AI starts on (Kirthik's call, 2026-10-30): agreeing to the Terms and
+    # Privacy Policy when creating or signing in to the account it needs is
+    # the consent. Turning it off in Settings is remembered.
     return {
-        "ai_enabled": False,
+        "ai_enabled": True,
         "ai_consent_at": "",
-        "ai_consent_version": 0,
+        "ai_consent_version": CONSENT_VERSION,
         "ai_remaining": None,
         "ai_remaining_day": "",
         "quiz_recent": [],
@@ -52,10 +62,12 @@ def normalize_preferences(raw):
     prefs = default_preferences()
     if not isinstance(raw, dict):
         return prefs
-    prefs["ai_enabled"] = raw.get("ai_enabled") is True
+    # A saved answer (on or off) is kept; only a profile that never had one starts on.
+    if "ai_enabled" in raw:
+        prefs["ai_enabled"] = raw.get("ai_enabled") is True
+        version = raw.get("ai_consent_version")
+        prefs["ai_consent_version"] = version if isinstance(version, int) and not isinstance(version, bool) and 0 <= version < 1000 else 0
     prefs["ai_consent_at"] = str(raw.get("ai_consent_at") or "")[:40]
-    version = raw.get("ai_consent_version")
-    prefs["ai_consent_version"] = version if isinstance(version, int) and not isinstance(version, bool) and 0 <= version < 1000 else 0
     remaining = raw.get("ai_remaining")
     prefs["ai_remaining"] = remaining if isinstance(remaining, int) and not isinstance(remaining, bool) and 0 <= remaining < 100000 else None
     prefs["ai_remaining_day"] = str(raw.get("ai_remaining_day") or "")[:10]

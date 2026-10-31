@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["LiveAudioModule"]
+  },
+  "android": {
+    "modules": ["app.memorypal.liveaudio.LiveAudioModule"]
+  }
+}

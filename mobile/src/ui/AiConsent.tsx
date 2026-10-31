@@ -20,13 +20,13 @@ export function AiConsent({ onAllow, onNotNow }: { onAllow: () => void; onNotNow
       <View style={{ alignItems: 'center', gap: 8, paddingTop: 8 }}>
         <Icon name="sparkles-outline" size={40} color={theme.colors.primary} />
         <Txt variant="h2" center accessibilityRole="header">Before you use AI</Txt>
-        <Txt variant="muted" center>AI can make study notes and practice questions from your notes, a PDF or a photo. It’s optional.</Txt>
+        <Txt variant="muted" center>AI can make study notes and practice questions from your notes, a PDF or a photo, and talk through your cards with you as a live tutor. It’s optional.</Txt>
       </View>
 
       <ListGroup>
-        <ListRow icon="document-text-outline" title="What is sent" detail="Only what you choose for each request: the text, or the one PDF or photo, plus your existing card questions so the AI doesn’t repeat them. Nothing is sent until you press an AI button." />
-        <ListRow icon="cloud-outline" title="Who gets it" detail="It goes through MemoryPal’s server to Google’s Gemini API, which writes the notes or questions. Our server doesn’t keep the text or file; it only counts your requests for the daily limit." />
-        <ListRow icon="eye-outline" title="What Google may do" detail="We use Gemini’s free tier. Google may keep what is sent, use it to improve its products, and people at Google may read it." tint={theme.colors.warmText} />
+        <ListRow icon="document-text-outline" title="What is sent" detail="Only what you choose for each request: the text, or the one PDF or photo, plus your existing card questions so the AI doesn’t repeat them. For the live tutor: that session’s cards and your voice while you talk. Nothing is sent until you press an AI button." />
+        <ListRow icon="cloud-outline" title="Who gets it" detail="It goes through MemoryPal’s server to Google’s Gemini API, which writes the notes or questions. Live tutor voice goes straight from your phone to Google. Our server doesn’t keep any of it; it only counts your requests for the daily limit." />
+        <ListRow icon="eye-outline" title="What Google may do" detail="We use Gemini’s free tier. Google may keep what is sent, including your voice, use it to improve its products, and people at Google may read or listen to it." tint={theme.colors.warmText} />
         <ListRow icon="hand-left-outline" title="Don’t send private things" detail="No health details, ID numbers, passwords or other people’s personal information." tint={theme.colors.again[1]} />
         <ListRow icon="checkmark-done-outline" title="Check what it makes" detail={`AI can be wrong. AI cards are labelled “Made with AI, check it”, and you can report a bad result. You need a MemoryPal account, and each account gets up to ${AI_DAILY_LIMIT} AI requests a day.`} />
       </ListGroup>

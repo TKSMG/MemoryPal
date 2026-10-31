@@ -64,7 +64,7 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 - Read aloud uses the voice built into Windows. It needs no internet connection, but some cut-down Windows installs have no voice.
 - Audio recording and playback use Windows' built-in tools. Video is recorded with the Windows Camera app and then brought into MemoryPal.
 - Talk-back study listens with the speech recogniser built into Windows, offline. It needs a microphone, and some cut-down Windows installs have no recogniser; then you type your answers instead. On a Mac it reads the questions aloud and you type the answers.
-- AI notes and questions are offered in the welcome ("Yes" unless you change it). They need a MemoryPal account and an internet connection, and each account can make 10 AI requests a day. What you send goes through MemoryPal's server to Google's Gemini (free tier), where Google may keep and review it, so don't send private information. You can turn AI off in **Settings**. If this build has no cloud set up, AI says it isn't ready yet.
+- AI notes and questions are on by default: creating an account or signing in agrees to them (the sign-in screens say what is sent). They need a MemoryPal account and an internet connection, and each account can make 10 AI requests a day. What you send goes through MemoryPal's server to Google's Gemini (free tier), where Google may keep and review it, so don't send private information. You can turn AI off in **Settings**. If this build has no cloud set up, AI says it isn't ready yet.
 - AI can be wrong. Please check AI notes and cards before relying on them.
 - If your taskbar or desktop still shows the old MemoryPal icon after updating, sign out and back in; Windows caches icons.
 - The Mac version is a separate download.

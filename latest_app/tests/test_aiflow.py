@@ -20,10 +20,14 @@ QUESTIONS = [
 
 
 class ConsentTests(unittest.TestCase):
-    def test_off_until_allowed(self):
+    def test_on_by_default_but_a_saved_answer_is_kept(self):
         prefs = aiflow.normalize_preferences(None)
-        self.assertFalse(aiflow.has_consent(prefs))
-        self.assertEqual(aiflow.gate(prefs, signed_in=True), "consent")
+        self.assertTrue(aiflow.has_consent(prefs))
+        self.assertEqual(aiflow.gate(prefs, signed_in=True), "ok")
+        self.assertTrue(aiflow.has_consent(aiflow.normalize_preferences({"quiz_deck": "Bio"})))
+        off = aiflow.normalize_preferences(aiflow.withdraw_consent(prefs))
+        self.assertFalse(aiflow.has_consent(off))
+        self.assertEqual(aiflow.gate(off, signed_in=True), "consent")
 
     def test_sign_in_comes_first(self):
         allowed = aiflow.give_consent(aiflow.normalize_preferences(None), "2026-10-19T10:00:00")
