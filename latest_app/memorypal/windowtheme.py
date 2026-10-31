@@ -111,6 +111,29 @@ def set_background_brush(hwnd, hex_color):
 _brushes = set()  # brushes MemoryPal made, so replaced ones can be freed
 
 
+DWMWA_CLOAK = 13
+
+
+def cloak(hwnd, hidden):
+    """Hide or show a mapped window through the compositor (Windows 8+).
+
+    A cloaked window is laid out and painted as usual but not put on
+    screen, so it can be shown fully drawn in one step: Chrome and Electron
+    show new windows this way. Unlike the fully transparent (-alpha 0)
+    trick it leaves no layered-window style behind, which changed how the
+    first maximise was drawn. Returns True if the compositor took it.
+    """
+    if not hwnd or not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+
+        value = ctypes.c_int(1 if hidden else 0)
+        return ctypes.windll.dwmapi.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), DWMWA_CLOAK, ctypes.byref(value), ctypes.sizeof(value)) == 0
+    except (AttributeError, OSError):
+        return False
+
+
 DWMWA_WINDOW_CORNER_PREFERENCE = 33
 DWMWCP_ROUND = 2
 DWMWCP_ROUNDSMALL = 3

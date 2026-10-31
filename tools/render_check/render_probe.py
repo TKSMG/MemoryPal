@@ -42,6 +42,12 @@ app.show_view("dashboard")
 app.lift()
 app.attributes("-topmost", True)
 app.update()
+if sys.platform.startswith("win"):
+    import ctypes
+    _ex = ctypes.windll.user32.GetWindowLongW(app.window_handle(app), -20)  # GWL_EXSTYLE
+    _cl = ctypes.c_int(0)
+    ctypes.windll.dwmapi.DwmGetWindowAttribute(app.window_handle(app), 14, ctypes.byref(_cl), 4)  # DWMWA_CLOAKED
+    print(f"WINDOW layered={bool(_ex & 0x80000)} cloaked={_cl.value}")
 
 
 def png(path, w, h, bgra):
