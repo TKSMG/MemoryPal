@@ -441,6 +441,44 @@ def syscommand(command):
     ctypes.windll.user32.PostMessageW(app.window_handle(app), 0x0112, command, 0)  # WM_SYSCOMMAND
 
 
+CONTROL = {}
+
+
+def control_setup():
+    # A plain Windows app (Notepad) in the same place, to tell what the
+    # maximise animation does to every app from what it does to ours.
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    app.state("normal")
+    app.update()
+    rect = window_rect()
+    subprocess.Popen(["notepad.exe"])
+    hwnd = 0
+    for _ in range(80):
+        hwnd = user32.FindWindowW("Notepad", None)
+        if hwnd:
+            break
+        time.sleep(0.1)
+    CONTROL["hwnd"] = hwnd
+    print(f"CONTROL notepad hwnd={hwnd} rect={rect.left},{rect.top},{rect.right},{rect.bottom}")
+    if not hwnd:
+        return
+    app.attributes("-topmost", False)
+    app.iconify()
+    app.update()
+    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    user32.SetWindowPos(hwnd, -1, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 0x40)  # topmost, show
+    user32.SetForegroundWindow(hwnd)
+    time.sleep(0.5)
+
+
+def control_command(command):
+    import ctypes
+    if CONTROL.get("hwnd"):
+        ctypes.windll.user32.PostMessageW(CONTROL["hwnd"], 0x0112, command, 0)
+
+
 def resize():
     app.geometry(f"{app.winfo_width() - 200}x{app.winfo_height() - 120}")
 
@@ -542,6 +580,12 @@ SCENARIOS = [
     ("sys_restore", lambda: syscommand(0xF120)),
     ("sys_maximize", lambda: syscommand(0xF030)),
     ("sys_restore_again", lambda: syscommand(0xF120)),
+    ("sys_maximize_again", lambda: syscommand(0xF030)),
+    ("sys_restore_third", lambda: syscommand(0xF120)),
+    ("sys_ctl_setup", control_setup),
+    ("sys_ctl_maximize", lambda: control_command(0xF030)),
+    ("sys_ctl_restore", lambda: control_command(0xF120)),
+    ("sys_ctl_maximize_again", lambda: control_command(0xF030)),
     ("unmaximize", lambda: app.state("normal")),
     ("drag_setup", place_for_drag),
     ("drag_move", drag_title),
