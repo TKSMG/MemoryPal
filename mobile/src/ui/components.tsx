@@ -25,7 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../state/AppState';
 import { onSpeakingChange, speak, speakingOwner, stopSpeaking } from './feedback';
 import { hasMarks, plain, spans, Style, toggle } from '../core/richtext';
-import { pressedShade, Theme, useTheme } from './theme';
+import { ICON_TONES, pressedShade, Theme, Tone, toneColors, useTheme } from './theme';
 
 export type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -184,9 +184,9 @@ function ListGap() {
 }
 
 // ---------------------------------------------------------------- card
-export function Card({ children, tone = 'default', style, onPress, accessibilityLabel, accessibilityHint, accessibilityRole = 'button', accessibilityState }: { children: ReactNode; tone?: 'default' | 'alt' | 'warm' | 'primary'; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; accessibilityRole?: 'button' | 'radio'; accessibilityState?: { selected?: boolean; checked?: boolean } }) {
+export function Card({ children, tone = 'default', style, onPress, accessibilityLabel, accessibilityHint, accessibilityRole = 'button', accessibilityState }: { children: ReactNode; tone?: 'default' | 'alt' | 'warm' | 'primary' | 'hero'; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; accessibilityRole?: 'button' | 'radio'; accessibilityState?: { selected?: boolean; checked?: boolean } }) {
   const theme = useTheme();
-  const background = { default: theme.colors.surface, alt: theme.colors.alt, warm: theme.colors.warm, primary: theme.colors.primary }[tone];
+  const background = { default: theme.colors.surface, alt: theme.colors.alt, warm: theme.colors.warm, primary: theme.colors.primary, hero: theme.colors.hero }[tone];
   const base: StyleProp<ViewStyle> = [styles.card, { backgroundColor: background }, style];
   if (!onPress) return <View style={base}>{children}</View>;
   return (
@@ -210,13 +210,17 @@ export function Card({ children, tone = 'default', style, onPress, accessibility
 /** Smallest touch target: Apple asks for 44pt, Android's Material guidance for 48dp. */
 export const MIN_TOUCH = Platform.OS === 'android' ? 48 : 44;
 
-export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'dangerGhost' | 'ghost' | 'again' | 'review' | 'good' | 'easy';
+export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'dangerGhost' | 'ghost' | 'again' | 'review' | 'good' | 'easy' | 'hero' | 'heroSoft';
 
 function buttonColors(theme: Theme, kind: ButtonKind): [string, string, string] {
   const c = theme.colors;
   switch (kind) {
     case 'primary':
       return [c.primary, c.onPrimary, c.primaryPressed];
+    case 'hero':
+      return [c.heroButton, c.heroButtonText, pressedShade(c.heroButton, false)];
+    case 'heroSoft':
+      return [c.heroSoft, c.heroSoftText, pressedShade(c.heroSoft, true)];
     case 'danger':
       return [c.danger, c.onDanger, c.dangerPressed];
     case 'ghost':
@@ -598,12 +602,12 @@ export function ListGroup({ children, header, footer }: { children: ReactNode; h
 }
 
 /** One row of a ListGroup: icon, title, optional detail and value, and a chevron when it opens something. */
-export function ListRow({ icon, title, detail, value, onPress, accessibilityLabel, accessibilityHint, tint, right, below, chevron = !!onPress }: { icon?: IconName; title: string; detail?: string; value?: string; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; tint?: string; right?: ReactNode; /** Shown under the detail, such as an AI tag. */ below?: ReactNode; chevron?: boolean }) {
+export function ListRow({ icon, title, detail, value, onPress, accessibilityLabel, accessibilityHint, tint, tone, right, below, chevron = !!onPress }: { icon?: IconName; title: string; detail?: string; value?: string; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; tint?: string; /** The icon tile's tone; by default the icon's own (ICON_TONES), else pine. */ tone?: Tone; right?: ReactNode; /** Shown under the detail, such as an AI tag. */ below?: ReactNode; chevron?: boolean }) {
   const theme = useTheme();
   const c = theme.colors;
   const body = (
     <>
-      {icon ? <Ionicons name={icon} size={theme.icon(22)} color={tint ?? c.primary} style={{ width: theme.icon(26) }} /> : null}
+      {icon ? <ToneIcon icon={icon} tone={tone ?? ICON_TONES[icon] ?? 'pine'} color={tint} /> : null}
       <View style={{ flex: 1, gap: 2, paddingVertical: 2 }}>
         <Txt variant="body" color={tint && !icon ? tint : c.ink} style={{ fontWeight: '500' }}>{title}</Txt>
         {detail ? <Txt variant="small">{detail}</Txt> : null}
@@ -629,6 +633,29 @@ export function ListRow({ icon, title, detail, value, onPress, accessibilityLabe
     >
       {body}
     </Pressable>
+  );
+}
+
+/** A line icon on a soft rounded tile in its tone. */
+export function ToneIcon({ icon, tone = 'pine', color, size = 20 }: { icon: IconName; tone?: Tone; color?: string; size?: number }) {
+  const theme = useTheme();
+  const [tile, fg] = toneColors(theme, tone, color);
+  const box = theme.icon(size + 16);
+  return (
+    <View style={{ width: box, height: box, borderRadius: Math.round(box * 0.3), backgroundColor: tile, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name={icon} size={theme.icon(size)} color={fg} />
+    </View>
+  );
+}
+
+/** The logo's amber dot and a short line, at the top of a hero panel. */
+export function HeroEyebrow({ children }: { children: string }) {
+  const theme = useTheme();
+  return (
+    <Row gap={8}>
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.dot }} />
+      <Txt variant="label" color={theme.colors.heroMuted} style={{ fontSize: theme.font(14) }}>{children}</Txt>
+    </Row>
   );
 }
 

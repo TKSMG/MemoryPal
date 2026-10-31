@@ -10,7 +10,7 @@ import { isAiCard } from '../../core/questions';
 import { useStore } from '../../state/AppState';
 import { AiTag, Button, Card, EmptyState, Field, ListGroup, ListRow, Pills, Row, ScreenList, SectionTitle, Txt } from '../../ui/components';
 import { relativeDay } from '../../ui/dates';
-import { useTheme } from '../../ui/theme';
+import { setTone, useTheme } from '../../ui/theme';
 
 type Filter = 'all' | 'due' | 'weak' | 'new';
 
@@ -54,6 +54,8 @@ export default function Create() {
           {Object.entries(summary).map(([name, info]) => (
             <ListRow
               key={name}
+              icon="albums-outline"
+              tone={setTone(name)}
               title={name}
               detail={[`${info.total} card${info.total === 1 ? '' : 's'}${info.due ? `, ${info.due} due` : ''}`, examCountdown(store.deckInfo(name).exam_date)].filter(Boolean).join(' · ')}
               onPress={() => router.push(`/deck/${encodeURIComponent(name)}` as Href)}

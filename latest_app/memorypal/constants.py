@@ -59,6 +59,17 @@ LIGHT_COLORS = {
     "heat_3": "#2e8f78",
     "heat_4": "#146b5a",
     "flame": "#d9821f",
+    # v100 "taste" pass: the hero panel is the logo's pine tile, with the
+    # logo's amber dot; buttons on it are paper-on-pine.
+    "hero": "#146b5a",
+    "hero_ink": "#ffffff",
+    "hero_muted": "#d3e6e0",
+    "hero_button": "#fffdf9",
+    "hero_button_text": "#0e5547",
+    "hero_soft": "#2a7a6a",
+    "hero_soft_text": "#ffffff",
+    "hero_step": "#1d7564",
+    "dot": "#ffb020",
 }
 
 DARK_COLORS = {
@@ -106,6 +117,49 @@ DARK_COLORS = {
     "heat_3": "#3ba487",
     "heat_4": "#82dcc3",
     "flame": "#f0a456",
+    "hero": "#1d4a40",
+    "hero_ink": "#f3f1ec",
+    "hero_muted": "#bcd6ce",
+    "hero_button": "#63c9ae",
+    "hero_button_text": "#14130f",
+    "hero_soft": "#2a5b50",
+    "hero_soft_text": "#f3f1ec",
+    "hero_step": "#245448",
+    "dot": "#ffb020",
 }
 
 COLORS = dict(DARK_COLORS)
+
+# Each page or study mode keeps one earthy tone everywhere it appears (the
+# same in the phone app's TONES): a soft tile behind its line icon, so a list
+# reads at a glance instead of as a column of identical green symbols. The
+# tones are the palette's own text colours, so they stay calm next to pine.
+TONE_KEYS = {
+    "pine": "primary",
+    "amber": "review_fg",
+    "clay": "orange",
+    "plum": "violet",
+    "slate": "easy_fg",
+    "teal": "cyan",
+    "moss": "green",
+    "rose": "pink",
+}
+
+ICON_TONES = {
+    "review": "pine", "focus": "amber", "testing": "rose", "capture": "slate",
+    "talkback": "plum", "quiz": "teal", "plan": "moss", "dashboard": "moss",
+    "study": "plum", "decks": "pine", "library": "slate", "tools": "plum",
+    "games": "amber", "elder": "teal", "stats": "moss",
+}
+
+
+# Sets get a tone of their own (picked from the name, so a set keeps its
+# colour on every device and in both apps: mobile/src/ui/theme.ts setTone).
+SET_TONES = ("pine", "amber", "plum", "slate", "clay", "teal", "moss", "rose")
+
+
+def set_tone(name):
+    value = 0
+    for char in str(name or "General"):
+        value = (value * 31 + ord(char)) % 4294967296
+    return SET_TONES[value % len(SET_TONES)]
