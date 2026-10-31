@@ -134,6 +134,38 @@ def cloak(hwnd, hidden):
         return False
 
 
+def drop_layered(hwnd):
+    """Make a window an ordinary (not layered) window again.
+
+    Tk turns a window into a layered window for -alpha below 1, and setting
+    it back to 1 keeps the layered style. Windows redraws a layered window
+    differently: when it grows, its new, bigger surface can be shown before
+    anything is drawn on it, so the desktop shows through for a frame (the
+    blue frame on the first maximise). Returns True if the style was dropped.
+    """
+    if not hwnd or not sys.platform.startswith("win"):
+        return False
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        get_style = getattr(user32, "GetWindowLongPtrW", None) or user32.GetWindowLongW
+        set_style = getattr(user32, "SetWindowLongPtrW", None) or user32.SetWindowLongW
+        get_style.restype = ctypes.c_ssize_t
+        get_style.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        set_style.restype = ctypes.c_ssize_t
+        set_style.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t]
+        style = get_style(ctypes.c_void_p(hwnd), -20)  # GWL_EXSTYLE
+        if not style & 0x00080000:  # WS_EX_LAYERED
+            return False
+        set_style(ctypes.c_void_p(hwnd), -20, style & ~0x00080000)
+        # SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
+        user32.SetWindowPos(ctypes.c_void_p(hwnd), None, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020)
+        return True
+    except (AttributeError, OSError):
+        return False
+
+
 DWMWA_WINDOW_CORNER_PREFERENCE = 33
 DWMWCP_ROUND = 2
 DWMWCP_ROUNDSMALL = 3
