@@ -16,26 +16,19 @@ class IconTests(unittest.TestCase):
             self.assertLess(pixels[size - 1][size - 1][3], 40)
             self.assertEqual(pixels[size // 2][size // 2][3], 255)
 
-    def test_mark_is_dark_ink_on_a_white_card(self):
-        size = 64
-        pixels = icon.render_icon_pixels(size)
+    def test_mark_is_white_on_the_left_stroke(self):
+        size = 32
         x, y = icon.LOGO_LEGS[0], (icon.LOGO_ARCH_Y + icon.LOGO_BOTTOM) / 2
-        red, green, blue, _alpha = pixels[int(y * size)][int(x * size)]
-        self.assertLess(max(red, green, blue), 140)
-        # Between the legs, below the arches, the card shows through white.
-        x = (icon.LOGO_LEGS[0] + icon.LOGO_LEGS[1]) / 2
-        red, green, blue, _alpha = pixels[int(icon.LOGO_BOTTOM * size) - 2][int(x * size)]
+        red, green, blue, _alpha = icon.icon_pixels(size)[int(y * size)][int(x * size)]
         self.assertGreater(min(red, green, blue), 200)
 
-    def test_folded_corner_is_amber_and_cut_from_the_card(self):
+    def test_recall_dot_is_amber_and_clear_of_the_mark(self):
         size = 64
-        _left, top, right, _bottom = icon.LOGO_CARD
-        x, y = right - icon.LOGO_FOLD * 3 / 4, top + icon.LOGO_FOLD * 3 / 4
+        x, y, _radius = icon.LOGO_DOT
         red, green, blue, _alpha = icon.render_icon_pixels(size)[int(y * size)][int(x * size)]
         self.assertGreater(red, 200)
         self.assertLess(blue, 120)
-        # The card's own top-right corner is gone: that spot is the tile.
-        self.assertGreater(icon.card_distance((right - 0.01) * size, (top + 0.01) * size, size), 0)
+        self.assertGreater(icon.logo_mark_distance(x * size, y * size, size), icon.LOGO_DOT[2] * size)
 
     def test_master_cache_name_tracks_artwork_version(self):
         self.assertIn(f"v{icon.MASTER_CACHE_VERSION}", icon.master_cache_path().name)
