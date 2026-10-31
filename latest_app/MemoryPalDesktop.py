@@ -1427,10 +1427,31 @@ class MemoryPalApp(tk.Tk):
         try:
             change()
             self.settle_layout()
+            self.settle_page_scroll()
         finally:
             self._hidden_active = False
             self.set_redraw_frozen(False)
             flush_pending_paint(self)
+
+    def settle_page_scroll(self, rounds=4):
+        """Measure the shown page's scroll range until it holds, now.
+
+        A page's height can keep growing for a pass or two after a resize
+        (rewrapped text), and the scroll area re-checks it on a 45ms timer.
+        Done after the window had been repainted, that re-check redrew the
+        scrollbar a moment later: one more changed frame per resize.
+        """
+        page = self.page_scrollframe(getattr(self, "view_host", None))
+        if page is None:
+            return
+        try:
+            for _ in range(rounds):
+                before = page._last_content_h
+                page.refresh_scrollregion()
+                if before is not None and page._last_content_h <= before + 1:
+                    break
+        except (AttributeError, tk.TclError):
+            pass
 
     def settle_layout(self, rounds=6, relayout_shell=True):
         # Configure-driven work (label rewrapping, scroll regions) runs from
