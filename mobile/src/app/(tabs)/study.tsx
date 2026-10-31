@@ -4,7 +4,7 @@ import { Href, router } from 'expo-router';
 import { View } from 'react-native';
 
 import { useStore } from '../../state/AppState';
-import { Button, Card, ListGroup, ListRow, Row, Screen, Txt } from '../../ui/components';
+import { Button, Card, HeroEyebrow, ListGroup, ListRow, Screen, Txt } from '../../ui/components';
 import { useTheme } from '../../ui/theme';
 
 export default function Study() {
@@ -26,20 +26,18 @@ export default function Study() {
 
   return (
     <Screen title="Study">
-      <Card tone="alt" style={{ gap: 12 }}>
-        <Row>
-          <Ionicons name="calendar-outline" size={theme.icon(28)} color={c.link} />
-          <View style={{ flex: 1 }}>
-            <Txt variant="h2">{due ? `${due} card${due === 1 ? '' : 's'} due` : 'Nothing due right now'}</Txt>
-            <Txt variant="muted">
-              {theme.plain(
-                'Answer from memory, then rate how it went. Easy cards come back later; hard ones sooner.',
-                'Try to remember each answer, then say how it went.',
-              )}
-            </Txt>
-          </View>
-        </Row>
-        <Button kind="primary" label={due ? 'Start review' : 'Practise anyway'} icon="play" onPress={() => router.push(due ? '/review?mode=due' : '/review?mode=quick')} />
+      <Card tone="hero" style={{ gap: 12 }}>
+        <HeroEyebrow>Review</HeroEyebrow>
+        <View style={{ gap: 4 }}>
+          <Txt variant="h2" color={c.heroInk}>{due ? `${due} card${due === 1 ? '' : 's'} due` : 'Nothing due right now'}</Txt>
+          <Txt variant="muted" color={c.heroMuted}>
+            {theme.plain(
+              'Answer from memory, then rate how it went. Easy cards come back later; hard ones sooner.',
+              'Try to remember each answer, then say how it went.',
+            )}
+          </Txt>
+        </View>
+        <Button kind="hero" label={due ? 'Start review' : 'Practise anyway'} icon="play" onPress={() => router.push(due ? '/review?mode=due' : '/review?mode=quick')} />
       </Card>
 
       <ListGroup header="More ways to practise" footer="Answering from memory before you look builds recall far better than rereading. A miss still helps: the card simply comes back sooner.">
