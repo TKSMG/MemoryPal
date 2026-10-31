@@ -34,9 +34,7 @@ Keep this list up to date whenever a branch is added or taken out.
 
 | Branch | PR | What it does |
 | --- | --- | --- |
-| `window-glitches` | #41 | Full screen fades instead of showing half-switched frames; scroll probes for every page |
-| `claude/project-thread-5t33jk` | #42 | Live AI tutor for phone Talk-back, AI on by default |
-| `claude/project-thread-5khaoy` | #46 | This branch's own set-up (the Testing Builds workflow and this guide) |
+| (none) | | #41, #42 and #46 were merged into main on 2026-10-31, so testing is the same as main for now |
 
 ## Adding new work
 
