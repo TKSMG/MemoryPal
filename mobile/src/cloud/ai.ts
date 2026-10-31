@@ -339,3 +339,30 @@ export function cardNote(question: Pick<AiQuestion, 'page' | 'context'>): string
   const note = AI_NOTE + (question.page ? ` From page ${question.page}.` : '');
   return question.context ? `${note} Source: "${question.context}"` : note;
 }
+
+// ------------------------------------------------------------ live talk-back
+export const MAX_LIVE_CARDS = 40;
+
+export interface LiveStart {
+  token: string;
+  setup: Record<string, unknown>;
+  minutes: number;
+  remaining: number | null;
+}
+
+/**
+ * A one-use token for a spoken conversation with the AI tutor about these
+ * cards (counts as one AI request). The cards go by short keys, c1, c2...,
+ * in the order given; the tutor saves results by those keys.
+ */
+export async function startLive(auth: AiAuth, cards: { front: string; back: string }[], deck = '', options: AiOptions = {}): Promise<LiveStart> {
+  const list = cards.slice(0, MAX_LIVE_CARDS).map((card, i) => ({ key: `c${i + 1}`, front: clip(card.front, 300), back: clip(card.back, 300) }));
+  if (!list.length) throw new AiError('bad_request', 'Talk-back needs cards with answers.');
+  const data = await callAi(auth, { action: 'live', cards: list, deck: clip(deck, 120) }, { timeoutMs: 30000, ...options });
+  const result = asObject(data.result);
+  const token = typeof result.token === 'string' ? result.token : '';
+  const setup = asObject(result.setup);
+  if (!token || !setup.model) throw new AiError('bad_answer');
+  const minutes = typeof result.minutes === 'number' && result.minutes > 0 ? Math.min(15, result.minutes) : 10;
+  return { token, setup, minutes, remaining: remainingOf(data) };
+}

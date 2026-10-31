@@ -2,14 +2,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Image, Linking, View } from 'react-native';
+import { Image, View } from 'react-native';
 
-import { legalLinks } from '../cloud/client';
 import { MANAGED_SETTINGS, PERSONAS, persona as personaFor } from '../core/personas';
 import { defaultAccessibility, PersonaKey, TextSize } from '../core/store';
-import { AI_DAILY_LIMIT } from '../features/aiHelpers';
-import { usePrefs, useStore } from '../state/AppState';
-import { GEMINI_TERMS_URL } from '../ui/AiConsent';
+import { useStore } from '../state/AppState';
 import { Button, Card, Pills, Row, Screen, ToggleRow, Txt } from '../ui/components';
 import { speak } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
@@ -29,12 +26,6 @@ export default function Welcome() {
   // back button and swipe, and leaving without finishing changes nothing.
   const again = !!useLocalSearchParams<{ again?: string }>().again;
   const [chosen, setChosen] = useState<PersonaKey | ''>(store.onboarding.persona);
-  const [prefs, setPrefs] = usePrefs();
-  // AI is chosen here, with what it means spelled out, and starts on for a
-  // new install (Kirthik's call, 2026-10-24); choosing again keeps the
-  // current answer. Finishing with "Yes" is the same consent as the AI screen.
-  const [useAi, setUseAi] = useState<'yes' | 'no'>(again && !prefs.ai_allowed ? 'no' : 'yes');
-  const privacy = legalLinks().privacy;
   // An account signed in on another device brings its answers with it, so
   // leave as soon as onboarding becomes done during this visit (but not when
   // it was already done on arrival, as when choosing again from Settings).
@@ -65,11 +56,6 @@ export default function Welcome() {
 
   const finish = () => {
     finished.current = true;
-    if (useAi === 'yes') {
-      if (!prefs.ai_allowed) setPrefs({ ai_allowed: true, ai_allowed_at: new Date().toISOString() });
-    } else if (prefs.ai_allowed) {
-      setPrefs({ ai_allowed: false, ai_allowed_at: '' });
-    }
     store.finishOnboarding(chosen || 'general');
     if (again && router.canGoBack()) router.back();
     else router.replace('/');
@@ -84,7 +70,7 @@ export default function Welcome() {
           <Txt variant="title">Welcome</Txt>
         </View>
       </Row>
-      <Txt variant="muted">Four quick questions so MemoryPal fits you. You can change any of this later in Settings.</Txt>
+      <Txt variant="muted">Three quick questions so MemoryPal fits you. You can change any of this later in Settings.</Txt>
 
       <Txt variant="h2">1. Who will be using MemoryPal?</Txt>
       <View accessibilityRole="radiogroup" accessibilityLabel="Who will be using MemoryPal?" style={{ gap: 16 }}>
@@ -140,16 +126,6 @@ export default function Welcome() {
           value={store.accessibility.more_time}
           onChange={(value) => store.setAccessibility({ more_time: value })}
         />
-      </Card>
-
-      <Txt variant="h2">4. Use AI to make notes and questions?</Txt>
-      <Card>
-        <Txt variant="muted">{`Only what you choose is sent, when you press an AI button: it goes through MemoryPal’s server to Google’s Gemini API. On Gemini’s free tier Google may keep it, use it to improve its products, and people at Google may read it, so don’t send private or sensitive information. AI needs a MemoryPal account (up to ${AI_DAILY_LIMIT} requests a day) and can be turned off in Settings.`}</Txt>
-        <Pills<'yes' | 'no'> label="Use AI" value={useAi} onChange={setUseAi} options={[{ value: 'yes', label: 'Yes, use AI' }, { value: 'no', label: 'No thanks' }]} />
-        <Row style={{ flexWrap: 'wrap' }}>
-          {privacy ? <Button kind="ghost" compact label="Privacy Policy" onPress={() => Linking.openURL(privacy).catch(() => undefined)} /> : null}
-          <Button kind="ghost" compact label="Google’s Gemini API terms" onPress={() => Linking.openURL(GEMINI_TERMS_URL).catch(() => undefined)} />
-        </Row>
       </Card>
 
       <Button kind="primary" label={chosen ? 'Start using MemoryPal' : 'Skip and start'} icon="arrow-forward" onPress={finish} />

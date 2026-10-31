@@ -1,6 +1,6 @@
 # MemoryPal Privacy Policy
 
-Last updated: October 24, 2026
+Last updated: October 30, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
@@ -13,9 +13,10 @@ request.
 - **Sync goes through your own Google Drive, not our servers.** If you connect Google Drive, your
   cards are kept in a hidden MemoryPal folder in your own Google account (see "Syncing with
   Google Drive").
-- **AI features are optional.** The welcome asks whether to use them, with "Yes" chosen unless
-  you change it, and they can be turned off in Settings. They need an account. Only the notes or
-  file you choose are sent, and only when you press an AI button (see "AI features").
+- **AI features come on with your account, and you can turn them off.** They need an account,
+  and you agree to them when you create one or sign in. You can turn them off at any time in
+  Settings. Only the notes or file you choose (or, for the live tutor, your voice) are sent, and
+  only when you press an AI button (see "AI features").
 - **A MemoryPal account is optional.** It is only needed for AI features.
 - **We don't sell your data, show ads, or use tracking or analytics tools.**
 - **Accounts are for people 13 and older.**
@@ -82,11 +83,13 @@ iOS Keychain or the Android Keystore), never your password.
 
 ## AI features
 
-MemoryPal can make study notes and practice questions from your notes, a PDF or a photo. This
-is optional:
+MemoryPal can make study notes and practice questions from your notes, a PDF or a photo. AI
+features are on by default once you have an account, and you can turn them off:
 
-- It only works when you are signed in and have said yes to it, in the welcome or on the AI
-  screen. You can turn it off again in Settings.
+- It only works when you are signed in. Creating an account or signing in means you agree to
+  these AI features, as described here. You can turn them off at any time in Settings, and
+  turning them back on shows this information again first. Nothing is sent until you press an
+  AI button.
 - Only what you choose is sent: the text, or the one file, you picked for that request, anything
   you typed under "How should it look?" or "Questions your teacher has asked", and a list of your
   existing card questions in that set, so the AI doesn't repeat them and can follow their style.
@@ -101,6 +104,24 @@ is optional:
 - AI-made cards are labelled "Made with AI, check it." AI can be wrong; check cards before you
   rely on them. You can report a bad result from the card.
 
+### Live tutor (spoken Talk-back)
+
+On the phone app, Talk-back can be a spoken conversation with an AI tutor. This is part of the
+AI features above, and only starts when you press **Talk with the AI tutor**:
+
+- Our server sends the questions and answers of the cards in that Talk-back session (up to 40)
+  and the set's name to Google's Gemini API, to set up the tutor, and gives your phone a
+  one-use pass for that one conversation. It counts as one AI request for the daily limit.
+- While the conversation is on, **your voice from the microphone goes straight from your phone
+  to Google's Gemini Live API**, which listens, writes down what was said and answers out loud.
+  It does not go through our server, and we don't record or keep it. The microphone stops when
+  the conversation ends, after at most 10 minutes.
+- The tutor's verdict for each card (right, nearly, wrong or skipped) is saved on your device as
+  a review, like any other review.
+- The free-tier terms above apply to your voice and the cards too: Google may keep them, use
+  them to improve its products, and people at Google may listen to or read them. Don't say
+  anything private during a conversation.
+
 ## Services we use
 
 | Service | What it does | What it receives |
@@ -109,6 +130,7 @@ is optional:
 | Google (Drive API and Google sign-in) | Stores your synced cards in your own Drive, if you connect it | Your synced cards, settings and review history, and your Google account's id and email. We don't receive any of it |
 | Google (Gmail) | Sends sign-in and reset codes | Your email address |
 | Google (Gemini API) | Makes notes and questions when you use an AI feature | The text or file you chose for that request, and your existing card questions. Not your email or password |
+| Google (Gemini Live API) | Runs the spoken live tutor, if you start one | Your voice during the conversation and the cards in that session. Not your email or password |
 | Cloudflare Turnstile | Checks that a person, not a bot, is signing in, creating an account or asking for an emailed code | Technical signals from the check page, such as your IP address and browser details. Not your email, password or cards |
 | GitHub Pages | Hosts that check page | Your IP address and browser details, like any website |
 | Have I Been Pwned | Checks whether a new password has appeared in a data breach | Only the first 5 characters of a scrambled (SHA-1) form of the password, never the password itself |
@@ -117,7 +139,9 @@ is optional:
 Feedback is only sent when you press **Send Feedback Now**. It never includes your profile name
 or your cards.
 
-Read aloud uses your device's own voice and works offline; the text is not sent to us.
+Read aloud uses your device's own voice and works offline; the text is not sent to us. Classic
+Talk-back recognises your spoken answers with your device's own speech recognition; only the
+live tutor sends your voice to Google.
 
 The image-search button on the desktop opens Google in your web browser. That search
 happens in your browser, under Google's own privacy policy.
