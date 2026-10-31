@@ -8,7 +8,7 @@ import { persona } from '../../core/personas';
 import { planForToday } from '../../core/planning';
 import { levelInfo, nextAchievement } from '../../core/progress';
 import { useStore, useSync } from '../../state/AppState';
-import { Button, Card, IconButton, IconName, ListGroup, ListRow, ProgressBar, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
+import { Button, Card, HeroEyebrow, ToneIcon, IconButton, IconName, ListGroup, ListRow, ProgressBar, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
 import { MODES, openStep } from '../../ui/routes';
 import { useTheme } from '../../ui/theme';
 
@@ -75,10 +75,12 @@ export default function Today() {
         </Row>
       }
     >
-      <Card tone="alt" style={{ gap: 12 }}>
-        <Txt variant="h2">{hero.title}</Txt>
-        <Txt variant="muted">{hero.body}</Txt>
-        <Button kind="primary" label={hero.action} icon="play" onPress={hero.go} />
+      {/* The day opens on the logo's pine tile, amber dot and all. */}
+      <Card tone="hero" style={{ gap: 12 }}>
+        <HeroEyebrow>{due.length ? `${due.length} due today` : 'Up next'}</HeroEyebrow>
+        <Txt variant="h2" color={c.heroInk}>{hero.title}</Txt>
+        <Txt variant="muted" color={c.heroMuted}>{hero.body}</Txt>
+        <Button kind="hero" label={hero.action} icon="play" onPress={hero.go} />
       </Card>
 
       <Card>
@@ -144,7 +146,7 @@ export default function Today() {
       ) : (
         <Card onPress={() => router.push('/plan')} accessibilityLabel="Make a study plan">
           <Row>
-            <Ionicons name="map-outline" size={theme.icon(26)} color={c.link} />
+            <ToneIcon icon="map-outline" tone="moss" />
             <View style={{ flex: 1 }}>
               <Txt variant="h3">Make a study plan</Txt>
               <Txt variant="muted">Say how much time you have and what’s coming up; get steps to tick off each day.</Txt>

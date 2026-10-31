@@ -75,6 +75,24 @@ Until v96 the colours were the stock set most generated apps share: a bright blu
 - Use the app's line icons, not emoji, next to the app's own text. Emoji stay only in the badge gallery for now.
 - Dropdowns use a line chevron, not clam's filled triangle. Quiz answers are left-aligned rows.
 
+## Hero, tones and set colours (v100)
+
+The v96 palette kept one accent everywhere, which read as monotonous: every
+icon and every set the same green. v100 adds colour without leaving the theme:
+
+- **Hero panel**: the main action of Today and Study sits on the logo's pine
+  tile with the logo's amber dot before a short line ("Good evening",
+  "Review"). Buttons on it are paper-on-pine (`Hero.TButton` / `kind="hero"`)
+  and a lighter pine for the second action. Colours: `hero*` and `dot` in
+  constants.py and theme.ts; every text pair is AA.
+- **Tones**: pine, amber, clay, plum, slate, teal, moss, rose, all taken from
+  the palette's existing text colours. Each page or study mode keeps one tone
+  (desktop `ICON_TONES` by page key, phone `ICON_TONES` by Ionicon), shown as
+  a soft tile behind its line icon in lists. Keep the two maps in step.
+- **Sets** get a tone from their name (`set_tone` / `setTone`, same hash on
+  both apps), used on the set's tile and its mastery bar. Main buttons stay
+  pine, so the tones never compete with what to press.
+
 ## Design System (v70)
 
 These rules came out of a full review against Khan Academy, Duolingo and NeuroNation. All three feel professional for the same reasons: one clear next action, a consistent set of controls, real type hierarchy, and colour used only to mean something.
