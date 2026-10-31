@@ -20,7 +20,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import MemoryPalDesktop as M  # noqa: E402
 from memorypal.models import Card  # noqa: E402
 
+ALL_VIEWS = ["dashboard", "study", "create", "practice", "training", "elder", "stats", "decks", "plan", "focus", "cuelab",
+             "capture", "review", "testing", "quiz", "ainotes", "talkback", "shuffle", "tools", "games", "feedback",
+             "settings", "library"]
 VIEWS = sys.argv[1:] or ["dashboard", "library", "stats"]
+if VIEWS == ["all"]:
+    VIEWS = ALL_VIEWS
 
 M.enable_dpi_awareness()
 app = M.MemoryPalApp()
@@ -253,6 +258,7 @@ def tear_check(view):
         torn = 0
         worst = (0, None)
         worst_spans = ""
+        worst_detail = ""
         for data, offset in zip(captured, offsets):
             if offset is None:
                 torn += 1
@@ -273,13 +279,26 @@ def tear_check(view):
                 torn += 1
                 if bad > worst[0]:
                     worst = (bad, data)
+                    # Which columns differ, and what colours, in the first bad row.
+                    r = bad_rows[0]
+                    a_row, b_row = rest[r * fw * 3:(r + 1) * fw * 3], data[r * fw * 3:(r + 1) * fw * 3]
+                    cols = [c for c in range(fw) if a_row[c * 3:c * 3 + 3] != b_row[c * 3:c * 3 + 3]]
+                    if cols:
+                        c = cols[len(cols) // 2]
+                        worst_detail = (f"offset={offset} cols={cols[0]}-{cols[-1]}({len(cols)}) "
+                                        f"rest={tuple(a_row[c * 3:c * 3 + 3])} seen={tuple(b_row[c * 3:c * 3 + 3])} "
+                                        f"seen_matches_page_rows={index.get(b_row, [])[:3]}")
         if worst[1] is not None:
             from PIL import Image
             Image.frombytes("RGB", (fw, fh), worst[1]).save(os.path.join(os.environ.get("PROBE_OUT", "."), f"{view}-{label}-worst.png"))
-        print(f"  tearing    {label:8} frames={len(captured)} torn_or_half_drawn={torn} worst_bad_rows={worst[0]}/{fh} rows={worst_spans}")
+        print(f"  tearing    {label:8} frames={len(captured)} torn_or_half_drawn={torn} worst_bad_rows={worst[0]}/{fh} rows={worst_spans} {worst_detail}")
 
 
 for view in VIEWS:
-    run(view)
-    tear_check(view)
+    try:
+        run(view)
+        if scroll_frame() is not None:
+            tear_check(view)
+    except Exception as exc:  # one page failing must not hide the others
+        print(f"{view}: probe failed: {exc!r}")
 app.destroy()
