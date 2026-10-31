@@ -2871,9 +2871,12 @@ class MemoryPalApp(tk.Tk):
         self.style.map("TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
         self.style.configure("Primary.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
         self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["primary_dark"]))])
-        self.style.configure("TMenubutton", padding=self.pad(18, 11), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
+        # Dropdowns: text, a fixed gap, then the chevron, with the same inset
+        # on both ends. width=0 drops clam's 11-character minimum, which
+        # stretched "More" and pushed its arrow against the right edge.
+        self.style.configure("TMenubutton", padding=self.pad(16, 11, 12, 11), width=0, foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
         self.style.map("TMenubutton", foreground=[("active", COLORS["primary"])])
-        self.style.configure("Select.TMenubutton", padding=self.pad(12, 11), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 12))
+        self.style.configure("Select.TMenubutton", padding=self.pad(14, 11, 10, 11), width=0, anchor="w", foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 12))
         self.style.configure("Danger.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["danger"]), borderwidth=0, relief="flat", font=semibold)
         # A quiet text button ("More options", "Remove"): accent text on the
         # surface it sits on, a soft tile on hover, the usual focus ring.
@@ -3087,7 +3090,8 @@ class MemoryPalApp(tk.Tk):
             focus_hover=self.rounded_tile(hover, bg, ring=ring, ring_width=width),
             keyboard_only=True,
         )
-        self.style.layout(style, [(element, {"sticky": "nsew", "children": self.inner_layout(widget_class)})])
+        children = self.select_inner_layout() if widget_class == "TMenubutton" else self.inner_layout(widget_class)
+        self.style.layout(style, [(element, {"sticky": "nsew", "children": children})])
         self.set_corner_background(style, bg)
 
     def round_entry_style(self, style, bg):
@@ -3122,7 +3126,9 @@ class MemoryPalApp(tk.Tk):
 
     def select_inner_layout(self):
         """A dropdown's insides with a line chevron in place of clam's small
-        filled triangle, which looked borrowed from another toolkit."""
+        filled triangle, which looked borrowed from another toolkit. Every
+        dropdown ("More" menus and pickers) shares it, so the gap between the
+        text and the chevron is the same everywhere."""
         children = self.inner_layout("TMenubutton")
         name = f"SelectChevron{self._style_generation}"
         if name not in self._rounded_elements:
@@ -3130,11 +3136,22 @@ class MemoryPalApp(tk.Tk):
             if image is None:
                 return children
             try:
-                self.style.element_create(name, "image", image, sticky="", padding=(self.px(10), 0, 0, 0))
+                # An image element ignores its own padding when sizing, so
+                # the gap before the chevron is extra width with the image
+                # pinned right. The 16px chevron also has ~4px of empty space
+                # on each side, so the gap (and the styles' right inset) look
+                # about 4px larger on screen.
+                self.style.element_create(name, "image", image, sticky="e", width=self.px(16) + self.px(8))
             except tk.TclError:
                 return children
             self._rounded_elements[name] = image
-        return [(name, options) if element.endswith(".indicator") else (element, options) for element, options in children]
+        # clam puts its arrow outside the padding element, so the arrow sat
+        # against the right edge however much padding the style asked for.
+        # Here the padding wraps both: inset, text, gap, chevron, inset.
+        return [("Menubutton.padding", {"sticky": "nswe", "children": [
+            (name, {"side": "right", "sticky": ""}),
+            ("Menubutton.label", {"side": "left", "sticky": ""}),
+        ]})]
 
     def track_focus_source(self):
         """Show the focus ring on buttons only when focus came from the keyboard.
@@ -5360,53 +5377,79 @@ class MemoryPalApp(tk.Tk):
         inset = self.px(6)
         font_spec = self.font("Segoe UI", 11)
         measure = tkfont.Font(root=self, font=font_spec)
-        row_height = measure.metrics("linespace") + 1
+        # Rows as tall as a menu row on Windows 11 / macOS, with the text
+        # inset from the edge, instead of a Listbox's tightly packed lines.
+        row_height = measure.metrics("linespace") + self.px(14)
+        side = self.px(12)
+        bold = tkfont.Font(root=self, font=self.font("Segoe UI Semibold", 11))
         anchor.update_idletasks()
         anchor_rect = (
             anchor.winfo_rootx(), anchor.winfo_rooty(),
             anchor.winfo_rootx() + anchor.winfo_width(), anchor.winfo_rooty() + anchor.winfo_height(),
         )
         x, y, width, height, rows, shown = popup_geometry.dropdown_layout(
-            [label for label, _command, _selected in entries], measure.measure, anchor_rect, self.screen_bounds(),
-            row_height, inset, side=measure.measure("  "), gap=self.px(4), margin=self.px(8))
-        listbox = tk.Listbox(
-            top,
-            height=rows,
-            width=0,  # Tk's default is 20 characters, which clipped long labels.
-            bg=COLORS["surface"],
-            fg=COLORS["ink"],
-            selectbackground=COLORS["primary"],
-            selectforeground=self.on_color(COLORS["primary"]),
-            relief="flat",
-            bd=0,
-            highlightthickness=0,
-            activestyle="none",
-            font=font_spec,
-            exportselection=False,
-            cursor="hand2",
-        )
-        listbox.pack(fill="both", expand=True, padx=inset, pady=inset)
+            [label for label, _command, _selected in entries], bold.measure, anchor_rect, self.screen_bounds(),
+            row_height, inset, side=side, gap=self.px(4), margin=self.px(8))
+        edge = max(1, self.px(1))  # the window's hairline border
+        list_width = width - inset * 2 - edge * 2
+        canvas = tk.Canvas(top, width=list_width, height=rows * row_height, bg=COLORS["surface"],
+                           highlightthickness=0, bd=0, cursor="hand2", yscrollincrement=1,
+                           scrollregion=(0, 0, list_width, len(entries) * row_height))
+        canvas.pack(fill="both", expand=True, padx=inset, pady=inset)
+        hover_fill = COLORS["surface_soft"] if self.contrast(COLORS["surface_soft"], COLORS["surface"]) >= 1.08 else COLORS["alt"]
+        radius = self.px(6)
+        highlight = canvas.create_polygon(0, 0, 0, 0, fill=hover_fill, outline="", smooth=True, state="hidden")
         current = 0
         for index, (_label, _command, selected) in enumerate(entries):
-            listbox.insert("end", f"  {shown[index]}  ")
             if selected:
                 current = index
-                listbox.itemconfigure(index, fg=COLORS["primary"])
-        listbox.selection_set(current)
-        listbox.see(current)
+            canvas.create_text(side, index * row_height + row_height // 2, text=shown[index], anchor="w",
+                               font=bold if selected else font_spec, fill=COLORS["primary"] if selected else COLORS["ink"])
+        state = {"index": None}
         self._dropdown = (top, previous_grab)
 
+        def mark(index):
+            if index is None or not 0 <= index < len(entries):
+                return
+            state["index"] = index
+            top_y, bottom_y = index * row_height + 1, (index + 1) * row_height - 1
+            r = min(radius, (bottom_y - top_y) // 2)
+            right = list_width - 1
+            # A rounded rectangle as a smoothed polygon (corner points doubled).
+            canvas.coords(highlight,
+                          r, top_y, r, top_y, right - r, top_y, right - r, top_y, right, top_y,
+                          right, top_y + r, right, top_y + r, right, bottom_y - r, right, bottom_y - r, right, bottom_y,
+                          right - r, bottom_y, right - r, bottom_y, r, bottom_y, r, bottom_y, 0, bottom_y,
+                          0, bottom_y - r, 0, bottom_y - r, 0, top_y + r, 0, top_y + r, 0, top_y)
+            canvas.itemconfigure(highlight, state="normal")
+            canvas.tag_lower(highlight)
+            # Keep the marked row in view when moving with the keyboard.
+            view_top = canvas.canvasy(0)
+            view_bottom = view_top + canvas.winfo_height()
+            if top_y < view_top or bottom_y > view_bottom:
+                canvas.yview_moveto(max(0.0, (index * row_height - (rows // 2) * row_height) / max(1, len(entries) * row_height)))
+
+        def row_at(event_y):
+            index = int(canvas.canvasy(event_y) // row_height)
+            return index if 0 <= index < len(entries) else None
+
         def choose(_event=None):
-            picked = listbox.curselection()
+            picked = state["index"]
             self.close_dropdown()
-            if picked:
-                entries[picked[0]][1]()
+            if picked is not None:
+                entries[picked][1]()
             return "break"
 
-        def hover(event):
-            index = listbox.nearest(event.y)
-            listbox.selection_clear(0, "end")
-            listbox.selection_set(index)
+        def release(event):
+            if row_at(event.y) is None:
+                return "break"
+            mark(row_at(event.y))
+            return choose()
+
+        def move(step):
+            index = state["index"] if state["index"] is not None else current
+            mark(max(0, min(len(entries) - 1, index + step)))
+            return "break"
 
         def press(event):
             # With the grab set, clicks anywhere in the app arrive here.
@@ -5420,25 +5463,28 @@ class MemoryPalApp(tk.Tk):
             self._box_wheel(event)
             return "break"
 
-        listbox.bind("<Motion>", hover)
-        listbox.bind("<ButtonRelease-1>", choose)
-        listbox.bind("<Return>", choose)
-        listbox.bind("<Escape>", lambda _event: (self.close_dropdown(), "break")[1])
-        listbox.bind("<MouseWheel>", wheel)
-        listbox.bind("<Button-4>", wheel)
-        listbox.bind("<Button-5>", wheel)
+        canvas.bind("<Motion>", lambda event: mark(row_at(event.y)))
+        canvas.bind("<ButtonRelease-1>", release)
+        canvas.bind("<Return>", choose)
+        canvas.bind("<space>", choose)
+        canvas.bind("<Up>", lambda _event: move(-1))
+        canvas.bind("<Down>", lambda _event: move(1))
+        canvas.bind("<Home>", lambda _event: (mark(0), "break")[1])
+        canvas.bind("<End>", lambda _event: (mark(len(entries) - 1), "break")[1])
+        canvas.bind("<Escape>", lambda _event: (self.close_dropdown(), "break")[1])
+        canvas.bind("<MouseWheel>", wheel)
+        canvas.bind("<Button-4>", wheel)
+        canvas.bind("<Button-5>", wheel)
         top.bind("<ButtonPress-1>", press)
-        listbox.bind("<ButtonPress-1>", press, add="+")
-        listbox.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
+        canvas.bind("<ButtonPress-1>", press, add="+")
+        canvas.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
 
-        top.update_idletasks()
-        # The listbox knows its exact row height; re-place with it so a list
-        # that flipped above the anchor still sits right against it.
-        height = listbox.winfo_reqheight() + inset * 2
-        x, y, width, height = self.fit_popup_rect(width, height, anchor_rect, gap=self.px(4))
+        x, y, width, height = self.fit_popup_rect(width, rows * row_height + inset * 2 + edge * 2, anchor_rect, gap=self.px(4))
         top.geometry(f"{width}x{height}+{x}+{y}")
         self.reveal_window(top)
-        listbox.focus_force()
+        top.update_idletasks()
+        mark(current)
+        canvas.focus_force()
         try:
             top.grab_set()
         except tk.TclError:
