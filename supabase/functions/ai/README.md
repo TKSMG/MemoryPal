@@ -16,6 +16,12 @@ the apps.
 - Accepted files: PDF, PNG, JPEG, WEBP and HEIC, up to 8 MB.
 - Gemini answers in JSON that has to match a schema, and the function checks and trims the
   answer again before passing it on.
+- **Live tutor** (`"action": "live"`, phone Talk-back): the function builds the tutor set-up
+  (instructions, the session's cards, the record_answer and end_session tools) in `live.ts`
+  and asks Gemini for a one-use ephemeral token locked to that set-up (1 minute to connect,
+  13 minutes to talk). The phone then opens the Gemini Live WebSocket itself, so voice audio
+  never passes through Supabase. One conversation counts as one request. The model is
+  `GEMINI_LIVE_MODEL` (default `gemini-3.8-live`, free on the free tier).
 
 ## 1. Run the migration
 
@@ -48,7 +54,7 @@ supabase login
 supabase link --project-ref <your-project-ref>
 supabase secrets set GEMINI_API_KEY=<your key>
 # optional:
-supabase secrets set GEMINI_MODEL=gemini-3.5-flash-lite AI_DAILY_LIMIT=10
+supabase secrets set GEMINI_MODEL=gemini-3.5-flash-lite AI_DAILY_LIMIT=10 GEMINI_LIVE_MODEL=gemini-3.8-live
 supabase functions deploy ai
 ```
 
@@ -56,8 +62,8 @@ supabase functions deploy ai
 
 1. Go to **Edge Functions**, choose **Deploy a new function**, then **Via Editor**, and name it
    `ai`.
-2. Paste the contents of `index.ts`. Add a second file named `logic.ts` and paste that file's
-   contents into it. Then deploy.
+2. Paste the contents of `index.ts`. Add files named `logic.ts` and `live.ts` and paste those
+   files' contents into them. Then deploy.
 3. Go to **Edge Functions → Secrets** (or **Project Settings → Edge Functions**) and add
    `GEMINI_API_KEY`. You can also add `GEMINI_MODEL` and `AI_DAILY_LIMIT` there.
 
