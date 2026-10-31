@@ -41,6 +41,22 @@ def fullscreen_styles(style, exstyle):
     return style & ~FRAME_STYLE, exstyle & ~FRAME_EXSTYLE
 
 
+def _outer_rect(user32, ctypes, hwnd, area, style, exstyle):
+    """The window rect, for these styles, whose client area is exactly `area`."""
+    class RECT(ctypes.Structure):
+        _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+    rect = RECT(area.left, area.top, area.right, area.bottom)
+    style, exstyle = ctypes.c_ulong(style & 0xFFFFFFFF), ctypes.c_ulong(exstyle & 0xFFFFFFFF)
+    adjust = getattr(user32, "AdjustWindowRectExForDpi", None)
+    dpi_for = getattr(user32, "GetDpiForWindow", None)
+    if adjust is not None and dpi_for is not None:
+        ok = adjust(ctypes.byref(rect), style, False, exstyle, dpi_for(hwnd))
+    else:
+        ok = user32.AdjustWindowRectEx(ctypes.byref(rect), style, False, exstyle)
+    return (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) if ok else None
+
+
 def _api():
     import ctypes
     from ctypes import wintypes
@@ -75,6 +91,22 @@ def _api():
     return ctypes, user32, get_long, set_long, WINDOWPLACEMENT, MONITORINFO
 
 
+def monitor_rect(hwnd):
+    """(left, top, right, bottom) of the monitor the window is on, or None."""
+    if not hwnd or not sys.platform.startswith("win"):
+        return None
+    try:
+        ctypes, user32, _get_long, _set_long, _placement, MONITORINFO = _api()
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        if not user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ctypes.byref(info)):
+            return None
+        area = info.rcMonitor
+        return area.left, area.top, area.right, area.bottom
+    except (AttributeError, OSError, ValueError):
+        return None
+
+
 def enter(hwnd):
     """Make the window cover its monitor. Returns what `leave` needs, or None."""
     if not hwnd or not sys.platform.startswith("win"):
@@ -91,9 +123,18 @@ def enter(hwnd):
         if not user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ctypes.byref(info)):
             return None
         full_style, full_exstyle = fullscreen_styles(style, exstyle)
+        area = info.rcMonitor
+        # Two moves. First grow the framed window until its client area
+        # covers the monitor, caption and borders just off screen: the page
+        # lays out at its full screen size here. Dropping the frame then
+        # changes nothing inside the window. Done in one move, Windows showed
+        # one frame of the new page still at the old client offset (shifted
+        # right and down by the border and caption).
+        outer = _outer_rect(user32, ctypes, hwnd, area, style, exstyle)
+        if outer is not None:
+            user32.SetWindowPos(hwnd, None, *outer, SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE)
         set_long(hwnd, GWL_STYLE, full_style)
         set_long(hwnd, GWL_EXSTYLE, full_exstyle)
-        area = info.rcMonitor
         user32.SetWindowPos(hwnd, None, area.left, area.top, area.right - area.left, area.bottom - area.top,
                             SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED)
         return {"style": style, "exstyle": exstyle, "placement": placement}

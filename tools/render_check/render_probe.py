@@ -26,6 +26,15 @@ os.makedirs(OUT, exist_ok=True)
 WANTED = sys.argv[2:]
 
 M.enable_dpi_awareness()
+if sys.platform.startswith("win"):
+    # CI desktops have the minimise/maximise animation off; most PCs have it on.
+    import ctypes
+
+    class ANIMATIONINFO(ctypes.Structure):
+        _fields_ = [("cbSize", ctypes.c_uint), ("iMinAnimate", ctypes.c_int)]
+
+    info = ANIMATIONINFO(ctypes.sizeof(ANIMATIONINFO), 1)
+    ctypes.windll.user32.SystemParametersInfoW(0x0049, ctypes.sizeof(info), ctypes.byref(info), 0)  # SPI_SETANIMATION
 app = M.MemoryPalApp()
 app.store.onboarding = {"done": True, "persona": "student"}
 app.store.add_cards([Card(deck=f"Deck {n % 6}", front=f"Question number {n} about something long enough to wrap", back=f"Answer {n} " * 6) for n in range(150)])
@@ -67,6 +76,27 @@ def diff(a, b, step=11):
 
 
 CONFIGURES = []
+# Where a resize step's time goes (Windows): the whole relayout, and the
+# repaint that ends it.
+STEP_TIMES = {}
+
+
+def _clocked(owner, attr, key):
+    original = getattr(owner, attr)
+
+    def wrapper(*args, **kwargs):
+        began = time.perf_counter()
+        try:
+            return original(*args, **kwargs)
+        finally:
+            STEP_TIMES.setdefault(key, []).append((time.perf_counter() - began) * 1000)
+    setattr(owner, attr, wrapper)
+
+
+_clocked(M.MemoryPalApp, "_relayout_after_resize", "relayout")
+_clocked(M.MemoryPalApp, "settle_layout", "settle")
+_clocked(M, "set_window_redraw", "redraw")
+_clocked(M, "flush_pending_paint", "paint")
 app.bind("<Configure>", lambda e: CONFIGURES.append((time.perf_counter(), e.x, e.y, e.width, e.height)) if e.widget is app else None, add="+")
 
 
@@ -85,6 +115,12 @@ def run(name, action, seconds=2.2, lead=0.35):
     while time.time() < end:
         app.update()
     CONFIGURES.clear()
+    STEP_TIMES.clear()
+    profiler = None
+    if name in os.environ.get("PROFILE_SCENARIOS", "").split():
+        import cProfile
+        profiler = cProfile.Profile()
+        profiler.enable()
     started = time.perf_counter()
     action()
     # The real event loop, as the app runs it: Windows' move/size loop only
@@ -103,6 +139,15 @@ def run(name, action, seconds=2.2, lead=0.35):
             app.after(10, beat)
     app.after(10, beat)
     app.mainloop()
+    if profiler is not None:
+        import io
+        import pstats
+        profiler.disable()
+        text = io.StringIO()
+        pstats.Stats(profiler, stream=text).sort_stats("tottime").print_stats(22)
+        for line in text.getvalue().splitlines():
+            if line.strip():
+                print("PROF " + line[:150])
     with open(out, "rb") as f:
         fw, fh, count = struct.unpack("<III", f.read(12))
         frames = []
@@ -131,7 +176,90 @@ def run(name, action, seconds=2.2, lead=0.35):
         png(os.path.join(OUT, f"{name}-mixed{n}.png"), fw, fh, frames[index][1])
     where = [f"{frames[index][0] - frames[0][0]:.2f}s:{changed_box(frames[index][1], last, fw, fh)}" for index in distinct[:3]]
     png(os.path.join(OUT, f"{name}-after.png"), fw, fh, last)
-    extra = ""
+    if name.startswith("fullscreen"):
+        # With the fade, every frame should be the old or the new picture
+        # blended with the page colour; anything else is a glitch getting
+        # through (shifted, half drawn, desktop showing).
+        bg_hex = M.COLORS["bg"].lstrip("#")
+        bg = (int(bg_hex[4:6], 16), int(bg_hex[2:4], 16), int(bg_hex[0:2], 16))  # BGR like the frames
+        worst_off = (0.0, 0.0)
+        worst_index = 0
+        off_frames = 0
+        for frame_index, (t, data) in enumerate(frames):
+            best = None
+            for ref in (first, last):
+                num = den = 0.0
+                samples = []
+                for i in range(0, len(data), 4 * 13):
+                    for c in range(3):
+                        d, r = data[i + c] - ref[i + c], bg[c] - ref[i + c]
+                        num += d * r
+                        den += r * r
+                        samples.append((d, r))
+                a = max(0.0, min(1.0, num / den)) if den else 0.0
+                residual = sum(abs(d - a * r) for d, r in samples) / max(1, len(samples))
+                if best is None or residual < best:
+                    best = residual
+            if best > 3.0:
+                off_frames += 1
+            if best > worst_off[0]:
+                worst_off = (best, t - frames[0][0])
+                worst_index = frame_index
+        extra_fade = f" not_a_fade_frames={off_frames} worst_residual={worst_off[0]:.1f}@{worst_off[1]:.2f}s"
+    else:
+        extra_fade = ""
+        worst_off, worst_index = (0.0, 0.0), 0
+    if (name.startswith("fullscreen") and worst_off[0] > 3.0) or (name.startswith(("sys_", "maximize", "restore")) and distinct):
+        # A coarse colour map of each in-between frame (artifacts can't be
+        # fetched): B blue, W white, L light, M mid, D dark, K near black.
+        def cls(r, g, b):
+            if b > r + 40 and b > g + 15:
+                return "B"
+            v = (r + g + b) / 3
+            return "W" if v > 235 else "L" if v > 170 else "M" if v > 90 else "D" if v > 25 else "K"
+        shots = ([("before", 0), ("worst", worst_index), ("after", len(frames) - 1)] if name.startswith("fullscreen")
+                 else [("before", 0)] + [(f"mixed{n}", i) for n, i in enumerate(distinct[:3])] + [("after", len(frames) - 1)])
+        for label, index in shots:
+            data = frames[index][1]
+            blue = sum(1 for i in range(0, len(data), 4 * 7) if data[i] > data[i + 2] + 40 and data[i] > data[i + 1] + 15)
+            print(f"MAP {name} {label} t={frames[index][0] - frames[0][0]:.2f} blue={blue / max(1, len(data) // 28):.3f}")
+            for gy in range(14):
+                y = int((gy + 0.5) * fh / 14)
+                row = ""
+                for gx in range(40):
+                    x = int((gx + 0.5) * fw / 40)
+                    i = (y * fw + x) * 4
+                    row += cls(data[i + 2], data[i + 1], data[i])
+                print(f"MAP   {row}")
+    extra = extra_fade
+    if name.startswith("fullscreen") and distinct:
+        # What the in-between frame is: the old or the new picture, moved?
+        m = frames[distinct[0]][1]
+        box = (2, 2, 60, 30)
+        for label, ref in (("old", first), ("new", last)):
+            best = None
+            for dy in range(-14, 15):
+                for dx in range(-14, 15):
+                    total = count = 0
+                    for y in range(box[1], box[3], 2):
+                        for x in range(box[0], box[2], 2):
+                            sx, sy = x - dx, y - dy
+                            if 0 <= sx < fw and 0 <= sy < fh:
+                                i, j = (y * fw + x) * 4, (sy * fw + sx) * 4
+                                total += abs(m[i] - ref[j]) + abs(m[i + 1] - ref[j + 1]) + abs(m[i + 2] - ref[j + 2])
+                                count += 1
+                    err = total / max(1, count) / 3
+                    if best is None or err < best[0]:
+                        best = (err, dx, dy)
+            extra += f" mid_vs_{label}=shift{4 * best[1]},{4 * best[2]}px,err{best[0]:.1f}"
+        # How much of it is plain background (nothing drawn yet).
+        bg = m[(fh // 2 * fw + fw // 2) * 4:(fh // 2 * fw + fw // 2) * 4 + 3]
+        rows = [y for y in range(0, fh, 4) if all(abs(m[(y * fw + x) * 4] - last[(y * fw + x) * 4]) < 10 for x in range(0, fw, 8))]
+        extra += f" mid_rows_matching_new={len(rows)}/{len(range(0, fh, 4))}"
+    if LAST_TIMING:
+        extra += f" busy={LAST_TIMING.pop():.0f}ms"
+        intervals = [b[0] - a[0] for a, b in zip(frames, frames[1:])]
+        extra += f" frame_interval={1000 * sum(intervals) / max(1, len(intervals)):.0f}ms"
     if name.startswith("drag_"):
         # The longest the window went without following the mouse.
         times = [started] + [entry[0] for entry in CONFIGURES]
@@ -141,6 +269,10 @@ def run(name, action, seconds=2.2, lead=0.35):
             extra += f" end={CONFIGURES[-1][3]}x{CONFIGURES[-1][4]}+{CONFIGURES[-1][1]}+{CONFIGURES[-1][2]}"
         beat_gaps = [later - earlier for earlier, later in zip(beats, beats[1:])]
         extra += f" timer_beats={len(beats)} longest_beat_gap={1000 * max(beat_gaps or [0]):.0f}ms"
+        for key in ("relayout", "settle", "redraw", "paint"):
+            values = STEP_TIMES.get(key, [])
+            if values:
+                extra += f" {key}={len(values)}x{sum(values) / len(values):.0f}/{max(values):.0f}ms"
     if name.startswith("drag_resize_top"):
         # The page should move up with the window's top edge, frame by frame.
         # Each frame: how far the title sits from where the edge says it
@@ -294,6 +426,12 @@ def drag_burst():
         app.after(n * 12, lambda n=n: frame._scrollbar_yview("moveto", str(n / 60)))
 
 
+def syscommand(command):
+    # What the title bar's maximise / restore button sends.
+    import ctypes
+    ctypes.windll.user32.PostMessageW(app.window_handle(app), 0x0112, command, 0)  # WM_SYSCOMMAND
+
+
 def resize():
     app.geometry(f"{app.winfo_width() - 200}x{app.winfo_height() - 120}")
 
@@ -342,6 +480,18 @@ def drag_corner(dx, dy):
     return run_it
 
 
+LAST_TIMING = []
+
+
+def timed(action):
+    # How long the change keeps the app busy (the old picture stays up meanwhile).
+    def run_it():
+        mark = time.perf_counter()
+        action()
+        LAST_TIMING.append(1000 * (time.perf_counter() - mark))
+    return run_it
+
+
 def drag_top(dy):
     def run_it():
         rect = window_rect()
@@ -370,13 +520,19 @@ SCENARIOS = [
     ("idle_prebuild", prebuild_now),
     ("wheel_scroll", wheel_burst),
     ("drag_scroll", drag_burst),
-    ("fullscreen_on", app.toggle_true_fullscreen),
-    ("fullscreen_off", app.toggle_true_fullscreen),
+    ("fullscreen_on", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_off", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_on_again", timed(app.toggle_true_fullscreen)),
+    ("fullscreen_off_again", timed(app.toggle_true_fullscreen)),
+    # Experiment: the same with the compositor's window animations turned off.
     ("resize", resize),
     ("restore", lambda: app.state("normal")),
     ("shrink", lambda: app.geometry(f"{app.winfo_screenwidth() * 2 // 3}x{app.winfo_screenheight() * 2 // 3}+0+0")),
     ("grow", lambda: app.geometry(f"{app.winfo_screenwidth() - 40}x{app.winfo_screenheight() - 80}+0+0")),
     ("maximize", lambda: app.state("zoomed")),
+    ("sys_restore", lambda: syscommand(0xF120)),
+    ("sys_maximize", lambda: syscommand(0xF030)),
+    ("sys_restore_again", lambda: syscommand(0xF120)),
     ("unmaximize", lambda: app.state("normal")),
     ("drag_setup", place_for_drag),
     ("drag_move", drag_title),
@@ -388,6 +544,8 @@ SCENARIOS = [
     # Pages kept from before the resize must show at the new size at once.
     ("after_resize_kept_stats", lambda: app.show_view("stats")),
     ("after_resize_kept_dashboard", lambda: app.show_view("dashboard")),
+    ("drag_resize_bottom_grow", lambda: (lambda rect: drag(rect.left + (rect.right - rect.left) // 2, rect.bottom - 4, 0, 160))(window_rect())),
+    ("drag_resize_bottom_shrink", lambda: (lambda rect: drag(rect.left + (rect.right - rect.left) // 2, rect.bottom - 4, 0, -160))(window_rect())),
     ("drag_resize_left", lambda: (lambda rect: drag(rect.left + 4, rect.top + (rect.bottom - rect.top) // 2, -120, 0))(window_rect())),
     ("after_resize_kept_library", lambda: app.show_view("library")),
     ("drag_setup_top", lambda: (app.state("normal"), app.geometry(f"{app.winfo_screenwidth() * 3 // 5}x{app.winfo_screenheight() * 2 // 5}+20+{app.winfo_screenheight() // 3}"), app.update())),
