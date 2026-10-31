@@ -47,6 +47,7 @@ Every feature is listed in [docs/FEATURES.md](docs/FEATURES.md), and each releas
 - [supabase/functions/ai/README.md](supabase/functions/ai/README.md): deploying the AI function
 - [docs/DESIGN_NOTES.md](docs/DESIGN_NOTES.md): the design system shared by both apps
 - [docs/TESTING_CHECKLIST.md](docs/TESTING_CHECKLIST.md): the full manual test pass
+- [docs/TESTING_BRANCH.md](docs/TESTING_BRANCH.md): the `testing` branch that combines all unmerged work, and its test builds
 - [docs/TESTER_START_HERE.md](docs/TESTER_START_HERE.md): the short guide for testers
 - [docs/MemoryPal_Memory_Techniques.md](docs/MemoryPal_Memory_Techniques.md): background on the memory techniques
 - [installers/README.md](installers/README.md): installing, releasing and signing
