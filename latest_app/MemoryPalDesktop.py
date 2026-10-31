@@ -2491,15 +2491,16 @@ class MemoryPalApp(tk.Tk):
                 top.attributes("-alpha", 1.0)
             except tk.TclError:
                 pass
+            windowtheme.drop_layered(self.window_handle(top))
         top._mp_cloaked = False
 
     def map_hidden(self, top):
         """Map a window without showing it yet. Returns True if it is cloaked.
 
         It is mapped fully transparent, then on Windows handed to the
-        compositor's cloak and made opaque again while out of sight, so the
-        shown window is an ordinary one, not a layered (transparent-capable)
-        window: that style made the first maximise draw differently.
+        compositor's cloak and made an ordinary window again while out of
+        sight: Tk leaves a once-transparent window layered, and a layered
+        window let the desktop show through for a frame when it grew.
         """
         if getattr(top, "_mp_cloaked", False):
             return True
@@ -2514,6 +2515,7 @@ class MemoryPalApp(tk.Tk):
                 top.attributes("-alpha", 1.0)
             except tk.TclError:
                 pass
+            windowtheme.drop_layered(self.window_handle(top))
         top._mp_cloaked = cloaked
         return cloaked
 
