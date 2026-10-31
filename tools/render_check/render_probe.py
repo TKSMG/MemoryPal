@@ -226,6 +226,12 @@ def run(name, action, seconds=2.2, lead=0.35):
             data = frames[index][1]
             blue = sum(1 for i in range(0, len(data), 4 * 7) if data[i] > data[i + 2] + 40 and data[i] > data[i + 1] + 15)
             print(f"MAP {name} {label} t={frames[index][0] - frames[0][0]:.2f} blue={blue / max(1, len(data) // 28):.3f}")
+            if os.environ.get("WHOLE_SCREEN") and name.startswith(("sys_", "maximize")):
+                # The window's title bar, finely: row by row near its top.
+                top_row = max(0, (tops[index] - y) // 4) if tops else 0
+                for ty in range(top_row, min(fh, top_row + 12), 2):
+                    print("MAP   T " + "".join(cls(data[(ty * fw + x) * 4 + 2], data[(ty * fw + x) * 4 + 1], data[(ty * fw + x) * 4])
+                                            for x in range(0, fw, max(1, fw // 80))))
             for gy in range(14):
                 y = int((gy + 0.5) * fh / 14)
                 row = ""
