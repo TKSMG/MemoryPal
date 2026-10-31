@@ -105,6 +105,9 @@ def run(name, action, seconds=2.2, lead=0.35):
     # A drag of the top edge grows the window upwards: record from higher up.
     lift = min(app.winfo_rooty(), 200) if name.startswith("drag_resize_top") else 0
     x, y = app.winfo_rootx(), app.winfo_rooty() - lift
+    if name.startswith(("sys_", "maximize")) and os.environ.get("WHOLE_SCREEN"):
+        # Title bar and frame too: what the window manager draws.
+        x = y = 0
     w, h = app.winfo_screenwidth() - x, app.winfo_screenheight() - y
     out = os.path.join(OUT, f"{name}.bin")
     start_top = window_rect().top
