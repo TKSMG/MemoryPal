@@ -64,13 +64,14 @@ fi
   --add-data "$PWD/assets/memorypal-logo.svg:assets" \
   --hidden-import pypdf \
   --hidden-import memorypal.pdftext \
-  --exclude-module sounddevice \
+  --hidden-import sounddevice \
+  --hidden-import websockets.sync.client \
+  --collect-all livekit \
   --exclude-module cv2 \
   --exclude-module pyttsx3 \
   --exclude-module SpeechRecognition \
   --exclude-module pyaudio \
   --exclude-module pyaudioop \
-  --exclude-module numpy \
   --distpath "$TEMP_BUILD/release" \
   --workpath "$TEMP_BUILD/build" \
   --specpath "$TEMP_BUILD/build" \
@@ -94,6 +95,8 @@ plutil -replace CFBundleVersion -string "$APP_VERSION" "$PLIST"
 plutil -replace NSHumanReadableCopyright -string "© $(date +%Y) MemoryPal" "$PLIST"
 plutil -replace LSMinimumSystemVersion -string "11.0" "$PLIST"
 plutil -replace LSApplicationCategoryType -string "public.app-category.education" "$PLIST"
+# The live AI tutor in Talk-back uses the microphone: macOS asks once, with this text.
+plutil -replace NSMicrophoneUsageDescription -string "MemoryPal uses the microphone when you talk with the AI tutor in Talk-back. Your voice goes to Google's Gemini only during that conversation." "$PLIST"
 
 # With a Developer ID certificate (MEMORYPAL_MAC_SIGN_IDENTITY) the app is
 # signed for Gatekeeper, and with notary credentials it is notarized too.
@@ -103,7 +106,8 @@ SIGN_IDENTITY="${MEMORYPAL_MAC_SIGN_IDENTITY:--}"
 if [[ "$SIGN_IDENTITY" == "-" ]]; then
   codesign --force --deep --sign - "$RELEASE_DIR/MemoryPal.app"
 else
-  codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$RELEASE_DIR/MemoryPal.app"
+  # Hardened runtime blocks the microphone unless the app asks for it.
+  codesign --force --deep --options runtime --timestamp --entitlements "$PWD/installer/macos/entitlements.plist" --sign "$SIGN_IDENTITY" "$RELEASE_DIR/MemoryPal.app"
 fi
 
 rm -rf "$DMG_ROOT" "$DMG_PATH" "$ZIP_PATH"
