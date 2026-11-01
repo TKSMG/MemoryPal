@@ -291,6 +291,36 @@ def make_questions(auth, text="", file_path=None, file=None, count=10, avoid=(),
     }
 
 
+MAX_LIVE_CARDS = 40
+LIVE_TIMEOUT = 30
+
+
+def start_live(auth, cards, deck="", opener=None, timeout=LIVE_TIMEOUT):
+    """A one-use token for a spoken conversation with the live AI tutor.
+
+    `cards` are (front, back) pairs, or objects with .front and .back; the
+    first 40 are sent with keys c1, c2... (the tutor names a card by its key
+    when it saves a result). Returns {"token", "setup", "minutes", "remaining",
+    "keys": {"c1": index into cards, ...}} (cards without both sides are left out).
+    See livetutor.py and supabase/functions/ai/live.ts.
+    """
+    pairs = [(card.front, card.back) if hasattr(card, "front") else tuple(card) for card in cards]
+    usable = [index for index, (front, back) in enumerate(pairs) if clip(front, 300) and clip(back, 300)][:MAX_LIVE_CARDS]
+    listed = [{"key": f"c{n + 1}", "front": clip(pairs[index][0], 300), "back": clip(pairs[index][1], 300)} for n, index in enumerate(usable)]
+    if not listed:
+        raise AIError("bad_request", "Talk-back needs cards with answers.")
+    data = call(auth, {"action": "live", "cards": listed, "deck": clip(deck, 120)}, opener, timeout)
+    result = data.get("result") if isinstance(data.get("result"), dict) else {}
+    token = result.get("token") if isinstance(result.get("token"), str) else ""
+    setup = result.get("setup") if isinstance(result.get("setup"), dict) else {}
+    if not token or not setup.get("model"):
+        raise AIError("bad_answer")
+    minutes = result.get("minutes")
+    minutes = min(15, minutes) if isinstance(minutes, (int, float)) and not isinstance(minutes, bool) and minutes > 0 else 10
+    remaining = data.get("remaining") if isinstance(data.get("remaining"), int) else None
+    return {"token": token, "setup": setup, "minutes": minutes, "remaining": remaining, "keys": {item["key"]: index for item, index in zip(listed, usable)}}
+
+
 # ------------------------------------------------------------ conversions
 def notes_text(notes):
     """Notes as plain text, for a capture's notes box or as input to make_questions."""

@@ -69,13 +69,14 @@ if errorlevel 1 exit /b 1
   --add-data "%CD%\assets\memorypal-logo.svg;assets" ^
   --hidden-import pypdf ^
   --hidden-import memorypal.pdftext ^
-  --exclude-module sounddevice ^
+  --hidden-import sounddevice ^
+  --hidden-import websockets.sync.client ^
+  --collect-all livekit ^
   --exclude-module cv2 ^
   --exclude-module pyttsx3 ^
   --exclude-module SpeechRecognition ^
   --exclude-module pyaudio ^
   --exclude-module pyaudioop ^
-  --exclude-module numpy ^
   --distpath "%TEMP_BUILD%\release" ^
   --workpath "%TEMP_BUILD%\build" ^
   --specpath "%TEMP_BUILD%\build" ^
