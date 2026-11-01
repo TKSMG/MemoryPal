@@ -43,6 +43,78 @@ export interface Palette {
   /** Outline marking Smart Check's suggested rating: at least 3:1 against the page and every rating fill. */
   suggested: string;
   tabBar: string;
+  /** The pine hero panel (the logo's tile) and what sits on it. */
+  hero: string;
+  heroInk: string;
+  heroMuted: string;
+  heroButton: string;
+  heroButtonText: string;
+  heroSoft: string;
+  heroSoftText: string;
+  /** The logo's amber dot. */
+  dot: string;
+  /** Earthy tones for icon tiles and sets (see TONES below). */
+  tones: Record<Tone, string>;
+}
+
+/**
+ * Each page or study mode keeps one tone everywhere, on a soft tile behind its
+ * icon, the same as on desktop (latest_app/memorypal/constants.py ICON_TONES),
+ * so a list reads at a glance instead of as a column of identical green icons.
+ */
+export type Tone = 'pine' | 'amber' | 'clay' | 'plum' | 'slate' | 'teal' | 'moss' | 'rose';
+
+export const ICON_TONES: Record<string, Tone> = {
+  'play-circle-outline': 'pine',
+  'add-circle-outline': 'slate',
+  'calendar-outline': 'moss',
+  'flash-outline': 'amber',
+  'fitness-outline': 'rose',
+  'timer-outline': 'rose',
+  'sparkles-outline': 'slate',
+  'document-text-outline': 'slate',
+  'reader-outline': 'slate',
+  'chatbubbles-outline': 'plum',
+  'library-outline': 'plum',
+  'bulb-outline': 'plum',
+  'volume-high-outline': 'plum',
+  'list-circle-outline': 'teal',
+  'leaf-outline': 'teal',
+  'people-outline': 'teal',
+  'map-outline': 'moss',
+  'stats-chart-outline': 'moss',
+  'extension-puzzle-outline': 'amber',
+  'ribbon-outline': 'amber',
+};
+
+const SET_TONES: Tone[] = ['pine', 'amber', 'plum', 'slate', 'clay', 'teal', 'moss', 'rose'];
+
+/** A set's own tone, from its name: the same on every device and on desktop (constants.set_tone). */
+export function setTone(name: string): Tone {
+  let value = 0;
+  for (const char of name || 'General') value = (value * 31 + (char.codePointAt(0) ?? 0)) % 4294967296;
+  return SET_TONES[value % SET_TONES.length];
+}
+
+/** Mix two #rrggbb colours: 0 gives the first, 1 the second. */
+export function blend(first: string, second: string, amount: number): string {
+  const a = /^#([0-9a-f]{6})$/i.exec(first);
+  const b = /^#([0-9a-f]{6})$/i.exec(second);
+  if (!a || !b) return first;
+  const x = parseInt(a[1], 16);
+  const y = parseInt(b[1], 16);
+  const channel = (shift: number) => {
+    const from = (x >> shift) & 255;
+    const to = (y >> shift) & 255;
+    return Math.round(from + (to - from) * amount).toString(16).padStart(2, '0');
+  };
+  return `#${channel(16)}${channel(8)}${channel(0)}`;
+}
+
+/** [tile, icon] colours for a tone: a soft wash of the tone behind the tone itself. */
+export function toneColors(theme: { dark: boolean; colors: Palette }, tone: Tone, color?: string): [string, string] {
+  const fg = color ?? theme.colors.tones[tone];
+  return [blend(theme.colors.surface, fg, theme.dark ? 0.2 : 0.13), fg];
 }
 
 // Shared with the desktop palette (latest_app/memorypal/constants.py): warm
@@ -78,6 +150,15 @@ const LIGHT: Palette = {
   focus: '#d9821f',
   suggested: '#a8530c',
   tabBar: '#fffdf9',
+  hero: '#146b5a',
+  heroInk: '#ffffff',
+  heroMuted: '#d3e6e0',
+  heroButton: '#fffdf9',
+  heroButtonText: '#0e5547',
+  heroSoft: '#2a7a6a',
+  heroSoftText: '#ffffff',
+  dot: '#ffb020',
+  tones: { pine: '#146b5a', amber: '#7f5100', clay: '#b5541a', plum: '#7d4a72', slate: '#2a5c7d', teal: '#1c6f80', moss: '#2f7323', rose: '#b8426a' },
 };
 
 const DARK: Palette = {
@@ -110,6 +191,15 @@ const DARK: Palette = {
   focus: '#f2c14e',
   suggested: '#f2c14e',
   tabBar: '#181817',
+  hero: '#1d4a40',
+  heroInk: '#f3f1ec',
+  heroMuted: '#bcd6ce',
+  heroButton: '#63c9ae',
+  heroButtonText: '#14130f',
+  heroSoft: '#2a5b50',
+  heroSoftText: '#f3f1ec',
+  dot: '#ffb020',
+  tones: { pine: '#63c9ae', amber: '#f2c560', clay: '#f0a456', plum: '#d0a2c6', slate: '#8fc4e6', teal: '#74c6d6', moss: '#86d27a', rose: '#f08aa8' },
 };
 
 const HIGH_CONTRAST_LIGHT: Partial<Palette> = { bg: '#f1eee7', muted: '#35322c', line: '#9c9584', primary: '#0b5446', primaryPressed: '#073f34', link: '#073f34' };
