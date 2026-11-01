@@ -42,6 +42,12 @@ app.show_view("dashboard")
 app.lift()
 app.attributes("-topmost", True)
 app.update()
+if sys.platform.startswith("win"):
+    import ctypes
+    _ex = ctypes.windll.user32.GetWindowLongW(app.window_handle(app), -20)  # GWL_EXSTYLE
+    _cl = ctypes.c_int(0)
+    ctypes.windll.dwmapi.DwmGetWindowAttribute(app.window_handle(app), 14, ctypes.byref(_cl), 4)  # DWMWA_CLOAKED
+    print(f"WINDOW layered={bool(_ex & 0x80000)} cloaked={_cl.value}")
 
 
 def png(path, w, h, bgra):
@@ -105,6 +111,9 @@ def run(name, action, seconds=2.2, lead=0.35):
     # A drag of the top edge grows the window upwards: record from higher up.
     lift = min(app.winfo_rooty(), 200) if name.startswith("drag_resize_top") else 0
     x, y = app.winfo_rootx(), app.winfo_rooty() - lift
+    if name.startswith(("sys_", "maximize")) and os.environ.get("WHOLE_SCREEN"):
+        # Title bar and frame too: what the window manager draws.
+        x = y = 0
     w, h = app.winfo_screenwidth() - x, app.winfo_screenheight() - y
     out = os.path.join(OUT, f"{name}.bin")
     start_top = window_rect().top
@@ -223,6 +232,12 @@ def run(name, action, seconds=2.2, lead=0.35):
             data = frames[index][1]
             blue = sum(1 for i in range(0, len(data), 4 * 7) if data[i] > data[i + 2] + 40 and data[i] > data[i + 1] + 15)
             print(f"MAP {name} {label} t={frames[index][0] - frames[0][0]:.2f} blue={blue / max(1, len(data) // 28):.3f}")
+            if os.environ.get("WHOLE_SCREEN") and name.startswith(("sys_", "maximize")):
+                # The window's title bar, finely: row by row near its top.
+                top_row = max(0, (tops[index] - y) // 4) if tops else 0
+                for ty in range(top_row, min(fh, top_row + 12), 2):
+                    print("MAP   T " + "".join(cls(data[(ty * fw + x) * 4 + 2], data[(ty * fw + x) * 4 + 1], data[(ty * fw + x) * 4])
+                                            for x in range(0, fw, max(1, fw // 80))))
             for gy in range(14):
                 y = int((gy + 0.5) * fh / 14)
                 row = ""
@@ -432,6 +447,44 @@ def syscommand(command):
     ctypes.windll.user32.PostMessageW(app.window_handle(app), 0x0112, command, 0)  # WM_SYSCOMMAND
 
 
+CONTROL = {}
+
+
+def control_setup():
+    # A plain Windows app (Notepad) in the same place, to tell what the
+    # maximise animation does to every app from what it does to ours.
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    app.state("normal")
+    app.update()
+    rect = window_rect()
+    subprocess.Popen(["notepad.exe"])
+    hwnd = 0
+    for _ in range(80):
+        hwnd = user32.FindWindowW("Notepad", None)
+        if hwnd:
+            break
+        time.sleep(0.1)
+    CONTROL["hwnd"] = hwnd
+    print(f"CONTROL notepad hwnd={hwnd} rect={rect.left},{rect.top},{rect.right},{rect.bottom}")
+    if not hwnd:
+        return
+    app.attributes("-topmost", False)
+    app.iconify()
+    app.update()
+    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    user32.SetWindowPos(hwnd, -1, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 0x40)  # topmost, show
+    user32.SetForegroundWindow(hwnd)
+    time.sleep(0.5)
+
+
+def control_command(command):
+    import ctypes
+    if CONTROL.get("hwnd"):
+        ctypes.windll.user32.PostMessageW(CONTROL["hwnd"], 0x0112, command, 0)
+
+
 def resize():
     app.geometry(f"{app.winfo_width() - 200}x{app.winfo_height() - 120}")
 
@@ -533,6 +586,12 @@ SCENARIOS = [
     ("sys_restore", lambda: syscommand(0xF120)),
     ("sys_maximize", lambda: syscommand(0xF030)),
     ("sys_restore_again", lambda: syscommand(0xF120)),
+    ("sys_maximize_again", lambda: syscommand(0xF030)),
+    ("sys_restore_third", lambda: syscommand(0xF120)),
+    ("sys_ctl_setup", control_setup),
+    ("sys_ctl_maximize", lambda: control_command(0xF030)),
+    ("sys_ctl_restore", lambda: control_command(0xF120)),
+    ("sys_ctl_maximize_again", lambda: control_command(0xF030)),
     ("unmaximize", lambda: app.state("normal")),
     ("drag_setup", place_for_drag),
     ("drag_move", drag_title),
