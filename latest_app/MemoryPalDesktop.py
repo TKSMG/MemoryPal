@@ -1278,7 +1278,7 @@ class MemoryPalApp(tk.Tk):
         self.tour = None
         # Map the window while it is still fully transparent, build and settle
         # the first page, then show the finished frame in one step (no fade).
-        self.deiconify()
+        self.map_hidden(self)
         self.show_view(self.start_view(), transition=False)
         self.settle_layout()
         self.reveal_window(self)
@@ -2459,14 +2459,11 @@ class MemoryPalApp(tk.Tk):
     def reveal_window(self, top, owner=None):
         """Map a window invisibly, let it lay out and paint, then show it at once.
 
-        No fade: the window stays fully transparent until every geometry and
-        paint pass has run, so its first visible frame is the finished one.
+        No fade: the window stays out of sight (cloaked on Windows, fully
+        transparent elsewhere) until every geometry and paint pass has run,
+        so its first visible frame is the finished one.
         """
-        try:
-            top.attributes("-alpha", 0.0)
-        except tk.TclError:
-            pass
-        top.deiconify()
+        cloaked = self.map_hidden(top)
         self.theme_title_bar(top)
         self.apply_native_owner(top)
         try:
@@ -2489,10 +2486,38 @@ class MemoryPalApp(tk.Tk):
             ctypes.windll.dwmapi.DwmFlush()
         except (AttributeError, OSError):
             pass
+        if not (cloaked and windowtheme.cloak(self.window_handle(top), False)):
+            try:
+                top.attributes("-alpha", 1.0)
+            except tk.TclError:
+                pass
+            windowtheme.drop_layered(self.window_handle(top))
+        top._mp_cloaked = False
+
+    def map_hidden(self, top):
+        """Map a window without showing it yet. Returns True if it is cloaked.
+
+        It is mapped fully transparent, then on Windows handed to the
+        compositor's cloak and made an ordinary window again while out of
+        sight: Tk leaves a once-transparent window layered, and a layered
+        window let the desktop show through for a frame when it grew.
+        """
+        if getattr(top, "_mp_cloaked", False):
+            return True
         try:
-            top.attributes("-alpha", 1.0)
+            top.attributes("-alpha", 0.0)
         except tk.TclError:
             pass
+        top.deiconify()
+        cloaked = windowtheme.cloak(self.window_handle(top), True)
+        if cloaked:
+            try:
+                top.attributes("-alpha", 1.0)
+            except tk.TclError:
+                pass
+            windowtheme.drop_layered(self.window_handle(top))
+        top._mp_cloaked = cloaked
+        return cloaked
 
     def _display_scales(self):
         try:
