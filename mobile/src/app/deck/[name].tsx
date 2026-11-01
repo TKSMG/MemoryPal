@@ -9,13 +9,15 @@ import { isAiCard } from '../../core/questions';
 import { daysUntil, deckCards, deleteDeck, examCountdown, renameDeck } from '../../features/decks';
 import { AI_TAG } from '../../features/aiHelpers';
 import { useStore } from '../../state/AppState';
-import { AiTag, Button, EmptyState, Field, ListGroup, ListRow, Screen, Txt } from '../../ui/components';
+import { AiTag, Button, EmptyState, Field, ListGroup, ListRow, ProgressBar, Screen, Txt } from '../../ui/components';
 import { confirm, notify } from '../../ui/feedback';
+import { setTone, useTheme } from '../../ui/theme';
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 export default function Deck() {
   const store = useStore();
+  const theme = useTheme();
   const params = useLocalSearchParams<{ name: string }>();
   const [name, setName] = useState(String(params.name ?? ''));
   const [draft, setDraft] = useState(name);
@@ -73,6 +75,8 @@ export default function Deck() {
     <Screen narrow>
       <Stack.Screen options={{ title: name }} />
       <Txt variant="muted">{[`${plural(info.total, 'card')}, ${info.due} due, ${info.mastery}% mastered`, countdown].filter(Boolean).join(' · ')}</Txt>
+      {/* The set's own tone, the same as on its tile in Create. */}
+      <ProgressBar value={info.mastery / 100} color={theme.colors.tones[setTone(name)]} height={8} label={`${info.mastery}% mastered`} />
       {details.about ? <Txt variant="body">{details.about}</Txt> : null}
 
       <ListGroup>
