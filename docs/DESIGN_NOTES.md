@@ -197,6 +197,19 @@ Speed budget (150 cards): startup about 1.5s, most page switches under 0.25s, Li
 
 The Dashboard should answer "what do I do now?" with today's plan steps first, then quick study modes chosen for the person's persona. Progress (streaks, levels, badges, charts) should encourage without pressure: badges show how close the next one is, and charts explain what they mean in plain words.
 
+## Fewer things at once (v102)
+
+A design-taste review on 2026-11-08 found the phone near finished and the desktop showing too much at once. v102 removes rather than adds:
+
+- Progress uses the one accent. The goal ring, "Goal reached", level and mastery bars are pine, not a second green or plum. Set tones stay on the set's icon only; its bar is pine.
+- The amber dot from the logo appears once, on Today's greeting. Other hero panels have plain eyebrows.
+- The desktop header is back, search, a "more" menu (tour, light or dark, backup), settings and the account. The streak and today's count are no longer repeated under every page title; only the sync status stays.
+- Desktop Review works like the phone: the question, an optional typed answer and one Show answer button. The answer, Smart Check's suggestion (marked with a tick) and the four ratings come after. Skip and Back are text links.
+- Quiz answers and matching are outlined rows on the field colour, not grey bars, which read as disabled. Their edge and text-field edges use `field_line`, 3:1 against the card (WCAG 1.4.11).
+- One main button per page: Sets keeps New set green and the per-set Study buttons are secondary; Create's buttons are sized to their words.
+- No helper lines under headings ("Picked for studying", "Ctrl+K jumps to any page"). The page finder and tooltips carry that.
+- Header icons take keyboard focus with a visible ring; Enter and Space press them.
+
 ## First Run And Onboarding
 
 A new profile should not open on a page full of tools. The Welcome screen asks one plain question (who is using MemoryPal?) and uses the answer to set Today's study modes, text size, and calmer defaults. Every choice stays editable in Settings, and choosing again resets only the settings the persona controls.

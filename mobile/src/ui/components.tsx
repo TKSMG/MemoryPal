@@ -649,11 +649,11 @@ export function ToneIcon({ icon, tone = 'pine', color, size = 20 }: { icon: Icon
 }
 
 /** The logo's amber dot and a short line, at the top of a hero panel. */
-export function HeroEyebrow({ children }: { children: string }) {
+export function HeroEyebrow({ children, dot = false }: { children: string; /** The logo's amber dot; only Today's panel shows it, so it stays a brand mark. */ dot?: boolean }) {
   const theme = useTheme();
   return (
     <Row gap={8}>
-      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.dot }} />
+      {dot ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.dot }} /> : null}
       <Txt variant="label" color={theme.colors.heroMuted} style={{ fontSize: theme.font(14) }}>{children}</Txt>
     </Row>
   );
