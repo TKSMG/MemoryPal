@@ -86,6 +86,7 @@ signed in.
 | `AI_PER_MINUTE` | `3` | Requests per person per minute. `0` turns it off |
 | `AI_TOTAL_DAILY_LIMIT` | `450` | Requests for everyone together per day (Pacific time). Keep it a little under the model's daily limit in AI Studio; raise it when you move to the paid tier. `0` turns it off |
 | `AI_TOTAL_PER_MINUTE` | `14` | Requests for everyone together per minute, under the free tier's 15. `0` turns it off |
+| `LIVE_ALLOW_UNLOCKED` | (off) | Set to `1` only if Gemini refuses Live tokens locked to the tutor set-up (the logs say `auth_tokens with config`). The function then hands out tokens locked to the model alone, which anyone signed in could use with their own instructions for one conversation |
 
 To see today's use, run `select * from ai_usage_total order by day desc limit 7;` in the SQL
 editor.
