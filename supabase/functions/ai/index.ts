@@ -28,6 +28,9 @@ const GEMINI_KEY = env("GEMINI_API_KEY");
 const GEMINI_MODEL = env("GEMINI_MODEL", "gemini-3.5-flash-lite").trim() || "gemini-3.5-flash-lite";
 const LIMITS = limitsFrom((name) => Deno.env.get(name));
 const GEMINI_LIVE_MODEL = env("GEMINI_LIVE_MODEL", "gemini-3.8-live").trim() || "gemini-3.8-live";
+// Off by default: a token locked to the model only lets whoever holds it give
+// the Live model any instructions, on this project's key.
+const LIVE_ALLOW_UNLOCKED = env("LIVE_ALLOW_UNLOCKED").trim() === "1";
 const GEMINI_TIMEOUT_MS = 100_000;
 // The base64 of an 8 MB file plus some text, with room to spare.
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
@@ -128,7 +131,10 @@ async function gemini(body: Record<string, unknown>): Promise<unknown> {
   return response.json().catch(() => null);
 }
 
-/** A one-use Live API token locked to the tutor set-up; falls back to locking the model only. */
+/**
+ * A one-use Live API token locked to the tutor set-up. Only with the secret
+ * LIVE_ALLOW_UNLOCKED=1 does it fall back to locking the model alone.
+ */
 async function liveToken(setup: Record<string, unknown>): Promise<string> {
   const post = (lockConfig: boolean) =>
     fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
@@ -140,9 +146,10 @@ async function liveToken(setup: Record<string, unknown>): Promise<string> {
   try {
     response = await post(true);
     if (response.status === 400) {
-      // The locked set-up was refused: still lock the model, and the app sends the set-up itself.
       console.error("auth_tokens with config", (await response.text().catch(() => "")).slice(0, 500));
-      response = await post(false);
+      // The locked set-up was refused. A model-only token would let the caller
+      // replace the tutor instructions, so that needs an explicit opt-in.
+      if (LIVE_ALLOW_UNLOCKED) response = await post(false);
     }
   } catch {
     throw new AiError("busy", "The AI took too long to answer. Try again.");
