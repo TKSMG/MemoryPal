@@ -6,3 +6,8 @@ nuitka>=2.5
 ordered-set>=4.1
 zstandard>=0.22
 pyinstaller>=6.0
+# Live AI tutor (desktop): the computer's microphone and speakers, WebRTC echo
+# cancelling, and the Gemini Live WebSocket. Imported only when a conversation starts.
+sounddevice>=0.5
+livekit>=1.2,<2
+websockets>=15

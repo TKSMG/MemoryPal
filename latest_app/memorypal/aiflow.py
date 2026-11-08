@@ -31,8 +31,8 @@ GEMINI_TERMS_URL = "https://ai.google.dev/gemini-api/terms"
 # Shown where people agree to the Terms (creating an account, signing in),
 # since agreeing turns AI on. Matches PRIVACY_POLICY.md "AI features".
 AI_TERMS_NOTE = (
-    "AI features come on with your account. When you press an AI button, only what you choose is sent to Google's Gemini API. "
-    "On its free tier Google may keep it, use it to improve its products, and people at Google may read it, so don't send private "
+    "AI features come on with your account. When you press an AI button, only what you choose is sent to Google's Gemini API, and the live tutor sends your voice while you talk. "
+    "On its free tier Google may keep it, use it to improve its products, and people at Google may read or listen to it, so don't send private "
     "or sensitive information. AI can be wrong. You can turn AI off at any time in Settings."
 )
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")

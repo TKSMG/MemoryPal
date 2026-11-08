@@ -9,7 +9,11 @@ Pillow>=10.0
 
 # Optional desktop audio/video capture and spoken cues
 pyttsx3>=2.90
-sounddevice>=0.4
+sounddevice>=0.5
+
+# Live AI tutor in Talk-back: WebRTC echo cancelling and the Gemini Live WebSocket
+livekit>=1.2,<2
+websockets>=15
 opencv-python>=4.8
 
 # Optional speech-to-text milestone

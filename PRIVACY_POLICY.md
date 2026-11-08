@@ -1,6 +1,6 @@
 # MemoryPal Privacy Policy
 
-Last updated: October 30, 2026
+Last updated: November 1, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
@@ -106,13 +106,13 @@ features are on by default once you have an account, and you can turn them off:
 
 ### Live tutor (spoken Talk-back)
 
-On the phone app, Talk-back can be a spoken conversation with an AI tutor. This is part of the
+On the phone and desktop apps, Talk-back can be a spoken conversation with an AI tutor. This is part of the
 AI features above, and only starts when you press **Talk with the AI tutor**:
 
 - Our server sends the questions and answers of the cards in that Talk-back session (up to 40)
-  and the set's name to Google's Gemini API, to set up the tutor, and gives your phone a
+  and the set's name to Google's Gemini API, to set up the tutor, and gives your device a
   one-use pass for that one conversation. It counts as one AI request for the daily limit.
-- While the conversation is on, **your voice from the microphone goes straight from your phone
+- While the conversation is on, **your voice from the microphone goes straight from your device
   to Google's Gemini Live API**, which listens, writes down what was said and answers out loud.
   It does not go through our server, and we don't record or keep it. The microphone stops when
   the conversation ends, after at most 10 minutes.
