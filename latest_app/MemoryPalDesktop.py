@@ -69,7 +69,7 @@ from memorypal import cloud, cloud_config, drive, onboarding, progress, security
 from memorypal import feedback as feedback_report
 from memorypal import iconcache, media
 from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
-from memorypal import ai, aiflow, richtext
+from memorypal import ai, aiflow, liveaudio, livetutor, richtext
 from memorypal import questions as quiz_questions
 from memorypal.speech import Speaker
 from memorypal.planning import (
@@ -2950,9 +2950,12 @@ class MemoryPalApp(tk.Tk):
         self.style.map("TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
         self.style.configure("Primary.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
         self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["primary_dark"]))])
-        self.style.configure("TMenubutton", padding=self.pad(18, 11), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
+        # Dropdowns: text, a fixed gap, then the chevron, with the same inset
+        # on both ends. width=0 drops clam's 11-character minimum, which
+        # stretched "More" and pushed its arrow against the right edge.
+        self.style.configure("TMenubutton", padding=self.pad(16, 11, 12, 11), width=0, foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
         self.style.map("TMenubutton", foreground=[("active", COLORS["primary"])])
-        self.style.configure("Select.TMenubutton", padding=self.pad(12, 11), foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 12))
+        self.style.configure("Select.TMenubutton", padding=self.pad(14, 11, 10, 11), width=0, anchor="w", foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 12))
         self.style.configure("Danger.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["danger"]), borderwidth=0, relief="flat", font=semibold)
         self.style.configure("Hero.TButton", padding=self.pad(18, 11), foreground=COLORS["hero_button_text"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("Hero.TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["hero_button_text"])])
@@ -3174,7 +3177,8 @@ class MemoryPalApp(tk.Tk):
             focus_hover=self.rounded_tile(hover, bg, ring=ring, ring_width=width),
             keyboard_only=True,
         )
-        self.style.layout(style, [(element, {"sticky": "nsew", "children": self.inner_layout(widget_class)})])
+        children = self.select_inner_layout() if widget_class == "TMenubutton" else self.inner_layout(widget_class)
+        self.style.layout(style, [(element, {"sticky": "nsew", "children": children})])
         self.set_corner_background(style, bg)
 
     def round_entry_style(self, style, bg):
@@ -3209,7 +3213,9 @@ class MemoryPalApp(tk.Tk):
 
     def select_inner_layout(self):
         """A dropdown's insides with a line chevron in place of clam's small
-        filled triangle, which looked borrowed from another toolkit."""
+        filled triangle, which looked borrowed from another toolkit. Every
+        dropdown ("More" menus and pickers) shares it, so the gap between the
+        text and the chevron is the same everywhere."""
         children = self.inner_layout("TMenubutton")
         name = f"SelectChevron{self._style_generation}"
         if name not in self._rounded_elements:
@@ -3217,11 +3223,22 @@ class MemoryPalApp(tk.Tk):
             if image is None:
                 return children
             try:
-                self.style.element_create(name, "image", image, sticky="", padding=(self.px(10), 0, 0, 0))
+                # An image element ignores its own padding when sizing, so
+                # the gap before the chevron is extra width with the image
+                # pinned right. The 16px chevron also has ~4px of empty space
+                # on each side, so the gap (and the styles' right inset) look
+                # about 4px larger on screen.
+                self.style.element_create(name, "image", image, sticky="e", width=self.px(16) + self.px(8))
             except tk.TclError:
                 return children
             self._rounded_elements[name] = image
-        return [(name, options) if element.endswith(".indicator") else (element, options) for element, options in children]
+        # clam puts its arrow outside the padding element, so the arrow sat
+        # against the right edge however much padding the style asked for.
+        # Here the padding wraps both: inset, text, gap, chevron, inset.
+        return [("Menubutton.padding", {"sticky": "nswe", "children": [
+            (name, {"side": "right", "sticky": ""}),
+            ("Menubutton.label", {"side": "left", "sticky": ""}),
+        ]})]
 
     def track_focus_source(self):
         """Show the focus ring on buttons only when focus came from the keyboard.
@@ -4573,6 +4590,10 @@ class MemoryPalApp(tk.Tk):
 
         def place(step=0, steps=6):
             offset = round(rise * (1 - step / steps) ** 2)
+            # A theme change rebuilds the window, toast included, while a
+            # rise or hide is still queued for the old one.
+            if not canvas.winfo_exists():
+                return
             canvas.place(relx=0.5, rely=1, anchor="s", y=-margin + offset)
             self.tk.call("raise", canvas._w)
             if offset:
@@ -4586,7 +4607,7 @@ class MemoryPalApp(tk.Tk):
                 except tk.TclError:
                     pass
         place()
-        self._toast_after = self.after(self.pace(2800), self.toast.place_forget)
+        self._toast_after = self.after(self.pace(2800), lambda: canvas.winfo_exists() and canvas.place_forget())
 
     def dialog_window(self, title, body="", parent=None, width=480, resizable=False):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
@@ -5447,53 +5468,79 @@ class MemoryPalApp(tk.Tk):
         inset = self.px(6)
         font_spec = self.font("Segoe UI", 11)
         measure = tkfont.Font(root=self, font=font_spec)
-        row_height = measure.metrics("linespace") + 1
+        # Rows as tall as a menu row on Windows 11 / macOS, with the text
+        # inset from the edge, instead of a Listbox's tightly packed lines.
+        row_height = measure.metrics("linespace") + self.px(14)
+        side = self.px(12)
+        bold = tkfont.Font(root=self, font=self.font("Segoe UI Semibold", 11))
         anchor.update_idletasks()
         anchor_rect = (
             anchor.winfo_rootx(), anchor.winfo_rooty(),
             anchor.winfo_rootx() + anchor.winfo_width(), anchor.winfo_rooty() + anchor.winfo_height(),
         )
         x, y, width, height, rows, shown = popup_geometry.dropdown_layout(
-            [label for label, _command, _selected in entries], measure.measure, anchor_rect, self.screen_bounds(),
-            row_height, inset, side=measure.measure("  "), gap=self.px(4), margin=self.px(8))
-        listbox = tk.Listbox(
-            top,
-            height=rows,
-            width=0,  # Tk's default is 20 characters, which clipped long labels.
-            bg=COLORS["surface"],
-            fg=COLORS["ink"],
-            selectbackground=COLORS["primary"],
-            selectforeground=self.on_color(COLORS["primary"]),
-            relief="flat",
-            bd=0,
-            highlightthickness=0,
-            activestyle="none",
-            font=font_spec,
-            exportselection=False,
-            cursor="hand2",
-        )
-        listbox.pack(fill="both", expand=True, padx=inset, pady=inset)
+            [label for label, _command, _selected in entries], bold.measure, anchor_rect, self.screen_bounds(),
+            row_height, inset, side=side, gap=self.px(4), margin=self.px(8))
+        edge = max(1, self.px(1))  # the window's hairline border
+        list_width = width - inset * 2 - edge * 2
+        canvas = tk.Canvas(top, width=list_width, height=rows * row_height, bg=COLORS["surface"],
+                           highlightthickness=0, bd=0, cursor="hand2", yscrollincrement=1,
+                           scrollregion=(0, 0, list_width, len(entries) * row_height))
+        canvas.pack(fill="both", expand=True, padx=inset, pady=inset)
+        hover_fill = COLORS["surface_soft"] if self.contrast(COLORS["surface_soft"], COLORS["surface"]) >= 1.08 else COLORS["alt"]
+        radius = self.px(6)
+        highlight = canvas.create_polygon(0, 0, 0, 0, fill=hover_fill, outline="", smooth=True, state="hidden")
         current = 0
         for index, (_label, _command, selected) in enumerate(entries):
-            listbox.insert("end", f"  {shown[index]}  ")
             if selected:
                 current = index
-                listbox.itemconfigure(index, fg=COLORS["primary"])
-        listbox.selection_set(current)
-        listbox.see(current)
+            canvas.create_text(side, index * row_height + row_height // 2, text=shown[index], anchor="w",
+                               font=bold if selected else font_spec, fill=COLORS["primary"] if selected else COLORS["ink"])
+        state = {"index": None}
         self._dropdown = (top, previous_grab)
 
+        def mark(index):
+            if index is None or not 0 <= index < len(entries):
+                return
+            state["index"] = index
+            top_y, bottom_y = index * row_height + 1, (index + 1) * row_height - 1
+            r = min(radius, (bottom_y - top_y) // 2)
+            right = list_width - 1
+            # A rounded rectangle as a smoothed polygon (corner points doubled).
+            canvas.coords(highlight,
+                          r, top_y, r, top_y, right - r, top_y, right - r, top_y, right, top_y,
+                          right, top_y + r, right, top_y + r, right, bottom_y - r, right, bottom_y - r, right, bottom_y,
+                          right - r, bottom_y, right - r, bottom_y, r, bottom_y, r, bottom_y, 0, bottom_y,
+                          0, bottom_y - r, 0, bottom_y - r, 0, top_y + r, 0, top_y + r, 0, top_y)
+            canvas.itemconfigure(highlight, state="normal")
+            canvas.tag_lower(highlight)
+            # Keep the marked row in view when moving with the keyboard.
+            view_top = canvas.canvasy(0)
+            view_bottom = view_top + canvas.winfo_height()
+            if top_y < view_top or bottom_y > view_bottom:
+                canvas.yview_moveto(max(0.0, (index * row_height - (rows // 2) * row_height) / max(1, len(entries) * row_height)))
+
+        def row_at(event_y):
+            index = int(canvas.canvasy(event_y) // row_height)
+            return index if 0 <= index < len(entries) else None
+
         def choose(_event=None):
-            picked = listbox.curselection()
+            picked = state["index"]
             self.close_dropdown()
-            if picked:
-                entries[picked[0]][1]()
+            if picked is not None:
+                entries[picked][1]()
             return "break"
 
-        def hover(event):
-            index = listbox.nearest(event.y)
-            listbox.selection_clear(0, "end")
-            listbox.selection_set(index)
+        def release(event):
+            if row_at(event.y) is None:
+                return "break"
+            mark(row_at(event.y))
+            return choose()
+
+        def move(step):
+            index = state["index"] if state["index"] is not None else current
+            mark(max(0, min(len(entries) - 1, index + step)))
+            return "break"
 
         def press(event):
             # With the grab set, clicks anywhere in the app arrive here.
@@ -5507,25 +5554,28 @@ class MemoryPalApp(tk.Tk):
             self._box_wheel(event)
             return "break"
 
-        listbox.bind("<Motion>", hover)
-        listbox.bind("<ButtonRelease-1>", choose)
-        listbox.bind("<Return>", choose)
-        listbox.bind("<Escape>", lambda _event: (self.close_dropdown(), "break")[1])
-        listbox.bind("<MouseWheel>", wheel)
-        listbox.bind("<Button-4>", wheel)
-        listbox.bind("<Button-5>", wheel)
+        canvas.bind("<Motion>", lambda event: mark(row_at(event.y)))
+        canvas.bind("<ButtonRelease-1>", release)
+        canvas.bind("<Return>", choose)
+        canvas.bind("<space>", choose)
+        canvas.bind("<Up>", lambda _event: move(-1))
+        canvas.bind("<Down>", lambda _event: move(1))
+        canvas.bind("<Home>", lambda _event: (mark(0), "break")[1])
+        canvas.bind("<End>", lambda _event: (mark(len(entries) - 1), "break")[1])
+        canvas.bind("<Escape>", lambda _event: (self.close_dropdown(), "break")[1])
+        canvas.bind("<MouseWheel>", wheel)
+        canvas.bind("<Button-4>", wheel)
+        canvas.bind("<Button-5>", wheel)
         top.bind("<ButtonPress-1>", press)
-        listbox.bind("<ButtonPress-1>", press, add="+")
-        listbox.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
+        canvas.bind("<ButtonPress-1>", press, add="+")
+        canvas.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
 
-        top.update_idletasks()
-        # The listbox knows its exact row height; re-place with it so a list
-        # that flipped above the anchor still sits right against it.
-        height = listbox.winfo_reqheight() + inset * 2
-        x, y, width, height = self.fit_popup_rect(width, height, anchor_rect, gap=self.px(4))
+        x, y, width, height = self.fit_popup_rect(width, rows * row_height + inset * 2 + edge * 2, anchor_rect, gap=self.px(4))
         top.geometry(f"{width}x{height}+{x}+{y}")
         self.reveal_window(top)
-        listbox.focus_force()
+        top.update_idletasks()
+        mark(current)
+        canvas.focus_force()
         try:
             top.grab_set()
         except tk.TclError:
@@ -6552,6 +6602,8 @@ class MemoryPalApp(tk.Tk):
             due = len(store.due_cards())
             return f"{due} card{'s' if due != 1 else ''} due now" if due else "Nothing due right now"
         if view == "talkback":
+            if self.live_tutor_possible():
+                return "Talk it through with the AI tutor"
             return "Answer out loud" if listen.platform_supported() else "Read aloud, answer by typing"
         if view == "library":
             count = len(store.cards)
@@ -9305,7 +9357,7 @@ class MemoryPalApp(tk.Tk):
         result = {"value": False}
         top, content, actions = self.dialog_window(
             "Use AI notes and questions?",
-            "MemoryPal can make study notes and practice questions from notes, a PDF or a picture you choose. Before you turn it on:",
+            "MemoryPal can make study notes and practice questions from notes, a PDF or a picture you choose, and talk through your cards with you as a live tutor. Before you turn it on:",
             parent=parent,
             width=680,
             resizable=True,
@@ -9314,9 +9366,9 @@ class MemoryPalApp(tk.Tk):
         wrap = self.px(680 - 70)
         # Same five points, in the same words, as the phone (AiConsent.tsx).
         points = (
-            ("What is sent", "Only what you choose for each request: the text, or the one PDF or picture, plus your existing card questions so the AI doesn't repeat them. Nothing is sent until you press an AI button."),
-            ("Who gets it", "It goes through MemoryPal's server to Google's Gemini API, which writes the notes or questions. Our server doesn't keep the text or file; it only counts your requests for the daily limit."),
-            ("What Google may do", "We use Gemini's free tier. Google may keep what is sent, use it to improve its products, and people at Google may read it."),
+            ("What is sent", "Only what you choose for each request: the text, or the one PDF or picture, plus your existing card questions so the AI doesn't repeat them. For the live tutor: that session's cards and your voice while you talk. Nothing is sent until you press an AI button."),
+            ("Who gets it", "It goes through MemoryPal's server to Google's Gemini API, which writes the notes or questions. Live tutor voice goes straight from your computer to Google. Our server doesn't keep any of it; it only counts your requests for the daily limit."),
+            ("What Google may do", "We use Gemini's free tier. Google may keep what is sent, including your voice, use it to improve its products, and people at Google may read or listen to it."),
             ("Don't send private things", "No health details, ID numbers, passwords or other people's personal information."),
             ("Check what it makes", f"AI can be wrong. AI cards are labelled \u201cMade with AI, check it\u201d, and you can report a bad result. You need a MemoryPal account, and each account gets up to {aiflow.AI_DAILY_LIMIT} AI requests a day."),
         )
@@ -9705,6 +9757,10 @@ class MemoryPalApp(tk.Tk):
     def stop_talkback(self):
         state, self.talkback = self.talkback, None
         self.listener.stop()
+        if state is not None and state.get("tutor") is not None:
+            # Leaving the page ends the call; results the tutor saved are kept.
+            state["tutor"].stop()
+            self.save_live_ratings(state["tutor"])
         if state is not None:
             pulse = state.get("pulse")
             if pulse:
@@ -9712,6 +9768,215 @@ class MemoryPalApp(tk.Tk):
                     self.after_cancel(pulse)
                 except tk.TclError:
                     pass
+
+    # ------------------------------------------------------------------
+    # Live AI tutor: Talk-back as a spoken conversation (Gemini Live)
+    # ------------------------------------------------------------------
+    def live_tutor_possible(self):
+        """This copy has the audio packages and a cloud to ask for the conversation."""
+        return liveaudio.available() and cloud.configured()
+
+    def talkback_choice(self, panel, queue, practising):
+        """Talk-back's first screen: the live AI tutor, or classic Talk-back (offline)."""
+        surface = COLORS["surface"]
+        ttk.Label(panel, text="How would you like to practise?", style="H2.TLabel").pack(anchor="w")
+        count = len(queue)
+        lead = "Nothing is due right now, so this uses cards that need more practice. " if practising else ""
+        self.fit_wrap(tk.Label(panel, text=f"{lead}{count} card{'s' if count != 1 else ''} ready.", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 12), justify="left", anchor="w", wraplength=self.px(760)), pady=(self.px(6), self.px(18)))
+
+        def option(title, body, icon, command, primary):
+            box = self.card(panel, "Card.TFrame", 18)
+            box.pack(fill="x", pady=(0, self.px(12)))
+            row = tk.Frame(box, bg=surface)
+            row.pack(fill="x")
+            self.icon_badge(row, icon, 40).pack(side="left", padx=(0, self.px(14)))
+            text = tk.Frame(row, bg=surface)
+            text.pack(side="left", fill="x", expand=True)
+            tk.Label(text, text=title, bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").pack(anchor="w")
+            self.fit_wrap(tk.Label(text, text=body, bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), justify="left", anchor="w", wraplength=self.px(640)))
+            ttk.Button(row, text="Start", style="Primary.TButton" if primary else "TButton", cursor="hand2", command=command).pack(side="right", padx=(self.px(14), 0))
+
+        def live():
+            if not self.ai_ready():
+                return
+            self._talkback_mode = "live"
+            self.show_view("talkback")
+
+        def classic():
+            self._talkback_mode = "classic"
+            self.show_view("talkback")
+
+        option("Talk with the AI tutor", "A real conversation, like a voice call. Answer in your own words, talk over it, ask for a hint or why. It saves how you did on each card. Needs the internet and uses one AI request.", "mic", live, True)
+        option("Classic Talk-back", "Each question is read aloud and you answer by voice or by typing. Works offline.", "speaker", classic, False)
+
+    def save_live_ratings(self, tutor):
+        for card, outcome in tutor.take_ratings():
+            assessment = livetutor.live_assessment(outcome)
+            if assessment is not None and card in self.store.cards:
+                self.store.schedule(card, assessment["quality"], assessment)
+
+    def view_live_tutor(self, panel, queue):
+        surface = COLORS["surface"]
+        cards = queue[:ai.MAX_LIVE_CARDS]
+        state = {"token": self.route_token, "tutor": None, "pulse": None, "levels": {"tutor": 0.0, "you": 0.0}, "shown": 0.0, "phase": ""}
+        self.talkback = state
+
+        def alive():
+            return self.talkback is state and state["token"] == self.route_token and panel.winfo_exists()
+
+        top = tk.Frame(panel, bg=surface)
+        top.pack(fill="x")
+        progress = tk.Label(top, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11))
+        progress.pack(side="left")
+        clock = tk.Label(top, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11))
+        clock.pack(side="right")
+
+        size = self.px(200)
+        orb = tk.Canvas(panel, width=size, height=size, bg=surface, highlightthickness=0)
+        orb.pack(pady=(self.px(24), self.px(8)))
+        status = tk.Label(panel, text="Connecting to your tutor…", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 14))
+        status.pack()
+        tutor_line = tk.Label(panel, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI", 15), justify="left", anchor="w", wraplength=self.px(860))
+        self.fit_wrap(tutor_line, pady=(self.px(22), 0))
+        you_line = tk.Label(panel, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 12), justify="left", anchor="w", wraplength=self.px(860))
+        self.fit_wrap(you_line, pady=(self.px(6), 0))
+
+        controls = ttk.Frame(panel, style="Card.TFrame")
+        controls.pack(fill="x", pady=(self.px(22), 0))
+        icon_size = self.px(18)
+
+        def control(text, icon, command, style="TButton"):
+            image = self.line_icon(icon, icon_size, self.on_color(COLORS["primary"]) if style == "Primary.TButton" else COLORS["ink"])
+            button = ttk.Button(controls, text=f" {text}", image=image, compound="left", style=style, cursor="hand2", command=command)
+            button._memorypal_icon = image
+            return button
+
+        mute = control("Mute", "mic", lambda: state["tutor"] and state["tutor"].set_muted(not state["tutor"].muted))
+        mute.pack(side="left")
+        mute.state(["disabled"])
+        end = control("End", "stop", lambda: state["tutor"] and state["tutor"].stop())
+        end.pack(side="left", padx=(self.px(10), 0))
+        hint = "Say \u201cskip\u201d, \u201cgive me a hint\u201d or \u201cwhy?\u201d at any time. AI can be wrong."
+        self.fit_wrap(tk.Label(panel, text=f"{hint} {liveaudio.permission_hint()}".strip(), bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 10), justify="left", anchor="w", wraplength=self.px(860)), pady=(self.px(14), 0))
+
+        def draw(who, muted):
+            # A soft circle that swells with whoever is speaking: the tutor in the
+            # app's colour, you in green.
+            target = 0.0 if muted else state["levels"].get(who or "you", 0.0) if who else 0.0
+            state["shown"] = state["shown"] * 0.6 + target * 0.4
+            grow = 0.0 if self.accessibility.get("reduce_motion") else state["shown"]
+            colour = COLORS["line"] if muted else COLORS["green"] if who == "you" else COLORS["primary"]
+            orb.delete("all")
+            middle = size / 2
+            core = size * 0.30 * (1 + 0.22 * grow)
+            halo = size * 0.42 * (1 + 0.22 * grow)
+            orb.create_oval(middle - halo, middle - halo, middle + halo, middle + halo, fill=self.blend_hex(surface, colour, 0.16 + 0.2 * grow), outline="")
+            orb.create_oval(middle - core, middle - core, middle + core, middle + core, fill=colour, outline="")
+            image = self.line_icon("mic" if who == "you" or muted else "speaker", self.px(44), self.on_color(colour))
+            if image is not None:
+                orb.create_image(middle, middle, image=image)
+                orb._memorypal_icon = image
+
+        def on_level(who, value):
+            state["levels"][who] = value  # from the audio thread: a plain float swap
+
+        def show_error(message):
+            for child in panel.winfo_children():
+                child.destroy()
+            ttk.Label(panel, text="Live tutor", style="H2.TLabel").pack(anchor="w")
+            self.fit_wrap(ttk.Label(panel, text=message, style="Card.TLabel", wraplength=self.px(760)), pady=(self.px(8), self.px(20)))
+            row = ttk.Frame(panel, style="Card.TFrame")
+            row.pack(anchor="w")
+
+            def again():
+                self._talkback_mode = "live"
+                self.show_view("talkback")
+
+            def classic():
+                self._talkback_mode = "classic"
+                self.show_view("talkback")
+
+            ttk.Button(row, text="Try again", style="Primary.TButton", cursor="hand2", command=again).pack(side="left")
+            ttk.Button(row, text="Use classic Talk-back", cursor="hand2", command=classic).pack(side="left", padx=(self.px(10), 0))
+
+        def show_done(snap):
+            for child in panel.winfo_children():
+                child.destroy()
+            rated = [r for r in snap.results if r.outcome != "skipped"]
+            right = sum(1 for r in rated if r.outcome == "right")
+            ttk.Label(panel, text="Nice work", style="H2.TLabel").pack(anchor="w")
+            ttk.Label(panel, text=f"{right} of {len(rated)} right" if rated else "No cards answered this time", style="Card.TLabel").pack(anchor="w", pady=(self.px(8), self.px(16)))
+            missed = [r for r in snap.results if r.outcome != "right"]
+            if missed:
+                tk.Label(panel, text="Worth another look", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13)).pack(anchor="w", pady=(0, self.px(6)))
+                for result in missed:
+                    self.fit_wrap(tk.Label(panel, text=result.card.front, bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI", 12), justify="left", anchor="w", wraplength=self.px(860)))
+                    detail = f"You said \u201c{result.said}\u201d. Answer: {result.card.back}" if result.said else f"Answer: {result.card.back}"
+                    self.fit_wrap(tk.Label(panel, text=detail, bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), justify="left", anchor="w", wraplength=self.px(860)), pady=(0, self.px(10)))
+            row = ttk.Frame(panel, style="Card.TFrame")
+            row.pack(anchor="w", pady=(self.px(10), 0))
+
+            def again():
+                self._talkback_mode = "live"
+                self.show_view("talkback")
+
+            ttk.Button(row, text="Talk again", style="Primary.TButton", cursor="hand2", command=lambda: self.ai_ready() and again()).pack(side="left")
+            ttk.Button(row, text="Back to Study", cursor="hand2", command=lambda: self.show_view("study")).pack(side="left", padx=(self.px(10), 0))
+
+        def poll():
+            if not alive():
+                return
+            tutor = state["tutor"]
+            tutor.tick()
+            self.save_live_ratings(tutor)
+            snap = tutor.snapshot()
+            if snap.phase == "done":
+                state["tutor"] = None
+                show_done(snap)
+                return
+            if snap.phase == "error":
+                state["tutor"] = None
+                kept = len(snap.results)
+                show_error(snap.error + (f" {kept} card{'s' if kept != 1 else ''} saved before it stopped." if kept else ""))
+                return
+            connecting = snap.phase == "connecting"
+            progress.configure(text=f"{len(snap.results)} of {snap.total} cards")
+            clock.configure(text="" if connecting else f"{snap.seconds_left // 60}:{snap.seconds_left % 60:02d} left")
+            status.configure(text="Connecting to your tutor…" if connecting else "Muted. Press Unmute to answer." if snap.muted else "Tutor is talking. Jump in any time." if snap.speaking == "tutor" else "Listening…")
+            tutor_line.configure(text=snap.tutor_line)
+            you_line.configure(text=f"You: {snap.you_line}" if snap.you_line else "")
+            if not connecting and state["phase"] != "live":
+                mute.state(["!disabled"])
+            if snap.muted != state.get("muted"):
+                state["muted"] = snap.muted
+                mute.configure(text=" Unmute" if snap.muted else " Mute")
+            state["phase"] = snap.phase
+            draw("you" if snap.speaking == "you" else "tutor" if snap.speaking == "tutor" else "", snap.muted)
+            state["pulse"] = self.after(80, poll)
+
+        def started(result, error):
+            if not alive():
+                return
+            if error is not None:
+                if aiflow.needs_sign_in(error):
+                    self.ai_sign_in_prompt(aiflow.error_message(error))
+                if aiflow.error_code(error) == "limit_reached":
+                    self.set_ai_prefs(aiflow.remember_remaining(self.ai_prefs(), 0))
+                show_error(aiflow.error_message(error))
+                return
+            if result.get("remaining") is not None:
+                self.set_ai_prefs(aiflow.remember_remaining(self.ai_prefs(), result["remaining"]))
+            by_key = {key: cards[index] for key, index in result["keys"].items()}
+            tutor = livetutor.LiveTutor(result["token"], result["setup"], by_key, result["minutes"], livetutor.open_websocket, liveaudio.LiveAudio(on_level))
+            state["tutor"] = tutor
+            self.stop_speaking()
+            tutor.start()
+            poll()
+
+        draw("", False)
+        progress.configure(text=f"0 of {min(len(cards), ai.MAX_LIVE_CARDS)} cards")
+        deck = self.deck_filter or ""
+        self.run_in_background(lambda: ai.start_live(self.account, cards, deck), started)
 
     def view_talkback(self):
         page = ScrollFrame(self.view_host)
@@ -9724,6 +9989,13 @@ class MemoryPalApp(tk.Tk):
             ttk.Label(panel, text="Nothing to practise yet", style="H2.TLabel").pack(anchor="w")
             self.fit_wrap(ttk.Label(panel, text="Talk-back study needs cards with saved answers. Make a study set with questions and answers, then come back.", style="CardMuted.TLabel", wraplength=self.px(640)), pady=(self.px(6), self.px(16)))
             ttk.Button(panel, text="Make a study set", style="Primary.TButton", command=self.start_new_set).pack(anchor="w")
+            return
+        mode = self.__dict__.pop("_talkback_mode", "")
+        if mode == "live":
+            self.view_live_tutor(panel, queue)
+            return
+        if not mode and self.live_tutor_possible():
+            self.talkback_choice(panel, queue, practising)
             return
         voice_wanted = bool(self.accessibility.get("listen_answers", True))
         state = {

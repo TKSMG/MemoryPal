@@ -7,7 +7,12 @@ This checklist is for getting MemoryPal ready to show and eventually turn into a
 - Run `python -m unittest discover -s latest_app\tests` and confirm every test passes.
 - Confirm the test run does not create or change anything in `%LOCALAPPDATA%\MemoryPal`.
 - In `mobile/`, run `npm test` and confirm the parity tests (including the quiz questions) pass. After changing `questions.py`, run `python tools\parity\make_fixtures.py` first.
-- If Deno is installed, run `deno test supabase/functions/ai/logic_test.ts` and confirm the AI function's checks pass.
+- If Deno is installed, run `deno test supabase/functions/ai/` and confirm the AI function's checks pass.
+- Run `python tools/parity/sync_interop.py` and `python tools/parity/drive_interop.py`: the real desktop and phone code sync with each other through Supabase and through a drive folder.
+- Smoke tests that click through the apps (no real devices needed):
+  - Desktop: `python tools/smoke/desktop_smoke.py` (on Linux, under `xvfb-run -a`). Opens every page in both themes at two window sizes and runs the main flows; fails on any error.
+  - Phone: export the web build and run `node tools/smoke/phone_flows.js` (steps are at the top of that file). Goes through first run, a new set, review, quiz, notes, Talk-back, settings and dark mode.
+  - Neither can check the microphone, camera, speakers, Google sign-in or the live AI tutor; those still need a real phone and computer.
 
 ## Welcome And Tour
 
