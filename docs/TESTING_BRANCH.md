@@ -34,7 +34,7 @@ Keep this list up to date whenever a branch is added or taken out.
 
 | Branch | PR | What it does |
 | --- | --- | --- |
-| (none) | | #41, #42 and #46 were merged into main on 2026-10-31, so testing is the same as main for now |
+| (none) | | Nothing open: every PR up to #54 is merged (2026-11-08), so testing is the same as main for now |
 
 ## Adding new work
 
