@@ -486,3 +486,8 @@ Notes can now be bold, italic or highlighted on the desktop and the phone, and s
 - B, I and Highlight buttons sit over the Paste notes box and in the new Edit notes (Library > Read > Edit on the desktop, Edit notes on the phone's notes page). Desktop shortcuts: Ctrl/Cmd+B, Ctrl/Cmd+I, Ctrl/Cmd+Shift+H.
 - The formatting is stored as Markdown-style marks in the text (`**bold**`, `_italic_`, `==highlight==`), so nothing about saving or syncing changed. Marks only count next to words, so "2 * 3", "a == b" and snake_case stay as typed.
 - The desktop box shows the formatting as you type with the marks faint; the phone shows "How it looks" under the box. Read aloud, Library previews and cards skip the marks.
+
+## v102 - Smoke Tests
+
+- Changing the theme while a notice was still showing (for example twice in a row) left a queued "hide the notice" step pointing at the old window, which raised an error in the background. The notice now checks it still exists before it moves or hides.
+- `tools/smoke/` clicks through both apps without a device: the desktop opens every page in both themes at two sizes and runs the main flows, and the phone's web build goes through first run, a new set, review, quiz, notes, Talk-back, settings and dark mode. Both fail on any error. See docs/TESTING_CHECKLIST.md.
