@@ -210,6 +210,15 @@ A design-taste review on 2026-11-08 found the phone near finished and the deskto
 - No helper lines under headings ("Picked for studying", "Ctrl+K jumps to any page"). The page finder and tooltips carry that.
 - Header icons take keyboard focus with a visible ring; Enter and Space press them.
 
+The same rules were then applied to the other pages:
+
+- Progress card maturity is one pine ramp from light (new) to full (mature), on desktop and phone, because maturity is an order, not four kinds.
+- Puzzles: no intro line, sentence-case titles and buttons, no green start buttons competing on one page. Each card has one line that says what to do, which the digits or words then replace. The large digit style is ink, not pine.
+- Everyday Memory: no hero repeating the page title. It opens on today's date, the cards to review and one green Start gentle review. The builder has one Add card button (the kind dropdown already picks Person, Routine, Place or Reminder). Tips are plain text, not icon tiles.
+- Library searches as you type (no Apply button). Backup buttons live in Settings and the More menu only. Each card's Edit is a text link.
+- Memory techniques shows its result box only once there is a result, and the plan under the button once it is built.
+- Text boxes with a label (`answer_area`) sit straight on their card with a field label, not inside a grey panel.
+
 ## First Run And Onboarding
 
 A new profile should not open on a page full of tools. The Welcome screen asks one plain question (who is using MemoryPal?) and uses the answer to set Today's study modes, text size, and calmer defaults. Every choice stays editable in Settings, and choosing again resets only the settings the persona controls.

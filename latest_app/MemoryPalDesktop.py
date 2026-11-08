@@ -2912,7 +2912,7 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("ItemTitle.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 14))
         self.style.configure("AltH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 18))
         self.style.configure("WarmH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 13))
-        self.style.configure("Stat.TLabel", background=COLORS["surface"], foreground=COLORS["primary"], font=self.font("Segoe UI Semibold", 34))
+        self.style.configure("Stat.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 34))
         self.style.configure("RailTitle.TLabel", background=COLORS["rail"], foreground=COLORS["white"], font=self.font("Segoe UI Semibold", 20))
         self.style.configure("RailText.TLabel", background=COLORS["rail"], foreground=COLORS["rail_muted"], font=self.font("Segoe UI", 12))
         self.style.configure("TEntry", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], insertcolor=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
@@ -5161,13 +5161,14 @@ class MemoryPalApp(tk.Tk):
         self.restyle_rich(box)
         return bar
 
-    def answer_area(self, parent, title="Your answer", hint="Type what you remember, then check or reveal.", height=4):
-        panel = self.card(parent, "AltCard.TFrame", 18)
-        panel.pack(fill="x", pady=(0, self.px(10)))
-        ttk.Label(panel, text=title, style="AltH2.TLabel").pack(anchor="w")
-        ttk.Label(panel, text=hint, style="AltMuted.TLabel", wraplength=self.px(980)).pack(anchor="w", pady=(self.px(4), self.px(10)))
-        box = self.text_box(panel, height, 12)
-        box.pack(fill="x")
+    def answer_area(self, parent, title="Your answer", hint="", height=4):
+        """A labelled text box sitting straight on its card: a field label
+        and the box, no grey panel around it (no box inside a box)."""
+        ttk.Label(parent, text=title, style="Card.TLabel", font=self.font("Segoe UI Semibold", 12)).pack(anchor="w", pady=(self.px(4), self.px(2) if hint else self.px(6)))
+        if hint:
+            ttk.Label(parent, text=hint, style="CardMuted.TLabel", wraplength=self.px(980)).pack(anchor="w", pady=(0, self.px(6)))
+        box = self.text_box(parent, height, 12)
+        box.pack(fill="x", pady=(0, self.px(12)))
         return box
 
     def bucket_style(self, bucket):
@@ -6688,43 +6689,26 @@ class MemoryPalApp(tk.Tk):
         page.pack(fill="both", expand=True)
         simple = self.accessibility.get("simple_language", False)
 
-        hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(30), pady=self.px(28)))
-        hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        self.icon_badge(hero, "elder", 40).pack(anchor="w", pady=(0, self.px(12)))
-        tk.Label(hero, text="Everyday Memory", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
-        intro = "Simple memory support for people, routines, places, reminders, and calm practice." if simple else "A calm support area for older adults, people with memory changes, and caregivers who want simple prompts, familiar cues, routines, and short confidence-building practice."
-        tk.Label(hero, text=intro, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 13), wraplength=self.px(900), justify="left").pack(anchor="w", pady=(6, 0))
-
-        today_card = self.card(page.inner, "WarmCard.TFrame", 30)
+        # The header already names the page, so no hero title here: the page
+        # opens on today's date and the one thing to do.
+        today_card = self.card(page.inner, "Card.TFrame", 26)
         today_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        ttk.Label(today_card, text="Today board", style="WarmH2.TLabel").pack(anchor="w", pady=(0, self.px(10)))
-        today_lines = [
-            f"Today is {date.today().strftime('%A, %B %d, %Y')}.",
-            f"Active profile: {active_profile_name()}.",
-            f"Reviews due now: {len(self.store.due_cards())}.",
-            "One small step is enough: review one card, add one reminder, or play one gentle puzzle.",
-        ]
-        today_copy = ttk.Frame(today_card, style="WarmCard.TFrame")
-        today_copy.pack(fill="x", pady=(0, self.px(16)))
-        for line in today_lines:
-            ttk.Label(today_copy, text=line, style="WarmCard.TLabel", wraplength=self.px(1040), justify="left").pack(anchor="w", pady=(0, self.px(7)))
-        today_actions = ttk.Frame(today_card, style="WarmCard.TFrame")
-        today_actions.pack(fill="x")
+        tk.Label(today_card, text=date.today().strftime("%A, %B %d").replace(" 0", " "), bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 20)).pack(anchor="w")
+        due_now = len(self.store.due_cards())
+        tk.Label(today_card, text=f"{due_now} {'card' if due_now == 1 else 'cards'} to review", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 13)).pack(anchor="w", pady=(self.px(4), self.px(16)))
         self.button_row(
-            today_actions,
+            today_card,
             [
-                ("Start Gentle Review", lambda: self.start_everyday_review(), "Primary.TButton"),
-                ("Use Senior Layout", self.apply_senior_layout_defaults, "TButton"),
-                ("Open Puzzles", lambda: self.show_view("games"), "TButton"),
+                ("Start gentle review", lambda: self.start_everyday_review(), "Primary.TButton"),
+                ("Use senior layout", self.apply_senior_layout_defaults, "TButton"),
+                ("Open puzzles", lambda: self.show_view("games"), "Link.TButton"),
             ],
-            "WarmCard.TFrame",
         )
 
         builder = self.card(page.inner, "Card.TFrame", 22)
         builder.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(builder, text="Caregiver card builder", style="H2.TLabel").pack(anchor="w")
-        builder_help = "Make one clear memory card at a time. A helper can add photos, audio, or video from Capture after the card is saved." if simple else "Create respectful everyday cards for names, relationships, routines, places, and reminders. These become normal MemoryPal cards, so they can be reviewed in Test Lab and mixed with audio, image, video, or text cues."
-        ttk.Label(builder, text=builder_help, style="CardMuted.TLabel", wraplength=self.px(900), justify="left").pack(anchor="w", pady=(4, 12))
+        ttk.Frame(builder, style="Card.TFrame", height=self.px(10)).pack(fill="x")
         kind_var = tk.StringVar(value=draft.get("elder_kind", "Person"))
         self.select_button(builder, kind_var, ["Person", "Routine", "Place", "Reminder"]).pack(fill="x", pady=(0, self.px(10)))
         prompt_var = tk.StringVar(value=draft.get("elder_prompt", "Who is this person?"))
@@ -6732,7 +6716,7 @@ class MemoryPalApp(tk.Tk):
         prompt_entry.pack(fill="x", pady=(0, self.px(10)))
         answer_box = self.answer_area(builder, "Answer or helpful cue", "Example: This is Maya, your granddaughter. She visits on Sundays.", 4)
         answer_box.insert("1.0", draft.get("elder_answer", ""))
-        notes_box = self.answer_area(builder, "Optional gentle note", "Example: Show a family photo, play a familiar voice note, or use a short routine.", 3)
+        notes_box = self.answer_area(builder, "Gentle note (optional)", "Example: Show a family photo, play a familiar voice note, or use a short routine.", 3)
         notes_box.insert("1.0", draft.get("elder_notes", ""))
 
         def apply_kind_prompt(*_args):
@@ -6796,13 +6780,13 @@ class MemoryPalApp(tk.Tk):
         self.button_row(
             builder,
             [
-                ("Add Person Card", lambda: (kind_var.set("Person"), add_everyday_card()), "Primary.TButton"),
-                ("Add Routine Card", lambda: (kind_var.set("Routine"), add_everyday_card()), "TButton"),
-                ("Add Place Card", lambda: (kind_var.set("Place"), add_everyday_card()), "TButton"),
-                ("Add Reminder Card", lambda: (kind_var.set("Reminder"), add_everyday_card()), "TButton"),
+                # The kind dropdown above already says Person / Routine /
+                # Place / Reminder, so one Add button instead of four.
+                ("Add card", add_everyday_card, "TButton"),
+                ("Add starter cards", load_everyday_starters, "Link.TButton"),
+                ("Add photos or audio", lambda: self.show_view("capture"), "Link.TButton"),
             ],
         )
-        self.button_row(builder, [("Create Starter Set", load_everyday_starters, "Primary.TButton"), ("Open Caregiver Notes", lambda: self.show_view("capture"), "TButton")])
 
         grid = self.page_frame(page.inner)
         grid.pack(fill="x", padx=(0, 8), pady=(0, 16))
@@ -6815,13 +6799,14 @@ class MemoryPalApp(tk.Tk):
             ("Where things belong", "Practise common places: keys, glasses, medicine list, phone charger, appointment card.", "decks"),
             ("Caregiver support", "Add cues with a familiar voice, a real photo, or plain words (Edit card in Library). Avoid surprise sounds or clutter.", "capture"),
         ]
-        for index, (title, body, icon) in enumerate(ideas):
-            tile = self.hover_card(tk.Frame(grid, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20)))
+        # Plain tips in one list: no icon tiles or hover cards for text
+        # that isn't clickable.
+        for index, (title, body, _icon) in enumerate(ideas):
+            tile = tk.Frame(grid, bg=COLORS["surface"], padx=self.px(22), pady=self.px(18))
             row, column = divmod(index, idea_columns)
             tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
-            self.icon_badge(tile, icon, 36).pack(anchor="w", pady=(0, self.px(10)))
-            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(anchor="w")
-            tk.Label(tile, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(820 if idea_columns == 1 else 430), justify="left").pack(anchor="w", pady=(self.px(6), 0))
+            tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13)).pack(anchor="w")
+            tk.Label(tile, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(820 if idea_columns == 1 else 430), justify="left").pack(anchor="w", pady=(self.px(4), 0))
 
         safety = self.card(page.inner, "AltCard.TFrame", 20)
         safety.pack(fill="x", padx=(0, 8))
@@ -7406,8 +7391,10 @@ class MemoryPalApp(tk.Tk):
             height=150, highlight=0, tips=[f"{'Today (incl. overdue)' if index == 0 else day.strftime('%a %d %b')}: {count} due" for index, (day, count) in enumerate(forecast)],
         ).pack(fill="x")
         groups = progress.maturity_breakdown(store.cards)
-        segments = [("New", groups["new"], COLORS["muted"]), ("Learning", groups["learning"], COLORS["orange"]), ("Young", groups["young"], COLORS["primary"]), ("Mature", groups["mature"], COLORS["green"])]
-        self.panel_title(maturity_panel, "Card maturity", "How settled your cards are: mature cards come back 3+ weeks apart.")
+        # One hue, light to full pine: maturity is an order, not four kinds.
+        ramp = [self.blend_hex(COLORS["primary"], COLORS["surface"], share) for share in (0.72, 0.48, 0.24, 0.0)]
+        segments = [("New", groups["new"], ramp[0]), ("Learning", groups["learning"], ramp[1]), ("Young", groups["young"], ramp[2]), ("Mature", groups["mature"], ramp[3])]
+        self.panel_title(maturity_panel, "Card maturity", "Mature cards come back 3+ weeks apart.")
         self.stacked_bar(maturity_panel, segments, height=30).pack(fill="x", pady=(self.px(8), self.px(12)))
         self.chart_legend(maturity_panel, [(f"{label} {value}", color) for label, value, color in segments]).pack(anchor="w")
 
@@ -8914,7 +8901,7 @@ class MemoryPalApp(tk.Tk):
         if self.accessibility.get("read_aloud"):
             self.after(250, lambda: self.speak(card.front))
         self.render_media_controls(panel, card)
-        response = self.answer_area(panel, "Your answer (optional)", "Type it to have Smart Check compare, or just think of it and show the answer.", 4)
+        response = self.answer_area(panel, "Your answer (optional)", height=4)
         if draft.get("card_id") == card.id and draft.get("context") == self.review_context:
             response.insert("1.0", draft.get("response", ""))
         before = ttk.Frame(panel, style="Card.TFrame")
@@ -10387,15 +10374,18 @@ class MemoryPalApp(tk.Tk):
         panel = self.card(page.inner)
         panel.pack(fill="x", padx=(0, 8), pady=(0, 12))
         ttk.Label(panel, text="Association builder", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(panel, text="Add ideas separated by commas, new lines, or slashes. Then choose a memory hook style.", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(6, 12))
+        ttk.Label(panel, text="Ideas, separated by commas or new lines", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(6, 12))
         self.render_resource_strip(page.inner, "Reference cues")
         ideas = self.text_box(panel, 4, 12)
         ideas.insert("1.0", draft.get("ideas", "mitosis, meiosis, chromosomes"))
         ideas.pack(fill="x", pady=(0, 12))
+        # The result box only shows once there is a hook in it, instead of
+        # an empty grey box with "will appear here" in it.
         output = self.card(page.inner, "AltCard.TFrame")
-        output.pack(fill="both", expand=True, padx=(0, 8), pady=(0, 12))
-        out = ttk.Label(output, text=draft.get("output", "Your memory hook will appear here."), style="AltCard.TLabel", wraplength=1080)
+        out = ttk.Label(output, text=draft.get("output", ""), style="AltCard.TLabel", wraplength=1080)
         out.pack(anchor="w")
+        if draft.get("output"):
+            output.pack(fill="x", padx=(0, 8), pady=(0, 12))
 
         last = {"kind": ""}
 
@@ -10403,6 +10393,8 @@ class MemoryPalApp(tk.Tk):
             def run():
                 last["kind"] = kind
                 out.configure(text=generate(techniques.parse_ideas(ideas.get("1.0", "end"))))
+                if not output.winfo_ismapped():
+                    output.pack(fill="x", padx=(0, 8), pady=(0, 12), before=strategy_panel)
             return run
 
         acronym = technique(techniques.acronym, "acronym")
@@ -10416,8 +10408,8 @@ class MemoryPalApp(tk.Tk):
             ideas.delete("1.0", "end")
             ideas.insert("1.0", ", ".join(self.material_bits()[:10]))
 
-        self.button_row(panel, [("Acronym", acronym, "Primary.TButton"), ("Mini Story", story, "TButton"), ("Peg List", peg_list, "TButton")])
-        self.button_row(panel, [("Memory Palace", palace, "TButton"), ("Chunk Map", chunk_map, "TButton"), ("Link Chain", link_chain, "TButton"), ("Saved Material", saved, "TButton")])
+        self.button_row(panel, [("Acronym", acronym, "TButton"), ("Mini story", story, "TButton"), ("Peg list", peg_list, "TButton"), ("Memory palace", palace, "TButton"), ("Chunk map", chunk_map, "TButton"), ("Link chain", link_chain, "TButton")])
+        self.button_row(panel, [("Use my notes", saved, "Link.TButton")])
 
         # Build the hooks from one set's cards, then save each card's line as its memory hook.
         sets = self.store.decks()
@@ -10454,7 +10446,7 @@ class MemoryPalApp(tk.Tk):
         strategy_panel = self.card(page.inner, "Card.TFrame", 22)
         strategy_panel.pack(fill="x", padx=(0, 8), pady=(0, 12))
         ttk.Label(strategy_panel, text="Technique planner", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(strategy_panel, text="Turn notes into one practical exercise for study, recall, or everyday memory support.", style="CardMuted.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(4, 12))
+        ttk.Frame(strategy_panel, style="Card.TFrame", height=self.px(10)).pack(fill="x")
         strategy_mode = tk.StringVar(value=draft.get("strategy_mode", "Retrieval practice"))
         self.select_button(
             strategy_panel,
@@ -10464,8 +10456,13 @@ class MemoryPalApp(tk.Tk):
         strategy_text = self.text_box(strategy_panel, 4, 12)
         strategy_text.insert("1.0", draft.get("strategy_text", ""))
         strategy_text.pack(fill="x", pady=(0, self.px(10)))
-        strategy_out = ttk.Label(strategy_panel, text=draft.get("strategy_output", "Choose a technique and build a plan."), style="Card.TLabel", wraplength=self.px(1040))
-        strategy_out.pack(anchor="w", pady=(0, self.px(12)))
+        strategy_out = ttk.Label(strategy_panel, text=draft.get("strategy_output", ""), style="Card.TLabel", wraplength=self.px(1040))
+
+        def set_strategy_out(text):
+            # The plan shows under the buttons once there is one.
+            strategy_out.configure(text=text)
+            if not strategy_out.winfo_ismapped():
+                strategy_out.pack(anchor="w", pady=(self.px(14), 0))
 
         def strategy_bits():
             raw = strategy_text.get("1.0", "end").strip()
@@ -10475,7 +10472,7 @@ class MemoryPalApp(tk.Tk):
         def build_strategy_plan():
             bits = strategy_bits()
             if not bits:
-                strategy_out.configure(text="Add notes here or save material first.")
+                set_strategy_out("Add notes here or save material first.")
                 return
             mode = strategy_mode.get()
             if mode == "Retrieval practice":
@@ -10504,9 +10501,11 @@ class MemoryPalApp(tk.Tk):
                     "If it is missed, return to the shortest interval.",
                     "Best for names, routines, safety steps, and important everyday facts.",
                 ]
-            strategy_out.configure(text=f"{mode} plan:\n\n" + "\n".join(lines))
+            set_strategy_out(f"{mode} plan:\n\n" + "\n".join(lines))
 
-        self.button_row(strategy_panel, [("Build Technique Plan", build_strategy_plan, "Primary.TButton"), ("Saved Material", lambda: (strategy_text.delete("1.0", "end"), strategy_text.insert("1.0", "\n".join(self.material_bits()[:8]))), "TButton")])
+        self.button_row(strategy_panel, [("Build plan", build_strategy_plan, "TButton"), ("Use my notes", lambda: (strategy_text.delete("1.0", "end"), strategy_text.insert("1.0", "\n".join(self.material_bits()[:8]))), "Link.TButton")])
+        if strategy_out.cget("text"):
+            strategy_out.pack(anchor="w", pady=(self.px(14), 0))
         self.register_draft_saver("tools", lambda: {
             "ideas": ideas.get("1.0", "end").strip(),
             "output": out.cget("text"),
@@ -10519,8 +10518,6 @@ class MemoryPalApp(tk.Tk):
         draft = self.view_drafts.get("games", {})
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        intro = ttk.Label(page.inner, text="Quick warm-ups between study sessions. They use your saved cards and notes when they can, and sample prompts otherwise.", style="Muted.TLabel", wraplength=self.px(1040))
-        intro.pack(anchor="w", padx=(0, 8), pady=(0, self.px(14)))
         self.render_resource_strip(page.inner, "Recent notes and audio")
         all_sets = "All my sets"
         set_values = [all_sets] + self.store.decks()
@@ -10542,12 +10539,11 @@ class MemoryPalApp(tk.Tk):
 
         sequence_card = self.card(grid)
         sequence_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
-        ttk.Label(sequence_card, text="Sequence Recall", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(sequence_card, text="Watch the digits, then type them back.", style="CardMuted.TLabel").pack(anchor="w", pady=(4, 12))
-        sequence_box = ttk.Label(sequence_card, text="Press Start", style="Stat.TLabel", wraplength=500)
+        ttk.Label(sequence_card, text="Sequence recall", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        sequence_box = ttk.Label(sequence_card, text="Watch the digits, then type them back.", style="CardMuted.TLabel", wraplength=500)
         if draft.get("sequence"):
             self.sequence = draft.get("sequence", "")
-            sequence_box.configure(text=draft.get("sequence_prompt", "Now type it"))
+            sequence_box.configure(text=draft.get("sequence_prompt", "Now type it"), style="Card.TLabel")
         sequence_box.pack(anchor="w", pady=(0, 12))
         answer = ttk.Entry(sequence_card)
         answer.insert(0, draft.get("sequence_answer", ""))
@@ -10555,24 +10551,23 @@ class MemoryPalApp(tk.Tk):
 
         def start_sequence():
             self.sequence = "".join(str(random.randint(1, 9)) for _ in range(random.randint(4, 8)))
-            sequence_box.configure(text=" ".join(self.sequence))
+            sequence_box.configure(text=" ".join(self.sequence), style="Stat.TLabel")
             answer.delete(0, "end")
-            self.after(self.pace(3000), lambda: sequence_box.configure(text="Now type it") if sequence_box.winfo_exists() else None)
+            self.after(self.pace(3000), lambda: sequence_box.configure(text="Now type it", style="Card.TLabel") if sequence_box.winfo_exists() else None)
 
         def check_sequence():
             typed = re.sub(r"\D", "", answer.get())
             self.toast_message("Correct." if typed == self.sequence else f"Sequence: {self.sequence}")
 
-        self.button_row(sequence_card, [("Start", start_sequence, "Primary.TButton"), ("Check", check_sequence, "TButton")])
+        self.button_row(sequence_card, [("Start", start_sequence, "TButton"), ("Check", check_sequence, "TButton")])
 
         word_card = self.card(grid)
         word_card.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
-        ttk.Label(word_card, text="Word Recall", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(word_card, text="A short word list appears, then disappears.", style="CardMuted.TLabel").pack(anchor="w", pady=(4, 12))
-        word_box = ttk.Label(word_card, text="Press Show Words", style="Card.TLabel", wraplength=500)
+        ttk.Label(word_card, text="Word recall", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        word_box = ttk.Label(word_card, text="A few words show for 4 seconds, then type them back.", style="CardMuted.TLabel", wraplength=500)
         current_words = list(draft.get("current_words", []))
         if current_words:
-            word_box.configure(text=draft.get("word_prompt", "Say them back"))
+            word_box.configure(text=draft.get("word_prompt", "Say them back"), style="Card.TLabel")
         word_box.pack(anchor="w", pady=(0, 12))
         word_answer = ttk.Entry(word_card)
         word_answer.insert(0, draft.get("word_answer", ""))
@@ -10587,7 +10582,7 @@ class MemoryPalApp(tk.Tk):
             nonlocal current_words
             pool = word_pool()
             current_words = random.sample(pool, min(6, len(pool)))
-            word_box.configure(text=", ".join(current_words))
+            word_box.configure(text=", ".join(current_words), style="Card.TLabel")
             word_answer.delete(0, "end")
             self.after(self.pace(3800), lambda: word_box.configure(text="Say them back") if word_box.winfo_exists() else None)
 
@@ -10595,23 +10590,22 @@ class MemoryPalApp(tk.Tk):
             result = answer_assessment(word_answer.get(), " ".join(current_words))
             self.toast_message(f"{result['label']} | {result['score']}%")
 
-        self.button_row(word_card, [("Show Words", show_words, "Primary.TButton"), ("Smart Check", check_words, "TButton")])
+        self.button_row(word_card, [("Show words", show_words, "TButton"), ("Smart Check", check_words, "TButton")])
 
         pair_card = self.card(grid)
         pair_card.grid(row=1, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
-        ttk.Label(pair_card, text="Pair Recall", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(pair_card, text="Practice one prompt-answer pair at a time.", style="CardMuted.TLabel").pack(anchor="w", pady=(4, 12))
-        pair_prompt = ttk.Label(pair_card, text="Make a pair set", style="H2.TLabel", wraplength=500)
+        ttk.Label(pair_card, text="Pair recall", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        pair_prompt = ttk.Label(pair_card, text="Press New pairs, then answer one at a time.", style="CardMuted.TLabel", wraplength=500)
         pair_prompt.pack(anchor="w", pady=(0, 12))
         pair_answer = ttk.Entry(pair_card)
         pair_answer.insert(0, draft.get("pair_answer", ""))
         pair_answer.pack(fill="x", pady=(0, 12))
-        pair_status = ttk.Label(pair_card, text="Smart Check will score the current pair.", style="CardMuted.TLabel", wraplength=500)
+        pair_status = ttk.Label(pair_card, text="", style="CardMuted.TLabel", wraplength=500)
         pair_status.pack(anchor="w", pady=(0, 12))
         pair_state = {"pairs": [dict(item) for item in draft.get("pairs", [])], "index": int(draft.get("pair_index", 0))}
         if pair_state["pairs"]:
             pair_state["index"] = min(pair_state["index"], len(pair_state["pairs"]) - 1)
-            pair_prompt.configure(text=draft.get("pair_prompt", pair_state["pairs"][pair_state["index"]]["prompt"]))
+            pair_prompt.configure(text=draft.get("pair_prompt", pair_state["pairs"][pair_state["index"]]["prompt"]), style="H2.TLabel")
             pair_status.configure(text=draft.get("pair_status", f"Pair {pair_state['index'] + 1} of {len(pair_state['pairs'])}"))
 
         def new_pair_set():
@@ -10625,7 +10619,7 @@ class MemoryPalApp(tk.Tk):
             pair_state["pairs"] = random.sample(pairs, min(5, len(pairs)))
             pair_state["index"] = 0
             pair_answer.delete(0, "end")
-            pair_prompt.configure(text=pair_state["pairs"][0]["prompt"])
+            pair_prompt.configure(text=pair_state["pairs"][0]["prompt"], style="H2.TLabel")
             pair_status.configure(text=f"Pair 1 of {len(pair_state['pairs'])}")
 
         def reveal_pair():
@@ -10644,15 +10638,14 @@ class MemoryPalApp(tk.Tk):
             pair_answer.delete(0, "end")
             self.after(self.pace(1200), lambda: pair_prompt.configure(text=pair_state["pairs"][pair_state["index"]]["prompt"]) if pair_prompt.winfo_exists() and pair_state["pairs"] else None)
 
-        self.button_row(pair_card, [("New Pair Set", new_pair_set, "Primary.TButton"), ("Reveal Cue", reveal_pair, "TButton"), ("Smart Check", check_pair, "TButton")])
+        self.button_row(pair_card, [("New pairs", new_pair_set, "TButton"), ("Show answer", reveal_pair, "TButton"), ("Smart Check", check_pair, "TButton")])
 
         gap_card = self.card(grid)
         gap_card.grid(row=1, column=1, sticky="nsew", pady=(0, 12))
-        ttk.Label(gap_card, text="Missing Item", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(gap_card, text="Find the hidden item from a short sequence.", style="CardMuted.TLabel").pack(anchor="w", pady=(4, 12))
-        gap_prompt = ttk.Label(gap_card, text="Press Make Gap", style="Card.TLabel", wraplength=500)
+        ttk.Label(gap_card, text="Missing item", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        gap_prompt = ttk.Label(gap_card, text="Press New round, then find the missing word.", style="CardMuted.TLabel", wraplength=500)
         if draft.get("gap_prompt"):
-            gap_prompt.configure(text=draft["gap_prompt"])
+            gap_prompt.configure(text=draft["gap_prompt"], style="Card.TLabel")
         gap_prompt.pack(anchor="w", pady=(0, 12))
         gap_answer = ttk.Entry(gap_card)
         gap_answer.insert(0, draft.get("gap_answer", ""))
@@ -10666,20 +10659,19 @@ class MemoryPalApp(tk.Tk):
             gap_state["answer"] = words[hidden]
             shown = list(words)
             shown[hidden] = "_____"
-            gap_prompt.configure(text="  -  ".join(shown))
+            gap_prompt.configure(text="  -  ".join(shown), style="Card.TLabel")
             gap_answer.delete(0, "end")
 
         def check_gap():
             result = answer_assessment(gap_answer.get(), gap_state["answer"])
             self.toast_message(f"{result['label']} | Missing: {gap_state['answer']}")
 
-        self.button_row(gap_card, [("Make Gap", make_gap, "Primary.TButton"), ("Check", check_gap, "TButton")])
+        self.button_row(gap_card, [("New round", make_gap, "TButton"), ("Check", check_gap, "TButton")])
 
         visual_card = self.card(grid)
         visual_card.grid(row=2, column=0, sticky="nsew", padx=(0, self.px(12)), pady=(0, self.px(12)))
-        ttk.Label(visual_card, text="Visual Search", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(visual_card, text="Find every matching target. This is a quick attention and scanning warmup.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
-        visual_status = ttk.Label(visual_card, text=draft.get("visual_status", "Start a round to make the search grid."), style="CardMuted.TLabel", wraplength=self.px(500))
+        ttk.Label(visual_card, text="Visual search", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        visual_status = ttk.Label(visual_card, text=draft.get("visual_status", "Find every copy of one word in a grid."), style="CardMuted.TLabel", wraplength=self.px(500))
         visual_status.pack(anchor="w", pady=(0, self.px(10)))
         visual_holder = tk.Frame(visual_card, bg=COLORS["surface"])
         visual_holder.pack(fill="x", pady=(0, self.px(12)))
@@ -10733,15 +10725,14 @@ class MemoryPalApp(tk.Tk):
 
         if visual_state["tiles"]:
             render_visual_grid()
-        self.button_row(visual_card, [("Visual Search", start_visual_search, "Primary.TButton")])
+        self.button_row(visual_card, [("New round", start_visual_search, "TButton")])
 
         nback_card = self.card(grid)
         nback_card.grid(row=2, column=1, sticky="nsew", pady=(0, self.px(12)))
-        ttk.Label(nback_card, text="N-Back Lite", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(nback_card, text="Decide whether the current item matches the one just before it.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
-        nback_word = ttk.Label(nback_card, text=draft.get("nback_word", "Start a round"), style="Stat.TLabel", wraplength=self.px(500))
+        ttk.Label(nback_card, text="N-back", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        nback_word = ttk.Label(nback_card, text=draft.get("nback_word", "Say whether each word matches the one before it."), style="Stat.TLabel" if draft.get("nback_word") else "CardMuted.TLabel", wraplength=self.px(500))
         nback_word.pack(anchor="w", pady=(0, self.px(8)))
-        nback_status = ttk.Label(nback_card, text=draft.get("nback_status", "Score appears here."), style="CardMuted.TLabel", wraplength=self.px(500))
+        nback_status = ttk.Label(nback_card, text=draft.get("nback_status", ""), style="CardMuted.TLabel", wraplength=self.px(500))
         nback_status.pack(anchor="w", pady=(0, self.px(12)))
         nback_state = {
             "items": list(draft.get("nback_items", [])),
@@ -10752,10 +10743,10 @@ class MemoryPalApp(tk.Tk):
 
         def show_nback_word():
             if not nback_state["items"]:
-                nback_word.configure(text="Start a round")
+                nback_word.configure(text="Say whether each word matches the one before it.", style="CardMuted.TLabel")
                 return
             index = min(nback_state["index"], len(nback_state["items"]) - 1)
-            nback_word.configure(text=nback_state["items"][index])
+            nback_word.configure(text=nback_state["items"][index], style="Stat.TLabel")
             nback_status.configure(text=f"Item {index + 1} of {len(nback_state['items'])} | Score {nback_state['score']} / {nback_state['total']}")
 
         def start_nback():
@@ -10796,16 +10787,15 @@ class MemoryPalApp(tk.Tk):
         self.button_row(
             nback_card,
             [
-                ("New Round", start_nback, "Primary.TButton"),
-                ("Same as Last", lambda: answer_nback(True), "TButton"),
+                ("New round", start_nback, "TButton"),
+                ("Same as last", lambda: answer_nback(True), "TButton"),
                 ("Different", lambda: answer_nback(False), "TButton"),
             ],
         )
 
         sort_card = self.card(grid)
         sort_card.grid(row=3, column=0, sticky="nsew", padx=(0, self.px(12)), pady=(0, self.px(12)))
-        ttk.Label(sort_card, text="Category Sort", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(sort_card, text="Group words or study bits before checking the suggested categories.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
+        ttk.Label(sort_card, text="Category sort", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
         sort_input = self.text_box(sort_card, 4, 11)
         sort_input.insert("1.0", draft.get("sort_input", "doctor appointment\nfamily photos\nbiology definition\npick up medicine\nbus stop"))
         sort_input.pack(fill="x", pady=(0, self.px(10)))
@@ -10846,18 +10836,17 @@ class MemoryPalApp(tk.Tk):
             sort_input.delete("1.0", "end")
             sort_input.insert("1.0", "family photo\nfront door key\nmorning medicine\nmath formula\ndoctor appointment\nchapter summary")
 
-        self.button_row(sort_card, [("Build Sort", build_sort, "Primary.TButton"), ("Use Sample", sample_sort, "TButton")])
+        self.button_row(sort_card, [("Sort", build_sort, "TButton"), ("Use sample", sample_sort, "TButton")])
 
         routine_card = self.card(grid)
         routine_card.grid(row=3, column=1, sticky="nsew", pady=(0, self.px(12)))
-        ttk.Label(routine_card, text="Routine Recall", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(routine_card, text="Briefly show a short routine, then type the steps back in order.", style="CardMuted.TLabel", wraplength=self.px(500)).pack(anchor="w", pady=(4, 12))
-        routine_prompt = ttk.Label(routine_card, text=draft.get("routine_prompt", "Press Show Routine"), style="Card.TLabel", wraplength=self.px(500))
+        ttk.Label(routine_card, text="Routine recall", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        routine_prompt = ttk.Label(routine_card, text=draft.get("routine_prompt", "A short routine shows, then type the steps back in order."), style="Card.TLabel", wraplength=self.px(500))
         routine_prompt.pack(anchor="w", pady=(0, self.px(10)))
         routine_answer = self.text_box(routine_card, 4, 11)
         routine_answer.insert("1.0", draft.get("routine_answer", ""))
         routine_answer.pack(fill="x", pady=(0, self.px(10)))
-        routine_status = ttk.Label(routine_card, text=draft.get("routine_status", "A gentle score will appear here."), style="CardMuted.TLabel", wraplength=self.px(500))
+        routine_status = ttk.Label(routine_card, text=draft.get("routine_status", ""), style="CardMuted.TLabel", wraplength=self.px(500))
         routine_status.pack(anchor="w", pady=(0, self.px(12)))
         routine_state = {"steps": list(draft.get("routine_steps", []))}
 
@@ -10889,7 +10878,7 @@ class MemoryPalApp(tk.Tk):
             result = answer_assessment(routine_answer.get("1.0", "end"), expected)
             routine_status.configure(text=f"{result['label']} | {result['score']}% | {result['detail']}")
 
-        self.button_row(routine_card, [("Show Routine", show_routine, "Primary.TButton"), ("Check Routine", check_routine, "TButton")])
+        self.button_row(routine_card, [("Show routine", show_routine, "TButton"), ("Check", check_routine, "TButton")])
         self.register_draft_saver("games", lambda: {
             "sequence": self.sequence,
             "sequence_prompt": sequence_box.cget("text"),
@@ -12203,7 +12192,7 @@ class MemoryPalApp(tk.Tk):
         if self.deck_filter:
             filter_row = tk.Frame(tools, bg=COLORS["alt"], padx=self.px(14), pady=self.px(8))
             filter_row.pack(fill="x", pady=(0, 10))
-            tk.Label(filter_row, text=f"Filtered to deck: {self.deck_filter}", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11)).pack(side="left")
+            tk.Label(filter_row, text=f"Showing {self.deck_filter}", bg=COLORS["alt"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11)).pack(side="left")
             ttk.Button(filter_row, text="Clear filter", command=self.clear_deck_filter).pack(side="right")
         search_var = tk.StringVar()
         filter_var = tk.StringVar(value=getattr(self, "library_show", "All"))
@@ -12213,12 +12202,13 @@ class MemoryPalApp(tk.Tk):
         top.pack(fill="x", pady=(0, 10))
         ttk.Entry(top, textvariable=search_var).grid(row=0, column=0, sticky="ew", padx=(0, 8))
         self.select_button(top, filter_var, ["All", "Due", "Weak", "Captures"], on_change=lambda _value: render(), width=10).grid(row=0, column=1, sticky="ew", padx=(0, 8))
-        ttk.Button(top, text="Apply", command=lambda: render()).grid(row=0, column=2, sticky="ew")
         top.columnconfigure(0, weight=3)
         top.columnconfigure(1, weight=1)
         # Everyday actions only; resetting everything lives in Settings, behind
         # a confirmation, rather than as a big red button beside "Add cards".
-        self.button_row(tools, [("Add cards", lambda: self.show_view("capture"), "Primary.TButton"), ("Import backup", self.import_data, "TButton"), ("Export backup", self.export_data, "TButton")], "Card.TFrame")
+        # Backups live in Settings and the header's More menu, so only the
+        # page's own action sits here.
+        self.button_row(tools, [("Add cards", lambda: self.show_view("capture"), "Primary.TButton")], "Card.TFrame")
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
 
@@ -12298,7 +12288,7 @@ class MemoryPalApp(tk.Tk):
                         status_line += f"  \u00b7  Skipped until {relative_day(card.buried_until)}"
                     head = ttk.Frame(item, style="Card.TFrame")
                     head.pack(fill="x")
-                    edit = ttk.Button(head, text="Edit", command=lambda c=card: self.open_card_editor(c, render))
+                    edit = ttk.Button(head, text="Edit", style="Link.TButton", cursor="hand2", command=lambda c=card: self.open_card_editor(c, render))
                     edit.pack(side="right")
                     self.speak_button(head, f"{card.front}. The answer is: {card.back}", compact=True).pack(side="right", padx=(0, self.px(6)))
                     self.add_tooltip(edit, "Change the words, set or memory hook, or delete this card.")
@@ -12324,6 +12314,16 @@ class MemoryPalApp(tk.Tk):
             self.fit_wrap_tree(page.inner)
 
         render()
+        # Search as you type (after a short pause, so a long library isn't
+        # rebuilt on every key) instead of a separate Apply button.
+        pending = {"job": None}
+
+        def search_soon(*_args):
+            if pending["job"]:
+                self.after_cancel(pending["job"])
+            pending["job"] = self.after(250, lambda: render() if page.winfo_exists() else None)
+
+        search_var.trace_add("write", search_soon)
 
     def open_notes(self, capture, bit=-1, on_done=None):
         """Read saved notes in full; `bit` marks the one a card came from."""
