@@ -4590,6 +4590,10 @@ class MemoryPalApp(tk.Tk):
 
         def place(step=0, steps=6):
             offset = round(rise * (1 - step / steps) ** 2)
+            # A theme change rebuilds the window, toast included, while a
+            # rise or hide is still queued for the old one.
+            if not canvas.winfo_exists():
+                return
             canvas.place(relx=0.5, rely=1, anchor="s", y=-margin + offset)
             self.tk.call("raise", canvas._w)
             if offset:
@@ -4603,7 +4607,7 @@ class MemoryPalApp(tk.Tk):
                 except tk.TclError:
                     pass
         place()
-        self._toast_after = self.after(self.pace(2800), self.toast.place_forget)
+        self._toast_after = self.after(self.pace(2800), lambda: canvas.winfo_exists() and canvas.place_forget())
 
     def dialog_window(self, title, body="", parent=None, width=480, resizable=False):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
