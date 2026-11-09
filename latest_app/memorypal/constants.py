@@ -25,6 +25,9 @@ LIGHT_COLORS = {
     "muted": "#5c574e",
     "line": "#e2ddd2",
     "soft_line": "#cfc8ba",
+    # Edges of text fields and outlined choices: 3:1 on the card, the
+    # WCAG minimum for a control's boundary (soft_line is only 1.6:1).
+    "field_line": "#8f887c",
     "primary": "#146b5a",
     "primary_dark": "#0e5547",
     "green": "#2f7323",
@@ -81,6 +84,7 @@ DARK_COLORS = {
     "muted": "#aaa59b",
     "line": "#34332f",
     "soft_line": "#47453f",
+    "field_line": "#747067",
     "primary": "#63c9ae",
     "primary_dark": "#48b496",
     "green": "#86d27a",

@@ -15,3 +15,18 @@ export function relativeDay(iso: string, from: Date = now()): string {
   const sameYear = date.getFullYear() === from.getFullYear();
   return `on ${date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) })}`;
 }
+
+/**
+ * When notes were saved, as "4 Nov, 5:30 pm" (with the year if it isn't this
+ * one). Notes store "YYYY-MM-DD HH:MM"; anything else is shown as it is.
+ */
+export function savedLabel(value: string, from: Date = now()): string {
+  const match = /^(\d{4}-\d{2}-\d{2})(?: (\d{1,2}):(\d{2}))?$/.exec((value || '').trim());
+  const date = match ? parseIso(match[1]) : null;
+  if (!match || !date) return value;
+  const sameYear = date.getFullYear() === from.getFullYear();
+  const day = date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
+  if (match[2] === undefined) return day;
+  date.setHours(Number(match[2]), Number(match[3]));
+  return `${day}, ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+}
