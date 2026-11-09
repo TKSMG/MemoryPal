@@ -11,7 +11,8 @@ import { AI_TAG } from '../../features/aiHelpers';
 import { useStore } from '../../state/AppState';
 import { AiTag, Button, EmptyState, Field, ListGroup, ListRow, ProgressBar, Screen, Txt } from '../../ui/components';
 import { confirm, notify } from '../../ui/feedback';
-import { setTone, useTheme } from '../../ui/theme';
+import { useTheme } from '../../ui/theme';
+import { savedLabel } from '../../ui/dates';
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
@@ -74,9 +75,9 @@ export default function Deck() {
   return (
     <Screen narrow>
       <Stack.Screen options={{ title: name }} />
-      <Txt variant="muted">{[`${plural(info.total, 'card')}, ${info.due} due, ${info.mastery}% mastered`, countdown].filter(Boolean).join(' · ')}</Txt>
+      <Txt variant="muted">{[`${plural(info.total, 'card')}, ${info.due} due, ${info.mastery}% mastered`, countdown && countdown.charAt(0).toLowerCase() + countdown.slice(1)].filter(Boolean).join(', ')}</Txt>
       {/* The set's own tone, the same as on its tile in Create. */}
-      <ProgressBar value={info.mastery / 100} color={theme.colors.tones[setTone(name)]} height={8} label={`${info.mastery}% mastered`} />
+      <ProgressBar value={info.mastery / 100} color={theme.colors.primary} height={8} label={`${info.mastery}% mastered`} />
       {details.about ? <Txt variant="body">{details.about}</Txt> : null}
 
       <ListGroup>
@@ -94,7 +95,7 @@ export default function Deck() {
       {notes.length ? (
         <ListGroup header="Saved notes">
           {notes.map((capture) => (
-            <ListRow key={capture.id} icon="reader-outline" title={capture.title} detail={capture.created_at} onPress={() => router.push(`/notes/${capture.id}` as Href)} accessibilityHint="Opens these notes to read" />
+            <ListRow key={capture.id} icon="reader-outline" title={capture.title} detail={savedLabel(capture.created_at)} onPress={() => router.push(`/notes/${capture.id}` as Href)} accessibilityHint="Opens these notes to read" />
           ))}
         </ListGroup>
       ) : null}

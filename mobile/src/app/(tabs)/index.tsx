@@ -77,7 +77,7 @@ export default function Today() {
     >
       {/* The day opens on the logo's pine tile, amber dot and all. */}
       <Card tone="hero" style={{ gap: 12 }}>
-        <HeroEyebrow>{due.length ? `${due.length} due today` : 'Up next'}</HeroEyebrow>
+        <HeroEyebrow dot>{due.length ? `${due.length} due today` : 'Up next'}</HeroEyebrow>
         <Txt variant="h2" color={c.heroInk}>{hero.title}</Txt>
         <Txt variant="muted" color={c.heroMuted}>{hero.body}</Txt>
         <Button kind="hero" label={hero.action} icon="play" onPress={hero.go} />
@@ -88,7 +88,7 @@ export default function Today() {
           <Txt variant="h3" style={{ flexShrink: 1 }}>Daily goal</Txt>
           <Txt variant="muted">{today >= goal ? 'Goal reached' : `${goal - today} to go`}</Txt>
         </Row>
-        <ProgressBar value={today / goal} color={today >= goal ? c.green : c.primary} label={`${today} of ${goal} reviews today`} />
+        <ProgressBar value={today / goal} color={c.primary} label={`${today} of ${goal} reviews today`} />
         <Row wrap style={{ justifyContent: 'space-between' }}>
           <Row gap={6}>
             <Ionicons name="flame" size={theme.icon(20)} color={c.orange} />
@@ -127,7 +127,7 @@ export default function Today() {
                   android_ripple={android ? { color: c.alt, borderless: true, radius: 22 } : undefined}
                   style={({ pressed }) => [{ paddingTop: 2, borderRadius: 22 }, pressedFill(pressed)]}
                 >
-                  <Ionicons name={ticked ? 'checkmark-circle' : 'ellipse-outline'} size={theme.icon(28)} color={ticked ? c.green : c.muted} />
+                  <Ionicons name={ticked ? 'checkmark-circle' : 'ellipse-outline'} size={theme.icon(28)} color={ticked ? c.primary : c.muted} />
                 </Pressable>
                 <Pressable
                   onPress={() => openStep(step)}
@@ -149,7 +149,7 @@ export default function Today() {
             <ToneIcon icon="map-outline" tone="moss" />
             <View style={{ flex: 1 }}>
               <Txt variant="h3">Make a study plan</Txt>
-              <Txt variant="muted">Say how much time you have and what’s coming up; get steps to tick off each day.</Txt>
+              <Txt variant="muted">Daily steps that fit your time.</Txt>
             </View>
           </Row>
         </Card>

@@ -4,6 +4,7 @@ import { Href, router } from 'expo-router';
 import { captureDeck } from '../../core/store';
 import { useStore } from '../../state/AppState';
 import { EmptyState, ListGroup, ListRow, Screen, Txt } from '../../ui/components';
+import { savedLabel } from '../../ui/dates';
 
 export default function SavedNotes() {
   const store = useStore();
@@ -29,7 +30,7 @@ export default function SavedNotes() {
       {names.map((name) => (
         <ListGroup key={name || '-'} header={name || 'Not in a set'}>
           {(groups.get(name) ?? []).map((capture) => (
-            <ListRow key={capture.id} icon="reader-outline" title={capture.title} detail={capture.created_at} onPress={() => router.push(`/notes/${capture.id}` as Href)} accessibilityHint="Opens these notes to read" />
+            <ListRow key={capture.id} icon="reader-outline" title={capture.title} detail={savedLabel(capture.created_at)} onPress={() => router.push(`/notes/${capture.id}` as Href)} accessibilityHint="Opens these notes to read" />
           ))}
         </ListGroup>
       ))}
