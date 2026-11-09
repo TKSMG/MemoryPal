@@ -5,7 +5,7 @@ import { WEEKDAYS, achievements, bestStreak, dailySeries, dueForecast, levelInfo
 import { weekday } from '../../core/dates';
 import { useStore } from '../../state/AppState';
 import { Card, ListGroup, ListRow, ProgressBar, Row, Screen, SectionTitle, Stat, Txt } from '../../ui/components';
-import { useTheme } from '../../ui/theme';
+import { blend, useTheme } from '../../ui/theme';
 
 function Bars({ values, labels, color, summary }: { values: number[]; labels: string[]; color: string; summary: string }) {
   const theme = useTheme();
@@ -74,10 +74,11 @@ export default function Progress() {
   const dayLength = width < 400 ? 1 : 2;
 
   const segments: [string, number, string][] = [
-    ['New', maturity.new, c.muted],
-    ['Learning', maturity.learning, c.orange],
-    ['Young', maturity.young, c.primary],
-    ['Mature', maturity.mature, c.green],
+    // One hue, light to full pine: maturity is an order, not four kinds.
+    ['New', maturity.new, blend(c.primary, c.surface, 0.72)],
+    ['Learning', maturity.learning, blend(c.primary, c.surface, 0.48)],
+    ['Young', maturity.young, blend(c.primary, c.surface, 0.24)],
+    ['Mature', maturity.mature, c.primary],
   ];
 
   return (
@@ -89,7 +90,7 @@ export default function Progress() {
         </Row>
         <Txt variant="h3">Level {level.level}</Txt>
         <ProgressBar value={level.pct} label={`${level.xp} of ${level.need} XP to the next level`} />
-        <Txt variant="small">{`${level.xp} of ${level.need} XP. Each review earns 10.`}</Txt>
+        <Txt variant="small">{`${level.xp} of ${level.need} XP`}</Txt>
       </Card>
 
       <SectionTitle>Last two weeks</SectionTitle>
@@ -111,7 +112,6 @@ export default function Progress() {
           color={c.primary}
           summary={`Cards due over the next 7 days: ${forecast.map(([, count]) => count).join(', ')}.`}
         />
-        <Txt variant="muted">Cards due each day this week. Today includes anything overdue.</Txt>
       </Card>
 
       <SectionTitle>How settled your cards are</SectionTitle>
@@ -127,7 +127,7 @@ export default function Progress() {
             </Row>
           ))}
         </Row>
-        <Txt variant="muted">Mature cards come back three weeks or more apart, a good sign they’re in long-term memory.</Txt>
+        <Txt variant="muted">Mature cards come back three weeks or more apart.</Txt>
       </Card>
 
       <SectionTitle>{`Badges · ${earned} of ${badges.length}`}</SectionTitle>

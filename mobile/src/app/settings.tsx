@@ -188,8 +188,8 @@ export default function Settings() {
 
       {legal.privacy || legal.terms ? (
         <Row style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
-          {legal.privacy ? <Button kind="ghost" compact label="Privacy Policy" onPress={() => Linking.openURL(legal.privacy).catch(() => undefined)} /> : null}
-          {legal.terms ? <Button kind="ghost" compact label="Terms of Use" onPress={() => Linking.openURL(legal.terms).catch(() => undefined)} /> : null}
+          {legal.privacy ? <Button kind="ghost" compact label="Privacy policy" onPress={() => Linking.openURL(legal.privacy).catch(() => undefined)} /> : null}
+          {legal.terms ? <Button kind="ghost" compact label="Terms of use" onPress={() => Linking.openURL(legal.terms).catch(() => undefined)} /> : null}
         </Row>
       ) : null}
       <Txt variant="small" center>{`MemoryPal ${Constants.expoConfig?.version ?? ''} · ${store.cards.length} cards`}</Txt>
