@@ -12,6 +12,7 @@ import { useStore } from '../../state/AppState';
 import { AiTag, Button, Card, EmptyState, Field, RichField, RichText, Screen, SpeakButton, Txt, useStopSpeechOnLeave } from '../../ui/components';
 import { confirm, notify } from '../../ui/feedback';
 import { useTheme } from '../../ui/theme';
+import { savedLabel } from '../../ui/dates';
 
 export default function Notes() {
   const store = useStore();
@@ -82,7 +83,7 @@ export default function Notes() {
   return (
     <Screen narrow>
       <Stack.Screen options={{ title: capture.title }} />
-      <Txt variant="muted">{[deck ? `In ${deck}` : 'Not in a set', capture.created_at].filter(Boolean).join(' · ')}</Txt>
+      <Txt variant="muted">{[deck ? `In ${deck}` : 'Not in a set', savedLabel(capture.created_at)].filter(Boolean).join(' · ')}</Txt>
       {ai ? <AiTag /> : null}
       {capture.image && localFile(capture.image) ? (
         <Image source={{ uri: capture.image }} resizeMode="contain" style={{ width: '100%', height: 220, borderRadius: 12 }} accessibilityLabel="The photo these notes were made from" />
