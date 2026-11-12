@@ -496,3 +496,10 @@ Notes can now be bold, italic or highlighted on the desktop and the phone, and s
 - The iPhone microphone prompt says it is also used to talk with the AI tutor.
 
 This build is packaged as release 0.53.0.
+
+## v103 - The Live Tutor Connects
+
+- The live tutor never started ("The AI service had a problem"): the AI function asked Google for its one-use tutor token with the SDK's field name (`liveConnectConstraints`), which Google's REST API refuses. It now sends `bidiGenerateContentSetup` with a `fieldMask` to v1alpha `auth_tokens`, as Google's SDK does, so the token is still locked to the tutor set-up.
+- Both apps open the Live conversation on the v1alpha endpoint, the one Google's one-use tokens work with.
+
+This build is packaged as release 0.53.1.

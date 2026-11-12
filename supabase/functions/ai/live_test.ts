@@ -61,13 +61,19 @@ Deno.test("the tutor set-up holds the cards fenced, the tools and audio settings
 Deno.test("the token is one use, short-lived and locked to the set-up", () => {
   const setup = liveSetup(parseLiveRequest({ cards: [{ key: "c1", front: "Q", back: "A" }] }), "gemini-3.8-live");
   const now = new Date("2026-10-30T10:00:00Z");
-  const body = liveTokenBody(setup, now) as { uses: number; expireTime: string; newSessionExpireTime: string; liveConnectConstraints: { model: string; config: Record<string, unknown> } };
+  const body = liveTokenBody(setup, now) as { uses: number; expireTime: string; newSessionExpireTime: string; bidiGenerateContentSetup: Record<string, unknown>; fieldMask: string };
   assertEquals(body.uses, 1);
   assertEquals(body.newSessionExpireTime, "2026-10-30T10:01:00.000Z");
   assertEquals(Date.parse(body.expireTime) - now.getTime(), LIVE_TOKEN_MINUTES * 60_000);
-  assertEquals(body.liveConnectConstraints.model, "models/gemini-3.8-live");
-  assertEquals("model" in body.liveConnectConstraints.config, false);
-  assertEquals(Object.keys((liveTokenBody(setup, now, false) as { liveConnectConstraints: object }).liveConnectConstraints), ["model"]);
+  // Google's REST name; "liveConnectConstraints" is only the SDKs' name and the API refuses it.
+  assertEquals("liveConnectConstraints" in body, false);
+  assertEquals(body.bidiGenerateContentSetup, setup);
+  assertEquals(body.fieldMask.split(",").includes("model"), true);
+  assertEquals(body.fieldMask.split(",").includes("systemInstruction.parts"), true);
+  assertEquals(body.fieldMask.split(",").includes("tools"), true);
+  const unlocked = liveTokenBody(setup, now, false) as { bidiGenerateContentSetup: object; fieldMask: string };
+  assertEquals(Object.keys(unlocked.bidiGenerateContentSetup), ["model"]);
+  assertEquals(unlocked.fieldMask, "model");
   assertEquals(tokenFrom({ name: " auth_tokens/abc " }), "auth_tokens/abc");
   assertEquals(code(() => tokenFrom({})), "provider_error");
 });
