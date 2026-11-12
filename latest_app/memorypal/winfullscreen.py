@@ -260,16 +260,13 @@ def free_snapshot(snap):
         pass
 
 
-def wait_for_compose(frames=1):
-    """Block until the compositor has shown what was drawn (DwmFlush)."""
+def wait_for_compose(frames=1, hz=60.0):
+    """Give the compositor time to show what was just drawn: `frames`
+    screen refreshes. (DwmFlush would say exactly when, but it blocks until
+    the screen next changes, which on a still screen can be never.)"""
     if not sys.platform.startswith("win"):
         return False
-    try:
-        import ctypes
+    import time
 
-        for _ in range(frames):
-            if ctypes.windll.dwmapi.DwmFlush() != 0:
-                return False
-        return True
-    except (AttributeError, OSError):
-        return False
+    time.sleep(max(1, frames) / max(24.0, min(float(hz or 60.0), 500.0)))
+    return True
