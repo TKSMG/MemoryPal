@@ -491,3 +491,8 @@ Notes can now be bold, italic or highlighted on the desktop and the phone, and s
 
 - Changing the theme while a notice was still showing (for example twice in a row) left a queued "hide the notice" step pointing at the old window, which raised an error in the background. The notice now checks it still exists before it moves or hides.
 - `tools/smoke/` clicks through both apps without a device: the desktop opens every page in both themes at two sizes and runs the main flows, and the phone's web build goes through first run, a new set, review, quiz, notes, Talk-back, settings and dark mode. Both fail on any error. See docs/TESTING_CHECKLIST.md.
+- Design pass on both apps (#55): Review flows like the phone, a simpler header, one accent colour, outlined quiz answers, and trimmed Puzzles, Everyday Memory and Library pages.
+- The AI function no longer hands out Live tutor tokens locked to the model only (#53); phone packages get patch-level security updates (#56).
+- The iPhone microphone prompt says it is also used to talk with the AI tutor.
+
+This build is packaged as release 0.53.0.
