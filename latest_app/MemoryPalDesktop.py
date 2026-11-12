@@ -1374,7 +1374,7 @@ class MemoryPalApp(tk.Tk):
                 # it before the still picture goes, so the cut is clean.
                 flush_pending_paint(self)
                 self.update_idletasks()
-                winfullscreen.wait_for_compose(2)
+                winfullscreen.wait_for_compose(2, display_refresh_hz(self))
         finally:
             self._fullscreen_switching = False
             self.drop_screen_still_cover(cover)
@@ -1403,14 +1403,13 @@ class MemoryPalApp(tk.Tk):
             cover.wm_geometry(f"{right - left}x{bottom - top}+{left}+{top}")
             cover.deiconify()
             cover.update_idletasks()
-            cover.update()
             # Tk's own client window fills the borderless frame; draw there.
             hwnd = cover.winfo_id()
             if not winfullscreen.paint_snapshot(hwnd, snap):
                 raise tk.TclError("snapshot not drawn")
             cover.attributes("-alpha", 1.0)
             winfullscreen.paint_snapshot(hwnd, snap)
-            winfullscreen.wait_for_compose(1)
+            winfullscreen.wait_for_compose(1, display_refresh_hz(self))
         except tk.TclError:
             winfullscreen.free_snapshot(snap)
             if cover is not None:
