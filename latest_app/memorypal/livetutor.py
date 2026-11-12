@@ -22,7 +22,8 @@ import time
 import urllib.parse
 from dataclasses import dataclass, field
 
-LIVE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained"
+# Ephemeral (one-use) tokens only work on the v1alpha Live endpoint, as in Google's SDK.
+LIVE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained"
 MIC_RATE = 16000
 MODEL_RATE = 24000
 START_LINE = "(The learner pressed Start and is listening. Greet them in one short line and ask the first card.)"
