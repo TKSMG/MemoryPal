@@ -3,7 +3,7 @@
     "name": "MemoryPal",
     "slug": "memorypal",
     "scheme": "memorypal",
-    "version": "0.52.0",
+    "version": "0.53.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -20,7 +20,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.memorypal.mobile",
-      "buildNumber": "57",
+      "buildNumber": "58",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -108,7 +108,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 57,
+      "versionCode": 58,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
@@ -148,13 +148,13 @@
         {
           "photosPermission": "MemoryPal opens your photos when you choose a picture of your notes to make study notes or questions with AI. Only the photo you pick is used.",
           "cameraPermission": "MemoryPal uses the camera when you take a photo of your notes to make study notes or questions with AI. The photo is only sent when you press an AI button.",
-          "microphonePermission": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud."
+          "microphonePermission": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud or talk with the AI tutor."
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud.",
+          "microphonePermission": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud or talk with the AI tutor.",
           "speechRecognitionPermission": "MemoryPal turns your spoken answers into text to check them. Where your iPhone supports it, this happens on the device.",
           "androidSpeechServicePackages": [
             "com.google.android.googlequicksearchbox",
