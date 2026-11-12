@@ -1363,9 +1363,77 @@ class MemoryPalApp(tk.Tk):
             if getattr(self, "current_view", None) == "settings":
                 self._show_view_now("settings")
 
-        self.run_hidden_change(switch)
+        if getattr(self, "_fullscreen_switching", False):
+            return  # F11 held down or pressed again mid-switch
+        self._fullscreen_switching = True
+        cover = self.screen_still_cover()
+        try:
+            self.run_hidden_change(switch)
+            if cover is not None:
+                # Let every part of the window draw and the compositor show
+                # it before the still picture goes, so the cut is clean.
+                flush_pending_paint(self)
+                self.update_idletasks()
+                winfullscreen.wait_for_compose(2)
+        finally:
+            self._fullscreen_switching = False
+            self.drop_screen_still_cover(cover)
         if failed:
             self.dialog_alert("Full screen isn't available", failed[0], "error")
+
+    def screen_still_cover(self):
+        """Windows: a borderless topmost window over the monitor showing a
+        still picture of the screen as it is now (see winfullscreen.snapshot).
+        The window switches underneath it. None where it can't be made."""
+        if not IS_WINDOWS or not self.winfo_viewable():
+            return None
+        rect = winfullscreen.monitor_rect(self.window_handle(self))
+        snap = winfullscreen.snapshot(rect)
+        if snap is None:
+            return None
+        cover = None
+        try:
+            left, top, right, bottom = rect
+            # No background of its own, so Tk never paints over the picture.
+            cover = tk.Toplevel(self, background="", borderwidth=0, highlightthickness=0)
+            cover.withdraw()
+            cover.wm_overrideredirect(True)
+            cover.attributes("-alpha", 0.0)
+            cover.attributes("-topmost", True)
+            cover.wm_geometry(f"{right - left}x{bottom - top}+{left}+{top}")
+            cover.deiconify()
+            cover.update_idletasks()
+            cover.update()
+            # Tk's own client window fills the borderless frame; draw there.
+            hwnd = cover.winfo_id()
+            if not winfullscreen.paint_snapshot(hwnd, snap):
+                raise tk.TclError("snapshot not drawn")
+            cover.attributes("-alpha", 1.0)
+            winfullscreen.paint_snapshot(hwnd, snap)
+            winfullscreen.wait_for_compose(1)
+        except tk.TclError:
+            winfullscreen.free_snapshot(snap)
+            if cover is not None:
+                try:
+                    cover.destroy()
+                except tk.TclError:
+                    pass
+            return None
+        cover._memorypal_snapshot = snap
+        return cover
+
+    def drop_screen_still_cover(self, cover):
+        if cover is None:
+            return
+        try:
+            cover.destroy()
+        except tk.TclError:
+            pass
+        winfullscreen.free_snapshot(getattr(cover, "_memorypal_snapshot", None))
+        try:
+            self.focus_force()
+        except tk.TclError:
+            pass
 
     def native_fullscreen(self, target):
         """Windows: switch by changing the window's style (see winfullscreen),
