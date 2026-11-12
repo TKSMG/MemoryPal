@@ -177,7 +177,10 @@ def _gdi():
     import ctypes
     from ctypes import wintypes
 
-    user32, gdi32 = ctypes.windll.user32, ctypes.windll.gdi32
+    # Own copies of the DLLs: setting argtypes/restype on ctypes.windll's
+    # shared ones would change how the rest of the app calls these functions.
+    user32, gdi32 = ctypes.WinDLL("user32"), ctypes.WinDLL("gdi32")
+    gdi32.GdiFlush.restype = ctypes.c_int
     user32.GetDC.argtypes = (wintypes.HWND,)
     user32.GetDC.restype = ctypes.c_void_p
     user32.ReleaseDC.argtypes = (wintypes.HWND, ctypes.c_void_p)
