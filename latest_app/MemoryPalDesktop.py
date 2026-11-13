@@ -88,6 +88,7 @@ APP_ROOT = Path(__file__).resolve().parent
 # Mac people press Command where Windows people press Control, and the Mac
 # writes shortcuts as symbols (⌘K) rather than words (Ctrl+K).
 IS_MAC = sys.platform == "darwin"
+IS_WINDOWS = sys.platform.startswith("win")
 MOD = "Command" if IS_MAC else "Control"
 
 
@@ -1362,9 +1363,76 @@ class MemoryPalApp(tk.Tk):
             if getattr(self, "current_view", None) == "settings":
                 self._show_view_now("settings")
 
-        self.run_hidden_change(switch)
+        if getattr(self, "_fullscreen_switching", False):
+            return  # F11 held down or pressed again mid-switch
+        self._fullscreen_switching = True
+        cover = self.screen_still_cover()
+        try:
+            self.run_hidden_change(switch)
+            if cover is not None:
+                # Let every part of the window draw and the compositor show
+                # it before the still picture goes, so the cut is clean.
+                flush_pending_paint(self)
+                self.update_idletasks()
+                winfullscreen.wait_for_compose(2, display_refresh_hz(self))
+        finally:
+            self._fullscreen_switching = False
+            self.drop_screen_still_cover(cover)
         if failed:
             self.dialog_alert("Full screen isn't available", failed[0], "error")
+
+    def screen_still_cover(self):
+        """Windows: a borderless topmost window over the monitor showing a
+        still picture of the screen as it is now (see winfullscreen.snapshot).
+        The window switches underneath it. None where it can't be made."""
+        if not IS_WINDOWS or not self.winfo_viewable():
+            return None
+        rect = winfullscreen.monitor_rect(self.window_handle(self))
+        snap = winfullscreen.snapshot(rect)
+        if snap is None:
+            return None
+        cover = None
+        try:
+            left, top, right, bottom = rect
+            # No background of its own, so Tk never paints over the picture.
+            cover = tk.Toplevel(self, background="", borderwidth=0, highlightthickness=0)
+            cover.withdraw()
+            cover.wm_overrideredirect(True)
+            cover.attributes("-alpha", 0.0)
+            cover.attributes("-topmost", True)
+            cover.wm_geometry(f"{right - left}x{bottom - top}+{left}+{top}")
+            cover.deiconify()
+            cover.update_idletasks()
+            # Tk's own client window fills the borderless frame; draw there.
+            hwnd = cover.winfo_id()
+            if not winfullscreen.paint_snapshot(hwnd, snap):
+                raise tk.TclError("snapshot not drawn")
+            cover.attributes("-alpha", 1.0)
+            winfullscreen.paint_snapshot(hwnd, snap)
+            winfullscreen.wait_for_compose(1, display_refresh_hz(self))
+        except tk.TclError:
+            winfullscreen.free_snapshot(snap)
+            if cover is not None:
+                try:
+                    cover.destroy()
+                except tk.TclError:
+                    pass
+            return None
+        cover._memorypal_snapshot = snap
+        return cover
+
+    def drop_screen_still_cover(self, cover):
+        if cover is None:
+            return
+        try:
+            cover.destroy()
+        except tk.TclError:
+            pass
+        winfullscreen.free_snapshot(getattr(cover, "_memorypal_snapshot", None))
+        try:
+            self.focus_force()
+        except tk.TclError:
+            pass
 
     def native_fullscreen(self, target):
         """Windows: switch by changing the window's style (see winfullscreen),
@@ -4596,6 +4664,15 @@ class MemoryPalApp(tk.Tk):
         surface colour with a hairline edge (not a black slab in a corner),
         rising a few pixels into place and leaving after a moment."""
         self.toast_var.set(text)
+        for name in ("_toast_after", "_toast_rise"):
+            pending = getattr(self, name, None)
+            if pending is not None:
+                try:
+                    self.after_cancel(pending)
+                except tk.TclError:
+                    pass
+        if self.toast_popup(text):
+            return
         room = max(self.px(200), self.winfo_width() - self.px(96))
         wrap = min(self.px(560), room)
         pad_x, pad_y = self.px(18), self.px(11)
@@ -4630,15 +4707,68 @@ class MemoryPalApp(tk.Tk):
             if offset:
                 self._toast_rise = self.after(16, lambda: place(step + 1, steps))
 
-        for name in ("_toast_after", "_toast_rise"):
-            pending = getattr(self, name, None)
-            if pending is not None:
-                try:
-                    self.after_cancel(pending)
-                except tk.TclError:
-                    pass
         place()
         self._toast_after = self.after(self.pace(2800), lambda: canvas.winfo_exists() and canvas.place_forget())
+
+    def hide_toast_popup(self):
+        popup = getattr(self, "_toast_popup", None)
+        self._toast_popup = None
+        if popup is not None:
+            try:
+                popup.destroy()
+            except tk.TclError:
+                pass
+
+    def toast_popup(self, text):
+        """Windows 11: the toast as a small borderless window that the system
+        rounds, edges and shadows like its own tooltips and menus. A pill
+        drawn on a canvas inside the page had to guess the colour behind its
+        corners and showed a mismatched ring wherever it overlapped a card
+        or the scrollbar. Returns False where the system can't round it, so
+        the drawn pill is used instead."""
+        self.hide_toast_popup()
+        if not IS_WINDOWS or not self.winfo_viewable():
+            return False
+        try:
+            popup = tk.Toplevel(self)
+            popup.withdraw()
+            popup.wm_overrideredirect(True)
+            popup.transient(self)
+            fill = COLORS["surface_soft"] if self.theme == "dark" else COLORS["surface"]
+            popup.configure(bg=fill)
+            room = max(self.px(200), self.winfo_width() - self.px(96))
+            tk.Label(popup, text=text, bg=fill, fg=COLORS["ink"], font=self.font("Segoe UI", 11),
+                     wraplength=min(self.px(560), room), justify="left",
+                     padx=self.px(18), pady=self.px(11)).pack()
+            popup.update_idletasks()
+            width, height = popup.winfo_reqwidth(), popup.winfo_reqheight()
+            x = self.winfo_rootx() + (self.winfo_width() - width) // 2
+            bottom = self.winfo_rooty() + self.winfo_height() - self.px(28)
+            popup.wm_geometry(f"+{x}+{bottom - height}")
+            popup.attributes("-alpha", 0.0)
+            popup.deiconify()
+            if not windowtheme.round_popup(self.window_handle(popup), COLORS["line"]):
+                popup.destroy()
+                return False
+            popup.update_idletasks()
+            popup.attributes("-alpha", 1.0)
+        except tk.TclError:
+            return False
+        self._toast_popup = popup
+        self.toast.place_forget()
+        rise = 0 if self.accessibility.get("reduce_motion") else self.px(8)
+
+        def move(step=0, steps=6):
+            if self._toast_popup is not popup or not popup.winfo_exists():
+                return
+            offset = round(rise * (1 - step / steps) ** 2)
+            popup.wm_geometry(f"+{x}+{bottom - height + offset}")
+            if offset:
+                self._toast_rise = self.after(16, lambda: move(step + 1, steps))
+
+        move()
+        self._toast_after = self.after(self.pace(2800), lambda: self._toast_popup is popup and self.hide_toast_popup())
+        return True
 
     def dialog_window(self, title, body="", parent=None, width=480, resizable=False):
         # MemoryPal uses its own small modal surface so prompts, warnings, and
@@ -5014,7 +5144,7 @@ class MemoryPalApp(tk.Tk):
         top.wait_window()
         return result["value"]
 
-    def card(self, parent, style="Card.TFrame", padding=24):
+    def card(self, parent, style="Card.TFrame", padding=22):
         """A rounded panel: a classic Tk frame with four corner pictures.
 
         Not a ttk.Frame with a rounded image element: ttk repaints its whole
@@ -5385,7 +5515,8 @@ class MemoryPalApp(tk.Tk):
         made = []
         for label, command, button_style in buttons:
             button = self.row_button(row, label, command, button_style)
-            button.configure(width=-12)  # a minimum, so short labels aren't stubs
+            # No minimum width: a padded short label ("Reset") sat in a
+            # wide box next to snug ones, so the row's gaps looked uneven.
             made.append(button)
         gap = self.px(10)
         placed = {"layout": None}
@@ -6011,15 +6142,23 @@ class MemoryPalApp(tk.Tk):
         # that block by justify; make the text box area exactly the block.
         slack = 2  # spare room for rounding in centred and right-aligned text
         shift = {"center": slack // 2, "right": slack}.get(look["justify"], 0)
-        box.tag_configure("all", lmargin1=left - shift, lmargin2=left - shift, rmargin=max(0, width - left - max(block_w, 1) - slack + shift))
         top = look["pady"]
         if anchor in ("w", "center", "e"):
             top = max(0, (height - block_h) // 2)
         elif anchor in ("sw", "s", "se"):
             top = max(0, height - look["pady"] - block_h)
+        # Cover only the block of words, not the whole label. A text box
+        # paints its selection colour over its margins and over any space
+        # above the first line too, so a label-sized box with margins put the
+        # highlight above and beside the words (worst on short labels, which
+        # are centred in a taller row) and it jumped as the drag crossed them.
+        box.tag_configure("all", lmargin1=0, lmargin2=0, rmargin=0)
         box.configure(pady=0)
-        box.tag_configure("first", spacing1=top)
-        box.tag_add("first", "1.0", "1.0 lineend")
+        box.place_configure(x=left - shift - border, y=top - border, relwidth=0, relheight=0,
+                            width=max(block_w, 1) + slack, height=max(block_h, 1) + 1)
+        box.update_idletasks()
+        box.yview_moveto(0)
+        box.xview_moveto(0)
         box.bind("<ButtonPress-1>", lambda event: self._overlay_press(box, event))
         box.bind("<B1-Motion>", lambda event: self._overlay_drag(box, event))
         box.bind("<Double-Button-1>", lambda event: self._overlay_select_unit(box, event, "word"))
@@ -6105,7 +6244,7 @@ class MemoryPalApp(tk.Tk):
 
     def _overlay_press(self, box, event):
         box.tag_remove("sel", "1.0", "end")
-        box._anchor = box.index(f"@{event.x},{event.y}")
+        box._anchor = box.index(self._overlay_point(box, event))
         box.mark_set("insert", box._anchor)
         try:
             box.focus_set()
@@ -6117,14 +6256,20 @@ class MemoryPalApp(tk.Tk):
         anchor = getattr(box, "_anchor", None)
         if anchor is None:
             return "break"
-        here = box.index(f"@{event.x},{event.y}")
+        here = box.index(self._overlay_point(box, event))
         box.tag_remove("sel", "1.0", "end")
         first, last = (anchor, here) if box.compare(anchor, "<=", here) else (here, anchor)
         box.tag_add("sel", first, last)
         return "break"
 
+    @staticmethod
+    def _overlay_point(box, event):
+        """The text index under the pointer. The event may come from the label
+        under the box (the press started there), so go by screen position."""
+        return f"@{event.x_root - box.winfo_rootx()},{event.y_root - box.winfo_rooty()}"
+
     def _overlay_select_unit(self, box, event, unit):
-        here = f"@{event.x},{event.y}"
+        here = self._overlay_point(box, event)
         box.tag_remove("sel", "1.0", "end")
         if unit == "word":
             box.tag_add("sel", f"{here} wordstart", f"{here} wordend")
@@ -6506,7 +6651,7 @@ class MemoryPalApp(tk.Tk):
         text = tk.Label(card, text=body, bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(410))
         self.fit_wrap(text, pady=(self.px(6), self.px(14)))
         buttons = [("Back", lambda: self.move_tour(-1), "TButton")] if index else []
-        buttons += [("Finish" if last else "Next", lambda: self.move_tour(1), "Primary.TButton"), ("End Tour", self.end_tour, "TButton")]
+        buttons += [("Finish" if last else "Next", lambda: self.move_tour(1), "Primary.TButton"), ("End tour", self.end_tour, "TButton")]
         row = tk.Frame(card, bg=COLORS["alt"])
         row.pack(fill="x")
         for column, (label, command, style_name) in enumerate(buttons):
@@ -6695,7 +6840,7 @@ class MemoryPalApp(tk.Tk):
 
         # The header already names the page, so no hero title here: the page
         # opens on today's date and the one thing to do.
-        today_card = self.card(page.inner, "Card.TFrame", 26)
+        today_card = self.card(page.inner, "Card.TFrame", 22)
         today_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
         tk.Label(today_card, text=date.today().strftime("%A, %B %d").replace(" 0", " "), bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 20)).pack(anchor="w")
         due_now = len(self.store.due_cards())
@@ -7497,7 +7642,7 @@ class MemoryPalApp(tk.Tk):
         self.add_tooltip(make_ai, "Make study notes or practice questions from your notes, a PDF or a picture.")
         if self.deck_filter:
             banner = self.card(page.inner, "AltCard.TFrame", 16)
-            banner.pack(fill="x", padx=(0, 8), pady=(0, 12))
+            banner.pack(fill="x", padx=(0, 8), pady=(0, 16))
             ttk.Label(banner, text=f"Showing only {self.deck_filter}", style="AltH2.TLabel").pack(side="left")
             ttk.Button(banner, text="Clear filter", command=self.clear_deck_filter).pack(side="right")
         if not summary:
@@ -7645,7 +7790,7 @@ class MemoryPalApp(tk.Tk):
         self.render_resource_strip(page.inner, "Available notes and cues")
 
         form = self.card(page.inner)
-        form.pack(fill="x", padx=(0, 8), pady=(0, 14))
+        form.pack(fill="x", padx=(0, 8), pady=(0, 16))
         grid = ttk.Frame(form, style="Card.TFrame")
         grid.pack(fill="x")
 
@@ -8035,7 +8180,7 @@ class MemoryPalApp(tk.Tk):
         started = {"at": time_module.time()}
         top, content, actions = self.dialog_window(
             "Record a video",
-            "1. Press Open Camera. In the Camera app, switch to Video and record.\n2. Stop recording, then come back here and press Use my recording.",
+            "1. Press Open camera. In the Camera app, switch to Video and record.\n2. Stop recording, then come back here and press Use my recording.",
         )
         status = tk.Label(content, text="", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w", justify="left", wraplength=self.px(420))
         status.pack(fill="x")
@@ -8064,7 +8209,7 @@ class MemoryPalApp(tk.Tk):
             result["path"] = target
             top.destroy()
 
-        ttk.Button(actions, text="Open Camera", command=open_camera).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, self.px(8)))
+        ttk.Button(actions, text="Open camera", command=open_camera).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, self.px(8)))
         ttk.Button(actions, text="Cancel", command=top.destroy).grid(row=1, column=0, sticky="ew", padx=(0, self.px(8)))
         self.solid_button(actions, "Use my recording", use_recording, COLORS["primary"]).grid(row=1, column=1, sticky="ew")
         actions.columnconfigure(0, weight=1)
@@ -8761,7 +8906,7 @@ class MemoryPalApp(tk.Tk):
         if not items:
             return
         panel = self.card(parent, "AltCard.TFrame", 14)
-        panel.pack(fill="x", padx=(0, 8), pady=(0, 12))
+        panel.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(panel, text=title, style="AltH2.TLabel").pack(anchor="w")
         ttk.Label(panel, text="Attached notes, images, audio, and video stay reachable from study pages.", style="AltMuted.TLabel", wraplength=980).pack(anchor="w", pady=(4, 8))
         for item in items:
@@ -8778,8 +8923,10 @@ class MemoryPalApp(tk.Tk):
                 path = getattr(item, kind, "")
                 if not path:
                     continue
-                button = ttk.Button(row, text=label, command=lambda value=path: self.open_media(value))
-                button.pack(side="left", padx=(self.px(6), 0))
+                # Text buttons, like Edit/Remove in lists: filled buttons on
+                # the tinted strip were lifted into dark boxes, one per file.
+                button = ttk.Button(row, text=label, style="Link.TButton", cursor="hand2", width=0, command=lambda value=path: self.open_media(value))
+                button.pack(side="left", padx=(self.px(2), 0))
                 self.add_tooltip(button, f"{action} the attached {label.lower()} cue.")
 
     # Ways through the cards, as on the phone (mobile/src/features/queue.ts):
@@ -9849,8 +9996,12 @@ class MemoryPalApp(tk.Tk):
 
         def control(text, icon, command, style="TButton"):
             image = self.line_icon(icon, icon_size, self.on_color(COLORS["primary"]) if style == "Primary.TButton" else COLORS["ink"])
-            button = ttk.Button(controls, text=f" {text}", image=image, compound="left", style=style, cursor="hand2", command=command)
-            button._memorypal_icon = image
+            # Its own greyed icon for the disabled state: without one, Tk
+            # covers the icon with a dotted stipple that reads as a box.
+            dim = self.line_icon(icon, icon_size, COLORS["muted"])
+            spec = (image, "disabled", dim) if image is not None and dim is not None else image
+            button = ttk.Button(controls, text=f" {text}", image=spec or "", compound="left", style=style, cursor="hand2", command=command)
+            button._memorypal_icon = (image, dim)
             return button
 
         mute = control("Mute", "mic", lambda: state["tutor"] and state["tutor"].set_muted(not state["tutor"].muted))
@@ -10056,8 +10207,12 @@ class MemoryPalApp(tk.Tk):
 
         def control(text, icon, command, style="TButton"):
             image = self.line_icon(icon, icon_size, self.on_color(COLORS["primary"]) if style == "Primary.TButton" else COLORS["ink"])
-            button = ttk.Button(controls, text=f" {text}", image=image, compound="left", style=style, cursor="hand2", command=command)
-            button._memorypal_icon = image
+            # Its own greyed icon for the disabled state: without one, Tk
+            # covers the icon with a dotted stipple that reads as a box.
+            dim = self.line_icon(icon, icon_size, COLORS["muted"])
+            spec = (image, "disabled", dim) if image is not None and dim is not None else image
+            button = ttk.Button(controls, text=f" {text}", image=spec or "", compound="left", style=style, cursor="hand2", command=command)
+            button._memorypal_icon = (image, dim)
             return button
 
         def say(text):
@@ -10376,7 +10531,7 @@ class MemoryPalApp(tk.Tk):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         panel = self.card(page.inner)
-        panel.pack(fill="x", padx=(0, 8), pady=(0, 12))
+        panel.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(panel, text="Association builder", style="H2.TLabel").pack(anchor="w")
         ttk.Label(panel, text="Ideas, separated by commas or new lines", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(6, 12))
         self.render_resource_strip(page.inner, "Reference cues")
@@ -10389,7 +10544,7 @@ class MemoryPalApp(tk.Tk):
         out = ttk.Label(output, text=draft.get("output", ""), style="AltCard.TLabel", wraplength=1080)
         out.pack(anchor="w")
         if draft.get("output"):
-            output.pack(fill="x", padx=(0, 8), pady=(0, 12))
+            output.pack(fill="x", padx=(0, 8), pady=(0, 16))
 
         last = {"kind": ""}
 
@@ -10398,7 +10553,7 @@ class MemoryPalApp(tk.Tk):
                 last["kind"] = kind
                 out.configure(text=generate(techniques.parse_ideas(ideas.get("1.0", "end"))))
                 if not output.winfo_ismapped():
-                    output.pack(fill="x", padx=(0, 8), pady=(0, 12), before=strategy_panel)
+                    output.pack(fill="x", padx=(0, 8), pady=(0, 16), before=strategy_panel)
             return run
 
         acronym = technique(techniques.acronym, "acronym")
@@ -10448,7 +10603,7 @@ class MemoryPalApp(tk.Tk):
             self.add_tooltip(save, "Add each card's line from the technique to that card's memory hook.")
 
         strategy_panel = self.card(page.inner, "Card.TFrame", 22)
-        strategy_panel.pack(fill="x", padx=(0, 8), pady=(0, 12))
+        strategy_panel.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(strategy_panel, text="Technique planner", style="H2.TLabel").pack(anchor="w")
         ttk.Frame(strategy_panel, style="Card.TFrame", height=self.px(10)).pack(fill="x")
         strategy_mode = tk.StringVar(value=draft.get("strategy_mode", "Retrieval practice"))
@@ -11601,7 +11756,7 @@ class MemoryPalApp(tk.Tk):
                 ("Create account", lambda: self.open_account_dialog("create"), "Primary.TButton"),
                 ("Sign in", lambda: self.open_account_dialog("sign_in"), "TButton"),
             ])
-        legal = [(label, url) for label, url in (("Privacy Policy", cloud_config.PRIVACY_URL), ("Terms of Use", cloud_config.TERMS_URL)) if url]
+        legal = [(label, url) for label, url in (("Privacy policy", cloud_config.PRIVACY_URL), ("Terms of use", cloud_config.TERMS_URL)) if url]
         if legal:
             links = tk.Frame(card, bg=COLORS["surface"])
             links.pack(anchor="w", pady=(self.px(12), 0))
@@ -12081,7 +12236,7 @@ class MemoryPalApp(tk.Tk):
         grid.columnconfigure(1, weight=1, uniform="settings")
 
         appearance = self.card(grid, "Card.TFrame", 22)
-        appearance.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
+        appearance.grid(row=0, column=0, sticky="nsew", padx=(0, 16), pady=(0, 16))
         ttk.Label(appearance, text="Appearance", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(appearance, text=f"Current theme: {self.theme.title()}. Navigation stays expanded for a steadier layout.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(
@@ -12092,26 +12247,26 @@ class MemoryPalApp(tk.Tk):
         )
 
         window_card = self.card(grid, "Card.TFrame", 22)
-        window_card.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
+        window_card.grid(row=0, column=1, sticky="nsew", pady=(0, 16))
         ttk.Label(window_card, text="Window", style="H2.TLabel").pack(anchor="w")
         keys = "Control-Command-F" if IS_MAC else "F11"
         self.fit_wrap(ttk.Label(window_card, text=f"Full screen hides everything but MemoryPal. {keys} turns it on or off, and Esc leaves it.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(window_card, [("Leave full screen" if self.is_fullscreen else "Full screen", self.toggle_true_fullscreen, "TButton")], "Card.TFrame")
 
         profile_card = self.card(grid, "Card.TFrame", 22)
-        profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 12))
+        profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 16), pady=(0, 16))
         ttk.Label(profile_card, text="Profiles", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(profile_card, text=f"Active profile: {active_profile_name()}  \u00b7  {profile_count} profile{'s' if profile_count != 1 else ''} on this PC.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(profile_card, [("Manage profiles", self.open_profile_manager, "TButton"), ("Edit daily goal", self.edit_daily_goal, "TButton")])
 
         study_card = self.card(grid, "Card.TFrame", 22)
-        study_card.grid(row=1, column=1, sticky="nsew")
+        study_card.grid(row=1, column=1, sticky="nsew", pady=(0, 16))
         ttk.Label(study_card, text="Study defaults", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(study_card, text=f"Daily goal: {self.store.daily_goal} cards. Due now: {due}. Cards stay on this computer unless you sync them with an account or export them.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(study_card, [("Start due review", lambda: self.show_view("review"), "TButton")], "Card.TFrame")
 
         accessibility_card = self.card(grid, "Card.TFrame", 22)
-        accessibility_card.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(0, 12))
+        accessibility_card.grid(row=2, column=0, columnspan=2, sticky="nsew")
         ttk.Label(accessibility_card, text="Accessibility", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(
             accessibility_card,
@@ -12166,15 +12321,15 @@ class MemoryPalApp(tk.Tk):
 
         storage = self.card(page.inner, "Card.TFrame", 22)
         storage.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        ttk.Label(storage, text="Storage & Backups", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(storage, text="Storage and backups", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(storage, text="MemoryPal stores profiles in the platform app-data folder and keeps attachments beside the active profile.", style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
         for label, value in [
             ("App data", storage_path),
             ("Active profile", profile_path),
             ("Attachments", attachment_path),
         ]:
-            row = tk.Frame(storage, bg=COLORS["surface"], padx=self.px(14), pady=self.px(10))
-            row.pack(fill="x", pady=(0, 8))
+            row = tk.Frame(storage, bg=COLORS["surface"])
+            row.pack(fill="x", pady=(0, self.px(10)))
             tk.Label(row, text=label, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), width=14, anchor="w").pack(side="left", padx=(0, self.px(12)))
             value_label = tk.Label(row, text=value, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 10), wraplength=self.px(850), justify="left", anchor="w")
             value_label.pack(side="left", fill="x", expand=True)
@@ -12182,9 +12337,9 @@ class MemoryPalApp(tk.Tk):
         self.button_row(
             storage,
             [
-                ("Open Data Folder", self.open_data_folder, "TButton"),
-                ("Export Backup", self.export_data, "TButton"),
-                ("Import Backup", self.import_data, "TButton"),
+                ("Open data folder", self.open_data_folder, "TButton"),
+                ("Export backup", self.export_data, "TButton"),
+                ("Import backup", self.import_data, "TButton"),
             ] + ([] if self.accessibility.get("caregiver_mode") else [("Reset", self.reset_data, "Danger.TButton")]),
         )
 
@@ -12215,6 +12370,9 @@ class MemoryPalApp(tk.Tk):
         self.button_row(tools, [("Add cards", lambda: self.show_view("capture"), "Primary.TButton")], "Card.TFrame")
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
+        # The list sits left of the scrollbar; end the search card at the
+        # same edge so the two line up on the right.
+        tools.pack_configure(padx=(0, 8 + page.scrollbar.winfo_reqwidth()))
 
         def matches(text):
             query = normalize_space(search_var.get()).lower()
