@@ -296,7 +296,7 @@ WS_EX_TRANSPARENT = 0x00000020
 WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_LAYERED = 0x00080000
 WS_EX_NOACTIVATE = 0x08000000
-ULW_OPAQUE = 0x00000004
+ULW_ALPHA = 0x00000002
 SW_SHOWNOACTIVATE = 4
 HWND_TOPMOST = -1
 SWP_SHOWWINDOW = 0x0040
@@ -353,10 +353,17 @@ def show_cover(rect, snap, owner=None):
             setting = ctypes.c_uint(value)
             dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(setting), ctypes.sizeof(setting))
         position, size, source = wintypes.POINT(left, top), wintypes.SIZE(width, height), wintypes.POINT(0, 0)
+
+        class BLENDFUNCTION(ctypes.Structure):
+            _fields_ = [("BlendOp", ctypes.c_ubyte), ("BlendFlags", ctypes.c_ubyte),
+                        ("SourceConstantAlpha", ctypes.c_ubyte), ("AlphaFormat", ctypes.c_ubyte)]
+
+        # Fully solid, ignoring the picture's own (unset) alpha channel.
+        blend = BLENDFUNCTION(0, 0, 255, 0)
         screen = user32.GetDC(None)
         try:
             done = user32.UpdateLayeredWindow(hwnd, screen, ctypes.byref(position), ctypes.byref(size), snap["dc"],
-                                              ctypes.byref(source), 0, None, ULW_OPAQUE)
+                                              ctypes.byref(source), 0, ctypes.byref(blend), ULW_ALPHA)
         finally:
             user32.ReleaseDC(None, screen)
         if not done:

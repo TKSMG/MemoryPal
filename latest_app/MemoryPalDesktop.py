@@ -3976,16 +3976,15 @@ class MemoryPalApp(tk.Tk):
     # drawn, whenever the drag pauses, every LIVE_REFLOW_MAX_MS while it
     # keeps moving, and at the end.
 
-    LIVE_REFLOW_PAUSE_MS = 45
-    LIVE_REFLOW_MAX_MS = 220
+    LIVE_REFLOW_PAUSE_MS = 30
+    LIVE_REFLOW_MAX_MS = 90
 
     def _begin_live_resize(self):
         self._live_resizing = True
-        self._live_reflow_at = time.perf_counter()
-        try:
-            self._live_laid_out = (self.app_body.winfo_width(), self.app_body.winfo_height())
-        except (AttributeError, tk.TclError):
-            self._live_laid_out = None
+        # The first step reflows at once: a double-click on the title bar
+        # maximises while the button is still down, and must not wait.
+        self._live_reflow_at = 0.0
+        self._live_laid_out = None
 
     def _schedule_live_reflow(self):
         pending = getattr(self, "_live_reflow_after", None)
@@ -4007,13 +4006,10 @@ class MemoryPalApp(tk.Tk):
             # Still held: look again shortly, so letting go without moving
             # further ends the drag too.
             self._live_reflow_after = self.after(120, self._live_reflow)
-        try:
-            width, height = self.app_body.winfo_width(), self.app_body.winfo_height()
-            if (width, height) == getattr(self, "_live_laid_out", None):
-                return  # a move, or already laid out at this size
-            self._live_laid_out = (width, height)
-        except (AttributeError, tk.TclError):
-            pass
+        size = getattr(self, "_last_window_size", None)
+        if size == getattr(self, "_live_laid_out", None):
+            return  # already laid out at this size
+        self._live_laid_out = size
         self._relayout_after_resize()
 
     def _relayout_after_resize(self):
@@ -4028,7 +4024,14 @@ class MemoryPalApp(tk.Tk):
         one reflow.
         """
         self._resize_after = None
-        self.run_hidden_change(self.layout_app_body)
+
+        def reflow():
+            # The shell takes the window's new size in an idle pass, which
+            # may not have run yet when a timer brings us here.
+            self.update_idletasks()
+            self.layout_app_body()
+
+        self.run_hidden_change(reflow)
 
     def nav_hint(self, key):
         return {
