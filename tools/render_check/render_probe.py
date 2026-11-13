@@ -607,12 +607,6 @@ def control_drag():
     print(f"CONTROL_DRAG notepad sizes={count_sizes(hwnd, 1.6)}")
     user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
     time.sleep(0.3)
-    place_for_drag()
-    rect = window_rect()
-    app.attributes("-topmost", True)
-    app.update()
-    drag(rect.right - 4, rect.bottom - 4, 160, 90)
-    print(f"CONTROL_DRAG app sizes={count_sizes(app.window_handle(app), 1.6, app.update)}")
 
 
 SCENARIOS = [
