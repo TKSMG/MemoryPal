@@ -273,3 +273,109 @@ def wait_for_compose(frames=1, hz=60.0):
 
     time.sleep(max(1, frames) / max(24.0, min(float(hz or 60.0), 500.0)))
     return True
+
+
+# The still picture as its own plain Windows window.
+#
+# The first version showed the picture in a Tk window made see-through with
+# -alpha and then made solid. Tk's see-through windows are "layered" windows
+# whose picture Windows keeps in a buffer it fills in its own time, and a
+# layered window shown or sized across a whole monitor can flash the default
+# blue for a frame (the same cause as the blue frame on first maximise, fixed
+# for the main window in windowtheme.drop_layered). Showing it also took the
+# focus away from the app and gave it back, which redraws the title bar.
+#
+# This window gets its picture and its place in one call
+# (UpdateLayeredWindow), so the first frame it is ever shown in already has
+# the whole picture. It never takes the focus, lets the mouse through, has no
+# taskbar button, and Windows' open/close animations are turned off for it.
+
+WS_POPUP = 0x80000000
+WS_EX_TOPMOST = 0x00000008
+WS_EX_TRANSPARENT = 0x00000020
+WS_EX_TOOLWINDOW = 0x00000080
+WS_EX_LAYERED = 0x00080000
+WS_EX_NOACTIVATE = 0x08000000
+ULW_OPAQUE = 0x00000004
+SW_SHOWNOACTIVATE = 4
+HWND_TOPMOST = -1
+SWP_SHOWWINDOW = 0x0040
+DWMWA_TRANSITIONS_FORCEDISABLED = 3
+DWMWA_WINDOW_CORNER_PREFERENCE = 33
+DWMWA_BORDER_COLOR = 34
+DWMWCP_DONOTROUND = 1
+DWMWA_COLOR_NONE = 0xFFFFFFFE
+
+
+def _cover_api():
+    import ctypes
+    from ctypes import wintypes
+
+    user32, gdi32 = _gdi()
+    dwmapi = ctypes.WinDLL("dwmapi")
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.GetModuleHandleW.argtypes = (wintypes.LPCWSTR,)
+    kernel32.GetModuleHandleW.restype = ctypes.c_void_p
+    user32.CreateWindowExW.argtypes = (wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+                                       ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                       wintypes.HWND, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+    user32.CreateWindowExW.restype = wintypes.HWND
+    user32.UpdateLayeredWindow.argtypes = (wintypes.HWND, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+                                           ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.c_void_p,
+                                           wintypes.DWORD)
+    user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+    user32.SetWindowPos.argtypes = (wintypes.HWND, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_uint)
+    user32.DestroyWindow.argtypes = (wintypes.HWND,)
+    dwmapi.DwmSetWindowAttribute.argtypes = (wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD)
+    return ctypes, wintypes, user32, gdi32, dwmapi, kernel32
+
+
+def show_cover(rect, snap, owner=None):
+    """Show `snap` (from snapshot(rect)) over rect in a window of its own,
+    on top of everything. Returns the window handle for hide_cover, or None."""
+    if not rect or not snap or not sys.platform.startswith("win"):
+        return None
+    try:
+        ctypes, wintypes, user32, gdi32, dwmapi, kernel32 = _cover_api()
+        left, top, right, bottom = rect
+        width, height = right - left, bottom - top
+        exstyle = WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT
+        # STATIC is a class every process has; a layered window that is
+        # filled with UpdateLayeredWindow never asks its class to paint.
+        hwnd = user32.CreateWindowExW(exstyle, "STATIC", None, WS_POPUP, left, top, width, height,
+                                      owner or None, None, kernel32.GetModuleHandleW(None), None)
+        if not hwnd:
+            return None
+        for attribute, value in ((DWMWA_TRANSITIONS_FORCEDISABLED, 1),
+                                 (DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND),
+                                 (DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE)):
+            setting = ctypes.c_uint(value)
+            dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(setting), ctypes.sizeof(setting))
+        position, size, source = wintypes.POINT(left, top), wintypes.SIZE(width, height), wintypes.POINT(0, 0)
+        screen = user32.GetDC(None)
+        try:
+            done = user32.UpdateLayeredWindow(hwnd, screen, ctypes.byref(position), ctypes.byref(size), snap["dc"],
+                                              ctypes.byref(source), 0, None, ULW_OPAQUE)
+        finally:
+            user32.ReleaseDC(None, screen)
+        if not done:
+            user32.DestroyWindow(hwnd)
+            return None
+        user32.SetWindowPos(hwnd, ctypes.c_void_p(HWND_TOPMOST), 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)
+        gdi32.GdiFlush()
+        return hwnd
+    except (AttributeError, OSError, ValueError, KeyError):
+        return None
+
+
+def hide_cover(hwnd):
+    if not hwnd or not sys.platform.startswith("win"):
+        return False
+    try:
+        _ctypes, _wintypes, user32, gdi32, _dwmapi, _kernel32 = _cover_api()
+        gdi32.GdiFlush()
+        return bool(user32.DestroyWindow(hwnd))
+    except (AttributeError, OSError):
+        return False
