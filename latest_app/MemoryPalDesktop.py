@@ -2984,7 +2984,9 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("RailTitle.TLabel", background=COLORS["rail"], foreground=COLORS["white"], font=self.font("Segoe UI Semibold", 20))
         self.style.configure("RailText.TLabel", background=COLORS["rail"], foreground=COLORS["rail_muted"], font=self.font("Segoe UI", 12))
         self.style.configure("TEntry", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], insertcolor=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
-        self.style.map("TEntry", bordercolor=[("focus", COLORS["primary"])], lightcolor=[("focus", COLORS["input"])], darkcolor=[("focus", COLORS["input"])])
+        # user2 = text is highlighted: no blinking cursor (see install_caret_hiding).
+        self.style.map("TEntry", bordercolor=[("focus", COLORS["primary"])], lightcolor=[("focus", COLORS["input"])], darkcolor=[("focus", COLORS["input"])],
+                       insertcolor=[("user2", COLORS["input"])], insertwidth=[("user2", 0)])
         self.style.configure("TCombobox", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
         # Slim overlay-style scrollbars: a quiet thumb on the window colour,
         # no arrow buttons (they drew as small square caps at each end), and
@@ -5992,8 +5994,14 @@ class MemoryPalApp(tk.Tk):
         exactly over it; the drag carries on in that box, so the highlight
         appears where the words are. It goes away on the next click elsewhere.
         Buttons and clickable cards (hand cursor) are left alone.
+
+        Like a web page, a drag that runs out of the label it started in
+        carries on into the labels below (or above): each one it passes is
+        highlighted whole and the one under the pointer up to the pointer.
         """
         self._select_overlay = None
+        self._select_extra = {}
+        self._select_candidates = None
         for widget_class in ("Label", "TLabel"):
             self.bind_class(widget_class, "<ButtonPress-1>", self._label_press, add="+")
             self.bind_class(widget_class, "<B1-Motion>", self._label_drag, add="+")
@@ -6003,6 +6011,38 @@ class MemoryPalApp(tk.Tk):
                 self.bind_class(widget_class, button, self._label_copy_all, add="+")
             self.bind_class(widget_class, "<Enter>", self._label_hover_cursor, add="+")
         self.bind_all("<ButtonPress-1>", self._maybe_clear_selection, add="+")
+        self.install_caret_hiding()
+
+    def install_caret_hiding(self):
+        """Hide the blinking text cursor in typing boxes while text is highlighted.
+
+        Tk keeps the cursor blinking at the moving end of a drag, so it runs
+        along with the highlight. Word, browsers and Mac apps show either a
+        highlight or a cursor, never both; once the highlight is gone (a click
+        or a key) the cursor comes back where it belongs.
+        """
+        self.bind_class("Text", "<<Selection>>", lambda event: self.sync_caret(event.widget), add="+")
+        later = lambda event: self.after_idle(lambda: self.sync_caret(event.widget))
+        for sequence in ("<ButtonPress-1>", "<B1-Motion>", "<ButtonRelease-1>", "<Double-Button-1>", "<Triple-Button-1>",
+                         "<KeyPress>", "<KeyRelease>", "<FocusIn>", "<<Paste>>", "<<Cut>>"):
+            self.bind_class("TEntry", sequence, later, add="+")
+
+    @staticmethod
+    def sync_caret(widget):
+        try:
+            if isinstance(widget, tk.Text):
+                selected = bool(widget.tag_ranges("sel"))
+                if selected and not hasattr(widget, "_caret_width"):
+                    widget._caret_width = widget.cget("insertwidth")
+                    widget.configure(insertwidth=0)
+                elif not selected and hasattr(widget, "_caret_width"):
+                    widget.configure(insertwidth=widget._caret_width)
+                    del widget._caret_width
+            elif isinstance(widget, ttk.Entry):
+                # "user2" is mapped to an invisible cursor in the TEntry style.
+                widget.state(["user2" if widget.selection_present() else "!user2"])
+        except tk.TclError:
+            pass
 
     def _selectable_label(self, widget):
         if not isinstance(widget, (tk.Label, ttk.Label)) or not widget.winfo_exists():
@@ -6065,32 +6105,53 @@ class MemoryPalApp(tk.Tk):
             "wrap": int(float(str(label.cget("wraplength")) or 0)),
         }
 
-    def clear_text_selection(self):
-        overlay = getattr(self, "_select_overlay", None)
-        self._select_overlay = None
-        if overlay is not None:
+    def _select_boxes(self):
+        """Every overlay of the current highlight: the one the drag began in first."""
+        boxes = [] if getattr(self, "_select_overlay", None) is None else [self._select_overlay]
+        return boxes + [box for box in getattr(self, "_select_extra", {}).values() if box is not None]
+
+    def clear_text_selection(self, keep=None):
+        boxes = self._select_boxes()
+        self._select_overlay = keep
+        self._select_extra = {}
+        self._select_candidates = None
+        for box in boxes:
+            if box is keep:
+                continue
             try:
-                overlay.destroy()
+                box.destroy()
             except tk.TclError:
                 pass
 
     def _maybe_clear_selection(self, event):
-        overlay = getattr(self, "_select_overlay", None)
-        if overlay is not None and event.widget not in (overlay, getattr(overlay, "owner", None)):
+        boxes = self._select_boxes()
+        if boxes and not any(event.widget in (box, getattr(box, "owner", None)) for box in boxes):
             self.clear_text_selection()
 
     def _overlay_for(self, label):
         overlay = getattr(self, "_select_overlay", None)
         if overlay is not None and getattr(overlay, "owner", None) is label and overlay.winfo_exists():
             return overlay
+        extra = getattr(self, "_select_extra", {}).get(label)
+        if extra is not None and extra.winfo_exists():
+            # Pressing on a label an earlier drag ran into: start afresh there.
+            self.clear_text_selection(keep=extra)
+            return extra
         self.clear_text_selection()
+        box = self._build_overlay(label)
+        self._select_overlay = box
+        return box
+
+    def _build_overlay(self, label):
         look = self._label_style(label)
         text = str(label.cget("text"))
         box = tk.Text(
             label.master, font=look["font"], fg=look["fg"], bg=look["bg"], bd=0, highlightthickness=0,
             padx=0, pady=0, wrap="none", cursor="xterm", insertwidth=0,
             selectbackground=COLORS["primary"], selectforeground=self.on_color(COLORS["primary"]), inactiveselectbackground=COLORS["primary"],
-            exportselection=True, takefocus=0, undo=False,
+            # Not exported: Tk lets only one exporting widget hold a highlight,
+            # and a drag across labels highlights several at once.
+            exportselection=False, takefocus=0, undo=False,
         )
         box.owner = label
         # Break the lines exactly where the label does. Letting the text box
@@ -6170,7 +6231,6 @@ class MemoryPalApp(tk.Tk):
         for sequence in (f"<{MOD}-a>", f"<{MOD}-A>"):
             box.bind(sequence, lambda _event: (box.tag_add("sel", "1.0", "end-1c"), "break")[1])
         box.bind("<Escape>", lambda _event: self.clear_text_selection())
-        self._select_overlay = box
         return box
 
     def label_lines(self, font, text, wrap):
@@ -6243,6 +6303,8 @@ class MemoryPalApp(tk.Tk):
         return "".join(parts)
 
     def _overlay_press(self, box, event):
+        if box is not getattr(self, "_select_overlay", None):
+            self.clear_text_selection(keep=box)  # a label an earlier drag ran into
         box.tag_remove("sel", "1.0", "end")
         box._anchor = box.index(self._overlay_point(box, event))
         box.mark_set("insert", box._anchor)
@@ -6252,15 +6314,117 @@ class MemoryPalApp(tk.Tk):
             pass
         return "break"
 
-    def _overlay_drag(self, box, event):
-        anchor = getattr(box, "_anchor", None)
+    def _overlay_drag(self, _box, event):
+        anchor_box = getattr(self, "_select_overlay", None)
+        anchor = getattr(anchor_box, "_anchor", None)
         if anchor is None:
             return "break"
-        here = box.index(self._overlay_point(box, event))
-        box.tag_remove("sel", "1.0", "end")
-        first, last = (anchor, here) if box.compare(anchor, "<=", here) else (here, anchor)
-        box.tag_add("sel", first, last)
+        label, here = self._select_target(anchor_box, event.x_root, event.y_root)
+        if label is None or label is anchor_box.owner:
+            for box in self._select_extra.values():
+                box.tag_remove("sel", "1.0", "end")
+            here = here or anchor_box.index(self._overlay_point(anchor_box, event))
+            anchor_box.tag_remove("sel", "1.0", "end")
+            first, last = (anchor, here) if anchor_box.compare(anchor, "<=", here) else (here, anchor)
+            anchor_box.tag_add("sel", first, last)
+            return "break"
+        order = self._select_candidates
+        a, b = order.index(anchor_box.owner), order.index(label)
+        forward = b > a
+        low, high = min(a, b), max(a, b)
+        anchor_box.tag_remove("sel", "1.0", "end")
+        if forward:
+            anchor_box.tag_add("sel", anchor, "end-1c")
+        else:
+            anchor_box.tag_add("sel", "1.0", anchor)
+        for number, other in enumerate(order):
+            if other is anchor_box.owner:
+                continue
+            box = self._select_extra.get(other)
+            if not low <= number <= high:
+                if box is not None:
+                    box.tag_remove("sel", "1.0", "end")
+                continue
+            if box is None:
+                try:
+                    box = self._select_extra[other] = self._build_overlay(other)
+                except tk.TclError:
+                    continue
+            box.tag_remove("sel", "1.0", "end")
+            if other is label:
+                point = here or box.index(f"@{event.x_root - box.winfo_rootx()},{event.y_root - box.winfo_rooty()}")
+                box.tag_add("sel", point, "end-1c") if not forward else box.tag_add("sel", "1.0", point)
+            else:
+                box.tag_add("sel", "1.0", "end-1c")
         return "break"
+
+    def _selection_scope(self, label):
+        """The page a drag selects across: the scrolling area the label is in, else its window."""
+        widget = label.master
+        while widget is not None and not isinstance(widget, (tk.Canvas, tk.Toplevel, tk.Tk)):
+            widget = widget.master
+        return widget or label.winfo_toplevel()
+
+    def _select_target(self, anchor_box, x, y):
+        """(label, index or None) the pointer is on. None for the label means
+        the label the drag began in; an index of None means "under the pointer"."""
+        owner = anchor_box.owner
+        under = self.winfo_containing(x, y)
+        under = getattr(under, "owner", under)
+        if under is owner:
+            return None, None
+        if self._select_candidates is None:
+            scope = self._selection_scope(owner)
+            left, top = scope.winfo_rootx(), scope.winfo_rooty()
+            right, bottom = left + scope.winfo_width(), top + scope.winfo_height()
+            found = []
+
+            def walk(widget):
+                for child in widget.winfo_children():
+                    try:
+                        if not child.winfo_ismapped():
+                            continue
+                    except tk.TclError:
+                        continue
+                    if child is owner or (isinstance(child, (tk.Label, ttk.Label)) and self._selectable_label(child)):
+                        cx, cy = child.winfo_rootx(), child.winfo_rooty()
+                        if child is owner or (cx < right and cx + child.winfo_width() > left and cy < bottom and cy + child.winfo_height() > top):
+                            found.append(child)
+                    walk(child)
+
+            walk(scope)
+            # Reading order on screen, top to bottom then left to right, so a
+            # drag that only moves down only ever adds to the highlight (side
+            # by side panels were built in an order that would jump about).
+            found.sort(key=lambda widget: (widget.winfo_rooty(), widget.winfo_rootx()))
+            self._select_candidates = found
+        candidates = self._select_candidates
+        if under in candidates:
+            label = under
+        else:
+            def distance(widget):
+                wx, wy = widget.winfo_rootx(), widget.winfo_rooty()
+                dy = max(wy - y, 0, y - (wy + widget.winfo_height()))
+                dx = max(wx - x, 0, x - (wx + widget.winfo_width()))
+                return (dy, dx)
+
+            try:
+                label = min(candidates, key=distance)
+            except (ValueError, tk.TclError):
+                return None, None
+        if label is owner:
+            top = owner.winfo_rooty()
+            if y < top:
+                return None, "1.0"
+            if y >= top + owner.winfo_height():
+                return None, "end-1c"
+            return None, None
+        top = label.winfo_rooty()
+        if y < top:
+            return label, "1.0"
+        if y >= top + label.winfo_height():
+            return label, "end-1c"
+        return label, None
 
     @staticmethod
     def _overlay_point(box, event):
@@ -6269,6 +6433,8 @@ class MemoryPalApp(tk.Tk):
         return f"@{event.x_root - box.winfo_rootx()},{event.y_root - box.winfo_rooty()}"
 
     def _overlay_select_unit(self, box, event, unit):
+        if box is not getattr(self, "_select_overlay", None):
+            self.clear_text_selection(keep=box)
         here = self._overlay_point(box, event)
         box.tag_remove("sel", "1.0", "end")
         if unit == "word":
@@ -6277,11 +6443,25 @@ class MemoryPalApp(tk.Tk):
             box.tag_add("sel", f"{here} display linestart", f"{here} display lineend")
         return "break"
 
+    def selected_label_text(self):
+        """The highlighted words, in reading order, one label per line."""
+        boxes = [self._select_overlay] if getattr(self, "_select_overlay", None) is not None else []
+        order = self._select_candidates or []
+        boxes += [self._select_extra[label] for label in order if label in self._select_extra]
+        if boxes:
+            boxes.sort(key=lambda box: order.index(box.owner) if box.owner in order else 0)
+        parts = []
+        for box in boxes:
+            try:
+                parts.append(self._overlay_text(box, box.index("sel.first"), box.index("sel.last")))
+            except tk.TclError:
+                continue
+        return "\n".join(part for part in parts if part)
+
     def _copy_overlay(self, box, whole_if_empty=False):
-        try:
-            text = self._overlay_text(box, box.index("sel.first"), box.index("sel.last"))
-        except tk.TclError:
-            text = self._overlay_text(box, "1.0", box.index("end-1c")) if whole_if_empty else ""
+        text = self.selected_label_text()
+        if not text and whole_if_empty:
+            text = self._overlay_text(box, "1.0", box.index("end-1c"))
         if text:
             self.clipboard_clear()
             self.clipboard_append(text)
