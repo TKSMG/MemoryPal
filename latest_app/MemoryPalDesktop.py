@@ -1283,6 +1283,8 @@ class MemoryPalApp(tk.Tk):
         # Map the window while it is still fully transparent, build and settle
         # the first page, then show the finished frame in one step (no fade).
         self.map_hidden(self)
+        if IS_WINDOWS:
+            windowtheme.watch_size_move(self.window_handle(self), self._begin_live_resize, self._end_live_resize)
         self.show_view(self.start_view(), transition=False)
         self.settle_layout()
         self.reveal_window(self)
@@ -1374,7 +1376,7 @@ class MemoryPalApp(tk.Tk):
                 # it before the still picture goes, so the cut is clean.
                 flush_pending_paint(self)
                 self.update_idletasks()
-                winfullscreen.wait_for_compose(2, display_refresh_hz(self))
+                winfullscreen.wait_for_compose(1, display_refresh_hz(self))
         finally:
             self._fullscreen_switching = False
             self.drop_screen_still_cover(cover)
@@ -1382,57 +1384,26 @@ class MemoryPalApp(tk.Tk):
             self.dialog_alert("Full screen isn't available", failed[0], "error")
 
     def screen_still_cover(self):
-        """Windows: a borderless topmost window over the monitor showing a
-        still picture of the screen as it is now (see winfullscreen.snapshot).
-        The window switches underneath it. None where it can't be made."""
+        """Windows: a still picture of the screen as it is now, shown in a
+        plain window of its own over the monitor (see winfullscreen.show_cover).
+        The app switches underneath it. None where it can't be made."""
         if not IS_WINDOWS or not self.winfo_viewable():
             return None
         rect = winfullscreen.monitor_rect(self.window_handle(self))
         snap = winfullscreen.snapshot(rect)
         if snap is None:
             return None
-        cover = None
-        try:
-            left, top, right, bottom = rect
-            # No background of its own, so Tk never paints over the picture.
-            cover = tk.Toplevel(self, background="", borderwidth=0, highlightthickness=0)
-            cover.withdraw()
-            cover.wm_overrideredirect(True)
-            cover.attributes("-alpha", 0.0)
-            cover.attributes("-topmost", True)
-            cover.wm_geometry(f"{right - left}x{bottom - top}+{left}+{top}")
-            cover.deiconify()
-            cover.update_idletasks()
-            # Tk's own client window fills the borderless frame; draw there.
-            hwnd = cover.winfo_id()
-            if not winfullscreen.paint_snapshot(hwnd, snap):
-                raise tk.TclError("snapshot not drawn")
-            cover.attributes("-alpha", 1.0)
-            winfullscreen.paint_snapshot(hwnd, snap)
-            winfullscreen.wait_for_compose(1, display_refresh_hz(self))
-        except tk.TclError:
+        hwnd = winfullscreen.show_cover(rect, snap)
+        if hwnd is None:
             winfullscreen.free_snapshot(snap)
-            if cover is not None:
-                try:
-                    cover.destroy()
-                except tk.TclError:
-                    pass
             return None
-        cover._memorypal_snapshot = snap
-        return cover
+        return {"hwnd": hwnd, "snap": snap}
 
     def drop_screen_still_cover(self, cover):
         if cover is None:
             return
-        try:
-            cover.destroy()
-        except tk.TclError:
-            pass
-        winfullscreen.free_snapshot(getattr(cover, "_memorypal_snapshot", None))
-        try:
-            self.focus_force()
-        except tk.TclError:
-            pass
+        winfullscreen.hide_cover(cover.get("hwnd"))
+        winfullscreen.free_snapshot(cover.get("snap"))
 
     def native_fullscreen(self, target):
         """Windows: switch by changing the window's style (see winfullscreen),
@@ -3951,6 +3922,8 @@ class MemoryPalApp(tk.Tk):
         )
 
     def layout_app_body(self, event=None):
+        if event is not None and getattr(self, "_live_resizing", False):
+            return  # while an edge is dragged, the reflow waits (see _begin_live_resize)
         if not hasattr(self, "app_body") or not self.app_body.winfo_exists():
             return
         if not hasattr(self, "rail") or not hasattr(self, "main"):
@@ -3981,8 +3954,71 @@ class MemoryPalApp(tk.Tk):
         if size == getattr(self, "_last_window_size", None):
             return
         self._last_window_size = size
+        if getattr(self, "_live_resizing", False):
+            self._schedule_live_reflow()
+            return
         if getattr(self, "_resize_after", None) is None:
             self._resize_after = self.after_idle(self._relayout_after_resize)
+
+    # Live resizing (Windows): dragging an edge or corner.
+    #
+    # Tk lays a page out as many native windows, and reflowing one at a new
+    # size takes 20-40ms. Done on every step of a drag, Windows could only
+    # move the window's edge about 20 times a second (it waits for the app
+    # between steps), so the edge itself lagged and jerked behind the mouse,
+    # and the page was repainted in between: the flicker. While the person
+    # drags, the edge now follows the mouse at the screen's full rate and
+    # the page keeps its last layout (new space shows the page background,
+    # like Chrome while it catches up). The page reflows, once and fully
+    # drawn, whenever the drag pauses, every LIVE_REFLOW_MAX_MS while it
+    # keeps moving, and at the end.
+
+    LIVE_REFLOW_PAUSE_MS = 45
+    LIVE_REFLOW_MAX_MS = 220
+
+    def _begin_live_resize(self):
+        self._live_resizing = True
+        self._live_reflow_at = time.perf_counter()
+        try:
+            self._live_laid_out = (self.app_body.winfo_width(), self.app_body.winfo_height())
+        except (AttributeError, tk.TclError):
+            self._live_laid_out = None
+
+    def _end_live_resize(self):
+        self._live_resizing = False
+        pending = getattr(self, "_live_reflow_after", None)
+        if pending is not None:
+            self._live_reflow_after = None
+            try:
+                self.after_cancel(pending)
+            except tk.TclError:
+                pass
+        # Called from inside Windows' window procedure: reflow from Tk's
+        # own event loop instead, straight after.
+        self._live_reflow_after = self.after(0, self._live_reflow)
+
+    def _schedule_live_reflow(self):
+        pending = getattr(self, "_live_reflow_after", None)
+        if pending is not None:
+            try:
+                self.after_cancel(pending)
+            except tk.TclError:
+                pass
+        waited = 1000 * (time.perf_counter() - getattr(self, "_live_reflow_at", 0.0))
+        delay = 0 if waited >= self.LIVE_REFLOW_MAX_MS else self.LIVE_REFLOW_PAUSE_MS
+        self._live_reflow_after = self.after(delay, self._live_reflow)
+
+    def _live_reflow(self):
+        self._live_reflow_after = None
+        self._live_reflow_at = time.perf_counter()
+        try:
+            width, height = self.app_body.winfo_width(), self.app_body.winfo_height()
+            if (width, height) == getattr(self, "_live_laid_out", None):
+                return  # a move, or already laid out at this size
+            self._live_laid_out = (width, height)
+        except (AttributeError, tk.TclError):
+            pass
+        self._relayout_after_resize()
 
     def _relayout_after_resize(self):
         """Reflow at the new size with painting paused, then paint once.
