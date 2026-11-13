@@ -6,7 +6,9 @@ XTest (pip install python-xlib, run under Xvfb). For each selectable label on
 the page, and for the page's text boxes, it presses on the first line and
 drags straight down in steps, printing the highlighted text and the caret
 after each step. A highlight must never shrink while the pointer only moves
-further down, and must reach the end once the pointer is below the text.
+further down, must reach the end of the label once the pointer is below it
+(carrying on into the labels below, like a web page), and typing boxes must
+not show their blinking cursor while text is highlighted.
 """
 import os
 import sys
@@ -79,6 +81,8 @@ def selected(box):
 
 
 def caret_shown(box):
+    if isinstance(box, ttk.Entry):
+        return not box.instate(["user2"])  # user2 = cursor hidden while highlighted
     try:
         return int(float(box.cget("insertwidth"))) > 0 and int(float(box.cget("insertofftime") or 0)) >= 0 and str(box.cget("insertontime")) != "0"
     except tk.TclError:
@@ -100,8 +104,10 @@ for view in views:
         steps = []
         for dy in (0, 6, 14, 24, 40, 70, 120, 200):
             move(x0 + 2, y0 + dy)
-            box = app._select_overlay
-            steps.append((dy, len(selected(box)) if box else -1))
+            steps.append((dy, len(app.selected_label_text())))
+            if os.environ.get("SHOT_DIR") and dy == 120:
+                from PIL import ImageGrab
+                ImageGrab.grab((app.winfo_rootx(), app.winfo_rooty(), app.winfo_rootx() + app.winfo_width(), app.winfo_rooty() + app.winfo_height())).save(os.path.join(os.environ["SHOT_DIR"], f"{view}-{labels.index(label)}.png"))
         button(False)
         pump()
         box = app._select_overlay
@@ -110,6 +116,7 @@ for view in views:
         except tk.TclError:
             reached_end = False
         print(f"  label {text[:40]!r}: lengths {steps} reached end {reached_end}")
+        print(f"    highlighted: {app.selected_label_text()[:160]!r}")
         lengths = [n for _dy, n in steps]
         if any(b < a for a, b in zip(lengths, lengths[1:])):
             problems.append(f"{view}: highlight shrank while dragging down on {text[:30]!r}: {steps}")
@@ -117,7 +124,7 @@ for view in views:
             problems.append(f"{view}: dragging below {text[:30]!r} did not highlight to the end")
         move(5, 5)
         app.clear_text_selection()
-    for box in [w for w in walk(app) if isinstance(w, (tk.Text,)) and w.winfo_ismapped() and str(w.cget("state")) == "normal"][:2]:
+    for box in [w for w in walk(app) if isinstance(w, (tk.Text,)) and not hasattr(w, "owner") and w.winfo_ismapped() and str(w.cget("state")) == "normal"][:2]:
         box.delete("1.0", "end")
         box.insert("1.0", "\n".join(f"line {n} of typed words" for n in range(10)))
         pump()
@@ -130,7 +137,15 @@ for view in views:
             steps.append((dy, len(selected(box)), box.index("insert"), caret_shown(box)))
         button(False)
         pump()
-        print(f"  text box {box.winfo_class()}: {steps}")
+        time.sleep(0.8)  # past the double-click time
+        move(x0, y0)
+        button(True)
+        button(False)
+        pump()
+        back = caret_shown(box)
+        print(f"  text box {box.winfo_class()}: {steps} cursor back after a click: {back}")
+        if not back:
+            problems.append(f"{view}: text box cursor did not come back after a click")
         if any(n and shown for _dy, n, _i, shown in steps):
             problems.append(f"{view}: text box shows its blinking caret while text is highlighted: {steps}")
     for entry in [w for w in walk(app) if isinstance(w, (tk.Entry, ttk.Entry)) and w.winfo_ismapped()][:1]:
@@ -145,7 +160,15 @@ for view in views:
             move(x0 + dx, y0 + dy)
             steps.append((dy, entry.selection_present(), caret_shown(entry)))
         button(False)
-        print(f"  entry: {steps}")
+        time.sleep(0.8)  # past the double-click time
+        move(x0, y0)
+        button(True)
+        button(False)
+        pump()
+        back = caret_shown(entry)
+        print(f"  entry: {steps} cursor back after a click: {back}")
+        if not back:
+            problems.append(f"{view}: entry cursor did not come back after a click")
         if any(present and shown for _dy, present, shown in steps):
             problems.append(f"{view}: entry shows its blinking caret while text is highlighted: {steps}")
 
