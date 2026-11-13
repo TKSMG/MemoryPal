@@ -564,6 +564,57 @@ def place_for_drag():
     app.update()
 
 
+def count_sizes(hwnd, seconds, pump=None):
+    """How many different sizes a window shows over `seconds` (polled)."""
+    import ctypes
+    from ctypes import wintypes
+
+    rect, seen, last = wintypes.RECT(), 0, None
+    end = time.perf_counter() + seconds
+    while time.perf_counter() < end:
+        ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        size = (rect.right - rect.left, rect.bottom - rect.top)
+        if size != last:
+            seen += 1
+            last = size
+        if pump:
+            pump()
+        time.sleep(0.002)
+    return seen - 1
+
+
+def control_drag():
+    # The same corner drag on Notepad: how often can this machine resize a
+    # plain window? (Tells our app's rate apart from the runner's.)
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    subprocess.Popen(["notepad.exe"])
+    hwnd = 0
+    for _ in range(80):
+        hwnd = user32.FindWindowW("Notepad", None)
+        if hwnd:
+            break
+        time.sleep(0.1)
+    if not hwnd:
+        print("CONTROL_DRAG no notepad")
+        return
+    user32.ShowWindow(hwnd, 9)
+    user32.SetWindowPos(hwnd, -1, 20, 20, 760, 500, 0x40)
+    user32.SetForegroundWindow(hwnd)
+    time.sleep(0.6)
+    drag(20 + 760 - 4, 20 + 500 - 4, 160, 90)
+    print(f"CONTROL_DRAG notepad sizes={count_sizes(hwnd, 1.6)}")
+    user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+    time.sleep(0.3)
+    place_for_drag()
+    rect = window_rect()
+    app.attributes("-topmost", True)
+    app.update()
+    drag(rect.right - 4, rect.bottom - 4, 160, 90)
+    print(f"CONTROL_DRAG app sizes={count_sizes(app.window_handle(app), 1.6, app.update)}")
+
+
 SCENARIOS = [
     ("switch_stats", lambda: app.show_view("stats")),
     ("switch_library", lambda: app.show_view("library")),
@@ -611,11 +662,15 @@ SCENARIOS = [
     ("drag_setup_top", lambda: (app.state("normal"), app.geometry(f"{app.winfo_screenwidth() * 3 // 5}x{app.winfo_screenheight() * 2 // 5}+20+{app.winfo_screenheight() // 3}"), app.update())),
     ("drag_resize_top_grow", drag_top(-140)),
     ("drag_resize_top_shrink", drag_top(140)),
+    ("zz_control_drag", control_drag),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),
     ("text_large", lambda: app.update_accessibility_preference("text_size", "Large")),
 ]
 for name, action in SCENARIOS:
     if not WANTED or any(name.startswith(w) for w in WANTED):
+        if name.startswith("zz_"):
+            action()
+            continue
         run(name, action)
 app.destroy()
