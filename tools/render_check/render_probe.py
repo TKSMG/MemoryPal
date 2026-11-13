@@ -609,6 +609,76 @@ def control_drag():
     time.sleep(0.3)
 
 
+def cover_check():
+    # Is the full screen still picture really on screen? Show it, hide the
+    # app underneath, and see whether the screen still shows the app.
+    import ctypes
+    from PIL import ImageGrab
+
+    app.update()
+    x, y = app.winfo_rootx() + app.winfo_width() // 2, app.winfo_rooty() + 12
+    box = (app.winfo_rootx(), app.winfo_rooty(), app.winfo_rootx() + app.winfo_width(), app.winfo_rooty() + app.winfo_height())
+    before = ImageGrab.grab(box)
+    cover = app.screen_still_cover()
+    visible = bool(cover and ctypes.windll.user32.IsWindowVisible(cover["hwnd"]))
+    front = ctypes.windll.user32.GetForegroundWindow() == app.window_handle(app)
+    app.withdraw()
+    app.update()
+    time.sleep(0.3)
+    covered = ImageGrab.grab(box)
+    app.drop_screen_still_cover(cover)
+    time.sleep(0.3)
+    bare = ImageGrab.grab(box)
+    app.deiconify()
+    app.update()
+    time.sleep(0.3)
+
+    def differ(a, b):
+        pa, pb = a.convert("RGB").resize((64, 48)).tobytes(), b.convert("RGB").resize((64, 48)).tobytes()
+        return sum(abs(i - j) for i, j in zip(pa, pb)) / len(pa)
+
+    print(f"COVER made={cover is not None} visible={visible} app_kept_focus={front} "
+          f"covered_vs_app={differ(covered, before):.2f} bare_vs_app={differ(bare, before):.2f}")
+
+
+def center_check():
+    # Real Segoe UI on Windows: where capitals sit inside each button style
+    # (top and bottom margin of the letters, in pixels).
+    from tkinter import ttk
+    import tkinter as tk
+    import tkinter.font as tkfont
+    from PIL import ImageGrab
+
+    top = tk.Toplevel(app, bg=M.COLORS["bg"])
+    top.geometry("+40+40")
+    top.attributes("-topmost", True)
+    styles = ["TButton", "Primary.TButton", "Hero.TButton", "Pill.TButton", "TabBar.TButton", "Nav.TButton", "Link.TButton", "Choice.TButton"]
+    buttons = [ttk.Button(top, text="HEX", style=style) for style in styles]
+    for button in buttons:
+        button.pack(padx=20, pady=6)
+    menu = ttk.Menubutton(top, text="HEX")
+    menu.pack(padx=20, pady=6)
+    buttons.append(menu)
+    styles.append("TMenubutton")
+    top.update()
+    time.sleep(0.4)
+    top.update()
+    metrics = tkfont.Font(root=app, font=app.font("Segoe UI Semibold", 11)).metrics()
+    print(f"CENTER font ascent={metrics['ascent']} descent={metrics['descent']} linespace={metrics['linespace']} lift={app.text_lift(app.font('Segoe UI Semibold', 11))} px1={app.px(100)}")
+    for style, button in zip(styles, buttons):
+        x, y, w, h = button.winfo_rootx(), button.winfo_rooty(), button.winfo_width(), button.winfo_height()
+        image = ImageGrab.grab((x + 4, y + 3, x + w - 4, y + h - 3)).convert("RGB")
+        px = image.load()
+        bg = px[1, image.height // 2]
+        rows = [yy for yy in range(image.height) if any(sum(abs(a - b) for a, b in zip(px[xx, yy], bg)) > 150 for xx in range(image.width))]
+        if rows:
+            print(f"CENTER {style:18} height={h} letters_top={rows[0] + 3} letters_bottom={h - 3 - rows[-1] - 1}")
+        else:
+            print(f"CENTER {style:18} height={h} no letters found")
+    top.destroy()
+    app.update()
+
+
 SCENARIOS = [
     ("switch_stats", lambda: app.show_view("stats")),
     ("switch_library", lambda: app.show_view("library")),
@@ -657,6 +727,8 @@ SCENARIOS = [
     ("drag_resize_top_grow", drag_top(-140)),
     ("drag_resize_top_shrink", drag_top(140)),
     ("zz_control_drag", control_drag),
+    ("zz_cover_check", cover_check),
+    ("zz_center_check", center_check),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),
     ("text_large", lambda: app.update_accessibility_preference("text_size", "Large")),
