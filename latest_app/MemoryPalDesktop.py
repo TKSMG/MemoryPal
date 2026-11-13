@@ -1283,8 +1283,6 @@ class MemoryPalApp(tk.Tk):
         # Map the window while it is still fully transparent, build and settle
         # the first page, then show the finished frame in one step (no fade).
         self.map_hidden(self)
-        if IS_WINDOWS:
-            windowtheme.watch_size_move(self.window_handle(self), self._begin_live_resize, self._end_live_resize)
         self.show_view(self.start_view(), transition=False)
         self.settle_layout()
         self.reveal_window(self)
@@ -3954,13 +3952,18 @@ class MemoryPalApp(tk.Tk):
         if size == getattr(self, "_last_window_size", None):
             return
         self._last_window_size = size
-        if getattr(self, "_live_resizing", False):
+        if IS_WINDOWS and (getattr(self, "_live_resizing", False) or mouse_button_down()):
+            # An edge or corner is being dragged (the button is still held).
+            if not getattr(self, "_live_resizing", False):
+                self._begin_live_resize()
             self._schedule_live_reflow()
             return
         if getattr(self, "_resize_after", None) is None:
             self._resize_after = self.after_idle(self._relayout_after_resize)
 
-    # Live resizing (Windows): dragging an edge or corner.
+    # Live resizing (Windows): dragging an edge or corner. Windows runs the
+    # drag in its own loop and tells Tk nothing about it, so a size change
+    # while a mouse button is held counts as a drag.
     #
     # Tk lays a page out as many native windows, and reflowing one at a new
     # size takes 20-40ms. Done on every step of a drag, Windows could only
@@ -3984,19 +3987,6 @@ class MemoryPalApp(tk.Tk):
         except (AttributeError, tk.TclError):
             self._live_laid_out = None
 
-    def _end_live_resize(self):
-        self._live_resizing = False
-        pending = getattr(self, "_live_reflow_after", None)
-        if pending is not None:
-            self._live_reflow_after = None
-            try:
-                self.after_cancel(pending)
-            except tk.TclError:
-                pass
-        # Called from inside Windows' window procedure: reflow from Tk's
-        # own event loop instead, straight after.
-        self._live_reflow_after = self.after(0, self._live_reflow)
-
     def _schedule_live_reflow(self):
         pending = getattr(self, "_live_reflow_after", None)
         if pending is not None:
@@ -4011,6 +4001,12 @@ class MemoryPalApp(tk.Tk):
     def _live_reflow(self):
         self._live_reflow_after = None
         self._live_reflow_at = time.perf_counter()
+        if not mouse_button_down():
+            self._live_resizing = False  # let go: this is the final layout
+        else:
+            # Still held: look again shortly, so letting go without moving
+            # further ends the drag too.
+            self._live_reflow_after = self.after(120, self._live_reflow)
         try:
             width, height = self.app_body.winfo_width(), self.app_body.winfo_height()
             if (width, height) == getattr(self, "_live_laid_out", None):
