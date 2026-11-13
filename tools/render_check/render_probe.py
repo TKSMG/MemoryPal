@@ -152,11 +152,12 @@ def run(name, action, seconds=2.2, lead=0.35):
         import io
         import pstats
         profiler.disable()
-        text = io.StringIO()
-        pstats.Stats(profiler, stream=text).sort_stats("tottime").print_stats(22)
-        for line in text.getvalue().splitlines():
-            if line.strip():
-                print("PROF " + line[:150])
+        for order, count in (("tottime", 18), ("cumulative", 28)):
+            text = io.StringIO()
+            pstats.Stats(profiler, stream=text).sort_stats(order).print_stats(count)
+            for line in text.getvalue().splitlines():
+                if line.strip() and not line.lstrip().startswith(("Ordered", "List reduced")):
+                    print("PROF " + line[:150])
     with open(out, "rb") as f:
         fw, fh, count = struct.unpack("<III", f.read(12))
         frames = []
