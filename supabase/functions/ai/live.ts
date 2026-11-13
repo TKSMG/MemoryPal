@@ -122,15 +122,36 @@ export function liveSetup(request: LiveRequest, model: string): Record<string, u
   };
 }
 
-/** The auth_tokens request: one use, a minute to connect, locked to the set-up. */
+/**
+ * Field paths to lock, the way Google's SDK builds them: top-level fields, and
+ * one level down inside objects (arrays stay whole).
+ */
+export function fieldMask(setup: Record<string, unknown>): string {
+  const fields: string[] = [];
+  for (const [key, value] of Object.entries(setup)) {
+    if (value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length) {
+      fields.push(...Object.keys(value).map((inner) => `${key}.${inner}`));
+    } else {
+      fields.push(key);
+    }
+  }
+  return fields.join(",");
+}
+
+/**
+ * The v1alpha auth_tokens request: one use, a minute to connect, locked to the
+ * set-up. The REST field is bidiGenerateContentSetup (the SDKs call it
+ * liveConnectConstraints and rename it); fieldMask says which fields are locked.
+ */
 export function liveTokenBody(setup: Record<string, unknown>, now: Date, lockConfig = true): Record<string, unknown> {
   const at = (ms: number) => new Date(now.getTime() + ms).toISOString();
-  const { model, ...config } = setup;
+  const locked = lockConfig ? setup : { model: setup.model };
   return {
     uses: 1,
     expireTime: at(LIVE_TOKEN_MINUTES * 60_000),
     newSessionExpireTime: at(LIVE_START_SECONDS * 1000),
-    liveConnectConstraints: lockConfig ? { model, config } : { model },
+    bidiGenerateContentSetup: locked,
+    fieldMask: fieldMask(locked),
   };
 }
 

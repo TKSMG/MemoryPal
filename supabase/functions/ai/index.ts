@@ -137,7 +137,7 @@ async function gemini(body: Record<string, unknown>): Promise<unknown> {
  */
 async function liveToken(setup: Record<string, unknown>): Promise<string> {
   const post = (lockConfig: boolean) =>
-    fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens", {
+    fetch("https://generativelanguage.googleapis.com/v1alpha/auth_tokens", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_KEY },
       body: JSON.stringify(liveTokenBody(setup, new Date(), lockConfig)),

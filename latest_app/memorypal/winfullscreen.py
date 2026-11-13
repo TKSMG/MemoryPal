@@ -156,3 +156,120 @@ def leave(hwnd, saved):
         return True
     except (AttributeError, OSError, KeyError):
         return False
+
+
+# A still picture of the screen, held over the window while it switches.
+#
+# Tk draws a window as many small native windows, one after another, so a
+# switch that moves everything (full screen on or off) was shown by the
+# compositor part old and part new for a frame or two: tearing, and now and
+# then a flash of background where a part wasn't drawn yet. Games and some
+# media players avoid it the same way as here: show a picture of the screen
+# exactly as it is, make the change underneath, wait until it has been drawn
+# and composed, then take the picture away. Nothing fades: the screen goes
+# from the old picture to the finished new one in one step.
+
+SRCCOPY = 0x00CC0020
+CAPTUREBLT = 0x40000000
+
+
+def _gdi():
+    import ctypes
+    from ctypes import wintypes
+
+    # Own copies of the DLLs: setting argtypes/restype on ctypes.windll's
+    # shared ones would change how the rest of the app calls these functions.
+    user32, gdi32 = ctypes.WinDLL("user32"), ctypes.WinDLL("gdi32")
+    gdi32.GdiFlush.restype = ctypes.c_int
+    user32.GetDC.argtypes = (wintypes.HWND,)
+    user32.GetDC.restype = ctypes.c_void_p
+    user32.ReleaseDC.argtypes = (wintypes.HWND, ctypes.c_void_p)
+    gdi32.CreateCompatibleDC.argtypes = (ctypes.c_void_p,)
+    gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+    gdi32.CreateCompatibleBitmap.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+    gdi32.CreateCompatibleBitmap.restype = ctypes.c_void_p
+    gdi32.SelectObject.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+    gdi32.SelectObject.restype = ctypes.c_void_p
+    gdi32.BitBlt.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                             ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_uint)
+    gdi32.DeleteObject.argtypes = (ctypes.c_void_p,)
+    gdi32.DeleteDC.argtypes = (ctypes.c_void_p,)
+    return user32, gdi32
+
+
+def snapshot(rect):
+    """Copy what the screen shows inside rect (left, top, right, bottom).
+    Returns a handle for paint_snapshot/free_snapshot, or None."""
+    if not rect or not sys.platform.startswith("win"):
+        return None
+    try:
+        user32, gdi32 = _gdi()
+        left, top, right, bottom = rect
+        width, height = right - left, bottom - top
+        if width <= 0 or height <= 0:
+            return None
+        screen = user32.GetDC(None)
+        if not screen:
+            return None
+        try:
+            memory = gdi32.CreateCompatibleDC(screen)
+            bitmap = gdi32.CreateCompatibleBitmap(screen, width, height) if memory else None
+            if not bitmap:
+                if memory:
+                    gdi32.DeleteDC(memory)
+                return None
+            old = gdi32.SelectObject(memory, bitmap)
+            if not gdi32.BitBlt(memory, 0, 0, width, height, screen, left, top, SRCCOPY | CAPTUREBLT):
+                gdi32.SelectObject(memory, old)
+                gdi32.DeleteObject(bitmap)
+                gdi32.DeleteDC(memory)
+                return None
+        finally:
+            user32.ReleaseDC(None, screen)
+        return {"dc": memory, "bitmap": bitmap, "old": old, "size": (width, height)}
+    except (AttributeError, OSError, ValueError):
+        return None
+
+
+def paint_snapshot(hwnd, snap):
+    """Draw the picture into a window, at its top left. True if drawn."""
+    if not hwnd or not snap:
+        return False
+    try:
+        user32, gdi32 = _gdi()
+        target = user32.GetDC(hwnd)
+        if not target:
+            return False
+        try:
+            width, height = snap["size"]
+            done = gdi32.BitBlt(target, 0, 0, width, height, snap["dc"], 0, 0, SRCCOPY)
+        finally:
+            user32.ReleaseDC(hwnd, target)
+        gdi32.GdiFlush()
+        return bool(done)
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
+def free_snapshot(snap):
+    if not snap:
+        return
+    try:
+        _user32, gdi32 = _gdi()
+        gdi32.SelectObject(snap["dc"], snap["old"])
+        gdi32.DeleteObject(snap["bitmap"])
+        gdi32.DeleteDC(snap["dc"])
+    except (AttributeError, OSError, ValueError, KeyError):
+        pass
+
+
+def wait_for_compose(frames=1, hz=60.0):
+    """Give the compositor time to show what was just drawn: `frames`
+    screen refreshes. (DwmFlush would say exactly when, but it blocks until
+    the screen next changes, which on a still screen can be never.)"""
+    if not sys.platform.startswith("win"):
+        return False
+    import time
+
+    time.sleep(max(1, frames) / max(24.0, min(float(hz or 60.0), 500.0)))
+    return True

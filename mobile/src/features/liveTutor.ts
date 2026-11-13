@@ -13,7 +13,8 @@ import type { Assessment } from '../core/smartCheck';
 import { pcmMs, utf8 } from './pcm';
 import type { Outcome, TalkCard } from './talkback';
 
-export const LIVE_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
+// Ephemeral (one-use) tokens only work on the v1alpha Live endpoint, as in Google's SDK.
+export const LIVE_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
 export const MIC_RATE = 16000;
 export const MODEL_RATE = 24000;
 const START_LINE = '(The learner pressed Start and is listening. Greet them in one short line and ask the first card.)';
