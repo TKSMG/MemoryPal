@@ -19,12 +19,39 @@ on:
         description: "Only these render scenarios (name starts, space separated)"
         type: string
         default: ""
+      selection:
+        description: "Only drag-select text with the real mouse (selection_probe.py)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
+  selection:
+    if: ${{ inputs.selection }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install app packages
+        run: python -m pip install platformdirs pypdf Pillow
+      - name: Drag-select text
+        shell: bash
+        run: |
+          python tools/render_check/selection_probe.py review dashboard > selection.txt 2>&1 || true
+          cat selection.txt
+          python -c "import sys; t=open('selection.txt').read()[-3900:]; print('::notice title=Selection probe ${{ matrix.os }}::' + t.replace('%','%25').replace('\\r','').replace('\\n','%0A'))"
+
   probe:
+    if: ${{ !inputs.selection }}
     strategy:
       fail-fast: false
       matrix:
