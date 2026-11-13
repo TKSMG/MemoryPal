@@ -2869,13 +2869,15 @@ class MemoryPalApp(tk.Tk):
 
         Tk centres a label on its full line height (ascent + descent), but
         lowercase and capital letters sit above the descent, so text in a
-        padded button looks about 2px low. Moving that much padding from the
-        top to the bottom puts the letters in the optical middle."""
+        padded button looks low. Measured with Segoe UI on Windows: with no
+        lift capitals are centred and lowercase sits 2px low; this lift (1px
+        at 100% scale, 2px at 125-150%) sits between the two, since most
+        labels are lowercase after a capital."""
         try:
             linespace = int(tkfont.Font(root=self, font=font).metrics("linespace"))
         except (tk.TclError, TypeError, ValueError):
             return 0
-        return max(1, round(linespace * 0.08))
+        return max(1, round(linespace * 0.06))
 
     def text_pad(self, x, y, font, right=None):
         """Button padding (left, top, right, bottom) with the text centred."""
@@ -3919,15 +3921,19 @@ class MemoryPalApp(tk.Tk):
             fg=COLORS["good_fg"] if met else COLORS["muted"],
         )
 
-    def layout_app_body(self, event=None):
+    def layout_app_body(self, event=None, size=None):
         if event is not None and getattr(self, "_live_resizing", False):
             return  # while an edge is dragged, the reflow waits (see _begin_live_resize)
         if not hasattr(self, "app_body") or not self.app_body.winfo_exists():
             return
         if not hasattr(self, "rail") or not hasattr(self, "main"):
             return
-        width = event.width if event is not None else self.app_body.winfo_width()
-        height = event.height if event is not None else self.app_body.winfo_height()
+        if event is not None:
+            width, height = event.width, event.height
+        elif size:
+            width, height = size
+        else:
+            width, height = self.app_body.winfo_width(), self.app_body.winfo_height()
         if width <= 1 or height <= 1:
             return
         bar = self.tab_bar_height()
@@ -3951,8 +3957,15 @@ class MemoryPalApp(tk.Tk):
         size = (width, height)
         if size == getattr(self, "_last_window_size", None):
             return
+        previous = getattr(self, "_last_window_size", None) or size
         self._last_window_size = size
-        if IS_WINDOWS and (getattr(self, "_live_resizing", False) or mouse_button_down()):
+        # A drag moves the edge a little at a time. One big jump with the
+        # button down is a double-click on the title bar (maximise or
+        # restore), which should reflow straight away like any other.
+        jumped = abs(width - previous[0]) > self.px(160) or abs(height - previous[1]) > self.px(160)
+        if jumped and not getattr(self, "_live_resizing", False):
+            pass
+        elif IS_WINDOWS and (getattr(self, "_live_resizing", False) or mouse_button_down()):
             # An edge or corner is being dragged (the button is still held).
             if not getattr(self, "_live_resizing", False):
                 self._begin_live_resize()
@@ -3976,14 +3989,12 @@ class MemoryPalApp(tk.Tk):
     # drawn, whenever the drag pauses, every LIVE_REFLOW_MAX_MS while it
     # keeps moving, and at the end.
 
-    LIVE_REFLOW_PAUSE_MS = 30
-    LIVE_REFLOW_MAX_MS = 90
+    LIVE_REFLOW_PAUSE_MS = 45
+    LIVE_REFLOW_MAX_MS = 220
 
     def _begin_live_resize(self):
         self._live_resizing = True
-        # The first step reflows at once: a double-click on the title bar
-        # maximises while the button is still down, and must not wait.
-        self._live_reflow_at = 0.0
+        self._live_reflow_at = time.perf_counter()
         self._live_laid_out = None
 
     def _schedule_live_reflow(self):
@@ -4025,13 +4036,13 @@ class MemoryPalApp(tk.Tk):
         """
         self._resize_after = None
 
-        def reflow():
-            # The shell takes the window's new size in an idle pass, which
-            # may not have run yet when a timer brings us here.
-            self.update_idletasks()
-            self.layout_app_body()
-
-        self.run_hidden_change(reflow)
+        # The shell fills the window, but takes its new size in an idle pass
+        # that may not have run yet when a timer brings us here: lay out for
+        # the size the window reported. (No update_idletasks first: during
+        # a drag that let Tk put the window back to a size it remembered.)
+        self.run_hidden_change(lambda: self.layout_app_body(size=getattr(self, "_last_window_size", None)))
+        if not getattr(self, "_live_resizing", False):
+            self.layout_app_body()  # settled now: the shell's own size has the last word
 
     def nav_hint(self, key):
         return {
