@@ -10348,6 +10348,22 @@ class MemoryPalApp(tk.Tk):
                     later(self.pace(250), then)
             wait()
 
+        def listen_seconds():
+            return 20 if self.accessibility.get("more_time") else 12
+
+        def warm_listener():
+            """Load the recogniser while the voice is still talking, with this round's answers as hints."""
+            if state["typed"] or not state["can_listen"]:
+                return
+            if "hints" not in state:
+                answers = [spoken(current)[1] for current in state["queue"]]
+                commands = [phrase for phrases in listen.SPOKEN_COMMANDS.values() for phrase in phrases]
+                state["hints"] = commands + answers
+            seconds = listen_seconds()
+            # This card's answer first, so it is kept even in a very long round.
+            hints = [spoken(card())[1]] + state["hints"]
+            self.listener.prepare(hints, max_seconds=seconds, initial_silence=seconds / 2, end_silence=1.4)
+
         def ask():
             if not alive() or state["paused"]:
                 return
@@ -10360,6 +10376,7 @@ class MemoryPalApp(tk.Tk):
             feedback.configure(text="")
             typed_entry.delete(0, "end")
             set_status("Reading the question", "reading")
+            warm_listener()
             say(f"Question {state['index'] + 1}. {spoken(card())[0]}")
             after_speech(answer_turn)
 
@@ -10371,23 +10388,30 @@ class MemoryPalApp(tk.Tk):
                 set_status("Type your answer, then press Enter", "typing")
                 typed_entry.focus_set()
                 return
-            seconds = 20 if self.accessibility.get("more_time") else 12
-            if not self.listener.start(max_seconds=seconds, initial_silence=seconds / 2, end_silence=1.4):
+            if not self.listener.prepared():
+                warm_listener()
+            if not self.listener.go():
                 switch_to_typing("The microphone couldn't be started, so answers are typed for now.")
                 return
             state["phase"] = "listening"
-            set_status("Listening. Say your answer.", "listening")
+            state["mic_open"] = False
+            # Say "Listening" only once the microphone really is open, so
+            # the first words are never spoken into a recogniser still loading.
+            set_status("Getting the microphone ready", "checking")
             poll_listener()
 
         def poll_listener():
             if not alive() or state["phase"] != "listening":
                 return
+            if not state["mic_open"] and self.listener.microphone_open():
+                state["mic_open"] = True
+                set_status("Listening. Say your answer.", "listening")
             result = self.listener.poll()
             if result is None:
-                later(150, poll_listener)
+                later(60 if not state["mic_open"] else 150, poll_listener)
                 return
             if result.heard:
-                command = listen.spoken_command(result.text)
+                command = next((found for found in map(listen.spoken_command, result.readings()[:2]) if found), None)
                 if command == "repeat":
                     ask()
                 elif command == "skip":
@@ -10397,7 +10421,11 @@ class MemoryPalApp(tk.Tk):
                 elif command == "dont_know":
                     judge("", said="I don't know")
                 else:
-                    judge(result.text, said=result.text)
+                    # The recogniser's other guesses at the same words count
+                    # too: take whichever reading is closest to the answer.
+                    expected = spoken(card())[1]
+                    best = max(result.readings(), key=lambda reading: answer_assessment(reading, expected)["score"])
+                    judge(best, said=best)
                 return
             if result.status == "silence":
                 state["silences"] += 1
@@ -10406,6 +10434,7 @@ class MemoryPalApp(tk.Tk):
                     return
                 state["phase"] = "reading"
                 set_status("Didn't catch that. Listening again in a moment.", "reading")
+                warm_listener()
                 say("I didn't catch that.")
                 after_speech(answer_turn)
                 return
