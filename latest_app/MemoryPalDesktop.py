@@ -316,6 +316,34 @@ def set_fine_timers(enabled):
         return False
 
 
+def current_cursor():
+    """The mouse pointer showing now (Windows), to put back with restore_cursor."""
+    if not sys.platform.startswith("win"):
+        return None
+    try:
+        import ctypes
+
+        user32 = ctypes.WinDLL("user32")
+        user32.GetCursor.restype = ctypes.c_void_p
+        return user32.GetCursor()
+    except (AttributeError, OSError):
+        return None
+
+
+def restore_cursor(cursor):
+    if not cursor or not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+
+        user32 = ctypes.WinDLL("user32")
+        user32.SetCursor.argtypes = (ctypes.c_void_p,)
+        user32.SetCursor.restype = ctypes.c_void_p
+        user32.SetCursor(cursor)
+    except (AttributeError, OSError):
+        pass
+
+
 def mouse_button_down():
     """True while a mouse button is held anywhere (Windows; elsewhere False)."""
     if not sys.platform.startswith("win"):
@@ -1287,6 +1315,10 @@ class MemoryPalApp(tk.Tk):
         self.settle_layout()
         self.reveal_window(self)
         self._ui_ready = True
+        if IS_WINDOWS:
+            hwnd = self.window_handle(self)
+            if winfullscreen.watch_big_resizes(hwnd, self.px(160)):
+                winfullscreen.arm_resize_cover(hwnd, True)
 
     def install_mac_menus(self):
         """Give the Mac the menu bar every Mac app has.
@@ -1366,6 +1398,7 @@ class MemoryPalApp(tk.Tk):
         if getattr(self, "_fullscreen_switching", False):
             return  # F11 held down or pressed again mid-switch
         self._fullscreen_switching = True
+        winfullscreen.arm_resize_cover(self.window_handle(self), False)  # F11 has its own cover
         cover = self.screen_still_cover()
         try:
             self.run_hidden_change(switch)
@@ -1378,6 +1411,7 @@ class MemoryPalApp(tk.Tk):
         finally:
             self._fullscreen_switching = False
             self.drop_screen_still_cover(cover)
+            winfullscreen.arm_resize_cover(self.window_handle(self), True)
         if failed:
             self.dialog_alert("Full screen isn't available", failed[0], "error")
 
@@ -2572,6 +2606,20 @@ class MemoryPalApp(tk.Tk):
             top.update_idletasks()
             if not flush_pending_paint(top):
                 break
+        if cloaked:
+            # Ask for every part to be drawn now, while still out of sight:
+            # on some PCs a hidden window was not asked to draw until it was
+            # shown, and then filled in piece by piece in view.
+            try:
+                import ctypes
+
+                ctypes.windll.user32.RedrawWindow(top.winfo_id(), None, None, 0x0001 | 0x0080 | 0x0100)
+            except (AttributeError, OSError, tk.TclError):
+                pass
+            for _ in range(4):
+                top.update_idletasks()
+                if not flush_pending_paint(top):
+                    break
         try:
             import ctypes
 
@@ -3986,16 +4034,16 @@ class MemoryPalApp(tk.Tk):
     # drags, the edge now follows the mouse at the screen's full rate and
     # the page keeps its last layout (new space shows the page background,
     # like Chrome while it catches up). The page reflows, once and fully
-    # drawn, whenever the drag pauses, every LIVE_REFLOW_MAX_MS while it
-    # keeps moving, and at the end.
+    # drawn, when the drag pauses and at the end, and not while the edge
+    # is moving: a reflow every fraction of a second made text and panels
+    # jump to a new place several times per drag, which read as jitter.
 
-    LIVE_REFLOW_PAUSE_MS = 45
-    LIVE_REFLOW_MAX_MS = 220
+    LIVE_REFLOW_PAUSE_MS = 100
 
     def _begin_live_resize(self):
         self._live_resizing = True
-        self._live_reflow_at = time.perf_counter()
         self._live_laid_out = None
+        self._live_cursor = current_cursor()
 
     def _schedule_live_reflow(self):
         pending = getattr(self, "_live_reflow_after", None)
@@ -4004,14 +4052,12 @@ class MemoryPalApp(tk.Tk):
                 self.after_cancel(pending)
             except tk.TclError:
                 pass
-        waited = 1000 * (time.perf_counter() - getattr(self, "_live_reflow_at", 0.0))
-        delay = 0 if waited >= self.LIVE_REFLOW_MAX_MS else self.LIVE_REFLOW_PAUSE_MS
-        self._live_reflow_after = self.after(delay, self._live_reflow)
+        self._live_reflow_after = self.after(self.LIVE_REFLOW_PAUSE_MS, self._live_reflow)
 
     def _live_reflow(self):
         self._live_reflow_after = None
-        self._live_reflow_at = time.perf_counter()
-        if not mouse_button_down():
+        held = mouse_button_down()
+        if not held:
             self._live_resizing = False  # let go: this is the final layout
         else:
             # Still held: look again shortly, so letting go without moving
@@ -4022,6 +4068,12 @@ class MemoryPalApp(tk.Tk):
             return  # already laid out at this size
         self._live_laid_out = size
         self._relayout_after_resize()
+        if held:
+            # Laying the page out moves widgets under the mouse, and Tk then
+            # sets its own pointer for whichever one is there. Windows keeps
+            # the resize arrow up itself for the whole drag and does not put
+            # it back, so the pointer flipped between the two: put it back.
+            restore_cursor(getattr(self, "_live_cursor", None))
 
     def _relayout_after_resize(self):
         """Reflow at the new size with painting paused, then paint once.
@@ -4043,6 +4095,20 @@ class MemoryPalApp(tk.Tk):
         self.run_hidden_change(lambda: self.layout_app_body(size=getattr(self, "_last_window_size", None)))
         if not getattr(self, "_live_resizing", False):
             self.layout_app_body()  # settled now: the shell's own size has the last word
+        self.drop_resize_cover()
+
+    def drop_resize_cover(self):
+        """Take down the still picture that went up for a maximise, restore
+        or snap (winfullscreen.watch_big_resizes), now the page is drawn."""
+        if not IS_WINDOWS:
+            return
+        hwnd = self.window_handle(self)
+        if not winfullscreen.resize_cover_up(hwnd):
+            return
+        flush_pending_paint(self)
+        self.update_idletasks()
+        winfullscreen.wait_for_compose(1, display_refresh_hz(self))
+        winfullscreen.drop_resize_cover(hwnd)
 
     def nav_hint(self, key):
         return {
@@ -10348,6 +10414,22 @@ class MemoryPalApp(tk.Tk):
                     later(self.pace(250), then)
             wait()
 
+        def listen_seconds():
+            return 20 if self.accessibility.get("more_time") else 12
+
+        def warm_listener():
+            """Load the recogniser while the voice is still talking, with this round's answers as hints."""
+            if state["typed"] or not state["can_listen"]:
+                return
+            if "hints" not in state:
+                answers = [spoken(current)[1] for current in state["queue"]]
+                commands = [phrase for phrases in listen.SPOKEN_COMMANDS.values() for phrase in phrases]
+                state["hints"] = commands + answers
+            seconds = listen_seconds()
+            # This card's answer first, so it is kept even in a very long round.
+            hints = [spoken(card())[1]] + state["hints"]
+            self.listener.prepare(hints, max_seconds=seconds, initial_silence=seconds / 2, end_silence=1.4)
+
         def ask():
             if not alive() or state["paused"]:
                 return
@@ -10360,6 +10442,7 @@ class MemoryPalApp(tk.Tk):
             feedback.configure(text="")
             typed_entry.delete(0, "end")
             set_status("Reading the question", "reading")
+            warm_listener()
             say(f"Question {state['index'] + 1}. {spoken(card())[0]}")
             after_speech(answer_turn)
 
@@ -10371,23 +10454,30 @@ class MemoryPalApp(tk.Tk):
                 set_status("Type your answer, then press Enter", "typing")
                 typed_entry.focus_set()
                 return
-            seconds = 20 if self.accessibility.get("more_time") else 12
-            if not self.listener.start(max_seconds=seconds, initial_silence=seconds / 2, end_silence=1.4):
+            if not self.listener.prepared():
+                warm_listener()
+            if not self.listener.go():
                 switch_to_typing("The microphone couldn't be started, so answers are typed for now.")
                 return
             state["phase"] = "listening"
-            set_status("Listening. Say your answer.", "listening")
+            state["mic_open"] = False
+            # Say "Listening" only once the microphone really is open, so
+            # the first words are never spoken into a recogniser still loading.
+            set_status("Getting the microphone ready", "checking")
             poll_listener()
 
         def poll_listener():
             if not alive() or state["phase"] != "listening":
                 return
+            if not state["mic_open"] and self.listener.microphone_open():
+                state["mic_open"] = True
+                set_status("Listening. Say your answer.", "listening")
             result = self.listener.poll()
             if result is None:
-                later(150, poll_listener)
+                later(60 if not state["mic_open"] else 150, poll_listener)
                 return
             if result.heard:
-                command = listen.spoken_command(result.text)
+                command = next((found for found in map(listen.spoken_command, result.readings()[:2]) if found), None)
                 if command == "repeat":
                     ask()
                 elif command == "skip":
@@ -10397,7 +10487,11 @@ class MemoryPalApp(tk.Tk):
                 elif command == "dont_know":
                     judge("", said="I don't know")
                 else:
-                    judge(result.text, said=result.text)
+                    # The recogniser's other guesses at the same words count
+                    # too: take whichever reading is closest to the answer.
+                    expected = spoken(card())[1]
+                    best = max(result.readings(), key=lambda reading: answer_assessment(reading, expected)["score"])
+                    judge(best, said=best)
                 return
             if result.status == "silence":
                 state["silences"] += 1
@@ -10406,6 +10500,7 @@ class MemoryPalApp(tk.Tk):
                     return
                 state["phase"] = "reading"
                 set_status("Didn't catch that. Listening again in a moment.", "reading")
+                warm_listener()
                 say("I didn't catch that.")
                 after_speech(answer_turn)
                 return

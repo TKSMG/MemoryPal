@@ -386,3 +386,170 @@ def hide_cover(hwnd):
         return bool(user32.DestroyWindow(hwnd))
     except (AttributeError, OSError):
         return False
+
+
+# The same still picture for maximise, restore and snapping.
+#
+# Those are started by Windows (the title bar buttons, a double-click, the
+# snap layouts, Win+arrows), not by the app, and the window has its new size
+# before Tk hears of it. Until the page was laid out again for that size the
+# big window showed the small window's page in a corner, then a half-drawn
+# frame. So the window is watched for a big size change that is about to
+# happen, and the still picture goes up just before it.
+#
+# The watcher is a window procedure called by Windows from inside Tk's own
+# event loop. It must never call into Tk (that crashes Python: the thread
+# state Tk saved is not the one the callback runs with), so it only makes
+# Windows calls and sets plain Python values that the app reads later.
+
+WM_WINDOWPOSCHANGING = 0x0046
+WM_NCDESTROY = 0x0082
+WM_SYSCOMMAND = 0x0112
+WM_ENTERSIZEMOVE = 0x0231
+WM_EXITSIZEMOVE = 0x0232
+WM_CLOSE = 0x0010
+SC_MAXIMIZE = 0xF030
+SC_RESTORE = 0xF120
+COVER_MAX_SECONDS = 1.5
+_resize_watch = {}  # hwnd -> state; holds the callback so it stays alive
+_resize_retired = []
+
+
+def set_transitions(hwnd, enabled):
+    """Turn Windows' own grow/shrink animation of a window on or off."""
+    try:
+        ctypes, _wintypes, _user32, _gdi32, dwmapi, _kernel32 = _cover_api()
+        setting = ctypes.c_uint(0 if enabled else 1)
+        return dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, ctypes.byref(setting), ctypes.sizeof(setting)) == 0
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
+def big_resize(old_size, new_size, threshold):
+    return abs(new_size[0] - old_size[0]) > threshold or abs(new_size[1] - old_size[1]) > threshold
+
+
+def _raise_resize_cover(hwnd, state):
+    import threading
+    import time
+
+    rect = monitor_rect(hwnd)
+    snap = snapshot(rect)
+    if snap is None:
+        return
+    cover = show_cover(rect, snap)
+    free_snapshot(snap)  # the cover window keeps its own copy of the picture
+    if cover is None:
+        return
+    set_transitions(hwnd, False)
+    state["cover"] = cover
+    state["since"] = time.perf_counter()
+
+    def give_up():
+        # Should the app never come to take the cover down, ask the cover to
+        # close itself (a posted message: handled on the window's own thread).
+        try:
+            _ctypes, _wintypes, user32, _gdi32, _dwmapi, _kernel32 = _cover_api()
+            user32.PostMessageW(cover, WM_CLOSE, 0, 0)
+        except (AttributeError, OSError):
+            pass
+
+    timer = threading.Timer(COVER_MAX_SECONDS, give_up)
+    timer.daemon = True
+    timer.start()
+    state["timer"] = timer
+
+
+def watch_big_resizes(hwnd, threshold):
+    """Put the still picture up whenever the window is about to change size
+    by more than `threshold` pixels at once. Off until arm_resize_cover."""
+    if not hwnd or not sys.platform.startswith("win"):
+        return False
+    if hwnd in _resize_watch:
+        _resize_watch[hwnd]["threshold"] = threshold
+        return True
+    try:
+        ctypes, wintypes, user32, _gdi32, _dwmapi, _kernel32 = _cover_api()
+        comctl32 = ctypes.WinDLL("comctl32")
+        LRESULT = ctypes.c_ssize_t
+        SUBCLASSPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM, ctypes.c_size_t, ctypes.c_size_t)
+        comctl32.DefSubclassProc.restype = LRESULT
+        comctl32.DefSubclassProc.argtypes = (wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM)
+        comctl32.SetWindowSubclass.argtypes = (wintypes.HWND, SUBCLASSPROC, ctypes.c_size_t, ctypes.c_size_t)
+        comctl32.RemoveWindowSubclass.argtypes = (wintypes.HWND, SUBCLASSPROC, ctypes.c_size_t)
+        user32.GetWindowRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
+        user32.IsWindowVisible.argtypes = (wintypes.HWND,)
+        user32.IsIconic.argtypes = (wintypes.HWND,)
+        user32.PostMessageW.argtypes = (wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM)
+
+        class WINDOWPOS(ctypes.Structure):
+            _fields_ = [("hwnd", wintypes.HWND), ("hwndInsertAfter", wintypes.HWND), ("x", ctypes.c_int), ("y", ctypes.c_int),
+                        ("cx", ctypes.c_int), ("cy", ctypes.c_int), ("flags", ctypes.c_uint)]
+
+        state = {"armed": False, "sizing": False, "cover": None, "since": 0.0, "timer": None, "threshold": threshold, "raised": 0}
+
+        def procedure(window, message, wparam, lparam, _id, _data):
+            try:
+                if message == WM_ENTERSIZEMOVE:
+                    state["sizing"] = True
+                elif message == WM_EXITSIZEMOVE:
+                    state["sizing"] = False
+                elif message == WM_SYSCOMMAND and (wparam & 0xFFF0) in (SC_MAXIMIZE, SC_RESTORE) and state["armed"]:
+                    set_transitions(window, False)
+                elif message == WM_WINDOWPOSCHANGING and lparam and state["armed"] and not state["sizing"] and state["cover"] is None:
+                    change = ctypes.cast(lparam, ctypes.POINTER(WINDOWPOS)).contents
+                    if not change.flags & SWP_NOSIZE and change.x > -30000 and user32.IsWindowVisible(window) and not user32.IsIconic(window):
+                        now = wintypes.RECT()
+                        user32.GetWindowRect(window, ctypes.byref(now))
+                        if big_resize((now.right - now.left, now.bottom - now.top), (change.cx, change.cy), state["threshold"]):
+                            state["raised"] += 1
+                            _raise_resize_cover(window, state)
+                elif message == WM_NCDESTROY:
+                    entry = _resize_watch.pop(hwnd, None)
+                    if entry is not None:
+                        comctl32.RemoveWindowSubclass(window, entry["callback"], 0x4D51)
+                        _resize_retired.append(entry["callback"])
+            except Exception:  # noqa: BLE001 - nothing may escape into Windows' message loop
+                pass
+            return comctl32.DefSubclassProc(window, message, wparam, lparam)
+
+        state["callback"] = SUBCLASSPROC(procedure)
+        if not comctl32.SetWindowSubclass(hwnd, state["callback"], 0x4D51, 0):
+            return False
+        _resize_watch[hwnd] = state
+        return True
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
+def arm_resize_cover(hwnd, armed):
+    """Switch the watcher on or off (off while the app changes its own size)."""
+    state = _resize_watch.get(hwnd)
+    if state is not None:
+        state["armed"] = bool(armed)
+    return state is not None
+
+
+def resize_cover_up(hwnd):
+    state = _resize_watch.get(hwnd)
+    return bool(state and state["cover"])
+
+
+def resize_covers_raised(hwnd):
+    """How many times the cover has gone up (for the checks)."""
+    state = _resize_watch.get(hwnd)
+    return state["raised"] if state else 0
+
+
+def drop_resize_cover(hwnd):
+    """Take the still picture down (once the new layout is drawn). True if one was up."""
+    state = _resize_watch.get(hwnd)
+    if not state or not state["cover"]:
+        return False
+    cover, state["cover"] = state["cover"], None
+    timer, state["timer"] = state["timer"], None
+    if timer is not None:
+        timer.cancel()
+    hide_cover(cover)
+    set_transitions(hwnd, True)
+    return True

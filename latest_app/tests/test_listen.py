@@ -1,3 +1,4 @@
+import io
 import subprocess
 import sys
 import unittest
@@ -11,8 +12,9 @@ from memorypal import listen  # noqa: E402
 
 class FakeProcess:
     def __init__(self, stdout=b"", returncode=0, running_polls=0):
-        self.stdout = mock.Mock()
-        self.stdout.read.return_value = stdout
+        self.stdout = io.BytesIO(stdout)
+        self.stdin = io.BytesIO()
+        self.stdin.close = lambda: None
         self._out = stdout
         self.returncode = returncode
         self._running = running_polls
@@ -45,6 +47,8 @@ class CommandTests(unittest.TestCase):
         script = command[4]
         self.assertIn("System.Speech.Recognition.SpeechRecognitionEngine", script)
         self.assertIn("DictationGrammar", script)
+        self.assertIn("MP-READY", script)
+        self.assertIn("MaxAlternates", script)
         self.assertIn("SetInputToDefaultAudioDevice", script)
         self.assertIn("FromMilliseconds(5000)", script)
         self.assertIn("FromMilliseconds(10000)", script)
@@ -116,13 +120,14 @@ class ListenerTests(unittest.TestCase):
         self.assertFalse(listener.probe())
 
     def test_start_poll_reads_result_once(self):
-        process = FakeProcess(b"MP-HEARD 0.91 Canberra\r\n", running_polls=2)
+        process = FakeProcess(b"MP-HEARD 0.91 Canberra\r\n", running_polls=3)
         popen = mock.Mock(return_value=process)
         listener = listen.Listener(popen=popen, platform="win32")
         self.assertTrue(listener.start(max_seconds=8))
         args, kwargs = popen.call_args
         self.assertEqual(kwargs["stdout"], subprocess.PIPE)
-        self.assertEqual(kwargs["stdin"], subprocess.DEVNULL)
+        self.assertEqual(kwargs["stdin"], subprocess.PIPE)
+        self.assertEqual(process.stdin.getvalue(), b"END\nGO\n")
         self.assertIsNone(listener.poll())
         self.assertIsNone(listener.poll())
         result = listener.poll()
@@ -136,6 +141,37 @@ class ListenerTests(unittest.TestCase):
         listener.stop()
         self.assertTrue(process.terminated)
         self.assertFalse(listener.listening())
+
+    def test_prepare_sends_hints_then_waits_for_go(self):
+        process = FakeProcess(b"MP-READY\r\nMP-LISTENING\r\nMP-ALT the might oh conned ria\r\nMP-HEARD 0.8 the mitochondria\r\n", running_polls=3)
+        popen = mock.Mock(return_value=process)
+        listener = listen.Listener(popen=popen, platform="win32")
+        self.assertTrue(listener.prepare(["The mitochondria.", "Paris"]))
+        self.assertTrue(listener.prepared())
+        sent = process.stdin.getvalue()
+        self.assertEqual(sent, listen.setup_lines(["The mitochondria", "Paris"]))
+        self.assertNotIn(b"GO", sent)
+        # Nothing said is on the command line: hints travel on stdin, encoded.
+        self.assertNotIn("mitochondria", " ".join(popen.call_args[0][0]))
+        self.assertNotIn(b"mitochondria", sent)
+        self.assertTrue(listener.start())
+        self.assertFalse(listener.prepared())
+        self.assertTrue(process.stdin.getvalue().endswith(b"END\nGO\n"))
+        self.assertEqual(popen.call_count, 1)
+        result = None
+        while result is None:
+            result = listener.poll()
+        self.assertTrue(listener._lines and not listener.microphone_open())
+        self.assertEqual(result.readings(), ["the mitochondria", "the might oh conned ria"])
+
+    def test_go_without_prepare_is_refused(self):
+        listener = listen.Listener(popen=mock.Mock(), platform="win32")
+        self.assertFalse(listener.go())
+
+    def test_hints_are_plain_short_and_unique(self):
+        hints = listen.clean_hints(["Paris!", "paris", "", "1945", "a " * 20, "it's the Krebs cycle (citric acid)", "$x; rm"])
+        self.assertEqual(hints, ["Paris", "it's the Krebs cycle citric acid", "x rm"])
+        self.assertLessEqual(len(listen.clean_hints([f"word{n}" for n in range(500)])), listen.MAX_HINTS)
 
     def test_start_handles_missing_powershell(self):
         listener = listen.Listener(popen=mock.Mock(side_effect=OSError("no such file")), platform="win32")
