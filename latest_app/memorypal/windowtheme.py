@@ -263,3 +263,4 @@ def fill_on_erase(hwnd, hex_color):
         return True
     except (AttributeError, OSError):
         return False
+
