@@ -316,6 +316,34 @@ def set_fine_timers(enabled):
         return False
 
 
+def current_cursor():
+    """The mouse pointer showing now (Windows), to put back with restore_cursor."""
+    if not sys.platform.startswith("win"):
+        return None
+    try:
+        import ctypes
+
+        user32 = ctypes.WinDLL("user32")
+        user32.GetCursor.restype = ctypes.c_void_p
+        return user32.GetCursor()
+    except (AttributeError, OSError):
+        return None
+
+
+def restore_cursor(cursor):
+    if not cursor or not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+
+        user32 = ctypes.WinDLL("user32")
+        user32.SetCursor.argtypes = (ctypes.c_void_p,)
+        user32.SetCursor.restype = ctypes.c_void_p
+        user32.SetCursor(cursor)
+    except (AttributeError, OSError):
+        pass
+
+
 def mouse_button_down():
     """True while a mouse button is held anywhere (Windows; elsewhere False)."""
     if not sys.platform.startswith("win"):
@@ -1287,6 +1315,10 @@ class MemoryPalApp(tk.Tk):
         self.settle_layout()
         self.reveal_window(self)
         self._ui_ready = True
+        if IS_WINDOWS:
+            hwnd = self.window_handle(self)
+            if winfullscreen.watch_big_resizes(hwnd, self.px(160)):
+                winfullscreen.arm_resize_cover(hwnd, True)
 
     def install_mac_menus(self):
         """Give the Mac the menu bar every Mac app has.
@@ -1366,6 +1398,7 @@ class MemoryPalApp(tk.Tk):
         if getattr(self, "_fullscreen_switching", False):
             return  # F11 held down or pressed again mid-switch
         self._fullscreen_switching = True
+        winfullscreen.arm_resize_cover(self.window_handle(self), False)  # F11 has its own cover
         cover = self.screen_still_cover()
         try:
             self.run_hidden_change(switch)
@@ -1378,6 +1411,7 @@ class MemoryPalApp(tk.Tk):
         finally:
             self._fullscreen_switching = False
             self.drop_screen_still_cover(cover)
+            winfullscreen.arm_resize_cover(self.window_handle(self), True)
         if failed:
             self.dialog_alert("Full screen isn't available", failed[0], "error")
 
@@ -2572,6 +2606,20 @@ class MemoryPalApp(tk.Tk):
             top.update_idletasks()
             if not flush_pending_paint(top):
                 break
+        if cloaked:
+            # Ask for every part to be drawn now, while still out of sight:
+            # on some PCs a hidden window was not asked to draw until it was
+            # shown, and then filled in piece by piece in view.
+            try:
+                import ctypes
+
+                ctypes.windll.user32.RedrawWindow(top.winfo_id(), None, None, 0x0001 | 0x0080 | 0x0100)
+            except (AttributeError, OSError, tk.TclError):
+                pass
+            for _ in range(4):
+                top.update_idletasks()
+                if not flush_pending_paint(top):
+                    break
         try:
             import ctypes
 
@@ -3986,16 +4034,16 @@ class MemoryPalApp(tk.Tk):
     # drags, the edge now follows the mouse at the screen's full rate and
     # the page keeps its last layout (new space shows the page background,
     # like Chrome while it catches up). The page reflows, once and fully
-    # drawn, whenever the drag pauses, every LIVE_REFLOW_MAX_MS while it
-    # keeps moving, and at the end.
+    # drawn, when the drag pauses and at the end, and not while the edge
+    # is moving: a reflow every fraction of a second made text and panels
+    # jump to a new place several times per drag, which read as jitter.
 
-    LIVE_REFLOW_PAUSE_MS = 45
-    LIVE_REFLOW_MAX_MS = 220
+    LIVE_REFLOW_PAUSE_MS = 100
 
     def _begin_live_resize(self):
         self._live_resizing = True
-        self._live_reflow_at = time.perf_counter()
         self._live_laid_out = None
+        self._live_cursor = current_cursor()
 
     def _schedule_live_reflow(self):
         pending = getattr(self, "_live_reflow_after", None)
@@ -4004,14 +4052,12 @@ class MemoryPalApp(tk.Tk):
                 self.after_cancel(pending)
             except tk.TclError:
                 pass
-        waited = 1000 * (time.perf_counter() - getattr(self, "_live_reflow_at", 0.0))
-        delay = 0 if waited >= self.LIVE_REFLOW_MAX_MS else self.LIVE_REFLOW_PAUSE_MS
-        self._live_reflow_after = self.after(delay, self._live_reflow)
+        self._live_reflow_after = self.after(self.LIVE_REFLOW_PAUSE_MS, self._live_reflow)
 
     def _live_reflow(self):
         self._live_reflow_after = None
-        self._live_reflow_at = time.perf_counter()
-        if not mouse_button_down():
+        held = mouse_button_down()
+        if not held:
             self._live_resizing = False  # let go: this is the final layout
         else:
             # Still held: look again shortly, so letting go without moving
@@ -4022,6 +4068,12 @@ class MemoryPalApp(tk.Tk):
             return  # already laid out at this size
         self._live_laid_out = size
         self._relayout_after_resize()
+        if held:
+            # Laying the page out moves widgets under the mouse, and Tk then
+            # sets its own pointer for whichever one is there. Windows keeps
+            # the resize arrow up itself for the whole drag and does not put
+            # it back, so the pointer flipped between the two: put it back.
+            restore_cursor(getattr(self, "_live_cursor", None))
 
     def _relayout_after_resize(self):
         """Reflow at the new size with painting paused, then paint once.
@@ -4043,6 +4095,20 @@ class MemoryPalApp(tk.Tk):
         self.run_hidden_change(lambda: self.layout_app_body(size=getattr(self, "_last_window_size", None)))
         if not getattr(self, "_live_resizing", False):
             self.layout_app_body()  # settled now: the shell's own size has the last word
+        self.drop_resize_cover()
+
+    def drop_resize_cover(self):
+        """Take down the still picture that went up for a maximise, restore
+        or snap (winfullscreen.watch_big_resizes), now the page is drawn."""
+        if not IS_WINDOWS:
+            return
+        hwnd = self.window_handle(self)
+        if not winfullscreen.resize_cover_up(hwnd):
+            return
+        flush_pending_paint(self)
+        self.update_idletasks()
+        winfullscreen.wait_for_compose(1, display_refresh_hz(self))
+        winfullscreen.drop_resize_cover(hwnd)
 
     def nav_hint(self, key):
         return {
