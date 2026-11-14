@@ -19,6 +19,10 @@ on:
         description: "Only these render scenarios (name starts, space separated)"
         type: string
         default: ""
+      profile:
+        description: "Profile these render scenarios (exact names, space separated)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -64,7 +68,7 @@ jobs:
           fi
           PROBE_OUT=probe-out python tools/render_check/scroll_probe.py ${{ inputs.scroll || 'stats settings library' }} >> probe.txt 2>&1 || true
           if [ "$RUNNER_OS" = "Windows" ]; then
-            WHOLE_SCREEN=1 PRINT_PNG=1 python tools/render_check/render_probe.py render-out ${{ inputs.render }} > render.txt 2>&1 || true
+            PROFILE_SCENARIOS="${{ inputs.profile }}" WHOLE_SCREEN=1 PRINT_PNG=1 python tools/render_check/render_probe.py render-out ${{ inputs.render }} > render.txt 2>&1 || true
             grep -v '^PNG \|^SERIES ' render.txt >> probe.txt || true
             grep '^PNG ' render.txt || true
           fi
