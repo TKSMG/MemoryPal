@@ -74,6 +74,18 @@ def main():
             good = answer_assessment(best, answer)["bucket"] in ("Good", "Easy")
             right[label] += good
             print(f"{label:5} {answer!r}: heard {result.text!r} conf {result.confidence:.2f} others {list(result.alternates)} -> {'right' if good else 'WRONG'} (ready in {loaded:.1f}s, done {total:.1f}s)")
+    # Wrong answers must not be heard as a right one just because the right
+    # ones are known to the recogniser.
+    for number, (said, expected) in enumerate((("Sydney", "Canberra"), ("the nucleus", "the mitochondria"), ("I think it is respiration", "photosynthesis"), ("Aristotle", "Pythagoras"))):
+        path = folder / f"wrong{number}.wav"
+        speak_to_file(said, path)
+        result, _loaded, _total = hear(path, commands + ANSWERS)
+        if result is None or not result.heard:
+            print(f"wrong {said!r} for {expected!r}: {result}")
+            continue
+        best = max(result.readings(), key=lambda reading: answer_assessment(reading, expected)["score"])
+        good = answer_assessment(best, expected)["bucket"] in ("Good", "Easy")
+        print(f"wrong {said!r} for {expected!r}: heard {result.text!r} conf {result.confidence:.2f} others {list(result.alternates)} -> {'MARKED RIGHT (bad)' if good else 'marked wrong (good)'}")
     print(f"marked right: dictation only {right['plain']}/{len(ANSWERS)}, with hints {right['hints']}/{len(ANSWERS)}")
 
 
