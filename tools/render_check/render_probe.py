@@ -739,4 +739,9 @@ for name, action in SCENARIOS:
             action()
             continue
         run(name, action)
+try:
+    from memorypal import winfullscreen as _wf
+    print("RESIZE_COVERS raised", _wf.resize_covers_raised(app.window_handle(app)), "still_up", _wf.resize_cover_up(app.window_handle(app)))
+except Exception as error:  # noqa: BLE001
+    print("RESIZE_COVERS error", error)
 app.destroy()

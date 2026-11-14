@@ -24,11 +24,29 @@ on:
         type: string
         default: ""
 
+      listen:
+        description: "Only check talk-back listening (Windows)"
+        type: boolean
+        default: false
+
 permissions:
   contents: read
 
 jobs:
+  listen:
+    if: ${{ inputs.listen }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Hear spoken answers from sound files
+        run: python tools/listen_check/listen_check.py
+
   probe:
+    if: ${{ !inputs.listen }}
     strategy:
       fail-fast: false
       matrix:
