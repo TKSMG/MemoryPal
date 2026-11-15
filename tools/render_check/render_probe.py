@@ -630,12 +630,26 @@ def edge_band(hwnd, seconds, pump=None):
     done = threading.Event()
 
     def watch():
+        # One copy of the screen around the window per tick (reading the
+        # screen pixel by pixel takes a third of a second each on these machines).
+        gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+        gdi32.CreateCompatibleDC.argtypes = (ctypes.c_void_p,)
+        gdi32.CreateCompatibleBitmap.restype = ctypes.c_void_p
+        gdi32.CreateCompatibleBitmap.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+        gdi32.SelectObject.restype = ctypes.c_void_p
+        gdi32.SelectObject.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+        gdi32.BitBlt.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_uint)
         screen = user32.GetDC(None)
+        side = 1400
+        memory = gdi32.CreateCompatibleDC(screen)
+        gdi32.SelectObject(memory, gdi32.CreateCompatibleBitmap(screen, side, side))
         outer, shown = wintypes.RECT(), wintypes.RECT()
         while not done.is_set():
             user32.GetWindowRect(hwnd, ctypes.byref(outer))
             if dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(shown), ctypes.sizeof(shown)) != 0:  # extended frame bounds
                 shown = outer
+            ox, oy = outer.left - 8, outer.top - 8
+            gdi32.BitBlt(memory, 0, 0, min(side, outer.right - outer.left + 16), min(side, outer.bottom - outer.top + 16), screen, ox, oy, 0x00CC0020)
             insets[(shown.left - outer.left, shown.top - outer.top, outer.right - shown.right, outer.bottom - shown.bottom)] += 1
             sizes.add((outer.right - outer.left, outer.bottom - outer.top))
             mid_x, mid_y = (shown.left + shown.right) // 2, (shown.top + shown.bottom) // 2
@@ -643,10 +657,10 @@ def edge_band(hwnd, seconds, pump=None):
                      "right3": (shown.right - 4, mid_y), "bottom1": (mid_x, shown.bottom - 2), "bottom3": (mid_x, shown.bottom - 4),
                      "top0": (mid_x, shown.top), "out_left": (shown.left - 3, mid_y), "out_bottom": (mid_x, shown.bottom + 2)}
             for edge, (x, y) in spots.items():
-                colour = gdi32.GetPixel(screen, x, y)
+                colour = gdi32.GetPixel(memory, x - ox, y - oy)
                 seen[edge][(colour & 0xFF, (colour >> 8) & 0xFF, (colour >> 16) & 0xFF)] += 1
             ticks[0] += 1
-            time.sleep(0.004)
+            time.sleep(0.002)
         user32.ReleaseDC(None, screen)
 
     thread = threading.Thread(target=watch, daemon=True)
