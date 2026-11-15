@@ -625,7 +625,8 @@ def edge_band(hwnd, seconds, pump=None):
     gdi32.GetPixel.restype = ctypes.c_uint
     user32.GetWindowRect.argtypes = (ctypes.c_void_p, ctypes.POINTER(wintypes.RECT))
     dwmapi.DwmGetWindowAttribute.argtypes = (ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint)
-    seen = {edge: Counter() for edge in ("left1", "left3", "right1", "right3", "bottom1", "bottom3", "top0", "out_left", "out_bottom")}
+    names = ["left1", "left3", "right1", "right3", "top0"] + [f"out_left{n}" for n in range(1, 10)] + [f"out_top{n}" for n in range(1, 6)]
+    seen = {edge: Counter() for edge in names}
     insets, sizes, ticks = Counter(), set(), [0]
     done = threading.Event()
 
@@ -654,8 +655,11 @@ def edge_band(hwnd, seconds, pump=None):
             sizes.add((outer.right - outer.left, outer.bottom - outer.top))
             mid_x, mid_y = (shown.left + shown.right) // 2, (shown.top + shown.bottom) // 2
             spots = {"left1": (shown.left + 1, mid_y), "left3": (shown.left + 3, mid_y), "right1": (shown.right - 2, mid_y),
-                     "right3": (shown.right - 4, mid_y), "bottom1": (mid_x, shown.bottom - 2), "bottom3": (mid_x, shown.bottom - 4),
-                     "top0": (mid_x, shown.top), "out_left": (shown.left - 3, mid_y), "out_bottom": (mid_x, shown.bottom + 2)}
+                     "right3": (shown.right - 4, mid_y),
+                     "top0": (mid_x, shown.top)}
+            # Left and top edges: the mouse (and its pointer) is at the bottom right.
+            spots.update({f"out_left{n}": (shown.left - n, mid_y) for n in range(1, 10)})
+            spots.update({f"out_top{n}": (mid_x, shown.top - n) for n in range(1, 6)})
             for edge, (x, y) in spots.items():
                 colour = gdi32.GetPixel(memory, x - ox, y - oy)
                 seen[edge][(colour & 0xFF, (colour >> 8) & 0xFF, (colour >> 16) & 0xFF)] += 1
@@ -674,7 +678,7 @@ def edge_band(hwnd, seconds, pump=None):
     thread.join(2)
     lines = [f"ticks={ticks[0]} sizes={len(sizes)} insets={dict(insets)}"]
     for edge, colours in seen.items():
-        lines.append(f"  {edge}: " + " ".join(f"{colour}x{count}" for colour, count in colours.most_common(5)))
+        lines.append(f"  {edge}: " + " ".join(f"{colour[0]},{colour[1]},{colour[2]}x{count}" for colour, count in colours.most_common(4)))
     return lines
 
 
@@ -698,10 +702,25 @@ def edge_check():
     drag(rect.right - 4, rect.bottom - 4, 160, 90)
     for line in edge_band(hwnd, 1.7, app.update):
         print("EDGE app drag", line)
-    rect = window_rect()
-    drag(rect.left + (rect.right - rect.left) // 2, rect.bottom - 4, 0, 60)
-    for line in edge_band(hwnd, 1.7, app.update):
-        print("EDGE app drag_bottom", line)
+    dwm = ctypes.WinDLL("dwmapi")
+    dwm.DwmSetWindowAttribute.argtypes = (ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint)
+
+    def with_attribute(label, attribute, value):
+        setting = ctypes.c_uint(value)
+        result = dwm.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(setting), 4)
+        app.geometry("760x500+60+60")
+        app.update()
+        time.sleep(0.5)
+        app.update()
+        rect = window_rect()
+        drag(rect.right - 4, rect.bottom - 4, 160, 90)
+        for line in edge_band(hwnd, 1.7, app.update):
+            print(f"EDGE app {label} (set={result})", line)
+
+    with_attribute("border_none", 34, 0xFFFFFFFE)
+    with_attribute("border_default", 34, 0xFFFFFFFF)
+    with_attribute("border_red", 34, 0x000000FF)
+    with_attribute("light_mode", 20, 0)
     subprocess.Popen(["notepad.exe"])
     other = 0
     for _ in range(80):
