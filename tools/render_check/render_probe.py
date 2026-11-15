@@ -744,6 +744,62 @@ def edge_check():
     time.sleep(0.3)
 
 
+def cursor_check():
+    # Rest the mouse on the window's left edge, coming from inside the page:
+    # which pointer shows, sample by sample? (With and without the app's
+    # own keeping of the resize arrow.)
+    import ctypes
+    from collections import Counter
+    from ctypes import wintypes
+    from memorypal import winfullscreen as wf
+
+    user32, dwmapi = ctypes.WinDLL("user32"), ctypes.WinDLL("dwmapi")
+
+    class CURSORINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD), ("hCursor", ctypes.c_void_p), ("pt", wintypes.POINT)]
+
+    user32.LoadCursorW.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+    user32.LoadCursorW.restype = ctypes.c_void_p
+    names = {user32.LoadCursorW(None, 32644): "resize", user32.LoadCursorW(None, 32512): "arrow", user32.LoadCursorW(None, 32649): "hand"}
+    app.state("normal")
+    app.geometry("760x500+200+120")
+    app.update()
+    hwnd = app.window_handle(app)
+    shown = wintypes.RECT()
+    dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(shown), ctypes.sizeof(shown))
+    mid_y = (shown.top + shown.bottom) // 2
+    keep = wf.keep_border_cursor
+
+    def pump(seconds, record=None):
+        end = time.perf_counter() + seconds
+        while time.perf_counter() < end:
+            app.update()
+            if record is not None:
+                info = CURSORINFO()
+                info.cbSize = ctypes.sizeof(CURSORINFO)
+                user32.GetCursorInfo(ctypes.byref(info))
+                record[names.get(info.hCursor, "other")] += 1
+            time.sleep(0.005)
+
+    for label, keeper in (("kept", keep), ("not_kept", lambda _hwnd: False), ("kept_again", keep)):
+        wf.keep_border_cursor = keeper
+        user32.SetCursorPos(shown.left + 60, mid_y)
+        pump(0.5)
+        # Slide out to the edge in small steps, like a hand, then rest there.
+        for x in range(shown.left + 12, shown.left - 4, -2):
+            user32.SetCursorPos(x, mid_y)
+            pump(0.02)
+        seen = Counter()
+        pump(1.5, seen)
+        # A little wiggle along the edge, as when lining up a grab.
+        wiggle = Counter()
+        for n in range(30):
+            user32.SetCursorPos(shown.left - 3, mid_y + (n % 5))
+            pump(0.03, wiggle)
+        print(f"CURSOR {label} resting={dict(seen)} wiggling={dict(wiggle)} on_border={wf.on_resize_border(hwnd)}")
+    wf.keep_border_cursor = keep
+
+
 def cover_check():
     # Is the full screen still picture really on screen? Show it, hide the
     # app underneath, and see whether the screen still shows the app.
@@ -863,6 +919,7 @@ SCENARIOS = [
     ("drag_resize_top_shrink", drag_top(140)),
     ("zz_control_drag", control_drag),
     ("zz_cover_check", cover_check),
+    ("zz_cursor_check", cursor_check),
     ("zz_edge_check", edge_check),
     ("zz_center_check", center_check),
     ("theme_light", app.toggle_theme),
