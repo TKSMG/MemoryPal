@@ -609,6 +609,108 @@ def control_drag():
     time.sleep(0.3)
 
 
+def edge_band(hwnd, seconds, pump=None):
+    """What colour the screen shows just inside each edge of a window, over
+    time (looking for a light band around it while an edge is dragged)."""
+    import ctypes
+    import threading
+    from collections import Counter
+    from ctypes import wintypes
+
+    user32, gdi32, dwmapi = ctypes.WinDLL("user32"), ctypes.WinDLL("gdi32"), ctypes.WinDLL("dwmapi")
+    user32.GetDC.restype = ctypes.c_void_p
+    user32.GetDC.argtypes = (ctypes.c_void_p,)
+    user32.ReleaseDC.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+    gdi32.GetPixel.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+    gdi32.GetPixel.restype = ctypes.c_uint
+    user32.GetWindowRect.argtypes = (ctypes.c_void_p, ctypes.POINTER(wintypes.RECT))
+    dwmapi.DwmGetWindowAttribute.argtypes = (ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint)
+    seen = {edge: Counter() for edge in ("left1", "left3", "right1", "right3", "bottom1", "bottom3", "top0", "out_left", "out_bottom")}
+    insets, sizes, ticks = Counter(), set(), [0]
+    done = threading.Event()
+
+    def watch():
+        screen = user32.GetDC(None)
+        outer, shown = wintypes.RECT(), wintypes.RECT()
+        while not done.is_set():
+            user32.GetWindowRect(hwnd, ctypes.byref(outer))
+            if dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(shown), ctypes.sizeof(shown)) != 0:  # extended frame bounds
+                shown = outer
+            insets[(shown.left - outer.left, shown.top - outer.top, outer.right - shown.right, outer.bottom - shown.bottom)] += 1
+            sizes.add((outer.right - outer.left, outer.bottom - outer.top))
+            mid_x, mid_y = (shown.left + shown.right) // 2, (shown.top + shown.bottom) // 2
+            spots = {"left1": (shown.left + 1, mid_y), "left3": (shown.left + 3, mid_y), "right1": (shown.right - 2, mid_y),
+                     "right3": (shown.right - 4, mid_y), "bottom1": (mid_x, shown.bottom - 2), "bottom3": (mid_x, shown.bottom - 4),
+                     "top0": (mid_x, shown.top), "out_left": (shown.left - 3, mid_y), "out_bottom": (mid_x, shown.bottom + 2)}
+            for edge, (x, y) in spots.items():
+                colour = gdi32.GetPixel(screen, x, y)
+                seen[edge][(colour & 0xFF, (colour >> 8) & 0xFF, (colour >> 16) & 0xFF)] += 1
+            ticks[0] += 1
+            time.sleep(0.004)
+        user32.ReleaseDC(None, screen)
+
+    thread = threading.Thread(target=watch, daemon=True)
+    thread.start()
+    end = time.perf_counter() + seconds
+    while time.perf_counter() < end:
+        if pump:
+            pump()
+        time.sleep(0.002)
+    done.set()
+    thread.join(2)
+    lines = [f"ticks={ticks[0]} sizes={len(sizes)} insets={dict(insets)}"]
+    for edge, colours in seen.items():
+        lines.append(f"  {edge}: " + " ".join(f"{colour}x{count}" for colour, count in colours.most_common(5)))
+    return lines
+
+
+def edge_check():
+    # Ours, then Notepad, each: at rest, then while the corner is dragged.
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    drag_full = ctypes.c_int(0)
+    user32.SystemParametersInfoW(0x0026, 0, ctypes.byref(drag_full), 0)  # SPI_GETDRAGFULLWINDOWS
+    print(f"EDGE show_contents_while_dragging={drag_full.value}")
+    app.state("normal")
+    app.geometry("760x500+60+60")
+    app.update()
+    time.sleep(0.4)
+    app.update()
+    hwnd = app.window_handle(app)
+    for line in edge_band(hwnd, 0.5, app.update):
+        print("EDGE app rest", line)
+    rect = window_rect()
+    drag(rect.right - 4, rect.bottom - 4, 160, 90)
+    for line in edge_band(hwnd, 1.7, app.update):
+        print("EDGE app drag", line)
+    rect = window_rect()
+    drag(rect.left + (rect.right - rect.left) // 2, rect.bottom - 4, 0, 60)
+    for line in edge_band(hwnd, 1.7, app.update):
+        print("EDGE app drag_bottom", line)
+    subprocess.Popen(["notepad.exe"])
+    other = 0
+    for _ in range(80):
+        other = user32.FindWindowW("Notepad", None)
+        if other:
+            break
+        time.sleep(0.1)
+    if not other:
+        print("EDGE no notepad")
+        return
+    user32.ShowWindow(other, 9)
+    user32.SetWindowPos(other, -1, 60, 60, 760, 500, 0x40)
+    user32.SetForegroundWindow(other)
+    time.sleep(0.6)
+    for line in edge_band(other, 0.5):
+        print("EDGE notepad rest", line)
+    drag(60 + 760 - 4, 60 + 500 - 4, 160, 90)
+    for line in edge_band(other, 1.7):
+        print("EDGE notepad drag", line)
+    user32.PostMessageW(other, 0x0010, 0, 0)
+    time.sleep(0.3)
+
+
 def cover_check():
     # Is the full screen still picture really on screen? Show it, hide the
     # app underneath, and see whether the screen still shows the app.
@@ -728,6 +830,7 @@ SCENARIOS = [
     ("drag_resize_top_shrink", drag_top(140)),
     ("zz_control_drag", control_drag),
     ("zz_cover_check", cover_check),
+    ("zz_edge_check", edge_check),
     ("zz_center_check", center_check),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),
