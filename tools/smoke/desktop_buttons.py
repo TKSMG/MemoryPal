@@ -142,4 +142,5 @@ for where, err in errors:
     if key in shown: continue
     shown.add(key)
     print("=====", where); print(err[-1800:])
+sys.stdout.flush()
 os._exit(1 if errors else 0)
