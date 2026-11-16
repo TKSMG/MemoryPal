@@ -1509,7 +1509,17 @@ class MemoryPalApp(tk.Tk):
             viewable = False
         frozen = viewable and self.set_redraw_frozen(True)
         if not frozen:
-            (fallback or change)()
+            if fallback is not None:
+                fallback()
+                return
+            # Still mark the change as running: a rebuild that wraps itself
+            # (the quiz) would otherwise call back in here without end
+            # wherever painting can't be paused (Mac, Linux).
+            self._hidden_active = True
+            try:
+                change()
+            finally:
+                self._hidden_active = False
             return
         self._hidden_active = True
         try:
@@ -4364,6 +4374,15 @@ class MemoryPalApp(tk.Tk):
         self._prebuild_after = None
         if (getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False) or getattr(self, "tour", None)
                 or self.current_view in ("welcome", "signin") or getattr(self, "view_host", None) is None):
+            return
+        try:
+            ready = bool(self.content.winfo_exists() and self.view_host.winfo_exists())
+        except (AttributeError, tk.TclError):
+            ready = False
+        if not ready:
+            # The window is being rebuilt (a theme or text-size change) and
+            # the page area isn't there for a moment: try again shortly.
+            self.schedule_prebuild(500)
             return
         quiet = time.monotonic() - self.__dict__.get("_last_input", 0.0)
         if mouse_button_down():
@@ -7379,7 +7398,7 @@ class MemoryPalApp(tk.Tk):
             self.hero_button(buttons, "Review due cards", lambda: self.show_view("review"), soft=True).pack(fill="x", pady=(self.px(8), 0))
             return
 
-        steps = today["steps"]
+        steps = self.store.plan_day_steps(today["steps"])
         done = {index for index in self.store.plan_steps_done() if index < len(steps)}
         remaining = [index for index in range(len(steps)) if index not in done]
         heading = "Your plan is done for today" if not remaining else "Your study plan for today"
@@ -7400,7 +7419,7 @@ class MemoryPalApp(tk.Tk):
 
         @self.smooth
         def toggle(index):
-            now_done = self.store.toggle_plan_step(index)
+            now_done = self.store.toggle_plan_step(index, steps=steps)
             if now_done and len(self.store.plan_steps_done()) >= len(steps):
                 self.toast_message("Plan done for today. Nice work! \U0001F389")
             self.render_today_path(box)

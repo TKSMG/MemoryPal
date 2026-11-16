@@ -107,6 +107,31 @@ describe('MemoryStore', () => {
     expect([...reload().planStepsDone()]).toEqual([1]);
   });
 
+  test('ticks stay on their step when the day’s work changes the plan', () => {
+    const { store, reload } = fresh();
+    for (let i = 0; i < 5; i++) store.addCard(newCard({ deck: 'Bio', front: `q${i}`, back: `a${i}` }));
+    store.setStudyPlan({ unit: 'minutes', amount: '45', deck: 'All decks', goal_label: 'Exam prep', habits: [] });
+    const shown = store.planDaySteps(planForToday(store)!.steps);
+    const index = shown.findIndex((step) => step.title === 'Spaced review');
+    expect(store.togglePlanStep(index, undefined, shown)).toBe(true);
+    for (const card of [...store.cards]) store.schedule(card, 5);
+    expect(planForToday(store)!.steps.map((step) => step.title)).not.toEqual(shown.map((step) => step.title));
+    const later = reload();
+    const steps = later.planDaySteps(planForToday(later)!.steps);
+    expect(steps.map((step) => step.title)).toEqual(shown.map((step) => step.title));
+    expect([...later.planStepsDone()].map((i) => steps[i].title)).toEqual(['Spaced review']);
+  });
+
+  test('new steps join the end of a ticked day, and a new day starts live', () => {
+    const { store } = fresh();
+    store.setStudyPlan({ unit: 'minutes', amount: '45', deck: 'All decks', goal_label: 'Exam prep', habits: [] });
+    const first: { title: string; minutes: number }[] = [{ title: 'A', minutes: 5 }, { title: 'Break', minutes: 5 }, { title: 'Break', minutes: 5 }];
+    store.togglePlanStep(0, undefined, first);
+    const merged = store.planDaySteps([{ title: 'Break', minutes: 9 }, { title: 'C', minutes: 5 }]);
+    expect(merged.map((step) => [step.title, step.minutes])).toEqual([['A', 5], ['Break', 9], ['Break', 5], ['C', 5]]);
+    expect(store.planDaySteps([{ title: 'Z' }], addDays(1))).toEqual([{ title: 'Z' }]);
+  });
+
   test('a synced card with a huge interval is cut down and can still be rated', () => {
     const { store } = fresh();
     store.replaceWith({ cards: [JSON.parse(`{"id": "big", "front": "q", "back": "a", "repetitions": 3, "next_review": "2020-01-01", "interval": ${'9'.repeat(300)}}`)] });

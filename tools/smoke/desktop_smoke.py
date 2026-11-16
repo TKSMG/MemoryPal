@@ -77,6 +77,32 @@ def theme_twice_quickly():
 step("theme changed twice quickly", theme_twice_quickly)
 for mode in ("due", "quick", "weak", "new"):
     step(f"review mode {mode}", lambda mode=mode: app.start_review(mode))
+
+
+def press(text, root=None):
+    """Press the first shown button whose label starts with `text`."""
+    for widget in (root or app).winfo_children():
+        try:
+            if "command" in widget.keys() and str(widget.cget("text")).startswith(text) and widget.winfo_ismapped():
+                widget.invoke()
+                return True
+        except M.tk.TclError:
+            continue
+        if press(text, widget):
+            return True
+    return False
+
+
+def quiz_new_round():
+    # Redraws the quiz from a button, outside a page build (this looped
+    # without end where painting can't be paused: Mac and Linux).
+    app.show_view("quiz")
+    pump(0.3)
+    if not press("New round"):
+        raise AssertionError("no New round button on the quiz page")
+
+
+step("quiz new round", quiz_new_round)
 step("new set", lambda: app.start_new_set("Chemistry"))
 pump(3.2)  # let any notice that is still showing time out
 app.destroy()

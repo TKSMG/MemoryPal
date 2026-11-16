@@ -1,0 +1,51 @@
+name: Check Desktop App
+
+# Runs the desktop app for real on Windows and Mac: the unit tests, every page
+# in both themes, and every button on every page (tools/smoke).
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "latest_app/**"
+      - "tools/smoke/**"
+      - ".github/workflows/check-desktop.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-desktop:
+    name: Desktop on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: python -m pip install platformdirs pypdf Pillow
+
+      - name: Unit tests
+        working-directory: latest_app
+        run: python -m unittest discover -s tests -q
+
+      - name: Every page, both themes, main flows
+        run: python tools/smoke/desktop_smoke.py
+
+      - name: Every button on every page
+        run: python tools/smoke/desktop_buttons.py
