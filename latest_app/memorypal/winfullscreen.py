@@ -408,6 +408,12 @@ WM_SYSCOMMAND = 0x0112
 WM_ENTERSIZEMOVE = 0x0231
 WM_EXITSIZEMOVE = 0x0232
 WM_CLOSE = 0x0010
+WM_NCHITTEST = 0x0084
+WM_NCMOUSEMOVE = 0x00A0
+WM_NCMOUSELEAVE = 0x02A2
+# Which mouse pointer Windows shows over each part of the resize border
+# (hit-test code -> standard cursor): left/right, top/bottom, the corners.
+SIZE_CURSORS = {10: 32644, 11: 32644, 12: 32645, 15: 32645, 13: 32642, 17: 32642, 14: 32643, 16: 32643}
 SC_MAXIMIZE = 0xF030
 SC_RESTORE = 0xF120
 COVER_MAX_SECONDS = 1.5
@@ -486,11 +492,15 @@ def watch_big_resizes(hwnd, threshold):
             _fields_ = [("hwnd", wintypes.HWND), ("hwndInsertAfter", wintypes.HWND), ("x", ctypes.c_int), ("y", ctypes.c_int),
                         ("cx", ctypes.c_int), ("cy", ctypes.c_int), ("flags", ctypes.c_uint)]
 
-        state = {"armed": False, "sizing": False, "cover": None, "since": 0.0, "timer": None, "threshold": threshold, "raised": 0}
+        state = {"armed": False, "sizing": False, "cover": None, "since": 0.0, "timer": None, "threshold": threshold, "raised": 0, "border": 0}
 
         def procedure(window, message, wparam, lparam, _id, _data):
             try:
-                if message == WM_ENTERSIZEMOVE:
+                if message == WM_NCMOUSEMOVE:
+                    state["border"] = wparam if wparam in SIZE_CURSORS else 0
+                elif message == WM_NCMOUSELEAVE:
+                    state["border"] = 0
+                elif message == WM_ENTERSIZEMOVE:
                     state["sizing"] = True
                 elif message == WM_EXITSIZEMOVE:
                     state["sizing"] = False
@@ -553,3 +563,55 @@ def drop_resize_cover(hwnd):
     hide_cover(cover)
     set_transitions(hwnd, True)
     return True
+
+
+# The resize arrow over the window's edges.
+#
+# Windows puts the resize arrow up when the mouse moves onto the edge. Tk
+# then notices, a moment later and on a timer, that the mouse has left its
+# part of the window, and sets the pointer itself (to the plain arrow).
+# Windows only sets it again on the next mouse movement, so over the edge the
+# pointer flipped between the two. The watcher above notes when the mouse is
+# on the edge, and the app calls keep_border_cursor a few times a second to
+# put the resize arrow back if something replaced it.
+
+def on_resize_border(hwnd):
+    state = _resize_watch.get(hwnd)
+    return bool(state and state["border"])
+
+
+def keep_border_cursor(hwnd):
+    """Put the resize arrow back if the mouse is still on the window's edge
+    and shows something else. True if it had to be put back."""
+    state = _resize_watch.get(hwnd)
+    if not state or not state["border"]:
+        return False
+    try:
+        ctypes, wintypes, user32, _gdi32, _dwmapi, _kernel32 = _cover_api()
+        user32.GetCursorPos.argtypes = (ctypes.POINTER(wintypes.POINT),)
+        user32.WindowFromPoint.argtypes = (wintypes.POINT,)
+        user32.WindowFromPoint.restype = wintypes.HWND
+        user32.SendMessageW.argtypes = (wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM)
+        user32.SendMessageW.restype = ctypes.c_ssize_t
+        user32.LoadCursorW.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+        user32.LoadCursorW.restype = ctypes.c_void_p
+        user32.GetCursor.restype = ctypes.c_void_p
+        user32.SetCursor.argtypes = (ctypes.c_void_p,)
+        user32.SetCursor.restype = ctypes.c_void_p
+        point = wintypes.POINT()
+        if not user32.GetCursorPos(ctypes.byref(point)) or user32.WindowFromPoint(point) != hwnd:
+            state["border"] = 0
+            return False
+        where = (point.y & 0xFFFF) << 16 | (point.x & 0xFFFF)
+        hit = user32.SendMessageW(hwnd, WM_NCHITTEST, 0, where)
+        if hit not in SIZE_CURSORS:
+            state["border"] = 0
+            return False
+        state["border"] = hit
+        wanted = user32.LoadCursorW(None, SIZE_CURSORS[hit])
+        if not wanted or user32.GetCursor() == wanted:
+            return False
+        user32.SetCursor(wanted)
+        return True
+    except (AttributeError, OSError, ValueError):
+        return False

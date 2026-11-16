@@ -609,6 +609,197 @@ def control_drag():
     time.sleep(0.3)
 
 
+def edge_band(hwnd, seconds, pump=None):
+    """What colour the screen shows just inside each edge of a window, over
+    time (looking for a light band around it while an edge is dragged)."""
+    import ctypes
+    import threading
+    from collections import Counter
+    from ctypes import wintypes
+
+    user32, gdi32, dwmapi = ctypes.WinDLL("user32"), ctypes.WinDLL("gdi32"), ctypes.WinDLL("dwmapi")
+    user32.GetDC.restype = ctypes.c_void_p
+    user32.GetDC.argtypes = (ctypes.c_void_p,)
+    user32.ReleaseDC.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+    gdi32.GetPixel.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+    gdi32.GetPixel.restype = ctypes.c_uint
+    user32.GetWindowRect.argtypes = (ctypes.c_void_p, ctypes.POINTER(wintypes.RECT))
+    dwmapi.DwmGetWindowAttribute.argtypes = (ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint)
+    names = ["left1", "left3", "right1", "right3", "top0"] + [f"out_left{n}" for n in range(1, 10)] + [f"out_top{n}" for n in range(1, 6)]
+    seen = {edge: Counter() for edge in names}
+    insets, sizes, ticks = Counter(), set(), [0]
+    done = threading.Event()
+
+    def watch():
+        # One copy of the screen around the window per tick (reading the
+        # screen pixel by pixel takes a third of a second each on these machines).
+        gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+        gdi32.CreateCompatibleDC.argtypes = (ctypes.c_void_p,)
+        gdi32.CreateCompatibleBitmap.restype = ctypes.c_void_p
+        gdi32.CreateCompatibleBitmap.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+        gdi32.SelectObject.restype = ctypes.c_void_p
+        gdi32.SelectObject.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+        gdi32.BitBlt.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_uint)
+        screen = user32.GetDC(None)
+        side = 1400
+        memory = gdi32.CreateCompatibleDC(screen)
+        gdi32.SelectObject(memory, gdi32.CreateCompatibleBitmap(screen, side, side))
+        outer, shown = wintypes.RECT(), wintypes.RECT()
+        while not done.is_set():
+            user32.GetWindowRect(hwnd, ctypes.byref(outer))
+            if dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(shown), ctypes.sizeof(shown)) != 0:  # extended frame bounds
+                shown = outer
+            ox, oy = outer.left - 8, outer.top - 8
+            gdi32.BitBlt(memory, 0, 0, min(side, outer.right - outer.left + 16), min(side, outer.bottom - outer.top + 16), screen, ox, oy, 0x00CC0020)
+            insets[(shown.left - outer.left, shown.top - outer.top, outer.right - shown.right, outer.bottom - shown.bottom)] += 1
+            sizes.add((outer.right - outer.left, outer.bottom - outer.top))
+            mid_x, mid_y = (shown.left + shown.right) // 2, (shown.top + shown.bottom) // 2
+            spots = {"left1": (shown.left + 1, mid_y), "left3": (shown.left + 3, mid_y), "right1": (shown.right - 2, mid_y),
+                     "right3": (shown.right - 4, mid_y),
+                     "top0": (mid_x, shown.top)}
+            # Left and top edges: the mouse (and its pointer) is at the bottom right.
+            spots.update({f"out_left{n}": (shown.left - n, mid_y) for n in range(1, 10)})
+            spots.update({f"out_top{n}": (mid_x, shown.top - n) for n in range(1, 6)})
+            for edge, (x, y) in spots.items():
+                colour = gdi32.GetPixel(memory, x - ox, y - oy)
+                seen[edge][(colour & 0xFF, (colour >> 8) & 0xFF, (colour >> 16) & 0xFF)] += 1
+            ticks[0] += 1
+            time.sleep(0.002)
+        user32.ReleaseDC(None, screen)
+
+    thread = threading.Thread(target=watch, daemon=True)
+    thread.start()
+    end = time.perf_counter() + seconds
+    while time.perf_counter() < end:
+        if pump:
+            pump()
+        time.sleep(0.002)
+    done.set()
+    thread.join(2)
+    lines = [f"ticks={ticks[0]} sizes={len(sizes)} insets={dict(insets)}"]
+    for edge, colours in seen.items():
+        lines.append(f"  {edge}: " + " ".join(f"{colour[0]},{colour[1]},{colour[2]}x{count}" for colour, count in colours.most_common(4)))
+    return lines
+
+
+def edge_check():
+    # Ours, then Notepad, each: at rest, then while the corner is dragged.
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    drag_full = ctypes.c_int(0)
+    user32.SystemParametersInfoW(0x0026, 0, ctypes.byref(drag_full), 0)  # SPI_GETDRAGFULLWINDOWS
+    print(f"EDGE show_contents_while_dragging={drag_full.value}")
+    app.state("normal")
+    app.geometry("760x500+60+60")
+    app.update()
+    time.sleep(0.4)
+    app.update()
+    hwnd = app.window_handle(app)
+    for line in edge_band(hwnd, 0.5, app.update):
+        print("EDGE app rest", line)
+    rect = window_rect()
+    drag(rect.right - 4, rect.bottom - 4, 160, 90)
+    for line in edge_band(hwnd, 1.7, app.update):
+        print("EDGE app drag", line)
+    dwm = ctypes.WinDLL("dwmapi")
+    dwm.DwmSetWindowAttribute.argtypes = (ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint)
+
+    def with_attribute(label, attribute, value):
+        setting = ctypes.c_uint(value)
+        result = dwm.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(setting), 4)
+        app.geometry("760x500+60+60")
+        app.update()
+        time.sleep(0.5)
+        app.update()
+        rect = window_rect()
+        drag(rect.right - 4, rect.bottom - 4, 160, 90)
+        for line in edge_band(hwnd, 1.7, app.update):
+            print(f"EDGE app {label} (set={result})", line)
+
+    with_attribute("border_none", 34, 0xFFFFFFFE)
+    with_attribute("border_default", 34, 0xFFFFFFFF)
+    with_attribute("border_red", 34, 0x000000FF)
+    with_attribute("light_mode", 20, 0)
+    subprocess.Popen(["notepad.exe"])
+    other = 0
+    for _ in range(80):
+        other = user32.FindWindowW("Notepad", None)
+        if other:
+            break
+        time.sleep(0.1)
+    if not other:
+        print("EDGE no notepad")
+        return
+    user32.ShowWindow(other, 9)
+    user32.SetWindowPos(other, -1, 60, 60, 760, 500, 0x40)
+    user32.SetForegroundWindow(other)
+    time.sleep(0.6)
+    for line in edge_band(other, 0.5):
+        print("EDGE notepad rest", line)
+    drag(60 + 760 - 4, 60 + 500 - 4, 160, 90)
+    for line in edge_band(other, 1.7):
+        print("EDGE notepad drag", line)
+    user32.PostMessageW(other, 0x0010, 0, 0)
+    time.sleep(0.3)
+
+
+def cursor_check():
+    # Rest the mouse on the window's left edge, coming from inside the page:
+    # which pointer shows, sample by sample? (With and without the app's
+    # own keeping of the resize arrow.)
+    import ctypes
+    from collections import Counter
+    from ctypes import wintypes
+    from memorypal import winfullscreen as wf
+
+    user32, dwmapi = ctypes.WinDLL("user32"), ctypes.WinDLL("dwmapi")
+
+    class CURSORINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD), ("hCursor", ctypes.c_void_p), ("pt", wintypes.POINT)]
+
+    user32.LoadCursorW.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+    user32.LoadCursorW.restype = ctypes.c_void_p
+    names = {user32.LoadCursorW(None, 32644): "resize", user32.LoadCursorW(None, 32512): "arrow", user32.LoadCursorW(None, 32649): "hand"}
+    app.state("normal")
+    app.geometry("760x500+200+120")
+    app.update()
+    hwnd = app.window_handle(app)
+    shown = wintypes.RECT()
+    dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(shown), ctypes.sizeof(shown))
+    mid_y = (shown.top + shown.bottom) // 2
+    keep = wf.keep_border_cursor
+
+    def pump(seconds, record=None):
+        end = time.perf_counter() + seconds
+        while time.perf_counter() < end:
+            app.update()
+            if record is not None:
+                info = CURSORINFO()
+                info.cbSize = ctypes.sizeof(CURSORINFO)
+                user32.GetCursorInfo(ctypes.byref(info))
+                record[names.get(info.hCursor, "other")] += 1
+            time.sleep(0.005)
+
+    for label, keeper in (("kept", keep), ("not_kept", lambda _hwnd: False), ("kept_again", keep)):
+        wf.keep_border_cursor = keeper
+        user32.SetCursorPos(shown.left + 60, mid_y)
+        pump(0.5)
+        # Slide out to the edge in small steps, like a hand, then rest there.
+        for x in range(shown.left + 12, shown.left - 4, -2):
+            user32.SetCursorPos(x, mid_y)
+            pump(0.02)
+        seen = Counter()
+        pump(1.5, seen)
+        # A little wiggle along the edge, as when lining up a grab.
+        wiggle = Counter()
+        for n in range(30):
+            user32.SetCursorPos(shown.left - 3, mid_y + (n % 5))
+            pump(0.03, wiggle)
+        print(f"CURSOR {label} resting={dict(seen)} wiggling={dict(wiggle)} on_border={wf.on_resize_border(hwnd)}")
+    wf.keep_border_cursor = keep
+
+
 def cover_check():
     # Is the full screen still picture really on screen? Show it, hide the
     # app underneath, and see whether the screen still shows the app.
@@ -728,6 +919,8 @@ SCENARIOS = [
     ("drag_resize_top_shrink", drag_top(140)),
     ("zz_control_drag", control_drag),
     ("zz_cover_check", cover_check),
+    ("zz_cursor_check", cursor_check),
+    ("zz_edge_check", edge_check),
     ("zz_center_check", center_check),
     ("theme_light", app.toggle_theme),
     ("theme_dark", app.toggle_theme),

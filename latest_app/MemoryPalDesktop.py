@@ -1319,6 +1319,20 @@ class MemoryPalApp(tk.Tk):
             hwnd = self.window_handle(self)
             if winfullscreen.watch_big_resizes(hwnd, self.px(160)):
                 winfullscreen.arm_resize_cover(hwnd, True)
+                self._keep_border_cursor(hwnd)
+
+    BORDER_CURSOR_CHECK_MS = 30
+
+    def _keep_border_cursor(self, hwnd):
+        """Keep Windows' resize arrow showing while the mouse is on the
+        window's edge (see winfullscreen.keep_border_cursor). The check is a
+        dictionary look-up unless the mouse is on the edge."""
+        try:
+            if winfullscreen.on_resize_border(hwnd) and not mouse_button_down():
+                winfullscreen.keep_border_cursor(hwnd)
+            self.after(self.BORDER_CURSOR_CHECK_MS, self._keep_border_cursor, hwnd)
+        except tk.TclError:
+            pass  # the window has gone
 
     def install_mac_menus(self):
         """Give the Mac the menu bar every Mac app has.
@@ -4026,36 +4040,45 @@ class MemoryPalApp(tk.Tk):
     # drag in its own loop and tells Tk nothing about it, so a size change
     # while a mouse button is held counts as a drag.
     #
-    # Tk lays a page out as many native windows, and reflowing one at a new
-    # size takes 20-40ms. Done on every step of a drag, Windows could only
-    # move the window's edge about 20 times a second (it waits for the app
-    # between steps), so the edge itself lagged and jerked behind the mouse,
-    # and the page was repainted in between: the flicker. While the person
-    # drags, the edge now follows the mouse at the screen's full rate and
-    # the page keeps its last layout (new space shows the page background,
-    # like Chrome while it catches up). The page reflows, once and fully
-    # drawn, when the drag pauses and at the end, and not while the edge
-    # is moving: a reflow every fraction of a second made text and panels
-    # jump to a new place several times per drag, which read as jitter.
+    # Chrome, VS Code and the like lay the page out again for every step of
+    # a drag, so the page follows the edge all the way. Tk lays a page out
+    # as many native windows and one reflow takes 20-40ms, more than a
+    # screen refresh, so it cannot be done for every step: Windows waits for
+    # the app between steps, and the edge itself then lagged and jerked
+    # behind the mouse. So the page reflows as often as it can afford to
+    # while the edge moves: each reflow is timed, and the next one waits
+    # until the app has been free for about as long as the last one took
+    # (the edge keeps up with the mouse in that free time). Every reflow is
+    # drawn in one go with painting paused, and there is always one for the
+    # final size.
 
-    LIVE_REFLOW_PAUSE_MS = 100
+    LIVE_REFLOW_MIN_GAP_MS = 12
+    LIVE_REFLOW_FREE_SHARE = 0.8  # free time after a reflow, as a share of what it cost
 
     def _begin_live_resize(self):
         self._live_resizing = True
         self._live_laid_out = None
         self._live_cursor = current_cursor()
+        self._live_reflow_done = 0.0
+        self._live_reflow_cost = 0.0
 
     def _schedule_live_reflow(self):
+        if getattr(self, "_live_reflow_after", None) is not None and getattr(self, "_live_reflow_moving", False):
+            return  # one is already on its way for this stretch of movement
         pending = getattr(self, "_live_reflow_after", None)
         if pending is not None:
             try:
                 self.after_cancel(pending)
             except tk.TclError:
                 pass
-        self._live_reflow_after = self.after(self.LIVE_REFLOW_PAUSE_MS, self._live_reflow)
+        gap = max(self.LIVE_REFLOW_MIN_GAP_MS, 1000 * self.LIVE_REFLOW_FREE_SHARE * getattr(self, "_live_reflow_cost", 0.0))
+        since = 1000 * (time.perf_counter() - getattr(self, "_live_reflow_done", 0.0))
+        self._live_reflow_moving = True
+        self._live_reflow_after = self.after(int(max(1, gap - since)), self._live_reflow)
 
     def _live_reflow(self):
         self._live_reflow_after = None
+        self._live_reflow_moving = False
         held = mouse_button_down()
         if not held:
             self._live_resizing = False  # let go: this is the final layout
@@ -4067,7 +4090,10 @@ class MemoryPalApp(tk.Tk):
         if size == getattr(self, "_live_laid_out", None):
             return  # already laid out at this size
         self._live_laid_out = size
+        began = time.perf_counter()
         self._relayout_after_resize()
+        self._live_reflow_done = time.perf_counter()
+        self._live_reflow_cost = self._live_reflow_done - began
         if held:
             # Laying the page out moves widgets under the mouse, and Tk then
             # sets its own pointer for whichever one is there. Windows keeps
