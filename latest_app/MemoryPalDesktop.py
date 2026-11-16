@@ -7389,7 +7389,7 @@ class MemoryPalApp(tk.Tk):
             self.hero_button(buttons, "Review due cards", lambda: self.show_view("review"), soft=True).pack(fill="x", pady=(self.px(8), 0))
             return
 
-        steps = today["steps"]
+        steps = self.store.plan_day_steps(today["steps"])
         done = {index for index in self.store.plan_steps_done() if index < len(steps)}
         remaining = [index for index in range(len(steps)) if index not in done]
         heading = "Your plan is done for today" if not remaining else "Your study plan for today"
@@ -7410,7 +7410,7 @@ class MemoryPalApp(tk.Tk):
 
         @self.smooth
         def toggle(index):
-            now_done = self.store.toggle_plan_step(index)
+            now_done = self.store.toggle_plan_step(index, steps=steps)
             if now_done and len(self.store.plan_steps_done()) >= len(steps):
                 self.toast_message("Plan done for today. Nice work! \U0001F389")
             self.render_today_path(box)

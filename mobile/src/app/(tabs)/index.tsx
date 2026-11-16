@@ -45,6 +45,7 @@ export default function Today() {
   const streak = store.currentStreak();
   const level = levelInfo(store.practiced);
   const plan = planForToday(store);
+  const planSteps = plan ? store.planDaySteps(plan.steps) : [];
   const done = store.planStepsDone();
   const badge = nextAchievement(store);
 
@@ -101,7 +102,7 @@ export default function Today() {
       <SectionTitle
         action={
           <Row gap={4}>
-            {plan && !plan.finished ? <SpeakButton text={plan.steps.map((step, i) => `Step ${i + 1}: ${step.title}, ${step.minutes} minutes.`).join(' ')} label="Read today’s plan aloud" /> : null}
+            {plan && !plan.finished ? <SpeakButton text={planSteps.map((step, i) => `Step ${i + 1}: ${step.title}, ${step.minutes} minutes.`).join(' ')} label="Read today’s plan aloud" /> : null}
             {plan ? <Button kind="ghost" compact inline label="Edit" onPress={() => router.push('/plan')} /> : null}
           </Row>
         }
@@ -112,14 +113,14 @@ export default function Today() {
         <Card>
           <Txt variant="muted">{plan.title}</Txt>
           {plan.finished ? <Txt variant="body">Well done, the plan is complete. Make a new one when you’re ready.</Txt> : null}
-          {plan.steps.map((step, index) => {
+          {planSteps.map((step, index) => {
             const ticked = done.has(index);
             // A press shows at once: a ripple on Android, a soft fill elsewhere.
             const pressedFill = (pressed: boolean) => pressed && !android && { backgroundColor: c.surfaceSoft };
             return (
               <Row key={`${step.title}-${index}`} style={{ alignItems: 'flex-start' }}>
                 <Pressable
-                  onPress={() => store.togglePlanStep(index)}
+                  onPress={() => store.togglePlanStep(index, undefined, planSteps)}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: ticked }}
                   accessibilityLabel={`${step.title}, ${step.minutes} minutes`}
