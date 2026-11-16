@@ -12,9 +12,11 @@ The listener is non-blocking: start() launches the recogniser and poll()
 returns None until it has finished, so a Tk app can check it from after().
 """
 
+import base64
 import re
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 
 from .core import normalize_space, powershell_exe
@@ -24,25 +26,68 @@ SILENCE = "MP-SILENCE"
 ERROR = "MP-ERROR"
 RECOGNIZERS = "MP-RECOGNIZERS"
 
-WINDOWS_LISTEN_SCRIPT = (
-    "$ErrorActionPreference = 'Stop'; "
-    "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
-    "try {{ "
-    "Add-Type -AssemblyName System.Speech; "
-    "$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine; "
-    "$engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar)); "
-    "$engine.SetInputToDefaultAudioDevice(); "
-    "$engine.InitialSilenceTimeout = [TimeSpan]::FromMilliseconds({initial_ms}); "
-    "$engine.BabbleTimeout = [TimeSpan]::FromMilliseconds({max_ms}); "
-    "$engine.EndSilenceTimeout = [TimeSpan]::FromMilliseconds({end_ms}); "
-    "$engine.EndSilenceTimeoutAmbiguous = [TimeSpan]::FromMilliseconds({end_ms}); "
-    "$heard = $engine.Recognize([TimeSpan]::FromMilliseconds({max_ms})); "
-    "if ($heard -ne $null -and $heard.Text) {{ "
-    "[Console]::Out.WriteLine('" + HEARD + " ' + $heard.Confidence.ToString('0.000', [Globalization.CultureInfo]::InvariantCulture) + ' ' + $heard.Text) "
-    "}} else {{ [Console]::Out.WriteLine('" + SILENCE + "') }}; "
-    "$engine.Dispose() "
-    "}} catch {{ [Console]::Out.WriteLine('" + ERROR + " ' + $_.Exception.Message) }}"
-)
+READY = "MP-READY"
+LISTENING = "MP-LISTENING"
+ALTERNATE = "MP-ALT"
+
+# The recogniser is started early (while the question is still being read
+# aloud) so that it is loaded and waiting by the time the answer starts: a
+# cold start takes a second or two, and words said in that gap were lost.
+# It reads its hints from stdin, loads, prints READY, then waits for GO.
+#
+# Hints are the answers of the cards in this round. Plain dictation knows
+# nothing about the subject, so it mishears names and technical words; with
+# the round's own answers loaded as phrases it can recognise them directly.
+WINDOWS_LISTEN_SCRIPT = " ".join(line.strip() for line in ("""
+$ErrorActionPreference = 'Stop';
+[Console]::OutputEncoding = [Text.Encoding]::UTF8;
+function Tell($text) { [Console]::Out.WriteLine($text); [Console]::Out.Flush() };
+function Unpack($line) { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($line.Substring(2))) };
+try {
+$phrases = New-Object 'System.Collections.Generic.List[string]';
+$wave = '';
+while ($true) {
+$line = [Console]::In.ReadLine();
+if ($line -eq $null -or $line -eq 'END') { break };
+if ($line.StartsWith('H ')) { $phrases.Add((Unpack $line)) }
+elseif ($line.StartsWith('W ')) { $wave = (Unpack $line) }
+};
+Add-Type -AssemblyName System.Speech;
+$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine;
+$engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar));
+if ($phrases.Count -gt 0) {
+try {
+$choices = New-Object System.Speech.Recognition.Choices;
+foreach ($phrase in $phrases) { $choices.Add([string[]]@($phrase)) };
+$builder = New-Object System.Speech.Recognition.GrammarBuilder;
+$builder.Culture = $engine.RecognizerInfo.Culture;
+$builder.Append($choices);
+$known = New-Object System.Speech.Recognition.Grammar($builder);
+$known.Name = 'known';
+$known.Priority = 20;
+$engine.LoadGrammar($known)
+} catch { }
+};
+if ($wave) { $engine.SetInputToWaveFile($wave) } else { $engine.SetInputToDefaultAudioDevice() };
+$engine.InitialSilenceTimeout = [TimeSpan]::FromMilliseconds({initial_ms});
+$engine.BabbleTimeout = [TimeSpan]::FromMilliseconds({max_ms});
+$engine.EndSilenceTimeout = [TimeSpan]::FromMilliseconds({end_ms});
+$engine.EndSilenceTimeoutAmbiguous = [TimeSpan]::FromMilliseconds({end_ms});
+$engine.MaxAlternates = 5;
+Tell '""" + READY + """';
+if ([Console]::In.ReadLine() -ne 'GO') { $engine.Dispose(); exit };
+Tell '""" + LISTENING + """';
+$heard = $engine.Recognize([TimeSpan]::FromMilliseconds({max_ms}));
+if ($heard -ne $null -and $heard.Text) {
+foreach ($other in $heard.Alternates) { if ($other.Text -and $other.Text -ne $heard.Text) { Tell ('""" + ALTERNATE + """ ' + $other.Text) } };
+Tell ('""" + HEARD + """ ' + $heard.Confidence.ToString('0.000', [Globalization.CultureInfo]::InvariantCulture) + ' ' + $heard.Text)
+} else { Tell '""" + SILENCE + """' };
+$engine.Dispose()
+} catch { Tell ('""" + ERROR + """ ' + $_.Exception.Message) }
+""").strip().splitlines())
+
+MAX_HINTS = 150
+MAX_HINT_WORDS = 12
 
 WINDOWS_PROBE_SCRIPT = (
     "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
@@ -65,6 +110,11 @@ class ListenResult:
     text: str = ""
     confidence: float = 0.0
     message: str = ""
+    alternates: tuple = ()
+
+    def readings(self):
+        """What was heard, then the recogniser's other guesses at the same words."""
+        return [self.text, *self.alternates] if self.text else []
 
     @property
     def heard(self):
@@ -84,8 +134,39 @@ def listen_command(max_seconds=12, initial_silence=6, end_silence=1.2, platform=
     """The command that listens once and prints the result, or None off Windows."""
     if not platform_supported(platform):
         return None
-    script = WINDOWS_LISTEN_SCRIPT.format(initial_ms=_ms(initial_silence), max_ms=_ms(max_seconds), end_ms=_ms(end_silence))
+    script = WINDOWS_LISTEN_SCRIPT
+    for name, seconds in (("initial_ms", initial_silence), ("max_ms", max_seconds), ("end_ms", end_silence)):
+        script = script.replace("{" + name + "}", str(_ms(seconds)))
     return [powershell_exe(), "-NoProfile", "-NonInteractive", "-Command", script]
+
+
+def clean_hints(phrases):
+    """Phrases the recogniser can take: plain words only, short, no repeats."""
+    cleaned, seen = [], set()
+    for phrase in phrases or ():
+        words = re.sub(r"[^\w' -]+", " ", str(phrase or "").replace("’", "'").replace("_", " "))
+        words = " ".join(words.split())
+        key = words.casefold()
+        if not words or key in seen or len(words.split()) > MAX_HINT_WORDS or not re.search(r"[^\W\d]", words):
+            continue
+        seen.add(key)
+        cleaned.append(words)
+        if len(cleaned) >= MAX_HINTS:
+            break
+    return cleaned
+
+
+def _packed(kind, text):
+    return f"{kind} {base64.b64encode(text.encode('utf-8')).decode('ascii')}\n".encode("ascii")
+
+
+def setup_lines(hints=(), wave_file=None):
+    """What the recogniser reads before it loads. Base64, so no text can break out of a line."""
+    lines = [_packed("H", hint) for hint in clean_hints(hints)]
+    if wave_file:
+        lines.append(_packed("W", str(wave_file)))
+    lines.append(b"END\n")
+    return b"".join(lines)
 
 
 def probe_command(platform=None):
@@ -98,6 +179,7 @@ def probe_command(platform=None):
 def parse_result(stdout, returncode=0):
     """Read the recogniser's stdout into a ListenResult."""
     lines = [line.strip() for line in (stdout or "").splitlines() if line.strip()]
+    alternates = tuple(text for text in (normalize_space(line[len(ALTERNATE):]) for line in lines if line.startswith(ALTERNATE)) if text)
     for line in reversed(lines):
         if line.startswith(HEARD):
             rest = line[len(HEARD):].strip()
@@ -107,7 +189,7 @@ def parse_result(stdout, returncode=0):
             except ValueError:
                 confidence, text = 0.0, rest
             text = normalize_space(text)
-            return ListenResult("heard", text, confidence) if text else ListenResult("silence")
+            return ListenResult("heard", text, confidence, alternates=alternates) if text else ListenResult("silence")
         if line.startswith(SILENCE):
             return ListenResult("silence")
         if line.startswith(ERROR):
@@ -155,15 +237,18 @@ class Listener:
         self.platform = platform or sys.platform
         self.process = None
         self._recognizers = None
+        self._going = False
+        self._lines = []
+        self._reader = None
 
     def supported(self):
         return platform_supported(self.platform)
 
-    def _run(self, command):
+    def _run(self, command, stdin=subprocess.DEVNULL):
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         return self._popen(
             command,
-            stdin=subprocess.DEVNULL,
+            stdin=stdin,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             creationflags=flags,
@@ -186,18 +271,64 @@ class Listener:
         self._recognizers = parse_probe(stdout.decode("utf-8", "replace") if isinstance(stdout, bytes) else stdout)
         return self._recognizers > 0
 
-    def start(self, max_seconds=12, initial_silence=6, end_silence=1.2):
-        """Start listening. Returns False when there is no recogniser to run."""
+    def prepare(self, hints=(), max_seconds=12, initial_silence=6, end_silence=1.2, wave_file=None):
+        """Load the recogniser now so it is waiting when go() is called.
+
+        hints are phrases likely to be said (the round's answers). Returns
+        False when there is no recogniser to run.
+        """
         self.stop()
         command = listen_command(max_seconds, initial_silence, end_silence, self.platform)
         if command is None:
             return False
         try:
-            self.process = self._run(command)
-        except OSError:
-            self.process = None
+            process = self._run(command, stdin=subprocess.PIPE)
+            process.stdin.write(setup_lines(hints, wave_file))
+            process.stdin.flush()
+        except (OSError, ValueError):
             return False
+        self.process = process
+        self._going = False
+        self._lines = lines = []
+        self._reader = threading.Thread(target=self._read, args=(process, lines), daemon=True)
+        self._reader.start()
         return True
+
+    @staticmethod
+    def _read(process, lines):
+        try:
+            for raw in process.stdout:
+                lines.append(raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw)
+        except (OSError, ValueError):
+            pass
+
+    def prepared(self):
+        """A recogniser is loaded (or loading) and has not been told to listen yet."""
+        return self.process is not None and not self._going and self.process.poll() is None
+
+    def go(self):
+        """Open the microphone on the prepared recogniser."""
+        if not self.prepared():
+            return False
+        try:
+            self.process.stdin.write(b"GO\n")
+            self.process.stdin.flush()
+            self.process.stdin.close()
+        except (OSError, ValueError):
+            self.stop()
+            return False
+        self._going = True
+        return True
+
+    def start(self, hints=(), max_seconds=12, initial_silence=6, end_silence=1.2, wave_file=None):
+        """Start listening. Returns False when there is no recogniser to run."""
+        if not self.prepared() and not self.prepare(hints, max_seconds, initial_silence, end_silence, wave_file):
+            return False
+        return self.go()
+
+    def microphone_open(self):
+        """True once the recogniser has actually started to listen."""
+        return self.process is not None and any(line.startswith(LISTENING) for line in list(self._lines))
 
     def listening(self):
         return self.process is not None and self.process.poll() is None
@@ -209,18 +340,15 @@ class Listener:
         returncode = self.process.poll()
         if returncode is None:
             return None
-        process, self.process = self.process, None
-        try:
-            stdout = process.stdout.read() if process.stdout else b""
-        except (OSError, ValueError):
-            stdout = b""
-        text = stdout.decode("utf-8", "replace") if isinstance(stdout, bytes) else (stdout or "")
-        return parse_result(text, returncode)
+        self.process = None
+        if self._reader is not None:
+            self._reader.join(timeout=2)
+        return parse_result("".join(self._lines), returncode)
 
     def stop(self):
-        if self.process is not None and self.process.poll() is None:
+        process, self.process = self.process, None
+        if process is not None and process.poll() is None:
             try:
-                self.process.terminate()
+                process.terminate()
             except OSError:
                 pass
-        self.process = None

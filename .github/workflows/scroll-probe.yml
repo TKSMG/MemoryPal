@@ -19,6 +19,15 @@ on:
         description: "Only these render scenarios (name starts, space separated)"
         type: string
         default: ""
+      profile:
+        description: "Profile these render scenarios (exact names, space separated)"
+        type: string
+        default: ""
+
+      listen:
+        description: "Only check talk-back listening (Windows)"
+        type: boolean
+        default: false
       selection:
         description: "Only drag-select text with the real mouse (selection_probe.py)"
         type: boolean
@@ -30,11 +39,7 @@ permissions:
 jobs:
   selection:
     if: ${{ inputs.selection }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
@@ -48,10 +53,22 @@ jobs:
         run: |
           python tools/render_check/selection_probe.py review dashboard > selection.txt 2>&1 || true
           cat selection.txt
-          python -c "import sys; t=open('selection.txt').read()[-3900:]; print('::notice title=Selection probe ${{ matrix.os }}::' + t.replace('%','%25').replace('\\r','').replace('\\n','%0A'))"
+          python -c "import sys; t=open('selection.txt').read()[-3900:]; print('::notice title=Selection probe windows::' + t.replace('%','%25').replace('\\r','').replace('\\n','%0A'))"
+
+  listen:
+    if: ${{ inputs.listen }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Hear spoken answers from sound files
+        run: python tools/listen_check/listen_check.py
 
   probe:
-    if: ${{ !inputs.selection }}
+    if: ${{ !inputs.listen && !inputs.selection }}
     strategy:
       fail-fast: false
       matrix:
@@ -91,7 +108,7 @@ jobs:
           fi
           PROBE_OUT=probe-out python tools/render_check/scroll_probe.py ${{ inputs.scroll || 'stats settings library' }} >> probe.txt 2>&1 || true
           if [ "$RUNNER_OS" = "Windows" ]; then
-            WHOLE_SCREEN=1 PRINT_PNG=1 python tools/render_check/render_probe.py render-out ${{ inputs.render }} > render.txt 2>&1 || true
+            PROFILE_SCENARIOS="${{ inputs.profile }}" WHOLE_SCREEN=1 PRINT_PNG=1 python tools/render_check/render_probe.py render-out ${{ inputs.render }} > render.txt 2>&1 || true
             grep -v '^PNG \|^SERIES ' render.txt >> probe.txt || true
             grep '^PNG ' render.txt || true
           fi

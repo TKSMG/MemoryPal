@@ -316,6 +316,34 @@ def set_fine_timers(enabled):
         return False
 
 
+def current_cursor():
+    """The mouse pointer showing now (Windows), to put back with restore_cursor."""
+    if not sys.platform.startswith("win"):
+        return None
+    try:
+        import ctypes
+
+        user32 = ctypes.WinDLL("user32")
+        user32.GetCursor.restype = ctypes.c_void_p
+        return user32.GetCursor()
+    except (AttributeError, OSError):
+        return None
+
+
+def restore_cursor(cursor):
+    if not cursor or not sys.platform.startswith("win"):
+        return
+    try:
+        import ctypes
+
+        user32 = ctypes.WinDLL("user32")
+        user32.SetCursor.argtypes = (ctypes.c_void_p,)
+        user32.SetCursor.restype = ctypes.c_void_p
+        user32.SetCursor(cursor)
+    except (AttributeError, OSError):
+        pass
+
+
 def mouse_button_down():
     """True while a mouse button is held anywhere (Windows; elsewhere False)."""
     if not sys.platform.startswith("win"):
@@ -1287,6 +1315,24 @@ class MemoryPalApp(tk.Tk):
         self.settle_layout()
         self.reveal_window(self)
         self._ui_ready = True
+        if IS_WINDOWS:
+            hwnd = self.window_handle(self)
+            if winfullscreen.watch_big_resizes(hwnd, self.px(160)):
+                winfullscreen.arm_resize_cover(hwnd, True)
+                self._keep_border_cursor(hwnd)
+
+    BORDER_CURSOR_CHECK_MS = 30
+
+    def _keep_border_cursor(self, hwnd):
+        """Keep Windows' resize arrow showing while the mouse is on the
+        window's edge (see winfullscreen.keep_border_cursor). The check is a
+        dictionary look-up unless the mouse is on the edge."""
+        try:
+            if winfullscreen.on_resize_border(hwnd) and not mouse_button_down():
+                winfullscreen.keep_border_cursor(hwnd)
+            self.after(self.BORDER_CURSOR_CHECK_MS, self._keep_border_cursor, hwnd)
+        except tk.TclError:
+            pass  # the window has gone
 
     def install_mac_menus(self):
         """Give the Mac the menu bar every Mac app has.
@@ -1366,6 +1412,7 @@ class MemoryPalApp(tk.Tk):
         if getattr(self, "_fullscreen_switching", False):
             return  # F11 held down or pressed again mid-switch
         self._fullscreen_switching = True
+        winfullscreen.arm_resize_cover(self.window_handle(self), False)  # F11 has its own cover
         cover = self.screen_still_cover()
         try:
             self.run_hidden_change(switch)
@@ -1374,65 +1421,35 @@ class MemoryPalApp(tk.Tk):
                 # it before the still picture goes, so the cut is clean.
                 flush_pending_paint(self)
                 self.update_idletasks()
-                winfullscreen.wait_for_compose(2, display_refresh_hz(self))
+                winfullscreen.wait_for_compose(1, display_refresh_hz(self))
         finally:
             self._fullscreen_switching = False
             self.drop_screen_still_cover(cover)
+            winfullscreen.arm_resize_cover(self.window_handle(self), True)
         if failed:
             self.dialog_alert("Full screen isn't available", failed[0], "error")
 
     def screen_still_cover(self):
-        """Windows: a borderless topmost window over the monitor showing a
-        still picture of the screen as it is now (see winfullscreen.snapshot).
-        The window switches underneath it. None where it can't be made."""
+        """Windows: a still picture of the screen as it is now, shown in a
+        plain window of its own over the monitor (see winfullscreen.show_cover).
+        The app switches underneath it. None where it can't be made."""
         if not IS_WINDOWS or not self.winfo_viewable():
             return None
         rect = winfullscreen.monitor_rect(self.window_handle(self))
         snap = winfullscreen.snapshot(rect)
         if snap is None:
             return None
-        cover = None
-        try:
-            left, top, right, bottom = rect
-            # No background of its own, so Tk never paints over the picture.
-            cover = tk.Toplevel(self, background="", borderwidth=0, highlightthickness=0)
-            cover.withdraw()
-            cover.wm_overrideredirect(True)
-            cover.attributes("-alpha", 0.0)
-            cover.attributes("-topmost", True)
-            cover.wm_geometry(f"{right - left}x{bottom - top}+{left}+{top}")
-            cover.deiconify()
-            cover.update_idletasks()
-            # Tk's own client window fills the borderless frame; draw there.
-            hwnd = cover.winfo_id()
-            if not winfullscreen.paint_snapshot(hwnd, snap):
-                raise tk.TclError("snapshot not drawn")
-            cover.attributes("-alpha", 1.0)
-            winfullscreen.paint_snapshot(hwnd, snap)
-            winfullscreen.wait_for_compose(1, display_refresh_hz(self))
-        except tk.TclError:
+        hwnd = winfullscreen.show_cover(rect, snap)
+        if hwnd is None:
             winfullscreen.free_snapshot(snap)
-            if cover is not None:
-                try:
-                    cover.destroy()
-                except tk.TclError:
-                    pass
             return None
-        cover._memorypal_snapshot = snap
-        return cover
+        return {"hwnd": hwnd, "snap": snap}
 
     def drop_screen_still_cover(self, cover):
         if cover is None:
             return
-        try:
-            cover.destroy()
-        except tk.TclError:
-            pass
-        winfullscreen.free_snapshot(getattr(cover, "_memorypal_snapshot", None))
-        try:
-            self.focus_force()
-        except tk.TclError:
-            pass
+        winfullscreen.hide_cover(cover.get("hwnd"))
+        winfullscreen.free_snapshot(cover.get("snap"))
 
     def native_fullscreen(self, target):
         """Windows: switch by changing the window's style (see winfullscreen),
@@ -1492,7 +1509,17 @@ class MemoryPalApp(tk.Tk):
             viewable = False
         frozen = viewable and self.set_redraw_frozen(True)
         if not frozen:
-            (fallback or change)()
+            if fallback is not None:
+                fallback()
+                return
+            # Still mark the change as running: a rebuild that wraps itself
+            # (the quiz) would otherwise call back in here without end
+            # wherever painting can't be paused (Mac, Linux).
+            self._hidden_active = True
+            try:
+                change()
+            finally:
+                self._hidden_active = False
             return
         self._hidden_active = True
         try:
@@ -2603,6 +2630,20 @@ class MemoryPalApp(tk.Tk):
             top.update_idletasks()
             if not flush_pending_paint(top):
                 break
+        if cloaked:
+            # Ask for every part to be drawn now, while still out of sight:
+            # on some PCs a hidden window was not asked to draw until it was
+            # shown, and then filled in piece by piece in view.
+            try:
+                import ctypes
+
+                ctypes.windll.user32.RedrawWindow(top.winfo_id(), None, None, 0x0001 | 0x0080 | 0x0100)
+            except (AttributeError, OSError, tk.TclError):
+                pass
+            for _ in range(4):
+                top.update_idletasks()
+                if not flush_pending_paint(top):
+                    break
         try:
             import ctypes
 
@@ -2895,6 +2936,28 @@ class MemoryPalApp(tk.Tk):
     def pad(self, *values):
         return tuple(self.px(value) for value in values)
 
+    def text_lift(self, font):
+        """Pixels to lift one line of text so it looks centred.
+
+        Tk centres a label on its full line height (ascent + descent), but
+        lowercase and capital letters sit above the descent, so text in a
+        padded button looks low. Measured with Segoe UI on Windows: with no
+        lift capitals are centred and lowercase sits 2px low; this lift (1px
+        at 100% scale, 2px at 125-150%) sits between the two, since most
+        labels are lowercase after a capital."""
+        try:
+            linespace = int(tkfont.Font(root=self, font=font).metrics("linespace"))
+        except (tk.TclError, TypeError, ValueError):
+            return 0
+        return max(1, round(linespace * 0.06))
+
+    def text_pad(self, x, y, font, right=None):
+        """Button padding (left, top, right, bottom) with the text centred."""
+        lift = self.text_lift(font)
+        left, top = self.px(x), self.px(y)
+        end = left if right is None else self.px(right)
+        return (left, max(0, top - lift), end, top + lift)
+
     def screen_work_area(self):
         """(left, top, width, height) of the screen minus the taskbar or Dock."""
         screen_w, screen_h = self.winfo_screenwidth(), self.winfo_screenheight()
@@ -3020,52 +3083,52 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("Rail.Vertical.TScrollbar", gripcount=0, width=self.px(13), arrowsize=self.px(11), background=COLORS["muted"], darkcolor=COLORS["rail"], lightcolor=COLORS["rail"], troughcolor=COLORS["rail"], bordercolor=COLORS["rail"], arrowcolor=COLORS["muted"], relief="flat")
         self.style.configure("Horizontal.TProgressbar", troughcolor=COLORS["alt"], background=COLORS["primary"], bordercolor=COLORS["alt"], lightcolor=COLORS["primary"], darkcolor=COLORS["primary"])
         semibold = self.font("Segoe UI Semibold", 11)
-        self.style.configure("TButton", padding=self.pad(18, 11), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
-        self.style.configure("Primary.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("Primary.TButton", padding=self.text_pad(18, 11, semibold), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
         self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["primary_dark"]))])
         # Dropdowns: text, a fixed gap, then the chevron, with the same inset
         # on both ends. width=0 drops clam's 11-character minimum, which
         # stretched "More" and pushed its arrow against the right edge.
-        self.style.configure("TMenubutton", padding=self.pad(16, 11, 12, 11), width=0, foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
+        self.style.configure("TMenubutton", padding=self.text_pad(16, 11, semibold, right=12), width=0, foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=semibold)
         self.style.map("TMenubutton", foreground=[("active", COLORS["primary"])])
-        self.style.configure("Select.TMenubutton", padding=self.pad(14, 11, 10, 11), width=0, anchor="w", foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 12))
-        self.style.configure("Danger.TButton", padding=self.pad(18, 11), foreground=self.on_color(COLORS["danger"]), borderwidth=0, relief="flat", font=semibold)
-        self.style.configure("Hero.TButton", padding=self.pad(18, 11), foreground=COLORS["hero_button_text"], borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("Select.TMenubutton", padding=self.text_pad(14, 11, self.font("Segoe UI", 12), right=10), width=0, anchor="w", foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 12))
+        self.style.configure("Danger.TButton", padding=self.text_pad(18, 11, semibold), foreground=self.on_color(COLORS["danger"]), borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("Hero.TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS["hero_button_text"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("Hero.TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["hero_button_text"])])
-        self.style.configure("HeroSoft.TButton", padding=self.pad(18, 11), foreground=COLORS["hero_soft_text"], borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("HeroSoft.TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS["hero_soft_text"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("HeroSoft.TButton", foreground=[("disabled", COLORS["hero_muted"]), ("active", COLORS["hero_soft_text"])])
         # A quiet text button ("More options", "Remove"): accent text on the
         # surface it sits on, a soft tile on hover, the usual focus ring.
-        self.style.configure("Link.TButton", padding=self.pad(8, 6), foreground=COLORS["primary"], borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("Link.TButton", padding=self.text_pad(8, 6, semibold), foreground=COLORS["primary"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("Link.TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
         # Segmented choices (Study Plan time, quiz modes): one pill per option.
-        self.style.configure("Pill.TButton", padding=self.pad(14, 8), foreground=COLORS["muted"], borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("Pill.TButton", padding=self.text_pad(14, 8, semibold), foreground=COLORS["muted"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("Pill.TButton", foreground=[("active", COLORS["ink"])])
-        self.style.configure("PillOn.TButton", padding=self.pad(14, 8), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("PillOn.TButton", padding=self.text_pad(14, 8, semibold), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
         self.style.map("PillOn.TButton", foreground=[("active", self.on_color(COLORS["primary_dark"]))])
         self.style.configure("Choice.On.TButton", foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat")
         self.style.map("Choice.On.TButton", foreground=[("active", self.on_color(COLORS["primary_dark"]))])
         for name, fg in (("Again", "again_fg"), ("Review", "review_fg"), ("Good", "good_fg"), ("Easy", "easy_fg")):
-            self.style.configure(f"{name}.TButton", padding=self.pad(18, 11), foreground=COLORS[fg], borderwidth=0, relief="flat", font=semibold)
+            self.style.configure(f"{name}.TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS[fg], borderwidth=0, relief="flat", font=semibold)
             self.style.map(f"{name}.TButton", foreground=[("active", COLORS[fg])])
         # Compact rail items so every page fits without paging on a normal
         # laptop screen; the active page is a calm filled pill, not a bright
         # block (white on the old bright blue was only 2.3:1).
-        self.style.configure("Nav.TButton", padding=self.pad(12, 9), space=self.px(12), foreground=COLORS["rail_text"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI", 12))
+        self.style.configure("Nav.TButton", padding=self.text_pad(12, 9, self.font("Segoe UI", 12)), space=self.px(12), foreground=COLORS["rail_text"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI", 12))
         self.style.map("Nav.TButton", foreground=[("disabled", self.tint(COLORS["rail_muted"], -50)), ("active", COLORS["white"])])
-        self.style.configure("ActiveNav.TButton", padding=self.pad(12, 9), space=self.px(12), foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 12))
+        self.style.configure("ActiveNav.TButton", padding=self.text_pad(12, 9, self.font("Segoe UI Semibold", 12)), space=self.px(12), foreground=COLORS["white"], anchor="w", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 12))
         self.style.map("ActiveNav.TButton", foreground=[("active", COLORS["white"])])
         # The top tab bar: quiet tabs on the window background, and the
         # current section as a soft tinted pill in the accent colour.
         self.style.configure("TabBar.TFrame", background=COLORS["bg"])
-        self.style.configure("TabBar.TButton", padding=self.pad(14, 8), space=self.px(8), foreground=COLORS["muted"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.configure("TabBar.TButton", padding=self.text_pad(14, 8, self.font("Segoe UI Semibold", 11)), space=self.px(8), foreground=COLORS["muted"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.map("TabBar.TButton", foreground=[("active", COLORS["ink"])])
-        self.style.configure("ActiveTabBar.TButton", padding=self.pad(14, 8), space=self.px(8), foreground=COLORS["primary"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.configure("ActiveTabBar.TButton", padding=self.text_pad(14, 8, self.font("Segoe UI Semibold", 11)), space=self.px(8), foreground=COLORS["primary"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.map("ActiveTabBar.TButton", foreground=[("active", COLORS["primary"])])
 
         for name in ("Choice.TButton", "Choice.On.TButton", "Choice.Good.TButton", "Choice.Again.TButton"):
-            self.style.configure(name, anchor="w", padding=self.pad(18, 13), font=self.font("Segoe UI", 12))
+            self.style.configure(name, anchor="w", padding=self.text_pad(18, 13, self.font("Segoe UI", 12)), font=self.font("Segoe UI", 12))
 
         # Keyboard focus is always visible (a ring inside the button).
         for name in ("Choice.TButton", "Choice.On.TButton", "Choice.Good.TButton", "Choice.Again.TButton", "TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TabBar.TButton", "ActiveTabBar.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton", "Link.TButton", "Hero.TButton", "HeroSoft.TButton"):
@@ -3932,13 +3995,19 @@ class MemoryPalApp(tk.Tk):
             fg=COLORS["good_fg"] if met else COLORS["muted"],
         )
 
-    def layout_app_body(self, event=None):
+    def layout_app_body(self, event=None, size=None):
+        if event is not None and getattr(self, "_live_resizing", False):
+            return  # while an edge is dragged, the reflow waits (see _begin_live_resize)
         if not hasattr(self, "app_body") or not self.app_body.winfo_exists():
             return
         if not hasattr(self, "rail") or not hasattr(self, "main"):
             return
-        width = event.width if event is not None else self.app_body.winfo_width()
-        height = event.height if event is not None else self.app_body.winfo_height()
+        if event is not None:
+            width, height = event.width, event.height
+        elif size:
+            width, height = size
+        else:
+            width, height = self.app_body.winfo_width(), self.app_body.winfo_height()
         if width <= 1 or height <= 1:
             return
         bar = self.tab_bar_height()
@@ -3962,9 +4031,87 @@ class MemoryPalApp(tk.Tk):
         size = (width, height)
         if size == getattr(self, "_last_window_size", None):
             return
+        previous = getattr(self, "_last_window_size", None) or size
         self._last_window_size = size
+        # A drag moves the edge a little at a time. One big jump with the
+        # button down is a double-click on the title bar (maximise or
+        # restore), which should reflow straight away like any other.
+        jumped = abs(width - previous[0]) > self.px(160) or abs(height - previous[1]) > self.px(160)
+        if jumped and not getattr(self, "_live_resizing", False):
+            pass
+        elif IS_WINDOWS and (getattr(self, "_live_resizing", False) or mouse_button_down()):
+            # An edge or corner is being dragged (the button is still held).
+            if not getattr(self, "_live_resizing", False):
+                self._begin_live_resize()
+            self._schedule_live_reflow()
+            return
         if getattr(self, "_resize_after", None) is None:
             self._resize_after = self.after_idle(self._relayout_after_resize)
+
+    # Live resizing (Windows): dragging an edge or corner. Windows runs the
+    # drag in its own loop and tells Tk nothing about it, so a size change
+    # while a mouse button is held counts as a drag.
+    #
+    # Chrome, VS Code and the like lay the page out again for every step of
+    # a drag, so the page follows the edge all the way. Tk lays a page out
+    # as many native windows and one reflow takes 20-40ms, more than a
+    # screen refresh, so it cannot be done for every step: Windows waits for
+    # the app between steps, and the edge itself then lagged and jerked
+    # behind the mouse. So the page reflows as often as it can afford to
+    # while the edge moves: each reflow is timed, and the next one waits
+    # until the app has been free for about as long as the last one took
+    # (the edge keeps up with the mouse in that free time). Every reflow is
+    # drawn in one go with painting paused, and there is always one for the
+    # final size.
+
+    LIVE_REFLOW_MIN_GAP_MS = 12
+    LIVE_REFLOW_FREE_SHARE = 0.8  # free time after a reflow, as a share of what it cost
+
+    def _begin_live_resize(self):
+        self._live_resizing = True
+        self._live_laid_out = None
+        self._live_cursor = current_cursor()
+        self._live_reflow_done = 0.0
+        self._live_reflow_cost = 0.0
+
+    def _schedule_live_reflow(self):
+        if getattr(self, "_live_reflow_after", None) is not None and getattr(self, "_live_reflow_moving", False):
+            return  # one is already on its way for this stretch of movement
+        pending = getattr(self, "_live_reflow_after", None)
+        if pending is not None:
+            try:
+                self.after_cancel(pending)
+            except tk.TclError:
+                pass
+        gap = max(self.LIVE_REFLOW_MIN_GAP_MS, 1000 * self.LIVE_REFLOW_FREE_SHARE * getattr(self, "_live_reflow_cost", 0.0))
+        since = 1000 * (time.perf_counter() - getattr(self, "_live_reflow_done", 0.0))
+        self._live_reflow_moving = True
+        self._live_reflow_after = self.after(int(max(1, gap - since)), self._live_reflow)
+
+    def _live_reflow(self):
+        self._live_reflow_after = None
+        self._live_reflow_moving = False
+        held = mouse_button_down()
+        if not held:
+            self._live_resizing = False  # let go: this is the final layout
+        else:
+            # Still held: look again shortly, so letting go without moving
+            # further ends the drag too.
+            self._live_reflow_after = self.after(120, self._live_reflow)
+        size = getattr(self, "_last_window_size", None)
+        if size == getattr(self, "_live_laid_out", None):
+            return  # already laid out at this size
+        self._live_laid_out = size
+        began = time.perf_counter()
+        self._relayout_after_resize()
+        self._live_reflow_done = time.perf_counter()
+        self._live_reflow_cost = self._live_reflow_done - began
+        if held:
+            # Laying the page out moves widgets under the mouse, and Tk then
+            # sets its own pointer for whichever one is there. Windows keeps
+            # the resize arrow up itself for the whole drag and does not put
+            # it back, so the pointer flipped between the two: put it back.
+            restore_cursor(getattr(self, "_live_cursor", None))
 
     def _relayout_after_resize(self):
         """Reflow at the new size with painting paused, then paint once.
@@ -3978,7 +4125,28 @@ class MemoryPalApp(tk.Tk):
         one reflow.
         """
         self._resize_after = None
-        self.run_hidden_change(self.layout_app_body)
+
+        # The shell fills the window, but takes its new size in an idle pass
+        # that may not have run yet when a timer brings us here: lay out for
+        # the size the window reported. (No update_idletasks first: during
+        # a drag that let Tk put the window back to a size it remembered.)
+        self.run_hidden_change(lambda: self.layout_app_body(size=getattr(self, "_last_window_size", None)))
+        if not getattr(self, "_live_resizing", False):
+            self.layout_app_body()  # settled now: the shell's own size has the last word
+        self.drop_resize_cover()
+
+    def drop_resize_cover(self):
+        """Take down the still picture that went up for a maximise, restore
+        or snap (winfullscreen.watch_big_resizes), now the page is drawn."""
+        if not IS_WINDOWS:
+            return
+        hwnd = self.window_handle(self)
+        if not winfullscreen.resize_cover_up(hwnd):
+            return
+        flush_pending_paint(self)
+        self.update_idletasks()
+        winfullscreen.wait_for_compose(1, display_refresh_hz(self))
+        winfullscreen.drop_resize_cover(hwnd)
 
     def nav_hint(self, key):
         return {
@@ -4208,6 +4376,15 @@ class MemoryPalApp(tk.Tk):
         self._prebuild_after = None
         if (getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False) or getattr(self, "tour", None)
                 or self.current_view in ("welcome", "signin") or getattr(self, "view_host", None) is None):
+            return
+        try:
+            ready = bool(self.content.winfo_exists() and self.view_host.winfo_exists())
+        except (AttributeError, tk.TclError):
+            ready = False
+        if not ready:
+            # The window is being rebuilt (a theme or text-size change) and
+            # the page area isn't there for a moment: try again shortly.
+            self.schedule_prebuild(500)
             return
         quiet = time.monotonic() - self.__dict__.get("_last_input", 0.0)
         if mouse_button_down():
@@ -4695,7 +4872,7 @@ class MemoryPalApp(tk.Tk):
         if not (self.draw_antialiased_shape(canvas, width, height, edge, radius=radius)
                 and self.draw_antialiased_shape(canvas, width, height, fill, radius=radius - 1, inset=1)):
             canvas.create_rectangle(0, 0, width - 1, height - 1, fill=fill, outline=edge)
-        canvas.create_text(pad_x, pad_y, text=text, anchor="nw", fill=COLORS["ink"], font=font, width=wrap, justify="left")
+        canvas.create_text(pad_x - self.px(1), pad_y - self.text_lift(font), text=text, anchor="nw", fill=COLORS["ink"], font=font, width=wrap, justify="left")
         rise = 0 if self.accessibility.get("reduce_motion") else self.px(8)
 
         def place(step=0, steps=6):
@@ -4739,9 +4916,15 @@ class MemoryPalApp(tk.Tk):
             fill = COLORS["surface_soft"] if self.theme == "dark" else COLORS["surface"]
             popup.configure(bg=fill)
             room = max(self.px(200), self.winfo_width() - self.px(96))
-            tk.Label(popup, text=text, bg=fill, fg=COLORS["ink"], font=self.font("Segoe UI", 11),
+            toast_font = self.font("Segoe UI", 11)
+            lift = self.text_lift(toast_font)
+            # Letters sit above the font's descent, and Segoe UI glyphs carry
+            # a little left bearing, so the even 18/11 padding looked low
+            # and right. Shift both so the text reads as centred.
+            tk.Label(popup, text=text, bg=fill, fg=COLORS["ink"], font=toast_font,
                      wraplength=min(self.px(560), room), justify="left",
-                     padx=self.px(18), pady=self.px(11)).pack()
+                     padx=0, pady=0).pack(padx=(self.px(17), self.px(19)),
+                                          pady=(max(0, self.px(11) - lift), self.px(11) + lift))
             popup.update_idletasks()
             width, height = popup.winfo_reqwidth(), popup.winfo_reqheight()
             x = self.winfo_rootx() + (self.winfo_width() - width) // 2
@@ -7395,7 +7578,7 @@ class MemoryPalApp(tk.Tk):
             self.hero_button(buttons, "Review due cards", lambda: self.show_view("review"), soft=True).pack(fill="x", pady=(self.px(8), 0))
             return
 
-        steps = today["steps"]
+        steps = self.store.plan_day_steps(today["steps"])
         done = {index for index in self.store.plan_steps_done() if index < len(steps)}
         remaining = [index for index in range(len(steps)) if index not in done]
         heading = "Your plan is done for today" if not remaining else "Your study plan for today"
@@ -7416,7 +7599,7 @@ class MemoryPalApp(tk.Tk):
 
         @self.smooth
         def toggle(index):
-            now_done = self.store.toggle_plan_step(index)
+            now_done = self.store.toggle_plan_step(index, steps=steps)
             if now_done and len(self.store.plan_steps_done()) >= len(steps):
                 self.toast_message("Plan done for today. Nice work! \U0001F389")
             self.render_today_path(box)
@@ -10456,6 +10639,22 @@ class MemoryPalApp(tk.Tk):
                     later(self.pace(250), then)
             wait()
 
+        def listen_seconds():
+            return 20 if self.accessibility.get("more_time") else 12
+
+        def warm_listener():
+            """Load the recogniser while the voice is still talking, with this round's answers as hints."""
+            if state["typed"] or not state["can_listen"]:
+                return
+            if "hints" not in state:
+                answers = [spoken(current)[1] for current in state["queue"]]
+                commands = [phrase for phrases in listen.SPOKEN_COMMANDS.values() for phrase in phrases]
+                state["hints"] = commands + answers
+            seconds = listen_seconds()
+            # This card's answer first, so it is kept even in a very long round.
+            hints = [spoken(card())[1]] + state["hints"]
+            self.listener.prepare(hints, max_seconds=seconds, initial_silence=seconds / 2, end_silence=1.4)
+
         def ask():
             if not alive() or state["paused"]:
                 return
@@ -10468,6 +10667,7 @@ class MemoryPalApp(tk.Tk):
             feedback.configure(text="")
             typed_entry.delete(0, "end")
             set_status("Reading the question", "reading")
+            warm_listener()
             say(f"Question {state['index'] + 1}. {spoken(card())[0]}")
             after_speech(answer_turn)
 
@@ -10479,23 +10679,30 @@ class MemoryPalApp(tk.Tk):
                 set_status("Type your answer, then press Enter", "typing")
                 typed_entry.focus_set()
                 return
-            seconds = 20 if self.accessibility.get("more_time") else 12
-            if not self.listener.start(max_seconds=seconds, initial_silence=seconds / 2, end_silence=1.4):
+            if not self.listener.prepared():
+                warm_listener()
+            if not self.listener.go():
                 switch_to_typing("The microphone couldn't be started, so answers are typed for now.")
                 return
             state["phase"] = "listening"
-            set_status("Listening. Say your answer.", "listening")
+            state["mic_open"] = False
+            # Say "Listening" only once the microphone really is open, so
+            # the first words are never spoken into a recogniser still loading.
+            set_status("Getting the microphone ready", "checking")
             poll_listener()
 
         def poll_listener():
             if not alive() or state["phase"] != "listening":
                 return
+            if not state["mic_open"] and self.listener.microphone_open():
+                state["mic_open"] = True
+                set_status("Listening. Say your answer.", "listening")
             result = self.listener.poll()
             if result is None:
-                later(150, poll_listener)
+                later(60 if not state["mic_open"] else 150, poll_listener)
                 return
             if result.heard:
-                command = listen.spoken_command(result.text)
+                command = next((found for found in map(listen.spoken_command, result.readings()[:2]) if found), None)
                 if command == "repeat":
                     ask()
                 elif command == "skip":
@@ -10505,7 +10712,11 @@ class MemoryPalApp(tk.Tk):
                 elif command == "dont_know":
                     judge("", said="I don't know")
                 else:
-                    judge(result.text, said=result.text)
+                    # The recogniser's other guesses at the same words count
+                    # too: take whichever reading is closest to the answer.
+                    expected = spoken(card())[1]
+                    best = max(result.readings(), key=lambda reading: answer_assessment(reading, expected)["score"])
+                    judge(best, said=best)
                 return
             if result.status == "silence":
                 state["silences"] += 1
@@ -10514,6 +10725,7 @@ class MemoryPalApp(tk.Tk):
                     return
                 state["phase"] = "reading"
                 set_status("Didn't catch that. Listening again in a moment.", "reading")
+                warm_listener()
                 say("I didn't catch that.")
                 after_speech(answer_turn)
                 return

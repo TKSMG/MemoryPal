@@ -45,6 +45,44 @@ export interface StudyPlan {
   settings: PlanSettings;
   created: string;
   done: Record<string, number[]>;
+  /** The day's steps as they stood at its first tick (ticks are saved by position). */
+  today?: { date: string; steps: SavedPlanStep[] };
+}
+
+export type SavedPlanStep = Record<string, string | number | boolean | null>;
+export const MAX_DAY_STEPS = 40;
+
+/** A plan step with only values that save as JSON. */
+export function plainPlanStep(step: object): SavedPlanStep {
+  const out: SavedPlanStep = {};
+  for (const [key, value] of Object.entries(step)) {
+    if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) out[key] = value as string | number | boolean | null;
+  }
+  return out;
+}
+
+/**
+ * The day's steps in the order they were first ticked in. Today's plan is
+ * rebuilt from the cards each time it is shown, so steps come and go as the
+ * day's work gets done. Saved steps keep their place (with the newer wording
+ * when the step is still in the plan) and new steps go on the end.
+ */
+export function mergePlanSteps<T extends { title?: unknown }>(saved: readonly T[], live: readonly T[]): T[] {
+  const keyed = (steps: readonly T[]) => {
+    const seen = new Map<string, number>();
+    return steps.map((step) => {
+      const title = String(step.title ?? '');
+      seen.set(title, (seen.get(title) ?? 0) + 1);
+      return [`${seen.get(title)}:${title}`, step] as const;
+    });
+  };
+  const fresh = new Map(keyed(live));
+  const merged = keyed(saved).map(([key, step]) => {
+    const now = fresh.get(key);
+    fresh.delete(key);
+    return now ?? step;
+  });
+  return [...merged, ...keyed(live).filter(([key]) => fresh.has(key)).map(([, step]) => step)].slice(0, MAX_DAY_STEPS);
 }
 
 export interface Payload {
@@ -167,7 +205,16 @@ export function normalizeStudyPlan(raw: unknown): StudyPlan | Record<string, nev
       done[String(day)] = [...new Set(indexes.filter((index) => /^[0-9]{1,4}$/.test(String(index))).map((index) => Number(index)))].sort((a, b) => a - b);
     }
   }
-  return { settings: normalizePlanSettings(source.settings as Record<string, unknown>), created: String(source.created || todayIso()), done };
+  const plan: StudyPlan = { settings: normalizePlanSettings(source.settings as Record<string, unknown>), created: String(source.created || todayIso()), done };
+  const today = source.today as { date?: unknown; steps?: unknown } | undefined;
+  if (today && typeof today === 'object' && Array.isArray(today.steps) && today.date) {
+    const steps = today.steps
+      .slice(0, MAX_DAY_STEPS)
+      .filter((step) => step && typeof step === 'object' && !Array.isArray(step) && (step as { title?: unknown }).title)
+      .map((step) => plainPlanStep(step as object));
+    if (steps.length) plan.today = { date: String(today.date), steps };
+  }
+  return plan;
 }
 
 function loadItems<T>(raw: unknown, factory: (item: Record<string, unknown>) => T): T[] {
@@ -780,10 +827,19 @@ export class MemoryStore {
     return new Set(plan.done?.[day || todayIso()] ?? []);
   }
 
-  togglePlanStep(index: number, day?: string): boolean {
+  /** The steps to show for the day: fixed in place once one is ticked. */
+  planDaySteps<T extends { title?: unknown }>(steps: readonly T[], day?: string): T[] {
+    const saved = (this.studyPlan as StudyPlan).today;
+    if (!saved || saved.date !== (day || todayIso())) return [...steps];
+    return mergePlanSteps(saved.steps as unknown as T[], steps);
+  }
+
+  /** Tick or untick a step; `steps` is the list the person is looking at. */
+  togglePlanStep(index: number, day?: string, steps?: readonly { title?: unknown }[]): boolean {
     const plan = this.studyPlan as StudyPlan;
     if (!plan.settings) return false;
     const key = day || todayIso();
+    if (steps) plan.today = { date: key, steps: this.planDaySteps(steps, key).map((step) => plainPlanStep(step)) };
     const done = this.planStepsDone(key);
     if (done.has(index)) done.delete(index);
     else done.add(index);

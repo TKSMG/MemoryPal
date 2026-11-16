@@ -109,6 +109,35 @@ class SavedPlanTests(PlanTestCase):
         self.assertEqual(reloaded.plan_steps_done(), {1})
         self.assertFalse(reloaded.toggle_plan_step(1))
 
+    def test_ticks_stay_on_their_step_when_the_days_work_changes_the_plan(self):
+        # With everything reviewed, "Quick warm-up" and "Learn new cards" leave
+        # the rebuilt plan; a tick saved by position must not slide along.
+        self.store.add_cards([Card(deck="Bio", front=f"q{i}", back=f"a{i}") for i in range(5)])
+        self.store.set_study_plan({"unit": "minutes", "amount": "45", "deck": "All decks", "goal_label": "Exam prep", "habits": []})
+        shown = self.store.plan_day_steps(plan_for_today(self.store)["steps"])
+        index = [step["title"] for step in shown].index("Spaced review")
+        self.assertTrue(self.store.toggle_plan_step(index, steps=shown))
+        for card in list(self.store.cards):
+            self.store.schedule(card, 5)
+        live = plan_for_today(self.store)["steps"]
+        self.assertNotEqual([step["title"] for step in live], [step["title"] for step in shown])
+        reloaded = MemoryStore()
+        later = reloaded.plan_day_steps(plan_for_today(reloaded)["steps"])
+        self.assertEqual([step["title"] for step in later], [step["title"] for step in shown])
+        self.assertEqual([later[i]["title"] for i in reloaded.plan_steps_done()], ["Spaced review"])
+
+    def test_a_new_day_starts_from_the_live_plan(self):
+        self.store.set_study_plan({"unit": "minutes", "amount": "45", "deck": "All decks", "goal_label": "Exam prep", "habits": []})
+        live = plan_for_today(self.store)["steps"]
+        self.store.toggle_plan_step(0, day=add_days(-1), steps=[{"title": "Yesterday only", "minutes": 5}] + live)
+        self.assertEqual(self.store.plan_day_steps(live), live)
+
+    def test_new_steps_join_the_end_of_a_ticked_day(self):
+        self.store.set_study_plan({"unit": "minutes", "amount": "45", "deck": "All decks", "goal_label": "Exam prep", "habits": []})
+        self.store.toggle_plan_step(0, steps=[{"title": "A", "minutes": 5}, {"title": "Break", "minutes": 5}, {"title": "Break", "minutes": 5}])
+        merged = self.store.plan_day_steps([{"title": "Break", "minutes": 9}, {"title": "C", "minutes": 5}])
+        self.assertEqual([(step["title"], step["minutes"]) for step in merged], [("A", 5), ("Break", 9), ("Break", 5), ("C", 5)])
+
 
 class SyncedPlanTests(PlanTestCase):
     """A plan can arrive from another device, so it is checked before use."""
