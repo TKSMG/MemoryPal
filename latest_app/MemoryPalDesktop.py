@@ -1509,7 +1509,17 @@ class MemoryPalApp(tk.Tk):
             viewable = False
         frozen = viewable and self.set_redraw_frozen(True)
         if not frozen:
-            (fallback or change)()
+            if fallback is not None:
+                fallback()
+                return
+            # Still mark the change as running: a rebuild that wraps itself
+            # (the quiz) would otherwise call back in here without end
+            # wherever painting can't be paused (Mac, Linux).
+            self._hidden_active = True
+            try:
+                change()
+            finally:
+                self._hidden_active = False
             return
         self._hidden_active = True
         try:
