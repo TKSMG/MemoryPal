@@ -4375,6 +4375,15 @@ class MemoryPalApp(tk.Tk):
         if (getattr(self, "_hidden_active", False) or getattr(self, "_building_view", False) or getattr(self, "tour", None)
                 or self.current_view in ("welcome", "signin") or getattr(self, "view_host", None) is None):
             return
+        try:
+            ready = bool(self.content.winfo_exists() and self.view_host.winfo_exists())
+        except (AttributeError, tk.TclError):
+            ready = False
+        if not ready:
+            # The window is being rebuilt (a theme or text-size change) and
+            # the page area isn't there for a moment: try again shortly.
+            self.schedule_prebuild(500)
+            return
         quiet = time.monotonic() - self.__dict__.get("_last_input", 0.0)
         if mouse_button_down():
             # A press on the title bar or an edge, before the window moves.
