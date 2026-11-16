@@ -114,6 +114,8 @@ Controls: buttons, dropdowns, choice pills and text fields are rounded 9-slice i
 
 Focus: keyboard focus is always visible as a solid amber rounded ring (WCAG 2.4.7). It is not an opt-in setting. The setting and high contrast only make the ring thicker. On buttons, the ring shows when focus arrives from the keyboard (Tab or the arrow keys) and clears once the mouse is used again, like a Mac or a browser's `:focus-visible`; otherwise it stayed on whatever was last clicked and read as a stuck selection. Text fields keep their ring always, because it shows where typing will go.
 
+Text selection works like a web page or Word. Any label's words can be highlighted with the mouse (`install_text_selection` lays a read-only text box over the label), and a drag that leaves the label carries on into the labels above or below it in screen order, so moving the pointer down only ever adds to the highlight; Ctrl/Cmd+C copies it, one label per line. Typing boxes hide their blinking cursor while text is highlighted (`install_caret_hiding`; ttk entries use the `user2` state) and show it again after the next click or key. `tools/render_check/selection_probe.py` drags with the real mouse (Windows, or Xvfb with python-xlib) and checks all of this; the Scroll probe workflow runs it on Windows with "selection" ticked.
+
 Tab bar (v77):
 
 - The five destinations sit in a tab bar across the top of the window, the same as the phone's tabs: Today, Study, Create, Practice and Progress. The logo is on the left and Feedback on the right; Settings stays in each page's header. This replaced the side rail, so pages get the full window width.
