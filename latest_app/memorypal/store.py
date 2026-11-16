@@ -182,11 +182,47 @@ def normalize_study_plan(raw):
     if not isinstance(raw, dict) or not isinstance(raw.get("settings"), dict):
         return {}
     done = raw.get("done") if isinstance(raw.get("done"), dict) else {}
-    return {
+    plan = {
         "settings": normalize_plan_settings(raw["settings"]),
         "created": str(raw.get("created") or today_iso()),
         "done": {str(day): sorted({int(index) for index in indexes if re.fullmatch(r"[0-9]{1,4}", str(index))}) for day, indexes in done.items() if isinstance(indexes, list)},
     }
+    today = raw.get("today")
+    if isinstance(today, dict) and isinstance(today.get("steps"), list) and today.get("date"):
+        steps = [plain_plan_step(step) for step in today["steps"][:MAX_DAY_STEPS] if isinstance(step, dict) and step.get("title")]
+        if steps:
+            plan["today"] = {"date": str(today["date"]), "steps": steps}
+    return plan
+
+
+MAX_DAY_STEPS = 40
+
+
+def plain_plan_step(step):
+    """A plan step with only values that save as JSON."""
+    return {str(key): value for key, value in step.items() if isinstance(value, (str, int, float, bool)) or value is None}
+
+
+def merge_plan_steps(saved, live):
+    """The day's steps in the order they were first ticked in.
+
+    Today's plan is rebuilt from the cards each time it is shown, so steps
+    come and go as the day's work gets done ("Learn new cards" leaves once
+    none are new). Ticks are saved by position, so the first tick of a day
+    saves that day's list: saved steps keep their place (with the newer
+    wording when the step is still in the plan) and new steps go on the end.
+    """
+    def keyed(steps):
+        seen, out = {}, []
+        for step in steps:
+            title = str(step.get("title", ""))
+            seen[title] = seen.get(title, 0) + 1
+            out.append(((title, seen[title]), step))
+        return out
+
+    fresh = dict(keyed(live))
+    merged = [fresh.pop(key, step) for key, step in keyed(saved)]
+    return (merged + [step for key, step in keyed(live) if key in fresh])[:MAX_DAY_STEPS]
 
 
 PERSONAS = ("student", "everyday", "caregiver", "general")
@@ -645,10 +681,20 @@ class MemoryStore:
     def plan_steps_done(self, day=None):
         return set(self.study_plan.get("done", {}).get(day or today_iso(), [])) if self.study_plan else set()
 
-    def toggle_plan_step(self, index, day=None):
+    def plan_day_steps(self, steps, day=None):
+        """The steps to show for the day: fixed in place once one is ticked."""
+        saved = self.study_plan.get("today") if self.study_plan else None
+        if not saved or saved.get("date") != (day or today_iso()):
+            return list(steps)
+        return merge_plan_steps(saved.get("steps", []), steps)
+
+    def toggle_plan_step(self, index, day=None, steps=None):
+        """Tick or untick a step; `steps` is the list the person is looking at."""
         if not self.study_plan:
             return False
         day = day or today_iso()
+        if steps is not None:
+            self.study_plan["today"] = {"date": day, "steps": [plain_plan_step(step) for step in self.plan_day_steps(steps, day)]}
         done = self.plan_steps_done(day)
         done.symmetric_difference_update({int(index)})
         # Keep only the last couple of weeks of ticks.
