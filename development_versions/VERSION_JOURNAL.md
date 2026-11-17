@@ -503,3 +503,13 @@ This build is packaged as release 0.53.0.
 - Both apps open the Live conversation on the v1alpha endpoint, the one Google's one-use tokens work with.
 
 This build is packaged as release 0.53.1.
+
+## v104 - Calmer Window Changes and Release Check
+
+- Full screen, maximise, restore and snapping show a still picture of the window while it changes, so there is no blue flash or torn frame (#60, #61).
+- Dragging a window edge: the edge follows the mouse, the page reflows as fast as it can keep up, and the resize arrow stays on the edge (#60, #62). Button, tab, menu and toast text is centred optically.
+- Talk-back listening loads its recogniser while the question is read, knows the round's answers, and counts its other guesses (#61).
+- Quiz works on Mac again, study plan ticks land on the right step, and a check presses every desktop button (#63).
+- Text selection works like a web page: drags carry on across text, and the blinking cursor hides while words are highlighted (#59).
+
+This build is packaged as release 0.53.2.
