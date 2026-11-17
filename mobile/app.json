@@ -3,7 +3,7 @@
     "name": "MemoryPal",
     "slug": "memorypal",
     "scheme": "memorypal",
-    "version": "0.53.1",
+    "version": "0.53.2",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -20,7 +20,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.memorypal.mobile",
-      "buildNumber": "59",
+      "buildNumber": "60",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -108,7 +108,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 59,
+      "versionCode": 60,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
