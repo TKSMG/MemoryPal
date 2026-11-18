@@ -173,6 +173,18 @@ class LiveTutorTests(unittest.TestCase):
         self.assertEqual(talk.tutor.snapshot().phase, "error")
         self.assertIn("microphone", talk.tutor.snapshot().error)
 
+    def test_ending_while_the_microphone_opens_closes_it_again(self):
+        talk = Conversation()
+
+        def slow_start(on_mic):
+            talk.tutor.stop()  # End pressed while the device was still opening
+            talk.audio.stopped = False
+
+        talk.audio.start = slow_start
+        talk.server({"setupComplete": {}})
+        self.assertEqual(talk.tutor.snapshot().phase, "done")
+        self.assertTrue(talk.audio.stopped)
+
     def test_verdicts_map_to_schedule_ratings(self):
         self.assertEqual(livetutor.live_assessment("right")["quality"], 4)
         self.assertEqual(livetutor.live_assessment("close")["quality"], 3)

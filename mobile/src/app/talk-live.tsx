@@ -63,7 +63,14 @@ export default function TalkLive() {
 
   const queue = useMemo(() => talkCards(buildQueue(store, (params.mode as Mode) || 'due', params.deck || null).filter((card) => card.back.trim())), []); // eslint-disable-line react-hooks/exhaustive-deps
   const snap = useSyncExternalStore(tutor?.subscribe ?? noop, tutor?.getSnapshot ?? (() => IDLE), tutor?.getSnapshot ?? (() => IDLE));
-  const gate = aiGate({ allowed: prefs.ai_allowed, signedIn: sync.account.signedIn, online: isOnline(network), configured: sync.configured });
+  const liveGate = aiGate({ allowed: prefs.ai_allowed, signedIn: sync.account.signedIn, online: isOnline(network), configured: sync.configured });
+  // Once a conversation may start, a passing network blip (Wi-Fi to mobile
+  // data) mustn't end it and quietly start a new one, which would cost another
+  // AI use and drop the learner back at the start. A lost connection shows up
+  // as the socket closing instead. "Try again" checks the gate afresh.
+  const [cleared, setCleared] = useState(false);
+  if (liveGate === 'ready' && !cleared) setCleared(true);
+  const gate = cleared ? 'ready' : liveGate;
 
   // Leaving the screen ends the call; ratings already saved stay saved.
   useFocusEffect(useCallback(() => () => tutor?.stop(), [tutor]));
@@ -145,7 +152,7 @@ export default function TalkLive() {
         {gate === 'consent' ? <Button kind="primary" label="Turn on AI" icon="sparkles-outline" onPress={() => router.push('/ai-consent')} /> : null}
         {gate === 'sign_in' ? <Button kind="primary" label="Sign in or create an account" icon="person-outline" onPress={() => router.push('/account')} /> : null}
         {gate === 'ready' && !startError.includes('Settings') ? (
-          <Button kind="primary" label="Try again" icon="refresh" onPress={() => { setTutor(null); setStartError(''); setAttempt((n) => n + 1); }} />
+          <Button kind="primary" label="Try again" icon="refresh" onPress={() => { setTutor(null); setStartError(''); setCleared(liveGate === 'ready'); setAttempt((n) => n + 1); }} />
         ) : null}
         <Button label="Use classic Talk-back" icon="chatbubbles-outline" onPress={classic} />
       </Screen>

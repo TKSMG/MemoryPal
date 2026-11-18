@@ -224,6 +224,15 @@ class LiveTutor:
             self.audio.start(self.mic)
         except Exception:  # noqa: BLE001 - no microphone, no permission, a busy device
             self.fail("The microphone couldn't be started. Check that MemoryPal may use it in your computer's privacy settings.")
+            return
+        if self.phase != "live":
+            # Ended (End, leaving the page) while the microphone was opening:
+            # that stop came before the streams existed, so close them now
+            # rather than leave the microphone on.
+            try:
+                self.audio.stop()
+            except Exception:  # noqa: BLE001 - already stopped
+                pass
 
     def mic(self, data_b64):
         if self.phase == "live" and not self.muted:
