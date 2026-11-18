@@ -41,23 +41,42 @@ export function makeLiveAudio(onLevel?: (who: 'you' | 'tutor', level: number) =>
   if (!native || !liveAudioAvailable()) return null;
   let subscriptions: { remove(): void }[] = [];
   let started = false;
+  let stopped = false;
+  // The tutor's greeting can arrive while the audio session is still starting
+  // (iOS can take most of a second): keep it and play it once the player is up,
+  // so the first words aren't lost.
+  let waiting: string[] = [];
   return {
     async start(onMic) {
       subscriptions.push(native.addListener('onMic', (event) => onMic(event.data)));
       if (onLevel) subscriptions.push(native.addListener('onLevel', (event) => onLevel(event.who, event.level)));
       await native.start();
+      if (stopped) {
+        // Stopped (End, or leaving the screen) while the microphone was still
+        // starting: the native stop() then had nothing to stop, so stop it now
+        // instead of leaving the microphone on.
+        native.stop();
+        return;
+      }
       started = true;
+      const queued = waiting;
+      waiting = [];
+      queued.forEach((chunk) => native.play(chunk));
     },
     setMuted(muted) {
       if (started) native.setMuted(muted);
     },
     play(base64) {
       if (started) native.play(base64);
+      else if (!stopped) waiting.push(base64);
     },
     clear() {
+      waiting = [];
       if (started) native.clear();
     },
     stop() {
+      stopped = true;
+      waiting = [];
       subscriptions.forEach((subscription) => subscription.remove());
       subscriptions = [];
       // Gives the audio session back, so read-aloud and other apps sound normal again.
