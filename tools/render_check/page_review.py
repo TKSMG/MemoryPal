@@ -258,9 +258,13 @@ def capture_dialogs(view, folder, seen_titles, theme):
         if re.search(r"delete|reset|sign out|remove|start over|erase|light mode|dark mode|full screen", text, re.I):
             continue
         # A button repeated down a list (Edit, the speaker) opens the same window.
-        if text in pressed:
+        try:
+            key = text + "|" + str(w.cget("image"))
+        except tk.TclError:
+            key = text
+        if key in pressed:
             continue
-        pressed.add(text)
+        pressed.add(key)
         shot = {}
 
         def snap(tries=0):
