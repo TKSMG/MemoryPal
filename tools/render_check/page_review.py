@@ -244,6 +244,7 @@ def capture_dialogs(view, folder, seen_titles, theme):
 
     total = len(buttons())
     n = 0
+    pressed = set()
     for i in range(total):
         seed_light()
         restore(theme)
@@ -254,8 +255,12 @@ def capture_dialogs(view, folder, seen_titles, theme):
             break
         w = ws[i]
         text = label(w)
-        if re.search(r"delete|reset|sign out|remove|start over|erase", text, re.I):
+        if re.search(r"delete|reset|sign out|remove|start over|erase|light mode|dark mode|full screen", text, re.I):
             continue
+        # A button repeated down a list (Edit, the speaker) opens the same window.
+        if text in pressed:
+            continue
+        pressed.add(text)
         shot = {}
 
         def snap(tries=0):
