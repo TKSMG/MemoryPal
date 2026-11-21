@@ -68,6 +68,10 @@ jobs:
             echo "GOOGLE_DESKTOP_CLIENT_ID isn't set: this build syncs through the MemoryPal cloud."
             exit 0
           fi
+          if [ -z "$GOOGLE_CLIENT_SECRET" ]; then
+            echo "::error title=Google sign-in::GOOGLE_DESKTOP_CLIENT_SECRET is empty, so Google Drive connect would fail. Add it as a repository secret."
+            exit 1
+          fi
           python -c "import os; open('latest_app/memorypal/google_client.py', 'w').write(f'CLIENT_ID = {os.environ[\"GOOGLE_CLIENT_ID\"].strip()!r}\nCLIENT_SECRET = {os.environ[\"GOOGLE_CLIENT_SECRET\"].strip()!r}\n')"
 
       # Optional: a Developer ID certificate (base64 .p12) and notary

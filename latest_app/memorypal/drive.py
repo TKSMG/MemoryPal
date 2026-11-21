@@ -51,6 +51,7 @@ MESSAGES = {
     "drive_offline": "Couldn't reach Google Drive. Check the internet connection and try again.",
     "drive_cancelled": "Google Drive wasn't connected. Try again when you're ready.",
     "drive_timeout": "Connecting Google Drive wasn't finished. Try again, and finish it in the browser window that opens.",
+    "drive_setup": "Google Drive sync isn't set up correctly in this copy of MemoryPal. Install the latest version and try again.",
     "drive_not_linked": "Connect Google Drive in Settings to sync your cards.",
 }
 
@@ -192,6 +193,10 @@ class GoogleSignIn:
                 detail = {}
             if detail.get("error") in ("invalid_grant", "unauthorized_client", "invalid_client"):
                 raise drive_error("drive_signed_out") from None
+            if detail.get("error") == "invalid_request":
+                # Google's answer when this build has no client secret: a
+                # broken build, not a busy Drive, so don't promise a retry.
+                raise drive_error("drive_setup") from None
             raise drive_error("drive_busy") from None
         except (urllib.error.URLError, OSError, TimeoutError, ValueError):
             raise drive_error("drive_offline") from None
