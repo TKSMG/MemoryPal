@@ -527,6 +527,8 @@ This build is packaged as release 0.53.3.
 - The text cursor stays on while you type and blinks only when you stop.
 - The welcome choices' outline is in the theme's line colour instead of white.
 - "Made with AI, check it" is a quiet grey label with a small amber dot.
+- The resize arrow no longer flickers to a plain arrow on the window edges.
+- A dropdown list closes if the field under it moves (window dragged or resized, page scrolled), instead of staying where it opened.
 - The AI loading bar runs one way, left to right, and comes round again instead of bouncing.
 
 This build is packaged as release 0.53.4.
