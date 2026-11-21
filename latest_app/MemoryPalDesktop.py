@@ -380,7 +380,7 @@ class SweepBar(tk.Canvas):
 
     def __init__(self, master, width, height, track, fill, bg, **options):
         super().__init__(master, width=width, height=height, bg=bg, bd=0, highlightthickness=0, **options)
-        self._w, self._h = width, height
+        self._bar_w, self._bar_h = width, height
         self._track = self.create_rectangle(0, 0, width, height, fill=track, outline="")
         self._stripe = self.create_rectangle(0, 0, 0, height, fill=fill, outline="")
         self._timer = None
@@ -400,7 +400,7 @@ class SweepBar(tk.Canvas):
             except tk.TclError:
                 pass
             self._timer = None
-        self.coords(self._stripe, 0, 0, 0, self._h)
+        self.coords(self._stripe, 0, 0, 0, self._bar_h)
 
     def _step(self):
         try:
@@ -409,9 +409,9 @@ class SweepBar(tk.Canvas):
             # 15% of each pass it is off the right edge, then re-enters left.
             travel = min(1.0, phase / 0.85)
             eased = travel * travel * (3 - 2 * travel)
-            stripe = self._w * 0.35
-            left = -stripe + eased * (self._w + stripe)
-            self.coords(self._stripe, max(0, left), 0, min(self._w, left + stripe), self._h)
+            stripe = self._bar_w * 0.35
+            left = -stripe + eased * (self._bar_w + stripe)
+            self.coords(self._stripe, max(0, left), 0, min(self._bar_w, left + stripe), self._bar_h)
             self._timer = self.after(16, self._step)
         except tk.TclError:
             self._timer = None
