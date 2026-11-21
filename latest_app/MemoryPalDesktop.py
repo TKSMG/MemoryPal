@@ -4178,7 +4178,6 @@ class MemoryPalApp(tk.Tk):
 
     def _begin_live_resize(self):
         self._live_resizing = True
-        self._set_composited(True)
         self._live_laid_out = None
         self._live_cursor = current_cursor()
         self._live_reflow_done = 0.0
@@ -4204,7 +4203,6 @@ class MemoryPalApp(tk.Tk):
         held = mouse_button_down()
         if not held:
             self._live_resizing = False  # let go: this is the final layout
-            self.after_idle(lambda: self._set_composited(False))
         else:
             # Still held: look again shortly, so letting go without moving
             # further ends the drag too.
@@ -4216,7 +4214,10 @@ class MemoryPalApp(tk.Tk):
         began = time.perf_counter()
         # (Tried 2026-11-21: holding a still picture over the window during
         # each reflow. On Windows CI it halved how often the edge kept up
-        # with the mouse and didn't cut half-drawn frames, so it was dropped.)
+        # with the mouse and didn't cut half-drawn frames, so it was dropped.
+        # Also tried: WS_EX_COMPOSITED (double-buffered painting) while the
+        # edge is held. Mixed frames and window updates matched main within
+        # noise, so it was dropped too.)
         self._relayout_after_resize()
         self._live_reflow_done = time.perf_counter()
         self._live_reflow_cost = self._live_reflow_done - began
@@ -4226,21 +4227,6 @@ class MemoryPalApp(tk.Tk):
             # the resize arrow up itself for the whole drag and does not put
             # it back, so the pointer flipped between the two: put it back.
             restore_cursor(getattr(self, "_live_cursor", None))
-
-    # While an edge is dragged the window paints as one double-buffered
-    # picture (WS_EX_COMPOSITED, as Windows Forms apps do against flicker):
-    # Windows draws every child window into a hidden buffer, bottom to top,
-    # and shows the finished frame, instead of each of Tk's many native
-    # windows painting on screen in turn. Off again after the drag, because
-    # it makes Windows repaint the whole window for every small change.
-    COMPOSITED_DRAG = os.environ.get("MEMORYPAL_COMPOSITED_DRAG", "1") != "0"
-
-    def _set_composited(self, on):
-        if not IS_WINDOWS or not self.COMPOSITED_DRAG:
-            return
-        hwnd = self.window_handle(self)
-        if hwnd:
-            winfullscreen.set_composited(hwnd, on)
 
     def _relayout_after_resize(self):
         """Reflow at the new size with painting paused, then paint once.
