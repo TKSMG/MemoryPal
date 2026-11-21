@@ -4066,6 +4066,7 @@ class MemoryPalApp(tk.Tk):
 
     LIVE_REFLOW_MIN_GAP_MS = 12
     LIVE_REFLOW_FREE_SHARE = 0.8  # free time after a reflow, as a share of what it cost
+    LIVE_REFLOW_COVER = os.environ.get("MEMORYPAL_LIVE_COVER", "1") != "0"
 
     def _begin_live_resize(self):
         self._live_resizing = True
@@ -4103,7 +4104,20 @@ class MemoryPalApp(tk.Tk):
             return  # already laid out at this size
         self._live_laid_out = size
         began = time.perf_counter()
-        self._relayout_after_resize()
+        # Tk paints a reflowed page widget by widget, and a reflow takes
+        # longer than a screen refresh, so the screen could show it half
+        # redrawn: the flicker while dragging. Hold the current picture over
+        # the window while it reflows and paints, and swap to the finished
+        # one in a single frame (the same still picture as for maximise).
+        cover = winfullscreen.cover_client(self.window_handle(self)) if self.LIVE_REFLOW_COVER else None
+        try:
+            self._relayout_after_resize()
+            if cover:
+                flush_pending_paint(self)
+                winfullscreen.wait_for_compose(1, display_refresh_hz(self))
+        finally:
+            if cover:
+                winfullscreen.hide_cover(cover)
         self._live_reflow_done = time.perf_counter()
         self._live_reflow_cost = self._live_reflow_done - began
         if held:
@@ -6884,7 +6898,12 @@ class MemoryPalApp(tk.Tk):
                     hover=colors[key],
                     command=lambda value=key: choose(value),
                 )
-                tile.configure(highlightthickness=max(2, self.px(3)) if selected else 1)
+                # Without explicit colours Tk draws this outline in the system
+                # colour (white on Windows), so give it the theme's line colour,
+                # or the persona's colour once picked.
+                edge = colors[key] if selected else COLORS["line"]
+                tile.configure(highlightthickness=max(2, self.px(3)) if selected else max(1, self.px(1)),
+                               highlightbackground=edge, highlightcolor=edge)
                 row, column = divmod(index, 2)
                 tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
                 tk.Frame(tile, bg=colors[key], width=self.px(36), height=self.px(4)).pack(anchor="w", pady=(0, self.px(10)))
