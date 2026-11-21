@@ -5999,12 +5999,12 @@ class MemoryPalApp(tk.Tk):
             except tk.TclError:
                 return None
 
-        opened_at = where()
+        anchored_at = where()
 
         def follow():
             if getattr(self, "_dropdown", None) is None or self._dropdown[0] is not top:
                 return
-            if where() != opened_at:
+            if where() != anchored_at:
                 self.close_dropdown()
                 return
             top.after(80, follow)
