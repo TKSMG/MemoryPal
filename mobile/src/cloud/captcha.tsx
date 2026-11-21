@@ -12,7 +12,7 @@ import type { ShouldStartLoadRequest, WebViewMessageEvent } from 'react-native-w
 import { Button, Txt } from '../ui/components';
 import { useTheme } from '../ui/theme';
 import { allowedInCheck, readCheckMessage } from './checkPage';
-import { captchaUrl, CloudError } from './client';
+import { captchaUrl, CloudError, keepSpares } from './client';
 
 const FAILED = "The quick check that keeps out bots didn't work. Try again.";
 const CANCELLED = "The quick check was closed before it finished. Try again when you're ready.";
@@ -42,7 +42,10 @@ export function useCaptcha(): { request?: () => Promise<string>; sheet: ReactNod
   const onMessage = (event: WebViewMessageEvent) => {
     if (!event.nativeEvent.url.startsWith(page)) return;
     const message = readCheckMessage(event.nativeEvent.data);
-    if (message?.token) finish(message.token);
+    if (message?.token) {
+      keepSpares(message.spares ?? []);
+      finish(message.token);
+    }
     else if (message) finish(undefined, new CloudError(FAILED, 'captcha_failed'));
   };
 
