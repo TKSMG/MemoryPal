@@ -150,6 +150,28 @@ export function checkPassword(password: string, email = '') {
 
 export type Row = [key: string, data: Data | null, updatedAt: string];
 
+/**
+ * Spare CAPTCHA passes from the last check (cloud.py BrowserCheck.spares).
+ * A Turnstile pass lasts five minutes and works once; the check page hands
+ * over a couple of spares with the first, so a mistyped password doesn't
+ * open the check again.
+ */
+export const SPARE_MS = 240_000;
+let spares: { token: string; at: number }[] = [];
+
+export function keepSpares(tokens: readonly string[], now = Date.now()) {
+  spares = tokens.filter((token) => typeof token === 'string' && token).slice(0, 4).map((token) => ({ token: token.slice(0, 4096), at: now }));
+}
+
+export function takeSpare(now = Date.now()): string | undefined {
+  spares = spares.filter((spare) => now - spare.at < SPARE_MS);
+  return spares.shift()?.token;
+}
+
+export function forgetSpares() {
+  spares = [];
+}
+
 export class CloudClient {
   /** Asked for a CAPTCHA token before sign-in, sign-up and emailed codes (the account screen sets it). */
   private captcha?: () => Promise<string>;
@@ -171,15 +193,31 @@ export class CloudClient {
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
     if (options.token) headers.Authorization = `Bearer ${options.token}`;
     if (options.prefer) headers.Prefer = options.prefer;
-    let body = options.body;
+    const url = `${this.url}${path}${query}`;
+    const body = options.body;
     if (this.captcha && body !== undefined && needsCaptcha(path, options.query)) {
-      body = { ...(body as Record<string, unknown>), gotrue_meta_security: { captcha_token: await this.captcha() } };
+      const withToken = (token: string) => ({ ...(body as Record<string, unknown>), gotrue_meta_security: { captcha_token: token } });
+      const spare = takeSpare();
+      if (spare) {
+        try {
+          return await this.send(method, url, headers, withToken(spare));
+        } catch (error) {
+          if (!(error instanceof CloudError && error.code === 'captcha_failed')) throw error;
+          // The server turned the spare down: drop the rest and check afresh, once.
+          forgetSpares();
+        }
+      }
+      return this.send(method, url, headers, withToken(await this.captcha()));
     }
+    return this.send(method, url, headers, body);
+  }
+
+  private async send(method: string, url: string, headers: Record<string, string>, body: unknown): Promise<unknown> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     let response: Response;
     try {
-      response = await this.fetcher(`${this.url}${path}${query}`, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal: controller.signal });
+      response = await this.fetcher(url, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal: controller.signal });
     } catch {
       throw new CloudError("Couldn't reach the MemoryPal cloud. Check the internet connection and try again.", 'offline');
     } finally {

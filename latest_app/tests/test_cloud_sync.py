@@ -591,6 +591,40 @@ class CaptchaTests(unittest.TestCase):
         self.visit.join(5)  # the browser finishes reading the "All set" page
         self.assertIn("All set", self.page)
 
+    def test_spare_passes_cover_the_next_tries_for_a_few_minutes(self):
+        import threading
+        import urllib.request
+
+        visits = []
+
+        def browser(address):
+            port, state = (part.split("=", 1)[1] for part in address.split("#", 1)[1].split("&"))
+            n = len(visits)
+            visits.append(address)
+            url = f"http://127.0.0.1:{port}/done?state={state}&token=t{n}-a&spare=t{n}-b&spare=t{n}-c"
+            threading.Thread(target=lambda: urllib.request.urlopen(url, timeout=5).read(), daemon=True).start()
+            return True
+
+        now = [1000.0]
+        check = cloud.BrowserCheck("https://example.test/verify/", open_page=browser, timeout=10, clock=lambda: now[0])
+        self.assertEqual([check(), check(), check()], ["t0-a", "t0-b", "t0-c"])
+        self.assertEqual(len(visits), 1)  # one trip to the browser for three tries
+        self.assertEqual(check(), "t1-a")
+        now[0] += cloud.BrowserCheck.SPARE_SECONDS + 1  # spares expire before Cloudflare's five minutes
+        self.assertEqual(check(), "t2-a")
+        self.assertEqual(len(visits), 3)
+
+    def test_a_refused_spare_is_dropped_and_the_check_runs_again(self):
+        server = FakeSupabase()
+        server.captcha = True
+        server.captcha_tokens.add("fresh")
+        check = cloud.BrowserCheck("https://example.test/verify/", clock=lambda: 0.0)
+        check.spares = [("stale-1", 0.0), ("stale-2", 0.0)]
+        check.visit = lambda: ("fresh", [])
+        client = cloud.CloudClient("https://example.supabase.co", server.key, opener=server.open, captcha=check)
+        self.assertIsNone(client.sign_up(EMAIL, PASSWORD))
+        self.assertEqual(check.spares, [])
+
     def test_the_browser_check_reports_a_failed_or_unfinished_check(self):
         import threading
         import urllib.request

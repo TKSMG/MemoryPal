@@ -403,7 +403,10 @@ class FormMessage(tk.Label):
                 if self._after_widget is not None and self._after_widget.winfo_exists():
                     options["after"] = self._after_widget
                 self.pack(**options)
-                self.after_idle(self._fit_window)
+            # Refit on every change, not only the first: "Working…" takes one
+            # line, and the error that replaces it can take two, which cut
+            # off the links under it ("Forgot your password?").
+            self.after_idle(self._fit_window)
         except tk.TclError:
             pass
 
@@ -1118,6 +1121,7 @@ class Tooltip:
         self.delay = delay
         self.after_id = None
         self.tip = None
+        widget._memorypal_tooltip = self
         widget.bind("<Enter>", self.schedule, add="+")
         widget.bind("<Leave>", self.hide, add="+")
         widget.bind("<ButtonPress>", self.hide, add="+")
@@ -1148,6 +1152,8 @@ class Tooltip:
         if self.tip or not self.text:
             return
         root = self.widget._root()
+        if getattr(root, "_dropdown", None) is not None:
+            return  # a tip over an open list would cover it
         self.tip = tk.Toplevel(self.widget)
         self.tip.withdraw()
         self.tip.wm_overrideredirect(True)
@@ -1613,6 +1619,71 @@ class MemoryPalApp(tk.Tk):
             except (tk.TclError, KeyError):
                 pass
         return item
+
+    # Font files for drawing badge letters with Pillow, by Tk family and bold.
+    BADGE_FONT_FILES = {
+        ("Segoe UI Semibold", False): "seguisb.ttf", ("Segoe UI Semibold", True): "seguisb.ttf",
+        ("Segoe UI", False): "segoeui.ttf", ("Segoe UI", True): "seguisb.ttf",
+        (".AppleSystemUIFont", False): "/System/Library/Fonts/SFNS.ttf",
+        (".AppleSystemUIFont", True): "/System/Library/Fonts/SFNS.ttf",
+    }
+
+    def draw_badge_text(self, canvas, width, height, text, fill, font):
+        """Draw a short label (a profile's initials) centred on its letters'
+        own ink, not on Tk's text box.
+
+        Tk centres the box that includes each letter's side bearings, which
+        left a "C" in the round profile button a pixel or more right of
+        centre. Pillow draws the letters from the same font file, measures
+        where the ink landed and centres exactly that. Returns False when
+        Pillow or the font file is missing, so the caller can fall back.
+        """
+        modules = self.pillow_modules()
+        if not modules or not text:
+            return False
+        Image, ImageDraw, ImageTk = modules
+        try:
+            from PIL import ImageFont
+
+            actual = tkfont.Font(root=self, font=font).actual()
+            bold = actual["weight"] == "bold"
+            path = self.BADGE_FONT_FILES.get((actual["family"], bold))
+            if not path:
+                return False
+            size = actual["size"]
+            pixels = -size if size < 0 else size * float(self.tk.call("tk", "scaling"))
+            width, height = int(width), int(height)
+            key = ("badge", text, width, height, fill, actual["family"], bold, round(pixels, 2))
+            photo = self.shape_photo_cache.get(key)
+            if photo is None:
+                scale = 4
+                face = ImageFont.truetype(path, max(1, int(round(pixels * scale))))
+                if actual["family"].startswith(".Apple") and bold:
+                    try:
+                        face.set_variation_by_name("Semibold")
+                    except (OSError, ValueError, AttributeError):
+                        pass
+                # Draw once to find the ink, then again centred on it.
+                probe = Image.new("L", (width * scale * 3, height * scale * 3), 0)
+                origin = (width * scale, height * scale)
+                ImageDraw.Draw(probe).text(origin, text, font=face, fill=255)
+                ink = probe.getbbox()
+                if not ink:
+                    return False
+                dx = width * scale / 2 - (ink[0] + ink[2]) / 2
+                dy = height * scale / 2 - (ink[1] + ink[3]) / 2
+                image = Image.new("RGBA", (width * scale, height * scale), (0, 0, 0, 0))
+                ImageDraw.Draw(image).text((origin[0] + dx, origin[1] + dy), text, font=face, fill=fill)
+                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+                photo = ImageTk.PhotoImage(image.resize((width, height), resampling))
+                if len(self.shape_photo_cache) > 48:
+                    self.shape_photo_cache.clear()
+                self.shape_photo_cache[key] = photo
+            canvas.create_image(0, 0, image=photo, anchor="nw")
+            self.keep_shape_photo(canvas, photo)
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def keep_shape_photo(canvas, photo):
@@ -3895,14 +3966,9 @@ class MemoryPalApp(tk.Tk):
             ink = COLORS["primary"] if hover else COLORS["ink"]
             if not self.draw_antialiased_shape(button, size, size, fill, radius=size // 2, inset=1):
                 button.create_rectangle(0, 0, size, size, fill=fill, outline="")
-            self.create_centered_canvas_text(
-                button,
-                size / 2,
-                size / 2,
-                profile_label,
-                fill=ink,
-                font=self.font("Segoe UI Semibold", 10 if len(profile_label) <= 1 else 9),
-            )
+            label_font = self.font("Segoe UI Semibold", 10 if len(profile_label) <= 1 else 9)
+            if not self.draw_badge_text(button, size, size, profile_label, ink, label_font):
+                self.create_centered_canvas_text(button, size / 2, size / 2, profile_label, fill=ink, font=label_font)
 
         draw()
         button.bind("<Button-1>", lambda _event: self.open_profile_manager())
@@ -4713,7 +4779,10 @@ class MemoryPalApp(tk.Tk):
                 if not self.draw_antialiased_shape(avatar, size, size, fill, radius=size // 2, inset=1):
                     avatar.create_oval(0, 0, size, size, fill=fill, outline="")
                 initials = self.profile_initials(name) or "?"
-                self.create_centered_canvas_text(avatar, size / 2, size / 2, initials, fill=self.on_color(fill) if current else COLORS["ink"], font=self.font("Segoe UI Semibold", 10 if len(initials) <= 1 else 9))
+                initials_ink = self.on_color(fill) if current else COLORS["ink"]
+                initials_font = self.font("Segoe UI Semibold", 10 if len(initials) <= 1 else 9)
+                if not self.draw_badge_text(avatar, size, size, initials, initials_ink, initials_font):
+                    self.create_centered_canvas_text(avatar, size / 2, size / 2, initials, fill=initials_ink, font=initials_font)
                 avatar.grid(row=line, column=0, padx=(self.px(4), self.px(12)), pady=self.px(10))
                 text = tk.Frame(rows, bg=COLORS["surface"])
                 text.grid(row=line, column=1, sticky="ew")
@@ -5754,6 +5823,12 @@ class MemoryPalApp(tk.Tk):
         # Native Tk menus get a light system border on Windows; this opens
         # MemoryPal's own borderless list instead.
         def open_list(_event=None):
+            # The dropdown's own press binding hides Tooltip's general one,
+            # so put the tip away here; a tip window closing just after the
+            # list opened could take focus away and shut the list.
+            tip = getattr(button, "_memorypal_tooltip", None)
+            if tip is not None:
+                tip.hide()
             if str(button.cget("state")) != "disabled":
                 self.open_dropdown(button, entries())
             return "break"
@@ -5890,8 +5965,17 @@ class MemoryPalApp(tk.Tk):
             mark(max(0, min(len(entries) - 1, index + step)))
             return "break"
 
+        opened_at = time.perf_counter()
+
+        def settling():
+            # The click that opened the list is still finishing (its release,
+            # and on Windows the window activation that follows it).
+            return time.perf_counter() - opened_at < 0.4
+
         def press(event):
             # With the grab set, clicks anywhere in the app arrive here.
+            if settling():
+                return "break"
             inside = 0 <= event.x_root - top.winfo_rootx() < top.winfo_width() and 0 <= event.y_root - top.winfo_rooty() < top.winfo_height()
             if not inside:
                 self.close_dropdown()
@@ -5916,7 +6000,22 @@ class MemoryPalApp(tk.Tk):
         canvas.bind("<Button-5>", wheel)
         top.bind("<ButtonPress-1>", press)
         canvas.bind("<ButtonPress-1>", press, add="+")
-        canvas.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
+        def focus_left(_event=None):
+            # Close when MemoryPal itself loses focus (another app came
+            # forward), not when focus only wobbles while the list opens.
+            if getattr(self, "_dropdown", None) is None or self._dropdown[0] is not top:
+                return
+            if self.focus_get() is not None:
+                return
+            if settling():
+                try:
+                    canvas.focus_force()
+                except tk.TclError:
+                    pass
+                return
+            self.close_dropdown()
+
+        canvas.bind("<FocusOut>", lambda _event: self.after(150, focus_left))
 
         x, y, width, height = self.fit_popup_rect(width, rows * row_height + inset * 2 + edge * 2, anchor_rect, gap=self.px(4))
         top.geometry(f"{width}x{height}+{x}+{y}")
