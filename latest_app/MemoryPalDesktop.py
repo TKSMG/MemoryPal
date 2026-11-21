@@ -372,6 +372,53 @@ def flush_pending_paint(widget):
         return 0
 
 
+class SweepBar(tk.Canvas):
+    """A "working on it" bar whose stripe always travels one way: it slides
+    in from the left, runs off the right edge, and comes round again (like
+    the Windows and web loading bars), instead of ttk's indeterminate bar,
+    which bounces back and forth."""
+
+    def __init__(self, master, width, height, track, fill, bg, **options):
+        super().__init__(master, width=width, height=height, bg=bg, bd=0, highlightthickness=0, **options)
+        self._w, self._h = width, height
+        radius = height / 2
+        self._track = self.create_rectangle(0, 0, width, height, fill=track, outline="")
+        self._stripe = self.create_rectangle(0, 0, 0, height, fill=fill, outline="")
+        self._timer = None
+        self._started = 0.0
+        self._radius = radius
+
+    PERIOD = 1.4  # seconds for one pass, including a short pause off screen
+
+    def start(self, _interval=None):
+        if self._timer is None:
+            self._started = time.perf_counter()
+            self._step()
+
+    def stop(self):
+        if self._timer is not None:
+            try:
+                self.after_cancel(self._timer)
+            except tk.TclError:
+                pass
+            self._timer = None
+        self.coords(self._stripe, 0, 0, 0, self._h)
+
+    def _step(self):
+        try:
+            phase = ((time.perf_counter() - self._started) / self.PERIOD) % 1.0
+            # Ease in and out so it gathers speed across the middle; the last
+            # 15% of each pass it is off the right edge, then re-enters left.
+            travel = min(1.0, phase / 0.85)
+            eased = travel * travel * (3 - 2 * travel)
+            stripe = self._w * 0.35
+            left = -stripe + eased * (self._w + stripe)
+            self.coords(self._stripe, max(0, left), 0, min(self._w, left + stripe), self._h)
+            self._timer = self.after(16, self._step)
+        except tk.TclError:
+            self._timer = None
+
+
 class FormMessage(tk.Label):
     """A form's error or progress line that takes no room while it's empty.
 
@@ -2852,6 +2899,11 @@ class MemoryPalApp(tk.Tk):
     def strong_focus_outline(self):
         return bool(self.accessibility.get("focus_outline") or self.accessibility.get("high_contrast"))
 
+    def edge_width(self):
+        """Outline of typing boxes, dropdowns and answer rows: 2px, so they
+        read as solid controls rather than faint hairlines."""
+        return max(2, self.px(2))
+
     def focus_thickness(self):
         return max(2, self.px(3 if self.strong_focus_outline() else 2))
 
@@ -3085,8 +3137,8 @@ class MemoryPalApp(tk.Tk):
         semibold = self.font("Segoe UI Semibold", 11)
         self.style.configure("TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
-        self.style.configure("Primary.TButton", padding=self.text_pad(18, 11, semibold), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
-        self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["primary_dark"]))])
+        self.style.configure("Primary.TButton", padding=self.text_pad(18, 11, semibold), foreground=self.on_color(COLORS["action"]), borderwidth=0, relief="flat", font=semibold)
+        self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["action_dark"]))])
         # Dropdowns: text, a fixed gap, then the chevron, with the same inset
         # on both ends. width=0 drops clam's 11-character minimum, which
         # stretched "More" and pushed its arrow against the right edge.
@@ -3144,7 +3196,7 @@ class MemoryPalApp(tk.Tk):
         rating = lambda key: (COLORS[key], self.tint(COLORS[key], -12), self.tint(COLORS[key], -22))
         return {
             "TButton": ("TButton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
-            "Primary.TButton": ("TButton", (COLORS["primary"], COLORS["primary_dark"], self.tint(COLORS["primary_dark"], -14)), COLORS["surface"]),
+            "Primary.TButton": ("TButton", (COLORS["action"], COLORS["action_dark"], self.tint(COLORS["action_dark"], -14)), COLORS["surface"]),
             "Danger.TButton": ("TButton", (COLORS["danger"], self.tint(COLORS["danger"], -18), self.tint(COLORS["danger"], -30)), COLORS["surface"]),
             "Again.TButton": ("TButton", rating("again_bg"), COLORS["surface"]),
             "Review.TButton": ("TButton", rating("review_bg"), COLORS["surface"]),
@@ -3297,7 +3349,7 @@ class MemoryPalApp(tk.Tk):
             # Drawn like a text field: input fill, hairline edge, darker edge
             # on hover, accent ring on keyboard focus.
             line = COLORS["field_line"]
-            thin = max(1, self.px(1))
+            thin = self.edge_width()
             element = self.rounded_element(
                 self.rounded_tile(COLORS["input"], bg, ring=line, ring_width=thin),
                 self.rounded_tile(COLORS["input"], bg, ring=COLORS["muted"], ring_width=thin),
@@ -3314,7 +3366,7 @@ class MemoryPalApp(tk.Tk):
             # Quiz answers are outlined rows on the field colour, like the
             # phone's: a grey filled bar read as a button that was switched off.
             line = COLORS["field_line"]
-            thin = max(1, self.px(1))
+            thin = self.edge_width()
             element = self.rounded_element(
                 self.rounded_tile(normal, bg, ring=line, ring_width=thin),
                 self.rounded_tile(hover, bg, ring=COLORS["muted"], ring_width=thin),
@@ -3340,7 +3392,7 @@ class MemoryPalApp(tk.Tk):
 
     def round_entry_style(self, style, bg):
         line = COLORS["field_line"]
-        thin = max(1, self.px(1))
+        thin = self.edge_width()
         element = self.rounded_element(
             self.rounded_tile(COLORS["input"], bg, ring=line, ring_width=thin),
             hover=self.rounded_tile(COLORS["input"], bg, ring=COLORS["muted"], ring_width=thin),
@@ -3485,7 +3537,7 @@ class MemoryPalApp(tk.Tk):
         """Rounded panel (or text field) tiles for a ttk.Frame style."""
         radius = self.px(9 if field else 12)
         line = COLORS["field_line"]
-        thin = max(1, self.px(1))
+        thin = self.edge_width()
         # Panels are set apart by their fill, like the rest of the app;
         # fields get a hairline edge so it's clear where to type.
         normal = self.rounded_tile(fill, bg, ring=line if field else None, ring_width=thin if field else 0, radius=radius)
@@ -6223,6 +6275,35 @@ class MemoryPalApp(tk.Tk):
         for sequence in ("<ButtonPress-1>", "<B1-Motion>", "<ButtonRelease-1>", "<Double-Button-1>", "<Triple-Button-1>",
                          "<KeyPress>", "<KeyRelease>", "<FocusIn>", "<<Paste>>", "<<Cut>>"):
             self.bind_class("TEntry", sequence, later, add="+")
+        # Steady while typing, blinking only when idle (as in Word, browsers
+        # and Windows' own boxes): every key restarts the blink with the
+        # cursor showing.
+        kick = lambda event: self.after_idle(lambda: self.steady_caret(event.widget))
+        for widget_class in ("Text", "TEntry", "Entry", "TCombobox", "TSpinbox"):
+            self.bind_class(widget_class, "<KeyPress>", kick, add="+")
+            self.bind_class(widget_class, "<<Paste>>", kick, add="+")
+
+    @staticmethod
+    def steady_caret(widget):
+        """Show the text cursor now and start its blink over.
+
+        Tk blinks the cursor on its own timer whatever you do; only gaining
+        the focus restarts it (cursor on). So the widget is told it lost and
+        got the focus again, with its bindings set aside for that moment so
+        nothing in the app reacts; the focus itself never moves.
+        """
+        try:
+            if not widget.winfo_exists() or widget.focus_get() is not widget:
+                return
+            tags = widget.bindtags()
+            widget.bindtags(("MemoryPalCaretKick",))
+            try:
+                widget.tk.call("event", "generate", widget, "<FocusOut>", "-detail", "NotifyNonlinear")
+                widget.tk.call("event", "generate", widget, "<FocusIn>", "-detail", "NotifyNonlinear")
+            finally:
+                widget.bindtags(tags)
+        except (tk.TclError, KeyError):
+            pass
 
     @staticmethod
     def sync_caret(widget):
@@ -6902,7 +6983,7 @@ class MemoryPalApp(tk.Tk):
                 # colour (white on Windows), so give it the theme's line colour,
                 # or the persona's colour once picked.
                 edge = colors[key] if selected else COLORS["line"]
-                tile.configure(highlightthickness=max(2, self.px(3)) if selected else max(1, self.px(1)),
+                tile.configure(highlightthickness=max(2, self.px(3)) if selected else self.edge_width(),
                                highlightbackground=edge, highlightcolor=edge)
                 row, column = divmod(index, 2)
                 tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
@@ -9853,8 +9934,10 @@ class MemoryPalApp(tk.Tk):
         """The "Made with AI, check it" label, with Report beside it."""
         bg = bg or COLORS["surface"]
         row = tk.Frame(parent, bg=bg)
-        chip = tk.Label(row, text="Made with AI, check it", bg=self.blend_hex(bg, COLORS["warm_text"], 0.14), fg=COLORS["warm_text"],
-                        font=self.font("Segoe UI Semibold", 10), padx=self.px(10), pady=self.px(3))
+        # A quiet note, not a warning: muted text on a faint chip, with one
+        # small amber dot (the logo's) as the only colour.
+        chip = tk.Label(row, text="\u25cf  Made with AI, check it", bg=self.blend_hex(bg, COLORS["muted"], 0.10), fg=COLORS["muted"],
+                        font=self.font("Segoe UI", 10), padx=self.px(10), pady=self.px(3))
         chip.pack(side="left")
         self.add_tooltip(chip, "An AI wrote this from your notes or file. AI can be wrong: check it before you rely on it.")
         if not report:
@@ -10001,7 +10084,7 @@ class MemoryPalApp(tk.Tk):
         """A progress line with Cancel for a running AI request (hidden until shown)."""
         surface = COLORS["surface"]
         frame = tk.Frame(parent, bg=surface)
-        bar = ttk.Progressbar(frame, mode="indeterminate", style="Horizontal.TProgressbar", length=self.px(160))
+        bar = SweepBar(frame, width=self.px(160), height=max(4, self.px(5)), track=COLORS["alt"], fill=COLORS["primary"], bg=surface)
         label = tk.Label(frame, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI", 11), anchor="w", justify="left")
         cancel = ttk.Button(frame, text="Cancel", cursor="hand2")
         bar.pack(side="left", padx=(0, self.px(12)))
