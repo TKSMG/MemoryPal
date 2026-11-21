@@ -530,5 +530,11 @@ This build is packaged as release 0.53.3.
 - The resize arrow no longer flickers to a plain arrow on the window edges.
 - A dropdown list closes if the field under it moves (window dragged or resized, page scrolled), instead of staying where it opened.
 - The AI loading bar runs one way, left to right, and comes round again instead of bouncing.
+- The AI tutor's circle is smooth and round and moves at about 60 frames a second.
+- The AI tutor no longer hears itself as your answer at the start of a call: until the echo canceller has learned the room, the microphone pauses while the tutor talks.
+- Settings > AI features lets you choose which microphone the AI tutor uses.
+- Classic Talk-back takes typed answers; to answer out loud, use the AI tutor.
+- Closing a dialog no longer flashes another app (like the browser after Google sign-in) in front of MemoryPal.
+- Connecting Google Drive explains when this copy wasn't built with Google sign-in, instead of saying Drive is busy.
 
 This build is packaged as release 0.53.4.
