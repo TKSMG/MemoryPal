@@ -82,6 +82,7 @@ def traced_close():
 
 app.close_dropdown = traced_close
 
+HOVER = float(os.environ.get("PROBE_HOVER", "1.2"))
 views = sys.argv[1:] or ["decks", "library", "plan", "quiz", "settings", "games", "tools", "elder", "capture"]
 failures = 0
 for view in views:
@@ -106,7 +107,7 @@ for view in views:
         closes.clear()
         x, y = b.winfo_rootx() + b.winfo_width() // 2, b.winfo_rooty() + b.winfo_height() // 2
         move(x, y)
-        pump(0.2)
+        pump(HOVER)  # long enough for the tooltip to come up, as when a person aims
         button(True)
         pump(0.2)
         opened = getattr(app, "_dropdown", None) is not None
