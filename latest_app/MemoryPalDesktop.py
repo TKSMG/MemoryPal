@@ -1121,6 +1121,7 @@ class Tooltip:
         self.delay = delay
         self.after_id = None
         self.tip = None
+        widget._memorypal_tooltip = self
         widget.bind("<Enter>", self.schedule, add="+")
         widget.bind("<Leave>", self.hide, add="+")
         widget.bind("<ButtonPress>", self.hide, add="+")
@@ -1151,6 +1152,8 @@ class Tooltip:
         if self.tip or not self.text:
             return
         root = self.widget._root()
+        if getattr(root, "_dropdown", None) is not None:
+            return  # a tip over an open list would cover it
         self.tip = tk.Toplevel(self.widget)
         self.tip.withdraw()
         self.tip.wm_overrideredirect(True)
@@ -5820,6 +5823,12 @@ class MemoryPalApp(tk.Tk):
         # Native Tk menus get a light system border on Windows; this opens
         # MemoryPal's own borderless list instead.
         def open_list(_event=None):
+            # The dropdown's own press binding hides Tooltip's general one,
+            # so put the tip away here; a tip window closing just after the
+            # list opened could take focus away and shut the list.
+            tip = getattr(button, "_memorypal_tooltip", None)
+            if tip is not None:
+                tip.hide()
             if str(button.cget("state")) != "disabled":
                 self.open_dropdown(button, entries())
             return "break"
@@ -5956,8 +5965,17 @@ class MemoryPalApp(tk.Tk):
             mark(max(0, min(len(entries) - 1, index + step)))
             return "break"
 
+        opened_at = time.perf_counter()
+
+        def settling():
+            # The click that opened the list is still finishing (its release,
+            # and on Windows the window activation that follows it).
+            return time.perf_counter() - opened_at < 0.4
+
         def press(event):
             # With the grab set, clicks anywhere in the app arrive here.
+            if settling():
+                return "break"
             inside = 0 <= event.x_root - top.winfo_rootx() < top.winfo_width() and 0 <= event.y_root - top.winfo_rooty() < top.winfo_height()
             if not inside:
                 self.close_dropdown()
@@ -5982,7 +6000,22 @@ class MemoryPalApp(tk.Tk):
         canvas.bind("<Button-5>", wheel)
         top.bind("<ButtonPress-1>", press)
         canvas.bind("<ButtonPress-1>", press, add="+")
-        canvas.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
+        def focus_left(_event=None):
+            # Close when MemoryPal itself loses focus (another app came
+            # forward), not when focus only wobbles while the list opens.
+            if getattr(self, "_dropdown", None) is None or self._dropdown[0] is not top:
+                return
+            if self.focus_get() is not None:
+                return
+            if settling():
+                try:
+                    canvas.focus_force()
+                except tk.TclError:
+                    pass
+                return
+            self.close_dropdown()
+
+        canvas.bind("<FocusOut>", lambda _event: self.after(150, focus_left))
 
         x, y, width, height = self.fit_popup_rect(width, rows * row_height + inset * 2 + edge * 2, anchor_rect, gap=self.px(4))
         top.geometry(f"{width}x{height}+{x}+{y}")
