@@ -1365,8 +1365,20 @@ class MemoryPalApp(tk.Tk):
             if winfullscreen.watch_big_resizes(hwnd, self.px(160)):
                 winfullscreen.arm_resize_cover(hwnd, True)
                 self._keep_border_cursor(hwnd)
+                # Why the arrow flickered on the edges: when the mouse leaves
+                # the page for the window's edge, Tk notices a moment later
+                # and sets the plain arrow itself (its "pointer left all my
+                # windows" step), over the resize arrow Windows had just
+                # shown. Tk reports that same step as a <Leave> on the main
+                # window, so put the resize arrow straight back there, before
+                # the screen next refreshes, instead of on the next check.
+                self.bind("<Leave>", lambda event, hwnd=hwnd: self._edge_leave(event, hwnd), add="+")
 
     BORDER_CURSOR_CHECK_MS = 30
+
+    def _edge_leave(self, event, hwnd):
+        if event.widget is self and not mouse_button_down():
+            winfullscreen.keep_border_cursor(hwnd, check=True)
 
     def _keep_border_cursor(self, hwnd):
         """Keep Windows' resize arrow showing while the mouse is on the
@@ -5976,6 +5988,28 @@ class MemoryPalApp(tk.Tk):
             top.grab_set()
         except tk.TclError:
             pass
+
+        # The list is its own window, so it stayed where it opened when the
+        # field under it moved (the window dragged, resized or snapped, the
+        # page scrolled or reflowed). Close it then, as Windows and Mac menus
+        # do.
+        def where():
+            try:
+                return (anchor.winfo_rootx(), anchor.winfo_rooty(), anchor.winfo_width(), anchor.winfo_viewable())
+            except tk.TclError:
+                return None
+
+        opened_at = where()
+
+        def follow():
+            if getattr(self, "_dropdown", None) is None or self._dropdown[0] is not top:
+                return
+            if where() != opened_at:
+                self.close_dropdown()
+                return
+            top.after(80, follow)
+
+        top.after(80, follow)
 
     def set_control_style(self, widget, style):
         """Switch a rounded control's style and refit its corners to its surface."""

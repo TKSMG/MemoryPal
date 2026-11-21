@@ -580,11 +580,12 @@ def on_resize_border(hwnd):
     return bool(state and state["border"])
 
 
-def keep_border_cursor(hwnd):
+def keep_border_cursor(hwnd, check=False):
     """Put the resize arrow back if the mouse is still on the window's edge
-    and shows something else. True if it had to be put back."""
+    and shows something else. True if it had to be put back. With check,
+    look even if the watcher hasn't seen the mouse on the edge yet."""
     state = _resize_watch.get(hwnd)
-    if not state or not state["border"]:
+    if not state or not (state["border"] or check):
         return False
     try:
         ctypes, wintypes, user32, _gdi32, _dwmapi, _kernel32 = _cover_api()
