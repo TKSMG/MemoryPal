@@ -1,0 +1,41 @@
+name: Dropdown probe
+
+# Clicks every desktop dropdown with the real mouse on Windows and Mac
+# (tools/render_check/dropdown_probe.py) and checks each list stays open.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/project-thread-gfw13o
+    paths:
+      - tools/render_check/dropdown_probe.py
+      - .github/workflows/dropdown-probe.yml
+      - latest_app/MemoryPalDesktop.py
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install app packages
+        run: python -m pip install platformdirs pypdf Pillow
+      - name: Click every dropdown
+        shell: bash
+        run: |
+          set +e
+          python tools/render_check/dropdown_probe.py > probe.txt 2>&1
+          code=$?
+          cat probe.txt
+          python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Dropdown probe ${{ matrix.os }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          exit $code
