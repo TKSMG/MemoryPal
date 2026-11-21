@@ -12,9 +12,9 @@ import { AiError } from "./logic.ts";
 
 export const MAX_LIVE_CARDS = 40;
 export const MAX_LIVE_CARD_CHARS = 300;
-export const LIVE_SESSION_MINUTES = 10;
+export const LIVE_SESSION_MINUTES = 14;
 // One use, so a leaked token starts at most one conversation; a little longer
-// than the app's own 10 minute cap so the end of the conversation isn't cut off.
+// than the call's own cap so the end of the conversation isn't cut off.
 export const LIVE_TOKEN_MINUTES = LIVE_SESSION_MINUTES + 3;
 export const LIVE_START_SECONDS = 60;
 export const LIVE_VOICES = ["Kore", "Puck", "Aoede", "Charon"] as const;
