@@ -1,7 +1,7 @@
 /** Building blocks shared by every screen: calm, large, and accessible by default. */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
-import { ReactElement, ReactNode, Ref, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { ReactElement, ReactNode, Ref, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -20,7 +20,8 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { BottomTabBarHeightContext } from 'expo-router/build/react-navigation/bottom-tabs';
+import { Edge, SafeAreaView } from 'react-native-safe-area-context';
 
 import { useStore } from '../state/AppState';
 import { onSpeakingChange, speak, speakingOwner, stopSpeaking } from './feedback';
@@ -101,8 +102,20 @@ function ScreenHeader({ title, subtitle, right }: { title?: string; subtitle?: s
   );
 }
 
+/**
+ * Safe-area edges for a screen. Above the tab bar the bottom edge is left
+ * out: the tab bar already sits clear of the home indicator or the system
+ * buttons, and on Android the native safe area view still added that gap
+ * again above the bar (a dark band under every tab's content).
+ */
+function useScreenEdges(): Edge[] {
+  const tabBarHeight = useContext(BottomTabBarHeightContext);
+  return tabBarHeight ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right'];
+}
+
 export function Screen({ title, subtitle, right, children, scroll = true, padded = true, narrow }: { title?: string; subtitle?: string; right?: ReactNode; children: ReactNode; scroll?: boolean; padded?: boolean; /** Cap the content at form width (centred) on wide screens. */ narrow?: boolean }) {
   const theme = useTheme();
+  const edges = useScreenEdges();
   const header = <ScreenHeader title={title} subtitle={subtitle} right={right} />;
   const gutter = useGutter();
   const pad = padded ? { paddingHorizontal: gutter } : null;
@@ -121,7 +134,7 @@ export function Screen({ title, subtitle, right, children, scroll = true, padded
   // status bar or home indicator, so screens under a navigation bar or above
   // the tab bar get no extra gap.
   return (
-    <SafeAreaView ref={frameRef} onLayout={measureTop} edges={['top', 'bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <SafeAreaView ref={frameRef} onLayout={measureTop} edges={edges} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       {scroll ? (
         <KeyboardAvoidingView style={{ flex: 1 }} enabled={Platform.OS === 'android'} behavior="padding" keyboardVerticalOffset={topOffset}>
         <ScrollView
@@ -152,10 +165,11 @@ export function Screen({ title, subtitle, right, children, scroll = true, padded
  */
 export function ScreenList<T>({ title, subtitle, right, header, data, renderItem, keyExtractor, empty }: { title?: string; subtitle?: string; right?: ReactNode; header?: ReactNode; data: readonly T[]; renderItem: ListRenderItem<T>; keyExtractor: (item: T) => string; empty?: ReactElement | null }) {
   const theme = useTheme();
+  const edges = useScreenEdges();
   const gutter = useGutter();
   const column = [styles.readable, { paddingHorizontal: gutter }];
   return (
-    <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <FlatList
         style={{ flex: 1 }}
         data={data}
