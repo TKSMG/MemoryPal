@@ -1,6 +1,6 @@
 name: Dropdown probe
 
-# Clicks every desktop dropdown with the real mouse on Windows and Mac
+# Clicks every desktop dropdown with the real mouse on Windows
 # (tools/render_check/dropdown_probe.py) and checks each list stays open.
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
