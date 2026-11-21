@@ -372,6 +372,26 @@ def flush_pending_paint(widget):
         return 0
 
 
+# Classic Talk-back's offline (System.Speech) recogniser misheard answers too
+# often to trust, so classic takes typed answers; the AI tutor listens.
+CLASSIC_VOICE_ANSWERS = False
+
+_toplevel_destroy = tk.Toplevel.destroy
+
+
+def _destroy_toplevel(self):
+    """Toplevel.destroy that first runs the window's _before_close hook
+    (patched on the class, so buttons that kept top.destroy still run it)."""
+    hook = getattr(self, "_before_close", None)
+    if hook is not None:
+        self._before_close = None
+        hook()
+    _toplevel_destroy(self)
+
+
+tk.Toplevel.destroy = _destroy_toplevel
+
+
 class SweepBar(tk.Canvas):
     """A "working on it" bar whose stripe always travels one way: it slides
     in from the left, runs off the right edge, and comes round again (like
@@ -2595,6 +2615,38 @@ class MemoryPalApp(tk.Tk):
                 pass
 
         top.bind("<Destroy>", give_back, add="+")
+        if sys.platform.startswith("win"):
+            self.hand_back_on_close(top, owner)
+
+    def hand_back_on_close(self, top, owner):
+        """Make the owner the active window just before a popup closes.
+
+        When the active window is destroyed, Windows activates whichever
+        window is next in its list. After a trip to the browser (Drive or
+        Google sign-in) that is the browser, so it flashed to the front for
+        a moment before MemoryPal took focus back: the flicker seen when
+        some dialogs close. Activating the owner first (the popup still
+        sits above it, as owned windows do) leaves nothing to hand over.
+        """
+        def before_close():
+            try:
+                if owner is not None and owner.winfo_exists() and owner.winfo_ismapped() and top.winfo_exists():
+                    hwnd = self.window_handle(owner)
+                    if hwnd:
+                        import ctypes
+
+                        ctypes.windll.user32.SetForegroundWindow(hwnd)
+            except (tk.TclError, AttributeError, OSError):
+                pass
+
+        top._before_close = before_close
+        try:
+            if not top.protocol("WM_DELETE_WINDOW"):
+                # Without a handler Tk closes the window itself, past
+                # Toplevel.destroy (see _destroy_toplevel).
+                top.protocol("WM_DELETE_WINDOW", top.destroy)
+        except tk.TclError:
+            pass
 
     def window_handle(self, window):
         try:
@@ -4126,6 +4178,7 @@ class MemoryPalApp(tk.Tk):
 
     def _begin_live_resize(self):
         self._live_resizing = True
+        self._set_composited(True)
         self._live_laid_out = None
         self._live_cursor = current_cursor()
         self._live_reflow_done = 0.0
@@ -4151,6 +4204,7 @@ class MemoryPalApp(tk.Tk):
         held = mouse_button_down()
         if not held:
             self._live_resizing = False  # let go: this is the final layout
+            self.after_idle(lambda: self._set_composited(False))
         else:
             # Still held: look again shortly, so letting go without moving
             # further ends the drag too.
@@ -4172,6 +4226,21 @@ class MemoryPalApp(tk.Tk):
             # the resize arrow up itself for the whole drag and does not put
             # it back, so the pointer flipped between the two: put it back.
             restore_cursor(getattr(self, "_live_cursor", None))
+
+    # While an edge is dragged the window paints as one double-buffered
+    # picture (WS_EX_COMPOSITED, as Windows Forms apps do against flicker):
+    # Windows draws every child window into a hidden buffer, bottom to top,
+    # and shows the finished frame, instead of each of Tk's many native
+    # windows painting on screen in turn. Off again after the drag, because
+    # it makes Windows repaint the whole window for every small change.
+    COMPOSITED_DRAG = os.environ.get("MEMORYPAL_COMPOSITED_DRAG", "1") != "0"
+
+    def _set_composited(self, on):
+        if not IS_WINDOWS or not self.COMPOSITED_DRAG:
+            return
+        hwnd = self.window_handle(self)
+        if hwnd:
+            winfullscreen.set_composited(hwnd, on)
 
     def _relayout_after_resize(self):
         """Reflow at the new size with painting paused, then paint once.
@@ -10365,10 +10434,46 @@ class MemoryPalApp(tk.Tk):
         remaining = self.ai_remaining_text()
         limit = f"Each account can make up to {aiflow.AI_DAILY_LIMIT} AI requests a day; the count starts again every day."
         self.fit_wrap(ttk.Label(card, text=f"{limit} {remaining}." if remaining and not remaining.endswith(".") else f"{limit} {remaining}".strip(), style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(0, self.px(4)))
+        if liveaudio.available():
+            self.render_microphone_choice(card)
         if cloud_config.PRIVACY_URL:
             link = tk.Label(card, text="How AI uses your data (privacy policy)", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
             link.pack(anchor="w", pady=(self.px(6), 0))
             self.keyboard_link(link, lambda _event: open_web_page(cloud_config.PRIVACY_URL))
+
+    DEFAULT_MICROPHONE = "System default"
+
+    def microphone_file(self):
+        return Path(app_paths.DATA_DIR) / "microphone.txt"
+
+    def saved_microphone(self):
+        """The chosen microphone's name on this computer ("" = the system default)."""
+        try:
+            return self.microphone_file().read_text(encoding="utf-8").strip()[:200]
+        except OSError:
+            return ""
+
+    def render_microphone_choice(self, parent):
+        row = tk.Frame(parent, bg=COLORS["surface"])
+        row.pack(fill="x", pady=(self.px(10), self.px(4)))
+        tk.Label(row, text="Microphone for the AI tutor", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 11)).pack(side="left", padx=(0, self.px(12)))
+        names = [name for name, _default in liveaudio.input_devices()]
+        saved = self.saved_microphone()
+        if saved and saved not in names:
+            names.append(saved)
+        choice = tk.StringVar(value=saved or self.DEFAULT_MICROPHONE)
+
+        def chosen(value):
+            try:
+                path = self.microphone_file()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("" if value == self.DEFAULT_MICROPHONE else value, encoding="utf-8")
+            except OSError:
+                self.toast_message("Couldn't save the microphone choice.")
+                return
+            self.toast_message(f"The AI tutor will listen with: {value}.")
+
+        self.select_button(row, choice, [self.DEFAULT_MICROPHONE] + names, on_change=chosen).pack(side="left", fill="x", expand=True)
 
     # ------------------------------------------------------------------
     # Talk-back study: hands-free review
@@ -10437,7 +10542,7 @@ class MemoryPalApp(tk.Tk):
             self.show_view("talkback")
 
         option("Talk with the AI tutor", "A real conversation, like a voice call. Answer in your own words, talk over it, ask for a hint or why. It saves how you did on each card. Needs the internet and uses one AI request.", "mic", live, True)
-        option("Classic Talk-back", "Each question is read aloud and you answer by voice or by typing. Works offline.", "speaker", classic, False)
+        option("Classic Talk-back", "Each question is read aloud and you type the answer. Works offline." if not CLASSIC_VOICE_ANSWERS else "Each question is read aloud and you answer by voice or by typing. Works offline.", "speaker", classic, False)
 
     def save_live_ratings(self, tutor):
         for card, outcome in tutor.take_ratings():
@@ -10493,23 +10598,80 @@ class MemoryPalApp(tk.Tk):
         hint = "Say \u201cskip\u201d, \u201cgive me a hint\u201d or \u201cwhy?\u201d at any time. AI can be wrong."
         self.fit_wrap(tk.Label(panel, text=f"{hint} {liveaudio.permission_hint()}".strip(), bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 10), justify="left", anchor="w", wraplength=self.px(860)), pady=(self.px(14), 0))
 
+        orb_cache = {}
+        orb_steps = 32
+
+        def orb_image(colour, halo_fill, step):
+            """A smooth (supersampled) halo + core for one swell step, cached."""
+            key = (colour, halo_fill, step)
+            if key in orb_cache:
+                return orb_cache[key]
+            modules = self.pillow_modules()
+            if modules is None:
+                return None
+            Image, ImageDraw, ImageTk = modules
+            grow = step / orb_steps
+            scale = 4
+            big = size * scale
+            picture = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+            pen = ImageDraw.Draw(picture)
+            middle = big / 2
+            halo = big * 0.42 * (1 + 0.22 * grow)
+            core = big * 0.30 * (1 + 0.22 * grow)
+            pen.ellipse((middle - halo, middle - halo, middle + halo, middle + halo), fill=halo_fill)
+            pen.ellipse((middle - core, middle - core, middle + core, middle + core), fill=colour)
+            picture = picture.resize((size, size), Image.LANCZOS)
+            orb_cache[key] = ImageTk.PhotoImage(picture)
+            return orb_cache[key]
+
+        orb_items = {"orb": None, "icon": None, "drawn": None}
+
         def draw(who, muted):
             # A soft circle that swells with whoever is speaking: the tutor in the
-            # app's colour, you in green.
+            # app's colour, you in green. Runs every frame (see animate) and is
+            # drawn from cached smooth images, so it stays round and fluid.
+            state["who"], state["muted_now"] = who, muted
             target = 0.0 if muted else state["levels"].get(who or "you", 0.0) if who else 0.0
-            state["shown"] = state["shown"] * 0.6 + target * 0.4
-            grow = 0.0 if self.accessibility.get("reduce_motion") else state["shown"]
+            state["shown"] = state["shown"] * 0.78 + target * 0.22
+            grow = 0.0 if self.accessibility.get("reduce_motion") else min(1.0, state["shown"])
             colour = COLORS["line"] if muted else COLORS["green"] if who == "you" else COLORS["primary"]
-            orb.delete("all")
+            step = round(grow * orb_steps)
+            # The halo tint changes with grow too: quantise it with the step.
+            halo_fill = self.blend_hex(surface, colour, 0.16 + 0.2 * step / orb_steps)
+            icon_name = "mic" if who == "you" or muted else "speaker"
+            drawn = (colour, halo_fill, step, icon_name)
+            if drawn == orb_items["drawn"]:
+                return
+            orb_items["drawn"] = drawn
             middle = size / 2
-            core = size * 0.30 * (1 + 0.22 * grow)
-            halo = size * 0.42 * (1 + 0.22 * grow)
-            orb.create_oval(middle - halo, middle - halo, middle + halo, middle + halo, fill=self.blend_hex(surface, colour, 0.16 + 0.2 * grow), outline="")
-            orb.create_oval(middle - core, middle - core, middle + core, middle + core, fill=colour, outline="")
-            image = self.line_icon("mic" if who == "you" or muted else "speaker", self.px(44), self.on_color(colour))
+            picture = orb_image(colour, halo_fill, step)
+            if picture is None:
+                orb.delete("all")
+                orb_items["orb"] = orb_items["icon"] = None
+                core = size * 0.30 * (1 + 0.22 * step / orb_steps)
+                halo = size * 0.42 * (1 + 0.22 * step / orb_steps)
+                orb.create_oval(middle - halo, middle - halo, middle + halo, middle + halo, fill=halo_fill, outline="")
+                orb.create_oval(middle - core, middle - core, middle + core, middle + core, fill=colour, outline="")
+            elif orb_items["orb"] is None:
+                orb.delete("all")
+                orb_items["orb"] = orb.create_image(middle, middle, image=picture)
+            else:
+                orb.itemconfigure(orb_items["orb"], image=picture)
+            image = self.line_icon(icon_name, self.px(44), self.on_color(colour))
             if image is not None:
-                orb.create_image(middle, middle, image=image)
+                if orb_items["icon"] is None or picture is None:
+                    orb_items["icon"] = orb.create_image(middle, middle, image=image)
+                else:
+                    orb.itemconfigure(orb_items["icon"], image=image)
                 orb._memorypal_icon = image
+
+        def animate():
+            # The orb's own frame clock (~60 fps); poll() updates text at 12 fps.
+            if not alive() or state["tutor"] is None or not orb.winfo_exists():
+                state["frame"] = None
+                return
+            draw(state.get("who", ""), state.get("muted_now", False))
+            state["frame"] = self.after(16, animate)
 
         def on_level(who, value):
             state["levels"][who] = value  # from the audio thread: a plain float swap
@@ -10585,7 +10747,10 @@ class MemoryPalApp(tk.Tk):
                 state["muted"] = snap.muted
                 mute.configure(text=" Unmute" if snap.muted else " Mute")
             state["phase"] = snap.phase
-            draw("you" if snap.speaking == "you" else "tutor" if snap.speaking == "tutor" else "", snap.muted)
+            state["who"] = "you" if snap.speaking == "you" else "tutor" if snap.speaking == "tutor" else ""
+            state["muted_now"] = snap.muted
+            if state.get("frame") is None:
+                animate()
             state["pulse"] = self.after(80, poll)
 
         def started(result, error):
@@ -10601,7 +10766,7 @@ class MemoryPalApp(tk.Tk):
             if result.get("remaining") is not None:
                 self.set_ai_prefs(aiflow.remember_remaining(self.ai_prefs(), result["remaining"]))
             by_key = {key: cards[index] for key, index in result["keys"].items()}
-            tutor = livetutor.LiveTutor(result["token"], result["setup"], by_key, result["minutes"], livetutor.open_websocket, liveaudio.LiveAudio(on_level))
+            tutor = livetutor.LiveTutor(result["token"], result["setup"], by_key, result["minutes"], livetutor.open_websocket, liveaudio.LiveAudio(on_level, self.saved_microphone()))
             state["tutor"] = tutor
             self.stop_speaking()
             tutor.start()
@@ -11002,7 +11167,14 @@ class MemoryPalApp(tk.Tk):
         update_counts()
         refresh_controls()
         set_status("Getting ready", "checking")
-        if not listen.platform_supported():
+        if not CLASSIC_VOICE_ANSWERS:
+            # Typed answers only: the offline recogniser misheard too often.
+            # The AI tutor is the way to answer out loud.
+            state["can_listen"], state["typed"] = False, True
+            notice.configure(text="Type your answers here. To answer out loud, use the AI tutor.")
+            refresh_controls()
+            later(50, ask)
+        elif not listen.platform_supported():
             later(50, lambda: recogniser_ready(False))
         else:
             self.run_in_background(self.listener.probe, recogniser_ready)
@@ -12805,6 +12977,8 @@ class MemoryPalApp(tk.Tk):
             ("listen_answers", "Talk-back study listens for spoken answers (Windows)"),
             ("focus_outline", "Show a bright outline on the focused button (keyboard use)"),
         ]
+        if not CLASSIC_VOICE_ANSWERS:
+            accessibility_toggles = [item for item in accessibility_toggles if item[0] != "listen_answers"]
         for index, (key, label) in enumerate(accessibility_toggles):
             var = tk.BooleanVar(value=bool(self.accessibility.get(key)))
             row = self.check_toggle(toggle_grid, var, label, on_change=lambda checked, pref=key: self.update_accessibility_preference(pref, checked), bg=COLORS["surface"], wraplength=470, fit=True)

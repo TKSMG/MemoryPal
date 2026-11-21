@@ -616,3 +616,29 @@ def keep_border_cursor(hwnd, check=False):
         return True
     except (AttributeError, OSError, ValueError):
         return False
+
+
+WS_EX_COMPOSITED = 0x02000000
+
+
+def set_composited(hwnd, on):
+    """Turn double-buffered painting of the whole window (and its child
+    windows) on or off. Best effort: returns whether it changed."""
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        get = getattr(user32, "GetWindowLongPtrW", None) or user32.GetWindowLongW
+        set_ = getattr(user32, "SetWindowLongPtrW", None) or user32.SetWindowLongW
+        get.restype = ctypes.c_ssize_t
+        get.argtypes = (ctypes.c_void_p, ctypes.c_int)
+        set_.restype = ctypes.c_ssize_t
+        set_.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t)
+        style = get(hwnd, -20)  # GWL_EXSTYLE
+        wanted = (style | WS_EX_COMPOSITED) if on else (style & ~WS_EX_COMPOSITED)
+        if wanted == style:
+            return False
+        set_(hwnd, -20, wanted)
+        return True
+    except (AttributeError, OSError):
+        return False
