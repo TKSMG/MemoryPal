@@ -513,3 +513,11 @@ This build is packaged as release 0.53.1.
 - Text selection works like a web page: drags carry on across text, and the blinking cursor hides while words are highlighted (#59).
 
 This build is packaged as release 0.53.2.
+
+## v105 - Steadier Live Tutor
+
+- Phone: the tutor's greeting is kept until the audio is ready, instead of being lost while the microphone starts (#65).
+- Ending a call while the microphone is still opening now really stops it, on phone and desktop (#65).
+- A short network blip no longer ends and restarts the phone call (#65).
+
+This build is packaged as release 0.53.3.
