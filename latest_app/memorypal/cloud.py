@@ -159,12 +159,43 @@ class BrowserCheck:
         "<h1 style='font-size:22px'>{title}</h1><p>You can close this tab and go back to MemoryPal.</p>"
     )
 
-    def __init__(self, page_url, open_page=None, timeout=180):
+    # A Turnstile pass lasts five minutes and works once. The page hands over
+    # a couple of spares with the first; they cover the next tries (a mistyped
+    # password) so the browser doesn't open again for each one.
+    SPARE_SECONDS = 240
+
+    def __init__(self, page_url, open_page=None, timeout=180, clock=time.monotonic):
+        import threading
+
         self.page_url = page_url
         self.open_page = open_page
         self.timeout = timeout
+        self.clock = clock
+        self.spares = []  # (token, time received)
+        self._lock = threading.Lock()
+
+    def take_spare(self):
+        with self._lock:
+            now = self.clock()
+            self.spares = [(token, at) for token, at in self.spares if now - at < self.SPARE_SECONDS]
+            return self.spares.pop(0)[0] if self.spares else None
+
+    def forget_spares(self):
+        with self._lock:
+            self.spares = []
 
     def __call__(self):
+        spare = self.take_spare()
+        if spare:
+            return spare
+        token, spares = self.visit()
+        with self._lock:
+            now = self.clock()
+            self.spares = [(value, now) for value in spares[:4] if value]
+        return token
+
+    def visit(self):
+        """Open the page in the browser; (token, spare tokens) once it answers."""
         import http.server
         import secrets
         import threading
@@ -186,6 +217,7 @@ class BrowserCheck:
                     return
                 if values.get("token", [""])[0]:
                     result["token"] = values["token"][0][:4096]
+                    result["spares"] = [value[:4096] for value in values.get("spare", [])[:4]]
                 answered.set()
                 body = done_page.format(title="All set" if result.get("token") else "The check didn't work").encode("utf-8")
                 self.send_response(200)
@@ -211,7 +243,7 @@ class BrowserCheck:
         finally:
             server.server_close()
         if result.get("token"):
-            return result["token"]
+            return result["token"], result.get("spares", [])
         if answered.is_set():
             raise CloudError(FRIENDLY["captcha_failed"], "captcha_failed")
         raise CloudError(FRIENDLY["captcha_timeout"], "captcha_timeout")
@@ -248,7 +280,21 @@ class CloudClient:
         if prefer:
             headers["Prefer"] = prefer
         if self.captcha and body is not None and needs_captcha(path, query):
-            body = dict(body, gotrue_meta_security={"captcha_token": self.captcha()})
+            spare = getattr(self.captcha, "take_spare", lambda: None)()
+            body = dict(body, gotrue_meta_security={"captcha_token": spare or self.captcha()})
+            if spare:
+                try:
+                    return self.send(method, url, body, headers)
+                except CloudError as error:
+                    if error.code != "captcha_failed":
+                        raise
+                    # The server turned the spare down: drop the rest and do
+                    # the check afresh, once.
+                    getattr(self.captcha, "forget_spares", lambda: None)()
+                    body = dict(body, gotrue_meta_security={"captcha_token": self.captcha()})
+        return self.send(method, url, body, headers)
+
+    def send(self, method, url, body, headers):
         data = json.dumps(body).encode("utf-8") if body is not None else None
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:

@@ -7,11 +7,14 @@ export function allowedInCheck(url: string, page = captchaUrl()): boolean {
 }
 
 /** What the page posted: a token, a failure, or null for anything else. */
-export function readCheckMessage(data: string): { token?: string; error?: string } | null {
+export function readCheckMessage(data: string): { token?: string; spares?: string[]; error?: string } | null {
   try {
-    const message = JSON.parse(data) as { type?: unknown; token?: unknown; error?: unknown };
+    const message = JSON.parse(data) as { type?: unknown; token?: unknown; spares?: unknown; error?: unknown };
     if (message?.type !== 'turnstile') return null;
-    if (typeof message.token === 'string' && message.token) return { token: message.token.slice(0, 4096) };
+    if (typeof message.token === 'string' && message.token) {
+      const spares = Array.isArray(message.spares) ? message.spares.filter((spare): spare is string => typeof spare === 'string' && !!spare).slice(0, 4).map((spare) => spare.slice(0, 4096)) : [];
+      return { token: message.token.slice(0, 4096), spares };
+    }
     return { error: String(message.error ?? 'failed') };
   } catch {
     return null;
