@@ -352,3 +352,16 @@ revoke all on function public.ai_usage_take_limited(uuid, integer, integer, inte
 revoke all on function public.ai_usage_refund(uuid) from public, anon, authenticated;
 grant execute on function public.ai_usage_take_limited(uuid, integer, integer, integer, integer) to service_role;
 grant execute on function public.ai_usage_refund(uuid) to service_role;
+
+-- Keep-alive (2026-11-21): one harmless query the public key may run, so the
+-- GitHub keep-alive ping counts as database activity on the free plan.
+create or replace function public.keepalive()
+returns timestamptz
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select now() $$;
+
+revoke all on function public.keepalive() from public;
+grant execute on function public.keepalive() to anon, authenticated;
