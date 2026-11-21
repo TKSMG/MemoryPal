@@ -536,5 +536,7 @@ This build is packaged as release 0.53.3.
 - Classic Talk-back takes typed answers; to answer out loud, use the AI tutor.
 - Closing a dialog no longer flashes another app (like the browser after Google sign-in) in front of MemoryPal.
 - Connecting Google Drive explains when this copy wasn't built with Google sign-in, instead of saying Drive is busy.
+- Phone: the dark band between each page and the tab bar is gone.
+- AI tutor calls can last 14 minutes (was 10).
 
 This build is packaged as release 0.53.4.
