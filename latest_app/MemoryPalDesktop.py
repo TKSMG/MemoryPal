@@ -381,12 +381,10 @@ class SweepBar(tk.Canvas):
     def __init__(self, master, width, height, track, fill, bg, **options):
         super().__init__(master, width=width, height=height, bg=bg, bd=0, highlightthickness=0, **options)
         self._w, self._h = width, height
-        radius = height / 2
         self._track = self.create_rectangle(0, 0, width, height, fill=track, outline="")
         self._stripe = self.create_rectangle(0, 0, 0, height, fill=fill, outline="")
         self._timer = None
         self._started = 0.0
-        self._radius = radius
 
     PERIOD = 1.4  # seconds for one pass, including a short pause off screen
 
@@ -2899,11 +2897,6 @@ class MemoryPalApp(tk.Tk):
     def strong_focus_outline(self):
         return bool(self.accessibility.get("focus_outline") or self.accessibility.get("high_contrast"))
 
-    def edge_width(self):
-        """Outline of typing boxes, dropdowns and answer rows: 2px, so they
-        read as solid controls rather than faint hairlines."""
-        return max(2, self.px(2))
-
     def focus_thickness(self):
         return max(2, self.px(3 if self.strong_focus_outline() else 2))
 
@@ -3137,8 +3130,8 @@ class MemoryPalApp(tk.Tk):
         semibold = self.font("Segoe UI Semibold", 11)
         self.style.configure("TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
-        self.style.configure("Primary.TButton", padding=self.text_pad(18, 11, semibold), foreground=self.on_color(COLORS["action"]), borderwidth=0, relief="flat", font=semibold)
-        self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["action_dark"]))])
+        self.style.configure("Primary.TButton", padding=self.text_pad(18, 11, semibold), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
+        self.style.map("Primary.TButton", foreground=[("disabled", COLORS["muted"]), ("active", self.on_color(COLORS["primary_dark"]))])
         # Dropdowns: text, a fixed gap, then the chevron, with the same inset
         # on both ends. width=0 drops clam's 11-character minimum, which
         # stretched "More" and pushed its arrow against the right edge.
@@ -3196,7 +3189,7 @@ class MemoryPalApp(tk.Tk):
         rating = lambda key: (COLORS[key], self.tint(COLORS[key], -12), self.tint(COLORS[key], -22))
         return {
             "TButton": ("TButton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
-            "Primary.TButton": ("TButton", (COLORS["action"], COLORS["action_dark"], self.tint(COLORS["action_dark"], -14)), COLORS["surface"]),
+            "Primary.TButton": ("TButton", (COLORS["primary"], COLORS["primary_dark"], self.tint(COLORS["primary_dark"], -14)), COLORS["surface"]),
             "Danger.TButton": ("TButton", (COLORS["danger"], self.tint(COLORS["danger"], -18), self.tint(COLORS["danger"], -30)), COLORS["surface"]),
             "Again.TButton": ("TButton", rating("again_bg"), COLORS["surface"]),
             "Review.TButton": ("TButton", rating("review_bg"), COLORS["surface"]),
@@ -3349,7 +3342,7 @@ class MemoryPalApp(tk.Tk):
             # Drawn like a text field: input fill, hairline edge, darker edge
             # on hover, accent ring on keyboard focus.
             line = COLORS["field_line"]
-            thin = self.edge_width()
+            thin = max(1, self.px(1))
             element = self.rounded_element(
                 self.rounded_tile(COLORS["input"], bg, ring=line, ring_width=thin),
                 self.rounded_tile(COLORS["input"], bg, ring=COLORS["muted"], ring_width=thin),
@@ -3366,7 +3359,7 @@ class MemoryPalApp(tk.Tk):
             # Quiz answers are outlined rows on the field colour, like the
             # phone's: a grey filled bar read as a button that was switched off.
             line = COLORS["field_line"]
-            thin = self.edge_width()
+            thin = max(1, self.px(1))
             element = self.rounded_element(
                 self.rounded_tile(normal, bg, ring=line, ring_width=thin),
                 self.rounded_tile(hover, bg, ring=COLORS["muted"], ring_width=thin),
@@ -3392,7 +3385,7 @@ class MemoryPalApp(tk.Tk):
 
     def round_entry_style(self, style, bg):
         line = COLORS["field_line"]
-        thin = self.edge_width()
+        thin = max(1, self.px(1))
         element = self.rounded_element(
             self.rounded_tile(COLORS["input"], bg, ring=line, ring_width=thin),
             hover=self.rounded_tile(COLORS["input"], bg, ring=COLORS["muted"], ring_width=thin),
@@ -3537,7 +3530,7 @@ class MemoryPalApp(tk.Tk):
         """Rounded panel (or text field) tiles for a ttk.Frame style."""
         radius = self.px(9 if field else 12)
         line = COLORS["field_line"]
-        thin = self.edge_width()
+        thin = max(1, self.px(1))
         # Panels are set apart by their fill, like the rest of the app;
         # fields get a hairline edge so it's clear where to type.
         normal = self.rounded_tile(fill, bg, ring=line if field else None, ring_width=thin if field else 0, radius=radius)
@@ -4118,7 +4111,6 @@ class MemoryPalApp(tk.Tk):
 
     LIVE_REFLOW_MIN_GAP_MS = 12
     LIVE_REFLOW_FREE_SHARE = 0.8  # free time after a reflow, as a share of what it cost
-    LIVE_REFLOW_COVER = os.environ.get("MEMORYPAL_LIVE_COVER", "1") != "0"
 
     def _begin_live_resize(self):
         self._live_resizing = True
@@ -4156,20 +4148,10 @@ class MemoryPalApp(tk.Tk):
             return  # already laid out at this size
         self._live_laid_out = size
         began = time.perf_counter()
-        # Tk paints a reflowed page widget by widget, and a reflow takes
-        # longer than a screen refresh, so the screen could show it half
-        # redrawn: the flicker while dragging. Hold the current picture over
-        # the window while it reflows and paints, and swap to the finished
-        # one in a single frame (the same still picture as for maximise).
-        cover = winfullscreen.cover_client(self.window_handle(self)) if self.LIVE_REFLOW_COVER else None
-        try:
-            self._relayout_after_resize()
-            if cover:
-                flush_pending_paint(self)
-                winfullscreen.wait_for_compose(1, display_refresh_hz(self))
-        finally:
-            if cover:
-                winfullscreen.hide_cover(cover)
+        # (Tried 2026-11-21: holding a still picture over the window during
+        # each reflow. On Windows CI it halved how often the edge kept up
+        # with the mouse and didn't cut half-drawn frames, so it was dropped.)
+        self._relayout_after_resize()
         self._live_reflow_done = time.perf_counter()
         self._live_reflow_cost = self._live_reflow_done - began
         if held:
@@ -6983,7 +6965,7 @@ class MemoryPalApp(tk.Tk):
                 # colour (white on Windows), so give it the theme's line colour,
                 # or the persona's colour once picked.
                 edge = colors[key] if selected else COLORS["line"]
-                tile.configure(highlightthickness=max(2, self.px(3)) if selected else self.edge_width(),
+                tile.configure(highlightthickness=max(2, self.px(3)) if selected else max(1, self.px(1)),
                                highlightbackground=edge, highlightcolor=edge)
                 row, column = divmod(index, 2)
                 tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))

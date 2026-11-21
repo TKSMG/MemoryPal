@@ -521,3 +521,12 @@ This build is packaged as release 0.53.2.
 - A short network blip no longer ends and restarts the phone call (#65).
 
 This build is packaged as release 0.53.3.
+
+## v106 - Steadier Typing
+
+- The text cursor stays on while you type and blinks only when you stop.
+- The welcome choices' outline is in the theme's line colour instead of white.
+- "Made with AI, check it" is a quiet grey label with a small amber dot.
+- The AI loading bar runs one way, left to right, and comes round again instead of bouncing.
+
+This build is packaged as release 0.53.4.

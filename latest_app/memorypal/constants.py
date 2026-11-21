@@ -30,10 +30,6 @@ LIGHT_COLORS = {
     "field_line": "#8f887c",
     "primary": "#146b5a",
     "primary_dark": "#0e5547",
-    # The main button on each page. Pine in light mode; in dark mode it is
-    # paper-white, so the green is kept for what is chosen or in progress.
-    "action": "#146b5a",
-    "action_dark": "#0e5547",
     "green": "#2f7323",
     "orange": "#b5541a",
     "pink": "#b8426a",
@@ -91,8 +87,6 @@ DARK_COLORS = {
     "field_line": "#747067",
     "primary": "#63c9ae",
     "primary_dark": "#48b496",
-    "action": "#f3f1ec",
-    "action_dark": "#dcd8cf",
     "green": "#86d27a",
     "orange": "#f0a456",
     "pink": "#f08aa8",
@@ -130,7 +124,7 @@ DARK_COLORS = {
     "hero": "#1d4a40",
     "hero_ink": "#f3f1ec",
     "hero_muted": "#bcd6ce",
-    "hero_button": "#f3f1ec",
+    "hero_button": "#63c9ae",
     "hero_button_text": "#14130f",
     "hero_soft": "#2a5b50",
     "hero_soft_text": "#f3f1ec",

@@ -377,38 +377,6 @@ def show_cover(rect, snap, owner=None):
         return None
 
 
-def client_rect_on_screen(hwnd):
-    """The window's inside (no frame) as (left, top, right, bottom) on the
-    screen, or None."""
-    if not hwnd or not sys.platform.startswith("win"):
-        return None
-    try:
-        ctypes, wintypes, user32, _gdi32, _dwmapi, _kernel32 = _cover_api()
-        rect, corner = wintypes.RECT(), wintypes.POINT(0, 0)
-        if not ctypes.windll.user32.GetClientRect(ctypes.c_void_p(hwnd), ctypes.byref(rect)):
-            return None
-        if not ctypes.windll.user32.ClientToScreen(ctypes.c_void_p(hwnd), ctypes.byref(corner)):
-            return None
-        if rect.right <= 0 or rect.bottom <= 0:
-            return None
-        return (corner.x, corner.y, corner.x + rect.right, corner.y + rect.bottom)
-    except (AttributeError, OSError, ValueError):
-        return None
-
-
-def cover_client(hwnd):
-    """Hold what the window shows right now on screen, in a still picture
-    over its inside, until hide_cover. Returns the cover, or None."""
-    rect = client_rect_on_screen(hwnd)
-    snap = snapshot(rect)
-    if snap is None:
-        return None
-    try:
-        return show_cover(rect, snap, owner=hwnd)
-    finally:
-        free_snapshot(snap)
-
-
 def hide_cover(hwnd):
     if not hwnd or not sys.platform.startswith("win"):
         return False
