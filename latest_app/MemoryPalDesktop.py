@@ -379,13 +379,59 @@ CLASSIC_VOICE_ANSWERS = False
 _toplevel_destroy = tk.Toplevel.destroy
 
 
+def _root_hwnd(widget):
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        get_ancestor = ctypes.windll.user32.GetAncestor
+        get_ancestor.restype = wintypes.HWND
+        get_ancestor.argtypes = (wintypes.HWND, ctypes.c_uint)
+        return get_ancestor(widget.winfo_id(), 2)  # GA_ROOT
+    except (AttributeError, OSError, tk.TclError):
+        return None
+
+
+def _hide_before_destroy(top):
+    """Take a closing window off the screen in one step (Windows).
+
+    Tk takes a window down piece by piece: each box, label and button
+    inside it is destroyed first, and Windows repaints the gap each one
+    leaves while the window is still showing, so some dialogs flashed blank
+    as they closed. Like new windows (shown cloaked until drawn), the
+    closing one is cloaked first, after its owner has been made the active
+    window, so nothing half-taken-down is ever on screen and focus never
+    passes through another app.
+    """
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        if not top.winfo_exists() or not top.winfo_ismapped():
+            return
+        hwnd = _root_hwnd(top)
+        if not hwnd:
+            return
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        owner = top.master.winfo_toplevel() if top.master is not None else None
+        owner_hwnd = _root_hwnd(owner) if owner is not None and owner.winfo_exists() and owner.winfo_ismapped() else None
+        if owner_hwnd and user32.GetForegroundWindow() == hwnd:
+            user32.SetForegroundWindow(owner_hwnd)
+        windowtheme.cloak(hwnd, True)
+    except (tk.TclError, AttributeError, OSError):
+        pass
+
+
 def _destroy_toplevel(self):
     """Toplevel.destroy that first runs the window's _before_close hook
-    (patched on the class, so buttons that kept top.destroy still run it)."""
+    (patched on the class, so buttons that kept top.destroy still run it),
+    then hides the window whole before Tk takes it apart."""
     hook = getattr(self, "_before_close", None)
     if hook is not None:
         self._before_close = None
         hook()
+    _hide_before_destroy(self)
     _toplevel_destroy(self)
 
 

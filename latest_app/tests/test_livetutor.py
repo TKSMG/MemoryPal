@@ -123,6 +123,7 @@ class LiveTutorTests(unittest.TestCase):
         responses = [r for m in talk.socket.sent if "toolResponse" in m for r in m["toolResponse"]["functionResponses"]]
         self.assertEqual([(r["id"], r["response"]["result"]) for r in responses], [("1", "saved"), ("2", "saved"), ("3", "error: unknown card key or result"), ("4", "saved")])
         self.assertTrue(all(r["response"]["scheduling"] == "SILENT" for r in responses))
+        self.assertEqual([r["response"].get("next") for r in responses], ["c2", "c2", None, "none: every card is done, so give the summary"])
         self.assertEqual([(r.card.id, r.outcome) for r in talk.tutor.snapshot().results], [("a", "wrong"), ("b", "skipped")])
 
     def test_end_session_lets_the_goodbye_play_then_hangs_up(self):
