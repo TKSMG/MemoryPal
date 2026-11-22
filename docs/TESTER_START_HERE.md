@@ -1,6 +1,6 @@
 # MemoryPal Tester Guide - Start Here
 
-Thanks for testing MemoryPal. This beta is version 0.53.5 (development milestone v107). It takes about 20-30 minutes to try the main parts.
+Thanks for testing MemoryPal. This beta is version 0.53.6 (development milestone v108). It takes about 20-30 minutes to try the main parts.
 
 ## 1. Install
 
