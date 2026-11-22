@@ -222,7 +222,7 @@ export class TalkbackSession {
     this.set('asking', '');
     await this.options.voice.say(card.front);
     if (generation !== this.generation) return;
-    if (this.options.screenReader) return this.set('ready', '');
+    if (this.options.screenReader && this.options.ears) return this.set('ready', '');
     if (this.options.ears) this.startListening();
     else this.set('typing', '');
   }

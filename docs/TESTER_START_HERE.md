@@ -41,7 +41,7 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 7. **Puzzles** - play one or two games.
 8. **Settings** - try Large text, Higher contrast, and More time.
 9. **Quick Quiz** - play a round and notice the different kinds of question: pick the answer, fill in the blank, true or false, match the pairs, what comes next, and type the answer. A second round should give different questions.
-10. **Talk-back study** (under Study) - hear each question, say your answer out loud, and hear whether you were right. Say "I don't know" to hear the answer. If there is no microphone, type the answer instead.
+10. **Talk-back study** (under Study) - choose the AI tutor (a spoken conversation; needs an account and the internet) or classic Talk-back (each question is read aloud and you type the answer; works offline). Same on the phone and the computer.
 11. **Make with AI** (optional, needs an account) - start a new set, choose Make with AI, and paste a paragraph of notes or choose a PDF or a picture of a page. Try Make notes and Make questions. Check what it makes: AI cards are labelled "Made with AI, check it", and Report tells us about a bad result.
 
 ## 4. Send feedback

@@ -71,9 +71,16 @@ export async function connectGoogle(): Promise<{ user_id: string; email: string 
     if (error instanceof CloudError) throw error;
     if (code(error) === statusCodes.SIGN_IN_CANCELLED) throw driveError('drive_cancelled');
     if (code(error) === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) throw driveError('drive_no_play_services');
+    // Android: 10 (DEVELOPER_ERROR) and 12500 (SIGN_IN_FAILED) mean Google doesn't
+    // know this copy of the app: its signing certificate isn't on MemoryPal's
+    // Android OAuth client (a sideloaded APK is signed with the upload key, the
+    // Play Store copy with Google's app-signing key; both need a client).
+    if (SETUP_CODES.includes(code(error))) throw driveError('drive_setup');
     throw driveError('drive_offline');
   }
 }
+
+const SETUP_CODES = ['10', '12500', 'DEVELOPER_ERROR'];
 
 let lastToken = '';
 
