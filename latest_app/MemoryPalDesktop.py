@@ -379,13 +379,59 @@ CLASSIC_VOICE_ANSWERS = False
 _toplevel_destroy = tk.Toplevel.destroy
 
 
+def _root_hwnd(widget):
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        get_ancestor = ctypes.windll.user32.GetAncestor
+        get_ancestor.restype = wintypes.HWND
+        get_ancestor.argtypes = (wintypes.HWND, ctypes.c_uint)
+        return get_ancestor(widget.winfo_id(), 2)  # GA_ROOT
+    except (AttributeError, OSError, tk.TclError):
+        return None
+
+
+def _hide_before_destroy(top):
+    """Take a closing window off the screen in one step (Windows).
+
+    Tk takes a window down piece by piece: each box, label and button
+    inside it is destroyed first, and Windows repaints the gap each one
+    leaves while the window is still showing, so some dialogs flashed blank
+    as they closed. Like new windows (shown cloaked until drawn), the
+    closing one is cloaked first, after its owner has been made the active
+    window, so nothing half-taken-down is ever on screen and focus never
+    passes through another app.
+    """
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        if not top.winfo_exists() or not top.winfo_ismapped():
+            return
+        hwnd = _root_hwnd(top)
+        if not hwnd:
+            return
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        owner = top.master.winfo_toplevel() if top.master is not None else None
+        owner_hwnd = _root_hwnd(owner) if owner is not None and owner.winfo_exists() and owner.winfo_ismapped() else None
+        if owner_hwnd and user32.GetForegroundWindow() == hwnd:
+            user32.SetForegroundWindow(owner_hwnd)
+        windowtheme.cloak(hwnd, True)
+    except (tk.TclError, AttributeError, OSError):
+        pass
+
+
 def _destroy_toplevel(self):
     """Toplevel.destroy that first runs the window's _before_close hook
-    (patched on the class, so buttons that kept top.destroy still run it)."""
+    (patched on the class, so buttons that kept top.destroy still run it),
+    then hides the window whole before Tk takes it apart."""
     hook = getattr(self, "_before_close", None)
     if hook is not None:
         self._before_close = None
         hook()
+    _hide_before_destroy(self)
     _toplevel_destroy(self)
 
 
@@ -4242,14 +4288,77 @@ class MemoryPalApp(tk.Tk):
     LIVE_REFLOW_MIN_GAP_MS = 12
     LIVE_REFLOW_FREE_SHARE = 0.8  # free time after a reflow, as a share of what it cost
 
+    # How the page behaves while an edge is dragged. Which one looks
+    # smoothest depends on the computer (CI can't see the flicker people
+    # see), so Settings > Window offers all three to compare.
+    #   follow   - reflow as often as it can afford, painting paused for each
+    #              reflow (WM_SETREDRAW) and resumed in one go.
+    #   buffered - reflow as often as it can afford, painting never paused;
+    #              the whole window is double-buffered by Windows instead
+    #              (WS_EX_COMPOSITED), so each frame shows up finished.
+    #   reveal   - no reflow while the edge moves (the page stays as it was
+    #              and new space is filled with the page colour); the new
+    #              layout is drawn hidden and shown in one step on letting go.
+    RESIZE_MODES = (("follow", "Page follows the edge"), ("buffered", "Page follows the edge (buffered)"), ("reveal", "Page updates when you let go"))
+    RESIZE_MODE_DEFAULT = "follow"
+
+    def resize_mode_file(self):
+        return Path(app_paths.DATA_DIR) / "resize_mode.txt"
+
+    def resize_mode(self):
+        cached = getattr(self, "_resize_mode", None)
+        if cached is None:
+            try:
+                cached = self.resize_mode_file().read_text(encoding="utf-8").strip()
+            except OSError:
+                cached = ""
+            if cached not in {key for key, _label in self.RESIZE_MODES}:
+                cached = self.RESIZE_MODE_DEFAULT
+            cached = os.environ.get("MEMORYPAL_RESIZE_MODE", cached)
+            self._resize_mode = cached
+        return cached
+
+    def render_resize_choice(self, parent):
+        labels = dict(self.RESIZE_MODES)
+        keys = {label: key for key, label in self.RESIZE_MODES}
+        ttk.Label(parent, text="While resizing the window", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(14), 0))
+        choice = tk.StringVar(value=labels.get(self.resize_mode(), labels[self.RESIZE_MODE_DEFAULT]))
+
+        def chosen(value):
+            key = keys.get(value, self.RESIZE_MODE_DEFAULT)
+            try:
+                path = self.resize_mode_file()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(key, encoding="utf-8")
+            except OSError:
+                pass
+            self._resize_mode = key
+            self.toast_message("Saved. Drag a window edge to try it.")
+
+        self.select_button(parent, choice, [label for _key, label in self.RESIZE_MODES], on_change=chosen).pack(fill="x", pady=(self.px(4), 0))
+
+    def _set_composited(self, on):
+        if not IS_WINDOWS:
+            return
+        hwnd = self.window_handle(self)
+        if hwnd:
+            winfullscreen.set_composited(hwnd, on)
+
     def _begin_live_resize(self):
         self._live_resizing = True
+        self._live_mode = self.resize_mode()
+        if self._live_mode == "buffered":
+            self._set_composited(True)
         self._live_laid_out = None
         self._live_cursor = current_cursor()
         self._live_reflow_done = 0.0
         self._live_reflow_cost = 0.0
 
     def _schedule_live_reflow(self):
+        if getattr(self, "_live_mode", "follow") == "reveal":
+            if getattr(self, "_live_reflow_after", None) is None:
+                self._live_reflow_after = self.after(30, self._live_reflow)
+            return
         if getattr(self, "_live_reflow_after", None) is not None and getattr(self, "_live_reflow_moving", False):
             return  # one is already on its way for this stretch of movement
         pending = getattr(self, "_live_reflow_after", None)
@@ -4267,8 +4376,15 @@ class MemoryPalApp(tk.Tk):
         self._live_reflow_after = None
         self._live_reflow_moving = False
         held = mouse_button_down()
+        mode = getattr(self, "_live_mode", "follow")
         if not held:
             self._live_resizing = False  # let go: this is the final layout
+            if mode == "buffered":
+                self.after_idle(lambda: self._set_composited(False))
+        elif mode == "reveal":
+            # Nothing is drawn while the edge moves: wait for the release.
+            self._live_reflow_after = self.after(30, self._live_reflow)
+            return
         else:
             # Still held: look again shortly, so letting go without moving
             # further ends the drag too.
@@ -4281,9 +4397,7 @@ class MemoryPalApp(tk.Tk):
         # (Tried 2026-11-21: holding a still picture over the window during
         # each reflow. On Windows CI it halved how often the edge kept up
         # with the mouse and didn't cut half-drawn frames, so it was dropped.
-        # Also tried: WS_EX_COMPOSITED (double-buffered painting) while the
-        # edge is held. Mixed frames and window updates matched main within
-        # noise, so it was dropped too.)
+        # WS_EX_COMPOSITED is the "buffered" mode, see RESIZE_MODES.)
         self._relayout_after_resize()
         self._live_reflow_done = time.perf_counter()
         self._live_reflow_cost = self._live_reflow_done - began
@@ -4311,7 +4425,13 @@ class MemoryPalApp(tk.Tk):
         # that may not have run yet when a timer brings us here: lay out for
         # the size the window reported. (No update_idletasks first: during
         # a drag that let Tk put the window back to a size it remembered.)
-        self.run_hidden_change(lambda: self.layout_app_body(size=getattr(self, "_last_window_size", None)))
+        size = getattr(self, "_last_window_size", None)
+        if getattr(self, "_live_resizing", False) and getattr(self, "_live_mode", "follow") == "buffered":
+            # Double-buffered by Windows for the drag: pausing painting on
+            # top of that would show the page colour where Tk's windows are.
+            self.layout_app_body(size=size)
+        else:
+            self.run_hidden_change(lambda: self.layout_app_body(size=size))
         if not getattr(self, "_live_resizing", False):
             self.layout_app_body()  # settled now: the shell's own size has the last word
         self.drop_resize_cover()
@@ -13019,6 +13139,8 @@ class MemoryPalApp(tk.Tk):
         keys = "Control-Command-F" if IS_MAC else "F11"
         self.fit_wrap(ttk.Label(window_card, text=f"Full screen hides everything but MemoryPal. {keys} turns it on or off, and Esc leaves it.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(window_card, [("Leave full screen" if self.is_fullscreen else "Full screen", self.toggle_true_fullscreen, "TButton")], "Card.TFrame")
+        if IS_WINDOWS:
+            self.render_resize_choice(window_card)
 
         profile_card = self.card(grid, "Card.TFrame", 22)
         profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 16), pady=(0, 16))

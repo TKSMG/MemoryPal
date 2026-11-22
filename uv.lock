@@ -480,7 +480,7 @@ wheels = [
 
 [[package]]
 name = "memorypal-trainer"
-version = "0.53.4"
+version = "0.53.5"
 source = { editable = "." }
 dependencies = [
     { name = "platformdirs" },

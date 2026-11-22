@@ -59,6 +59,16 @@ def pcm_seconds(data_b64, rate):
     return (len(data) * 3 // 4) / 2 / rate
 
 
+def next_card(cards, done):
+    """What record_answer tells the tutor to ask next: the first card, in
+    order, without a result yet. Saying so each time keeps it from asking
+    a card twice (it lost its place after being talked over)."""
+    for key in cards:
+        if key not in done:
+            return key
+    return "none: every card is done, so give the summary"
+
+
 def tidy(text):
     return re.sub(r"\s+", " ", text)
 
@@ -311,7 +321,8 @@ class LiveTutor:
                 self.results.append(result)
                 if outcome != "skipped":
                     self.pending.append((card, outcome))
-        return {"result": "saved"}
+            done = {item.key for item in self.results}
+        return {"result": "saved", "next": next_card(self.cards, done)}
 
     # -------------------------------------------------------------- timing
     def seconds_left(self):

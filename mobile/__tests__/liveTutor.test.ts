@@ -150,6 +150,7 @@ describe('live tutor conversation', () => {
     expect(rated).toEqual([['a', 'right']]);
     const responses = ws.sent.filter((m) => m.toolResponse).flatMap((m) => (m.toolResponse as { functionResponses: { id: string; response: { result: string } }[] }).functionResponses);
     expect(responses.map((r) => [r.id, r.response.result])).toEqual([['1', 'saved'], ['2', 'saved'], ['3', 'error: unknown card key or result'], ['4', 'saved']]);
+    expect(responses.map((r) => (r.response as { next?: string }).next)).toEqual(['c2', 'c2', undefined, 'none: every card is done, so give the summary']);
     expect(tutor.getSnapshot().results.map((r) => [r.card.id, r.outcome])).toEqual([['a', 'wrong'], ['b', 'skipped']]);
   });
 
