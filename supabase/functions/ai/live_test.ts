@@ -53,6 +53,9 @@ Deno.test("the tutor set-up holds the cards fenced, the tools and audio settings
   assertEquals(setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Puck");
   assertEquals(setup.tools[0].functionDeclarations.map((tool) => tool.name), ["record_answer", "end_session"]);
   assertEquals(setup.inputAudioTranscription, {});
+  const listening = (setup as unknown as { realtimeInputConfig: { automaticActivityDetection: Record<string, unknown> } }).realtimeInputConfig.automaticActivityDetection;
+  assertEquals(listening.endOfSpeechSensitivity, "END_SENSITIVITY_LOW");
+  assertEquals(listening.silenceDurationMs, 1200);
   const text = liveInstruction(request);
   if (!text.includes('"""\nc1: Q: Capital of France? | A: Paris\n"""')) throw new Error(text);
   if (!text.includes('The study set is "Geo".')) throw new Error(text);

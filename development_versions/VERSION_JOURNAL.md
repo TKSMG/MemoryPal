@@ -540,3 +540,11 @@ This build is packaged as release 0.53.3.
 - AI tutor calls can last 14 minutes (was 10).
 
 This build is packaged as release 0.53.4.
+
+## v107 - Patient Tutor, Clean Closes
+
+The AI tutor waits through thinking pauses and ignores coughs and its own echo before taking a turn, and it is told which card comes next after each answer, so it no longer repeats questions. Dialogs on Windows are hidden in one step before they are taken apart, so closing one no longer flashes.
+
+- Settings > Window has "While resizing the window" with three ways to compare on a real PC: the page follows the edge (as before), follows it double-buffered by Windows, or updates once when you let go.
+
+This build is packaged as release 0.53.5.

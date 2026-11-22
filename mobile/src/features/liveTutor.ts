@@ -75,6 +75,17 @@ export interface LiveTutorOptions {
 }
 
 /** The schedule rating for a tutor's verdict (skipped cards aren't rated). */
+/**
+ * What record_answer tells the tutor to ask next: the first card, in order,
+ * without a result yet. Saying so each time keeps it from asking a card twice
+ * (it lost its place after being talked over). Same as next_card() on desktop.
+ */
+export function nextCard(cards: Record<string, TalkCard>, results: { card: TalkCard }[]): string {
+  const done = new Set(results.map((item) => item.card.id));
+  for (const [key, card] of Object.entries(cards)) if (!done.has(card.id)) return key;
+  return 'none: every card is done, so give the summary';
+}
+
 export function liveAssessment(outcome: Outcome): Assessment | null {
   if (outcome === 'right') return { score: 80, quality: 4, label: 'Right (AI tutor)', bucket: 'Good', repetitions: 2, detail: 'Judged by the live AI tutor.' };
   if (outcome === 'close') return { score: 50, quality: 3, label: 'Nearly (AI tutor)', bucket: 'Review', repetitions: 3, detail: 'Judged by the live AI tutor.' };
@@ -267,7 +278,7 @@ export class LiveTutor {
       if (outcome !== 'skipped') this.options.onRate?.(card, outcome);
     }
     this.emit();
-    return { result: 'saved' };
+    return { result: 'saved', next: nextCard(this.options.cards, this.results) };
   }
 
   // ---------------------------------------------------------------- timing
