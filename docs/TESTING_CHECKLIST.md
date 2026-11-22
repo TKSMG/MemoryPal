@@ -104,15 +104,12 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 ## Talk-Back And Read Aloud
 
 - Confirm every card, question, answer and note has one read-aloud button: Review, Quick Quiz, Library, the set builder and AI notes on the desktop; review, quiz and AI notes on the phone. Pressing it again while speaking stops the voice.
-- Desktop (Windows): open Study > Talk-back study. Confirm each question is read aloud ("Question 1 ..."), the status then says "Listening. Say your answer.", and saying the answer gives "Correct." or "Not quite. The answer is ...". Not yet tried on a real Windows PC with a microphone.
-- Desktop (Windows): say "I don't know" and confirm the answer is given and the card counts as missed. Stay silent and confirm "Didn't catch that", then a pause with a Resume button after repeated silence.
-- Desktop (Windows): with no microphone or no speech recogniser installed, confirm Talk-back switches to typed answers with a short message instead of failing.
-- Desktop (Mac and Linux): confirm Talk-back reads each question aloud and asks you to type the answer, then press Enter. Not yet tried on a real Mac.
+- Phone and desktop: open Study > Talk-back study and confirm the same two choices on both: "Talk with the AI tutor" and "Classic Talk-back". The AI tutor choice shows even when signed out; pressing it then asks you to sign in (or to turn AI on).
+- Classic Talk-back (both): each question is read aloud and you type the answer, then press Enter or Check. It never opens the microphone. Confirm the result is spoken and the card is rated.
 - Desktop: with no due cards, confirm Talk-back uses cards that need more practice and says so. With no cards that have answers, confirm "Nothing to practise yet".
 - Desktop: finish a round and confirm "Round finished" with your score read aloud, plus Study again and Back to Study.
-- Phone: start Talk-back and confirm the microphone and speech-recognition permissions are asked the first time. Answer out loud and confirm the result is spoken and the card is rated. Not yet tried on a real phone.
-- Phone: refuse the microphone permission and confirm the message says questions will be read and you can type the answer.
-- Phone: with a screen reader (VoiceOver or TalkBack) on, confirm the screen reader announces the questions and the app's own voice stays quiet.
+- AI tutor (both, signed in): the microphone permission is asked the first time; talk, interrupt, ask for a hint, and confirm the cards are rated afterwards.
+- Phone: with a screen reader (VoiceOver or TalkBack) on, confirm the screen reader announces the questions, the app's own voice stays quiet, and the answer box appears.
 - Leave the Talk-back page in the middle of a question and confirm the voice and microphone stop.
 
 ## Set Builder

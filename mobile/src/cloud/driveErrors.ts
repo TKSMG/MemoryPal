@@ -9,6 +9,7 @@ const MESSAGES: Record<string, string> = {
   drive_offline: "Couldn't reach Google Drive. Check the internet connection and try again.",
   drive_cancelled: "Google Drive wasn't connected. Try again when you're ready.",
   drive_not_linked: 'Connect Google Drive in Account & sync to sync your cards.',
+  drive_setup: "Google Drive sync isn't set up correctly in this copy of MemoryPal. Install the latest version and try again.",
   drive_no_play_services: 'Connecting Google Drive needs Google Play services on this phone.',
 };
 

@@ -1,5 +1,5 @@
 /** The CAPTCHA check before sign-in, sign-up and emailed codes. */
-import { allowedInCheck, readCheckMessage } from '../src/cloud/checkPage';
+import { allowedInCheck, fromCheckPage, readCheckMessage } from '../src/cloud/checkPage';
 import { CloudClient, forgetSpares, keepSpares, needsCaptcha, SPARE_MS, takeSpare } from '../src/cloud/client';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { captchaUrl: 'https://tksmg.github.io/MemoryPal/verify/' } } } }));
@@ -52,6 +52,18 @@ describe('captcha', () => {
     });
     await expect(client.signIn('pat@example.com', 'correct horse 7')).rejects.toThrow('closed');
     expect(sent).toHaveLength(0);
+  });
+
+  it('takes messages from the check page, also when Android reports only its origin', () => {
+    expect(fromCheckPage(PAGE, PAGE)).toBe(true);
+    expect(fromCheckPage('https://tksmg.github.io/MemoryPal/verify/#x', PAGE)).toBe(true);
+    expect(fromCheckPage('https://tksmg.github.io', PAGE)).toBe(true);
+    expect(fromCheckPage('https://tksmg.github.io/', PAGE)).toBe(true);
+    expect(fromCheckPage('https://challenges.cloudflare.com', PAGE)).toBe(false);
+    expect(fromCheckPage('https://tksmg.github.io.evil.example', PAGE)).toBe(false);
+    expect(fromCheckPage('http://tksmg.github.io', PAGE)).toBe(false);
+    expect(fromCheckPage('', PAGE)).toBe(false);
+    expect(fromCheckPage(PAGE, '')).toBe(false);
   });
 
   it('reads only the check page messages it expects', () => {
