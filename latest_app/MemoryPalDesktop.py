@@ -4452,7 +4452,7 @@ class MemoryPalApp(tk.Tk):
     def nav_hint(self, key):
         return {
             "dashboard": "Today's steps from your study plan, your streak and level, and ways to study.",
-            "talkback": "Hands-free: each question is read aloud, you answer out loud, and you hear whether you were right.",
+            "talkback": "Talk with the AI tutor, or hear each question read aloud and type the answer.",
             "elder": "Large, calm memory support for routines, people, places, and caregiver-created prompts.",
             "decks": "Browse your sets, see how well you know each one, and study one set at a time.",
             "plan": "Answer a few questions and get a tailored study plan for today.",
@@ -7181,7 +7181,10 @@ class MemoryPalApp(tk.Tk):
     def needs_sign_in_prompt(self):
         """Until someone signs in or chooses to go on without an account."""
         if self.account.uses_drive():
-            return not self.account.drive.linked and not self.account.state.account_prompted
+            # The account comes first, then Google Drive (as on the phone).
+            if self.account.state.account_prompted:
+                return False
+            return (cloud.configured() and not self.account.signed_in) or not self.account.drive.linked
         return cloud.configured() and not self.account.signed_in and not self.account.state.account_prompted
 
     def mark_sign_in_prompted(self):
@@ -7209,31 +7212,39 @@ class MemoryPalApp(tk.Tk):
             self.draw_chrome_icon(mark, mark_size)
         tk.Label(card, text="Welcome to MemoryPal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 22)).pack()
         uses_drive = self.account.uses_drive()
+        # With Drive sync: the account first, then Google Drive, in the same
+        # order as the phone (Drive used to be asked for before any account).
+        drive_step = uses_drive and (self.account.signed_in or not cloud.configured())
+        if drive_step:
+            intro = (
+                (f"Signed in as {self.account.email}. " if self.account.signed_in and self.account.email else "")
+                + "Now connect Google Drive to keep your cards, progress and settings on all your devices: this computer, your phone and more. "
+                "They're kept in your own Google Drive, in a private folder only MemoryPal can open."
+            )
+        elif uses_drive:
+            intro = "Sign in or create your account first. Next you can connect Google Drive to keep your cards on all your devices."
+        else:
+            intro = "Sign in to keep your cards, progress and settings on all your devices: this computer, your phone and more."
         tk.Label(
             card,
-            text=(
-                "Connect Google Drive to keep your cards, progress and settings on all your devices: this computer, your phone and more. "
-                "They're kept in your own Google Drive, in a private folder only MemoryPal can open."
-                if uses_drive else
-                "Sign in to keep your cards, progress and settings on all your devices: this computer, your phone and more."
-            ),
+            text=intro,
             bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(440), justify="center",
         ).pack(pady=(self.px(6), self.px(22)))
         buttons = tk.Frame(card, bg=COLORS["surface"])
         buttons.pack(fill="x")
         buttons.columnconfigure(0, weight=1)
         choices = (
-            (("Connect Google Drive", self.connect_drive, "Primary.TButton"),) if uses_drive else
+            (("Connect Google Drive", self.connect_drive, "Primary.TButton"),) if drive_step else
             (("Sign in", lambda: self.open_account_dialog("sign_in"), "Primary.TButton"),
              ("Create an account", lambda: self.open_account_dialog("create"), "TButton"))
         )
         for row, (label, command, style_name) in enumerate(choices):
             self.row_button(buttons, label, command, style_name).grid(row=row, column=0, sticky="ew", pady=(0, self.px(10)))
-        skip = tk.Label(card, text="Continue without syncing" if uses_drive else "Continue without an account", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2", takefocus=1)
+        skip = tk.Label(card, text="Skip for now" if drive_step else "Continue without an account", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2", takefocus=1)
         skip.pack(pady=(self.px(8), 0))
         self.keyboard_link(skip, lambda _event: self.continue_without_account())
-        self.add_tooltip(skip, "Your cards stay on this computer. You can connect Google Drive later from Settings." if uses_drive else "Your cards stay on this computer. You can sign in later from Settings.")
-        tk.Label(card, text="You can connect or disconnect any time in Settings." if uses_drive else "You can sign in or out any time in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(pady=(self.px(10), 0))
+        self.add_tooltip(skip, "Your cards stay on this computer. You can connect Google Drive later from Settings." if drive_step else "Your cards stay on this computer. You can sign in later from Settings.")
+        tk.Label(card, text="You can connect or disconnect any time in Settings." if drive_step else "You can sign in or out any time in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(pady=(self.px(10), 0))
 
     def view_welcome(self):
         page = ScrollFrame(self.view_host)
@@ -12685,9 +12696,10 @@ class MemoryPalApp(tk.Tk):
         if self.current_view == "settings":
             self.show_view("settings")
         elif self.current_view == "signin":
-            # First launch: on to the setup questions (or Today, when the
+            # First launch: with Drive sync, on to connecting Google Drive;
+            # otherwise on to the setup questions (or Today, when the
             # account's first sync brings them along).
-            self.show_view(self.start_view())
+            self.show_view("signin" if self.account.uses_drive() and not self.account.drive.linked else self.start_view())
         self.sync_now()
 
     def client_sign_out(self, session):
