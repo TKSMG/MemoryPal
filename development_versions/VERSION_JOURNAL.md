@@ -548,3 +548,9 @@ The AI tutor waits through thinking pauses and ignores coughs and its own echo b
 - Settings > Window has "While resizing the window" with three ways to compare on a real PC: the page follows the edge (as before), follows it double-buffered by Windows, or updates once when you let go.
 
 This build is packaged as release 0.53.5.
+
+## v108 - Phone Sign-in and Drive
+
+Signing in on the phone now finishes after the Cloudflare check, and setup asks for the account before Google Drive on both apps. Talk-back works the same on phone and computer: classic reads aloud and takes typed answers, and the AI tutor handles spoken answers.
+
+This build is packaged as release 0.53.6.
