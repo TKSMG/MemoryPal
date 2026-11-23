@@ -36,6 +36,10 @@ on:
         description: "Only compare the three window resize modes (edge and corner drags, Windows)"
         type: boolean
         default: false
+      modes:
+        description: "Which resize modes (with resize_modes)"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -86,9 +90,9 @@ jobs:
         shell: bash
         run: |
           : > modes.txt
-          for mode in reveal buffered follow; do
+          for mode in ${{ inputs.modes || 'reveal buffered follow' }}; do
             mkdir -p "render-$mode"
-            MEMORYPAL_RESIZE_MODE=$mode WHOLE_SCREEN=1 python tools/render_check/render_probe.py "render-$mode" drag_setup2 drag_resize_grow drag_resize_shrink drag_resize_bottom_grow drag_resize_left zz_control_drag > "render-$mode.txt" 2>&1 || true
+            PROFILE_SCENARIOS="${{ inputs.profile }}" MEMORYPAL_RESIZE_MODE=$mode WHOLE_SCREEN=1 python tools/render_check/render_probe.py "render-$mode" drag_setup2 drag_resize_grow drag_resize_shrink drag_resize_bottom_grow drag_resize_left zz_control_drag > "render-$mode.txt" 2>&1 || true
             grep -v '^PNG \|^SERIES ' "render-$mode.txt" | sed "s/^/$mode /" >> modes.txt || true
           done
           cat modes.txt
