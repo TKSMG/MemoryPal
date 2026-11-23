@@ -5910,7 +5910,10 @@ class MemoryPalApp(tk.Tk):
             label.place(anchor=corner, **place)
             corners.append((corner, label))
         frame._mp_corners = (radius, under, corners)
-        frame.after_idle(lambda: [label.winfo_exists() and label.lift() for _corner, label in corners])
+        # Scheduled on the window, not the frame: Tkinter deletes a destroyed
+        # frame's pending callback but Tk still runs its name at idle, so a
+        # frame rebuilt before then could call whatever reused that name.
+        self.after_idle(lambda: [label.winfo_exists() and label.lift() for _corner, label in corners])
         return frame
 
     def recolor_panel(self, frame, fill):
@@ -5999,7 +6002,7 @@ class MemoryPalApp(tk.Tk):
         frame.bind("<Enter>", lambda _event: paint(hover), add="+")
         frame.bind("<Leave>", leave, add="+")
         # Children are added after this call, so wire them once built.
-        frame.after_idle(lambda: frame.winfo_exists() and wire(frame))
+        self.after_idle(lambda: frame.winfo_exists() and wire(frame))
         return frame
     def button_row(self, parent, buttons, style="Card.TFrame"):
         """Buttons side by side at the width of their labels, lined up from
