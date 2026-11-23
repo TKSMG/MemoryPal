@@ -65,7 +65,7 @@ from memorypal.paths import (
     rename_profile,
     switch_active_profile_paths,
 )
-from memorypal import cloud, cloud_config, drive, onboarding, progress, security, techniques
+from memorypal import cloud, cloud_config, drive, onboarding, progress, repetition, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import iconcache, media
 from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
@@ -2050,6 +2050,7 @@ class MemoryPalApp(tk.Tk):
         # Pages inside the hubs.
         "review": [("box", 3.5, 5, 20.5, 20, 2.5), ("seg", 3.5, 9.5, 20.5, 9.5), ("seg", 8, 3, 8, 6.5), ("seg", 16, 3, 16, 6.5)],
         "focus": [("circle", 12, 12, 8.5), ("circle", 12, 12, 4.5), ("dot", 12, 12, 1.4)],
+        "shuffle": [("seg", 3, 7, 21, 7), ("seg", 21, 7, 17.5, 3.5), ("seg", 21, 17, 3, 17), ("seg", 3, 17, 6.5, 20.5)],
         "quiz": [("circle", 12, 12, 9), ("seg", 9.5, 9.5, 9.6, 9.2), ("seg", 9.6, 9.2, 12, 7.6), ("seg", 12, 7.6, 14.4, 9.2), ("seg", 14.4, 9.2, 12.2, 12.4), ("seg", 12.2, 12.4, 12.2, 13.4), ("dot", 12.2, 16.6, 1.2)],
         "testing": [("box", 4, 3, 20, 21, 2.5), ("seg", 8, 12.5, 10.8, 15.3), ("seg", 10.8, 15.3, 16, 9)],
         "capture": [("box", 3.5, 3.5, 20.5, 20.5, 3), ("seg", 12, 8, 12, 16), ("seg", 8, 12, 16, 12)],
@@ -2443,7 +2444,7 @@ class MemoryPalApp(tk.Tk):
         "dashboard": ("plan",),
         "study": ("review", "talkback", "quiz"),
         "create": ("capture", "decks", "library"),
-        "practice": ("tools", "games", "elder"),
+        "practice": ("tools", "shuffle", "games", "elder"),
         "stats": (),
     }
 
@@ -2469,6 +2470,7 @@ class MemoryPalApp(tk.Tk):
             ("talkback", "Talk-back study", "Tb"),
             ("quiz", "Quiz", "Q"),
             ("tools", "Memory techniques", "A"),
+            ("shuffle", "Repetition path", "Rp"),
             ("games", "Puzzles", "Pu"),
             ("library", "Library", "L"),
             ("stats", "Progress", "S"),
@@ -4462,6 +4464,7 @@ class MemoryPalApp(tk.Tk):
             "review": "Answer each card from memory, let Smart Check compare, then rate how it went.",
             "quiz": "Varied questions from one set or all of them: multiple choice, fill in the blank, true or false, matching and more.",
             "tools": "Turn a list into an acronym, a story, a peg list or a memory palace route.",
+            "shuffle": "Recall a set in growing runs: 5, 5-4, 5-4-3, then 3-2-1.",
             "games": "Short recall games for attention and memory.",
             "library": "Search, filter, import, export, and review saved material.",
             "feedback": "Rate the app, report a problem, or suggest an idea.",
@@ -4479,7 +4482,7 @@ class MemoryPalApp(tk.Tk):
             "plan": ("Today", "Study plan"), "stats": ("Progress", "Progress"),
             "capture": ("Create", "New set"), "review": ("Study", "Review"),
             "quiz": ("Study", "Quick quiz"), "talkback": ("Study", "Talk-back study"),
-            "tools": ("Practice", "Memory techniques"),
+            "tools": ("Practice", "Memory techniques"), "shuffle": ("Practice", "Repetition path"),
             "games": ("Practice", "Puzzles"), "library": ("Create", "Library"),
             "settings": ("Personalize", "Settings"),
             "welcome": ("Welcome", "Let's set things up"),
@@ -7501,9 +7504,9 @@ class MemoryPalApp(tk.Tk):
         Everyday Memory first for the people it is made for."""
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        keys = ["tools", "games", "elder"]
+        keys = ["tools", "shuffle", "games", "elder"]
         if self.store.onboarding.get("persona") in ("everyday", "caregiver"):
-            keys = ["elder", "games", "tools"]
+            keys = ["elder", "games", "tools", "shuffle"]
         rows = [(key, self.page_titles()[key][1], self.nav_hint(key), "", lambda view=key: self.show_view(view)) for key in keys]
         self.link_list(page.inner, rows).pack(fill="x", padx=(0, 8))
         self.hub_heading(page.inner, "Why these work", top=self.px(22))
@@ -8769,9 +8772,13 @@ class MemoryPalApp(tk.Tk):
             self.quiz_mode = step["quiz_mode"]
             self.view_drafts["quiz"] = {}
         view = step["view"]
-        if view in ("focus", "testing", "shuffle"):
+        if view == "shuffle":
+            # Repetition drilling runs the path on the weakest cards.
+            self.open_repetition("weak", self.deck_filter)
+            return
+        if view in ("focus", "testing"):
             # Weak-card practice, now a Review mode (plans saved before the
-            # Focus, Test Lab and Repetition pages went still name them).
+            # Focus and Test Lab pages went still name them).
             if not self.start_review("weak", self.deck_filter):
                 self.show_view("review")
             return
@@ -11423,6 +11430,213 @@ class MemoryPalApp(tk.Tk):
         """The Puzzles page using one set's cards and notes."""
         self.puzzle_deck = deck
         self.show_view("games")
+
+    REPETITION_WEAK = "Weakest cards"
+    REPETITION_OWN = "My own list"
+
+    def open_repetition(self, source=None, deck=None):
+        """Open the repetition path on a set, or ("weak", deck) on the
+        weakest cards, optionally of one set (a study plan step)."""
+        draft = dict(self.view_drafts.get("shuffle", {}))
+        if source == "weak":
+            draft["source"] = self.REPETITION_WEAK
+            draft["weak_deck"] = deck
+        elif source:
+            draft["source"] = source
+        draft.pop("path", None)
+        self.view_drafts["shuffle"] = draft
+        self.show_view("shuffle")
+
+    def repetition_items(self, source, own_text, weak_deck=None):
+        """The path's items for a source: a set's cards oldest first, the
+        weakest cards, or a typed list."""
+        if source == self.REPETITION_OWN:
+            return repetition.items_from_text(own_text)
+        if source == self.REPETITION_WEAK:
+            weak = [card for card in self.store.weak_cards() if not weak_deck or (card.deck or "General") == weak_deck]
+            return repetition.items_from_cards(weak[:repetition.WEAK_LIMIT])
+        return repetition.items_from_cards(self.store.technique_items(source)[0])
+
+    def view_shuffle(self):
+        """Repetition path: recall a list in growing runs (5, 5-4, 5-4-3,
+        then 3-2-1). Practice only, so rounds never reschedule cards. The
+        phone's Repetition path screen builds the same rounds."""
+        draft = self.view_drafts.get("shuffle", {})
+        page = ScrollFrame(self.view_host)
+        page.pack(fill="both", expand=True)
+        weak_deck = draft.get("weak_deck")
+        weak_label = f"Weakest in {weak_deck}" if weak_deck else self.REPETITION_WEAK
+        sets = self.store.decks()
+        values = sets + [weak_label, self.REPETITION_OWN]
+        source = draft.get("source") or (sets[0] if sets else self.REPETITION_OWN)
+        if source == self.REPETITION_WEAK:
+            source = weak_label
+        if source not in values:
+            source = sets[0] if sets else self.REPETITION_OWN
+
+        def source_key(value):
+            return self.REPETITION_WEAK if value == weak_label else value
+
+        path = draft.get("path")
+        if path:
+            self.register_draft_saver("shuffle", lambda: self.view_drafts.get("shuffle", {}))
+            self.render_repetition_rounds(page.inner, path)
+            return
+
+        ttk.Label(page.inner, text="Recall a list in growing runs: 5, then 5-4, then 5-4-3, then back down to 1. Saying a run in order, again and again, makes it stick.", style="Muted.TLabel", wraplength=self.px(1040)).pack(anchor="w", padx=(0, 8), pady=(0, self.px(14)))
+        panel = self.card(page.inner)
+        panel.pack(fill="x", padx=(0, 8))
+        source_row = ttk.Frame(panel, style="Card.TFrame")
+        source_row.pack(fill="x", pady=(0, self.px(12)))
+        ttk.Label(source_row, text="Practise", style="CardMuted.TLabel").pack(side="left", padx=(0, self.px(8)))
+        source_var = tk.StringVar(value=source)
+        own_frame = ttk.Frame(panel, style="Card.TFrame")
+        own_box = self.answer_area(own_frame, "Things to remember", 'One per line. Write "prompt - answer" to give an item its own question.', 5)
+        own_box.insert("1.0", draft.get("own", ""))
+        count_label = ttk.Label(panel, text="", style="CardMuted.TLabel")
+        controls = ttk.Frame(panel, style="Card.TFrame")
+        start_var = tk.StringVar(value=draft.get("start", ""))
+        range_var = tk.StringVar(value=draft.get("range", ""))
+        ttk.Label(controls, text="Start at item", style="CardMuted.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Entry(controls, textvariable=start_var).grid(row=1, column=0, sticky="ew", padx=(0, self.px(10)))
+        ttk.Label(controls, text="Loop range (optional)", style="CardMuted.TLabel").grid(row=0, column=1, sticky="w")
+        ttk.Entry(controls, textvariable=range_var).grid(row=1, column=1, sticky="ew")
+        controls.columnconfigure(0, weight=1, uniform="path")
+        controls.columnconfigure(1, weight=1, uniform="path")
+        example = ttk.Label(panel, text="Example: start 5 with range 3 gives 5, 5-4, 5-4-3, then 3-2-1. Leave the range empty to walk all the way back to item 1.", style="CardMuted.TLabel", wraplength=self.px(980))
+        rounds_label = ttk.Label(panel, text="", style="Card.TLabel", wraplength=self.px(980))
+        own_shown = {"value": False}
+
+        def numbers():
+            values = []
+            for var in (start_var, range_var):
+                text = var.get().strip()
+                if not text:
+                    values.append(None)
+                elif re.fullmatch(r"-?\d+", text):
+                    values.append(int(text))
+                else:
+                    return None
+            return values
+
+        def current_items():
+            return self.repetition_items(source_key(source_var.get()), own_box.get("1.0", "end"), weak_deck)
+
+        def refresh(_event=None):
+            if not count_label.winfo_exists():
+                return
+            items = current_items()
+            own = source_var.get() == self.REPETITION_OWN
+            if own != own_shown["value"]:
+                own_shown["value"] = own
+                if own:
+                    own_frame.pack(fill="x", before=count_label)
+                else:
+                    own_frame.pack_forget()
+            count = len(items)
+            count_label.configure(text=f"{count} item{'s' if count != 1 else ''}, in order." if count else ("Nothing typed yet." if own else "No cards with answers here yet."))
+            picked = numbers()
+            steps = repetition.repetition_steps(count, *picked) if picked else []
+            rounds_label.configure(text=("Rounds: " + ", ".join(label for label, _ in steps)) if steps else "")
+            start_hint.configure(text=f"Leave the start empty to begin at item {repetition.default_start(count) or 5}.")
+
+        self.select_button(source_row, source_var, values, on_change=lambda _value: refresh()).pack(side="left")
+        count_label.pack(anchor="w", pady=(0, self.px(12)))
+        controls.pack(fill="x")
+        start_hint = ttk.Label(panel, text="", style="CardMuted.TLabel")
+        start_hint.pack(anchor="w", pady=(self.px(4), 0))
+        example.pack(anchor="w", pady=(self.px(8), self.px(4)))
+        self.bind_rewrap(example)
+        rounds_label.pack(anchor="w", pady=(0, self.px(12)))
+        own_box.bind("<KeyRelease>", refresh, add="+")
+        for var in (start_var, range_var):
+            var.trace_add("write", lambda *_args: refresh())
+
+        def save_draft(extra=None):
+            data = {"source": source_key(source_var.get()), "weak_deck": weak_deck, "own": own_box.get("1.0", "end").strip(), "start": start_var.get(), "range": range_var.get()}
+            data.update(extra or {})
+            return data
+
+        def build():
+            items = current_items()
+            if not items:
+                self.toast_message("Type a few things to remember first." if source_var.get() == self.REPETITION_OWN else "This choice has no cards with answers yet.")
+                return
+            picked = numbers()
+            if picked is None:
+                self.toast_message("Start and loop range must be whole numbers.")
+                return
+            steps = repetition.repetition_steps(len(items), *picked)
+            self.view_drafts["shuffle"] = save_draft({"path": {"items": items, "steps": [[label, list(indexes)] for label, indexes in steps], "round": 0}})
+            self.show_view("shuffle")
+
+        self.button_row(panel, [("Start the path", build, "Primary.TButton")])
+        refresh()
+        self.register_draft_saver("shuffle", lambda: save_draft() if count_label.winfo_exists() else self.view_drafts.get("shuffle", {}))
+
+    def render_repetition_rounds(self, parent, path):
+        """One round of a built path at a time: the prompts to recall in
+        order, an optional typed recall Smart Check compares, and the answers."""
+        items, steps = path["items"], path["steps"]
+        path["round"] = min(max(int(path.get("round", 0)), 0), len(steps) - 1)
+        panel = self.card(parent)
+        panel.pack(fill="x", padx=(0, 8))
+        body = ttk.Frame(panel, style="Card.TFrame")
+        body.pack(fill="x")
+
+        def leave():
+            draft = dict(self.view_drafts.get("shuffle", {}))
+            draft.pop("path", None)
+            self.view_drafts["shuffle"] = draft
+            self.show_view("shuffle")
+
+        @self.smooth
+        def render():
+            for child in body.winfo_children():
+                child.destroy()
+            index = path["round"]
+            label, indexes = steps[index]
+            ttk.Label(body, text=f"Round {index + 1} of {len(steps)}", style="CardMuted.TLabel").pack(anchor="w")
+            ttk.Label(body, text=f"Repeat {label}", style="H2.TLabel").pack(anchor="w", pady=(self.px(4), 0))
+            ttk.Progressbar(body, maximum=len(steps), value=index + 1).pack(fill="x", pady=(self.px(10), self.px(14)))
+            ttk.Label(body, text="Recall these, in this order", style="CardMuted.TLabel").pack(anchor="w")
+            for item_index in indexes:
+                ttk.Label(body, text=f"{item_index + 1}. {items[item_index]['prompt']}", style="Card.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(self.px(3), 0))
+            response = self.answer_area(body, "Your recall (optional)", "One answer per line. Type them to have Smart Check compare, or just say them and show the answers.", 4)
+            result = ttk.Frame(body, style="Card.TFrame")
+            result.pack(fill="x")
+            shown = {"value": False}
+
+            def reveal():
+                if shown["value"]:
+                    return
+                shown["value"] = True
+                expected = repetition.round_expected(items, indexes)
+                typed = response.get("1.0", "end").strip()
+                answers = "\n".join(f"{item_index + 1}. {items[item_index]['answer']}" for item_index in indexes)
+                ttk.Label(result, text="Answers", style="CardMuted.TLabel").pack(anchor="w")
+                ttk.Label(result, text=answers, style="Card.TLabel", wraplength=self.px(1040), justify="left").pack(anchor="w", pady=(self.px(3), self.px(8)))
+                self.speak_button(result, ". ".join(items[item_index]["answer"] for item_index in indexes), "Read the answers aloud", compact=True).pack(anchor="w", pady=(0, self.px(10)))
+                if typed:
+                    checked = answer_assessment(typed, expected)
+                    ttk.Label(result, text=self.describe_assessment(checked), style="Card.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(0, self.px(6)))
+                check.configure(state="disabled")
+
+            def move(delta):
+                path["round"] = min(max(path["round"] + delta, 0), len(steps) - 1)
+                render()
+
+            actions = ttk.Frame(body, style="Card.TFrame")
+            actions.pack(fill="x", pady=(self.px(10), 0))
+            check = ttk.Button(actions, text="Check or show answers", style="Primary.TButton", command=reveal)
+            check.pack(side="left")
+            last = index == len(steps) - 1
+            ttk.Button(actions, text="Previous", command=lambda: move(-1), state="disabled" if index == 0 else "normal").pack(side="left", padx=(self.px(10), 0))
+            ttk.Button(actions, text="Finish" if last else "Next round", command=leave if last else (lambda: move(1))).pack(side="left", padx=(self.px(10), 0))
+            ttk.Button(actions, text="Change the path", style="Link.TButton", command=leave).pack(side="right")
+            response.focus_set()
+
+        render()
 
     def view_tools(self):
         draft = self.view_drafts.get("tools", {})

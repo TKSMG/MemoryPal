@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "latest_app"))
 
 from difflib import SequenceMatcher  # noqa: E402
 
-from memorypal import progress, richtext, security, techniques  # noqa: E402
+from memorypal import progress, repetition, richtext, security, techniques  # noqa: E402
 from memorypal.core import add_days, answer_assessment, parse_prompt_answer_lines, split_study_bits, text_tokens, today_iso  # noqa: E402
 from memorypal.models import Card  # noqa: E402
 from memorypal.planning import build_multi_day_plan, build_study_plan  # noqa: E402
@@ -210,6 +210,25 @@ def technique_cases():
                     "hooks": {kind: techniques.hooks_for(kind, items + ["  two\nlines "]) for kind in techniques.TECHNIQUE_KEYS + ("nope",)}})
     parse = [{"raw": raw, "ideas": techniques.parse_ideas(raw)} for raw in ("a, b\nc; d | e / f", "salt/nitrogen", "x /n y", "  ", "one\\ntwo")]
     return out, parse
+
+
+def repetition_cases():
+    steps = []
+    for count in (0, 1, 3, 5, 7, 12):
+        for start in (None, -2, 0, 3, 5, 9):
+            for span in (None, 0, 1, 3, 50):
+                steps.append({"count": count, "start": start, "span": span, "steps": [[label, indexes] for label, indexes in repetition.repetition_steps(count, start, span)]})
+    texts = ["milk\neggs\nbread", "Capital of France - Paris\n- apples\n1. pears\nH => hydrogen", "  \n\n", "a :: b\tc\nterm\tdefinition", "one\\ntwo"]
+    cards = [{"front": " What  is H? ", "back": "Hydrogen"}, {"front": "", "back": "no question"}, {"front": "Blank", "back": "  "}, {"front": "Two\nlines", "back": "first\nsecond"}]
+    items = repetition.items_from_cards([type("C", (), card) for card in cards])
+    return {
+        "default_start": [{"count": count, "start": repetition.default_start(count)} for count in (-1, 0, 1, 4, 5, 6, 100)],
+        "steps": steps,
+        "text": [{"raw": raw, "items": repetition.items_from_text(raw)} for raw in texts],
+        "cards": cards,
+        "card_items": items,
+        "expected": [{"indexes": indexes, "text": repetition.round_expected(items, indexes)} for indexes in ([0], [2, 1, 0], [1, 0])],
+    }
 
 
 def progress_cases(specs):
@@ -578,6 +597,7 @@ def main():
         "today_check": today_iso(),
         "questions": question_cases(),
         "richtext": richtext_cases(),
+        "repetition": repetition_cases(),
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(fixtures, indent=1, ensure_ascii=False), encoding="utf-8")
