@@ -59,6 +59,16 @@ def pcm_seconds(data_b64, rate):
     return (len(data) * 3 // 4) / 2 / rate
 
 
+def next_card(cards, done):
+    """What record_answer tells the tutor to ask next: the first card, in
+    order, without a result yet. Saying so each time keeps it from asking
+    a card twice (it lost its place after being talked over)."""
+    for key in cards:
+        if key not in done:
+            return key
+    return "none: every card is done, so give the summary"
+
+
 def tidy(text):
     return re.sub(r"\s+", " ", text)
 
@@ -224,6 +234,15 @@ class LiveTutor:
             self.audio.start(self.mic)
         except Exception:  # noqa: BLE001 - no microphone, no permission, a busy device
             self.fail("The microphone couldn't be started. Check that MemoryPal may use it in your computer's privacy settings.")
+            return
+        if self.phase != "live":
+            # Ended (End, leaving the page) while the microphone was opening:
+            # that stop came before the streams existed, so close them now
+            # rather than leave the microphone on.
+            try:
+                self.audio.stop()
+            except Exception:  # noqa: BLE001 - already stopped
+                pass
 
     def mic(self, data_b64):
         if self.phase == "live" and not self.muted:
@@ -302,7 +321,8 @@ class LiveTutor:
                 self.results.append(result)
                 if outcome != "skipped":
                     self.pending.append((card, outcome))
-        return {"result": "saved"}
+            done = {item.key for item in self.results}
+        return {"result": "saved", "next": next_card(self.cards, done)}
 
     # -------------------------------------------------------------- timing
     def seconds_left(self):

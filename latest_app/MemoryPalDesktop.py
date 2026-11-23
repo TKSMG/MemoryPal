@@ -65,7 +65,7 @@ from memorypal.paths import (
     rename_profile,
     switch_active_profile_paths,
 )
-from memorypal import cloud, cloud_config, drive, onboarding, progress, security, techniques
+from memorypal import cloud, cloud_config, drive, onboarding, progress, repetition, security, techniques
 from memorypal import feedback as feedback_report
 from memorypal import iconcache, media
 from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
@@ -373,6 +373,117 @@ def flush_pending_paint(widget):
         return 0
 
 
+# Classic Talk-back's offline (System.Speech) recogniser misheard answers too
+# often to trust, so classic takes typed answers; the AI tutor listens.
+CLASSIC_VOICE_ANSWERS = False
+
+_toplevel_destroy = tk.Toplevel.destroy
+
+
+def _root_hwnd(widget):
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        get_ancestor = ctypes.windll.user32.GetAncestor
+        get_ancestor.restype = wintypes.HWND
+        get_ancestor.argtypes = (wintypes.HWND, ctypes.c_uint)
+        return get_ancestor(widget.winfo_id(), 2)  # GA_ROOT
+    except (AttributeError, OSError, tk.TclError):
+        return None
+
+
+def _hide_before_destroy(top):
+    """Take a closing window off the screen in one step (Windows).
+
+    Tk takes a window down piece by piece: each box, label and button
+    inside it is destroyed first, and Windows repaints the gap each one
+    leaves while the window is still showing, so some dialogs flashed blank
+    as they closed. Like new windows (shown cloaked until drawn), the
+    closing one is cloaked first, after its owner has been made the active
+    window, so nothing half-taken-down is ever on screen and focus never
+    passes through another app.
+    """
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        if not top.winfo_exists() or not top.winfo_ismapped():
+            return
+        hwnd = _root_hwnd(top)
+        if not hwnd:
+            return
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        owner = top.master.winfo_toplevel() if top.master is not None else None
+        owner_hwnd = _root_hwnd(owner) if owner is not None and owner.winfo_exists() and owner.winfo_ismapped() else None
+        if owner_hwnd and user32.GetForegroundWindow() == hwnd:
+            user32.SetForegroundWindow(owner_hwnd)
+        windowtheme.cloak(hwnd, True)
+    except (tk.TclError, AttributeError, OSError):
+        pass
+
+
+def _destroy_toplevel(self):
+    """Toplevel.destroy that first runs the window's _before_close hook
+    (patched on the class, so buttons that kept top.destroy still run it),
+    then hides the window whole before Tk takes it apart."""
+    hook = getattr(self, "_before_close", None)
+    if hook is not None:
+        self._before_close = None
+        hook()
+    _hide_before_destroy(self)
+    _toplevel_destroy(self)
+
+
+tk.Toplevel.destroy = _destroy_toplevel
+
+
+class SweepBar(tk.Canvas):
+    """A "working on it" bar whose stripe always travels one way: it slides
+    in from the left, runs off the right edge, and comes round again (like
+    the Windows and web loading bars), instead of ttk's indeterminate bar,
+    which bounces back and forth."""
+
+    def __init__(self, master, width, height, track, fill, bg, **options):
+        super().__init__(master, width=width, height=height, bg=bg, bd=0, highlightthickness=0, **options)
+        self._bar_w, self._bar_h = width, height
+        self._track = self.create_rectangle(0, 0, width, height, fill=track, outline="")
+        self._stripe = self.create_rectangle(0, 0, 0, height, fill=fill, outline="")
+        self._timer = None
+        self._started = 0.0
+
+    PERIOD = 1.4  # seconds for one pass, including a short pause off screen
+
+    def start(self, _interval=None):
+        if self._timer is None:
+            self._started = time.perf_counter()
+            self._step()
+
+    def stop(self):
+        if self._timer is not None:
+            try:
+                self.after_cancel(self._timer)
+            except tk.TclError:
+                pass
+            self._timer = None
+        self.coords(self._stripe, 0, 0, 0, self._bar_h)
+
+    def _step(self):
+        try:
+            phase = ((time.perf_counter() - self._started) / self.PERIOD) % 1.0
+            # Ease in and out so it gathers speed across the middle; the last
+            # 15% of each pass it is off the right edge, then re-enters left.
+            travel = min(1.0, phase / 0.85)
+            eased = travel * travel * (3 - 2 * travel)
+            stripe = self._bar_w * 0.35
+            left = -stripe + eased * (self._bar_w + stripe)
+            self.coords(self._stripe, max(0, left), 0, min(self._bar_w, left + stripe), self._bar_h)
+            self._timer = self.after(16, self._step)
+        except tk.TclError:
+            self._timer = None
+
+
 class FormMessage(tk.Label):
     """A form's error or progress line that takes no room while it's empty.
 
@@ -404,7 +515,10 @@ class FormMessage(tk.Label):
                 if self._after_widget is not None and self._after_widget.winfo_exists():
                     options["after"] = self._after_widget
                 self.pack(**options)
-                self.after_idle(self._fit_window)
+            # Refit on every change, not only the first: "Working…" takes one
+            # line, and the error that replaces it can take two, which cut
+            # off the links under it ("Forgot your password?").
+            self.after_idle(self._fit_window)
         except tk.TclError:
             pass
 
@@ -1119,6 +1233,7 @@ class Tooltip:
         self.delay = delay
         self.after_id = None
         self.tip = None
+        widget._memorypal_tooltip = self
         widget.bind("<Enter>", self.schedule, add="+")
         widget.bind("<Leave>", self.hide, add="+")
         widget.bind("<ButtonPress>", self.hide, add="+")
@@ -1149,6 +1264,8 @@ class Tooltip:
         if self.tip or not self.text:
             return
         root = self.widget._root()
+        if getattr(root, "_dropdown", None) is not None:
+            return  # a tip over an open list would cover it
         self.tip = tk.Toplevel(self.widget)
         self.tip.withdraw()
         self.tip.wm_overrideredirect(True)
@@ -1323,8 +1440,20 @@ class MemoryPalApp(tk.Tk):
             if winfullscreen.watch_big_resizes(hwnd, self.px(160)):
                 winfullscreen.arm_resize_cover(hwnd, True)
                 self._keep_border_cursor(hwnd)
+                # Why the arrow flickered on the edges: when the mouse leaves
+                # the page for the window's edge, Tk notices a moment later
+                # and sets the plain arrow itself (its "pointer left all my
+                # windows" step), over the resize arrow Windows had just
+                # shown. Tk reports that same step as a <Leave> on the main
+                # window, so put the resize arrow straight back there, before
+                # the screen next refreshes, instead of on the next check.
+                self.bind("<Leave>", lambda event, hwnd=hwnd: self._edge_leave(event, hwnd), add="+")
 
     BORDER_CURSOR_CHECK_MS = 30
+
+    def _edge_leave(self, event, hwnd):
+        if event.widget is self and not mouse_button_down():
+            winfullscreen.keep_border_cursor(hwnd, check=True)
 
     def _keep_border_cursor(self, hwnd):
         """Keep Windows' resize arrow showing while the mouse is on the
@@ -1617,6 +1746,71 @@ class MemoryPalApp(tk.Tk):
                 pass
         return item
 
+    # Font files for drawing badge letters with Pillow, by Tk family and bold.
+    BADGE_FONT_FILES = {
+        ("Segoe UI Semibold", False): "seguisb.ttf", ("Segoe UI Semibold", True): "seguisb.ttf",
+        ("Segoe UI", False): "segoeui.ttf", ("Segoe UI", True): "seguisb.ttf",
+        (".AppleSystemUIFont", False): "/System/Library/Fonts/SFNS.ttf",
+        (".AppleSystemUIFont", True): "/System/Library/Fonts/SFNS.ttf",
+    }
+
+    def draw_badge_text(self, canvas, width, height, text, fill, font):
+        """Draw a short label (a profile's initials) centred on its letters'
+        own ink, not on Tk's text box.
+
+        Tk centres the box that includes each letter's side bearings, which
+        left a "C" in the round profile button a pixel or more right of
+        centre. Pillow draws the letters from the same font file, measures
+        where the ink landed and centres exactly that. Returns False when
+        Pillow or the font file is missing, so the caller can fall back.
+        """
+        modules = self.pillow_modules()
+        if not modules or not text:
+            return False
+        Image, ImageDraw, ImageTk = modules
+        try:
+            from PIL import ImageFont
+
+            actual = tkfont.Font(root=self, font=font).actual()
+            bold = actual["weight"] == "bold"
+            path = self.BADGE_FONT_FILES.get((actual["family"], bold))
+            if not path:
+                return False
+            size = actual["size"]
+            pixels = -size if size < 0 else size * float(self.tk.call("tk", "scaling"))
+            width, height = int(width), int(height)
+            key = ("badge", text, width, height, fill, actual["family"], bold, round(pixels, 2))
+            photo = self.shape_photo_cache.get(key)
+            if photo is None:
+                scale = 4
+                face = ImageFont.truetype(path, max(1, int(round(pixels * scale))))
+                if actual["family"].startswith(".Apple") and bold:
+                    try:
+                        face.set_variation_by_name("Semibold")
+                    except (OSError, ValueError, AttributeError):
+                        pass
+                # Draw once to find the ink, then again centred on it.
+                probe = Image.new("L", (width * scale * 3, height * scale * 3), 0)
+                origin = (width * scale, height * scale)
+                ImageDraw.Draw(probe).text(origin, text, font=face, fill=255)
+                ink = probe.getbbox()
+                if not ink:
+                    return False
+                dx = width * scale / 2 - (ink[0] + ink[2]) / 2
+                dy = height * scale / 2 - (ink[1] + ink[3]) / 2
+                image = Image.new("RGBA", (width * scale, height * scale), (0, 0, 0, 0))
+                ImageDraw.Draw(image).text((origin[0] + dx, origin[1] + dy), text, font=face, fill=fill)
+                resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+                photo = ImageTk.PhotoImage(image.resize((width, height), resampling))
+                if len(self.shape_photo_cache) > 48:
+                    self.shape_photo_cache.clear()
+                self.shape_photo_cache[key] = photo
+            canvas.create_image(0, 0, image=photo, anchor="nw")
+            self.keep_shape_photo(canvas, photo)
+            return True
+        except Exception:
+            return False
+
     @staticmethod
     def keep_shape_photo(canvas, photo):
         """Hold on to every picture a canvas shows.
@@ -1859,6 +2053,7 @@ class MemoryPalApp(tk.Tk):
         # Pages inside the hubs.
         "review": [("box", 3.5, 5, 20.5, 20, 2.5), ("seg", 3.5, 9.5, 20.5, 9.5), ("seg", 8, 3, 8, 6.5), ("seg", 16, 3, 16, 6.5)],
         "focus": [("circle", 12, 12, 8.5), ("circle", 12, 12, 4.5), ("dot", 12, 12, 1.4)],
+        "shuffle": [("seg", 3, 7, 21, 7), ("seg", 21, 7, 17.5, 3.5), ("seg", 21, 17, 3, 17), ("seg", 3, 17, 6.5, 20.5)],
         "quiz": [("circle", 12, 12, 9), ("seg", 9.5, 9.5, 9.6, 9.2), ("seg", 9.6, 9.2, 12, 7.6), ("seg", 12, 7.6, 14.4, 9.2), ("seg", 14.4, 9.2, 12.2, 12.4), ("seg", 12.2, 12.4, 12.2, 13.4), ("dot", 12.2, 16.6, 1.2)],
         "testing": [("box", 4, 3, 20, 21, 2.5), ("seg", 8, 12.5, 10.8, 15.3), ("seg", 10.8, 15.3, 16, 9)],
         "capture": [("box", 3.5, 3.5, 20.5, 20.5, 3), ("seg", 12, 8, 12, 16), ("seg", 8, 12, 16, 12)],
@@ -2252,7 +2447,7 @@ class MemoryPalApp(tk.Tk):
         "dashboard": ("plan",),
         "study": ("review", "talkback", "quiz"),
         "create": ("capture", "decks", "library"),
-        "practice": ("tools", "games", "elder"),
+        "practice": ("tools", "shuffle", "games", "elder"),
         "stats": (),
     }
 
@@ -2278,6 +2473,7 @@ class MemoryPalApp(tk.Tk):
             ("talkback", "Talk-back study", "Tb"),
             ("quiz", "Quiz", "Q"),
             ("tools", "Memory techniques", "A"),
+            ("shuffle", "Repetition path", "Rp"),
             ("games", "Puzzles", "Pu"),
             ("library", "Library", "L"),
             ("stats", "Progress", "S"),
@@ -2541,6 +2737,38 @@ class MemoryPalApp(tk.Tk):
                 pass
 
         top.bind("<Destroy>", give_back, add="+")
+        if sys.platform.startswith("win"):
+            self.hand_back_on_close(top, owner)
+
+    def hand_back_on_close(self, top, owner):
+        """Make the owner the active window just before a popup closes.
+
+        When the active window is destroyed, Windows activates whichever
+        window is next in its list. After a trip to the browser (Drive or
+        Google sign-in) that is the browser, so it flashed to the front for
+        a moment before MemoryPal took focus back: the flicker seen when
+        some dialogs close. Activating the owner first (the popup still
+        sits above it, as owned windows do) leaves nothing to hand over.
+        """
+        def before_close():
+            try:
+                if owner is not None and owner.winfo_exists() and owner.winfo_ismapped() and top.winfo_exists():
+                    hwnd = self.window_handle(owner)
+                    if hwnd:
+                        import ctypes
+
+                        ctypes.windll.user32.SetForegroundWindow(hwnd)
+            except (tk.TclError, AttributeError, OSError):
+                pass
+
+        top._before_close = before_close
+        try:
+            if not top.protocol("WM_DELETE_WINDOW"):
+                # Without a handler Tk closes the window itself, past
+                # Toplevel.destroy (see _destroy_toplevel).
+                top.protocol("WM_DELETE_WINDOW", top.destroy)
+        except tk.TclError:
+            pass
 
     def window_handle(self, window):
         try:
@@ -3898,14 +4126,9 @@ class MemoryPalApp(tk.Tk):
             ink = COLORS["primary"] if hover else COLORS["ink"]
             if not self.draw_antialiased_shape(button, size, size, fill, radius=size // 2, inset=1):
                 button.create_rectangle(0, 0, size, size, fill=fill, outline="")
-            self.create_centered_canvas_text(
-                button,
-                size / 2,
-                size / 2,
-                profile_label,
-                fill=ink,
-                font=self.font("Segoe UI Semibold", 10 if len(profile_label) <= 1 else 9),
-            )
+            label_font = self.font("Segoe UI Semibold", 10 if len(profile_label) <= 1 else 9)
+            if not self.draw_badge_text(button, size, size, profile_label, ink, label_font):
+                self.create_centered_canvas_text(button, size / 2, size / 2, profile_label, fill=ink, font=label_font)
 
         draw()
         button.bind("<Button-1>", lambda _event: self.open_profile_manager())
@@ -4070,14 +4293,77 @@ class MemoryPalApp(tk.Tk):
     LIVE_REFLOW_MIN_GAP_MS = 12
     LIVE_REFLOW_FREE_SHARE = 0.8  # free time after a reflow, as a share of what it cost
 
+    # How the page behaves while an edge is dragged. Which one looks
+    # smoothest depends on the computer (CI can't see the flicker people
+    # see), so Settings > Window offers all three to compare.
+    #   follow   - reflow as often as it can afford, painting paused for each
+    #              reflow (WM_SETREDRAW) and resumed in one go.
+    #   buffered - reflow as often as it can afford, painting never paused;
+    #              the whole window is double-buffered by Windows instead
+    #              (WS_EX_COMPOSITED), so each frame shows up finished.
+    #   reveal   - no reflow while the edge moves (the page stays as it was
+    #              and new space is filled with the page colour); the new
+    #              layout is drawn hidden and shown in one step on letting go.
+    RESIZE_MODES = (("follow", "Page follows the edge"), ("buffered", "Page follows the edge (buffered)"), ("reveal", "Page updates when you let go"))
+    RESIZE_MODE_DEFAULT = "follow"
+
+    def resize_mode_file(self):
+        return Path(app_paths.DATA_DIR) / "resize_mode.txt"
+
+    def resize_mode(self):
+        cached = getattr(self, "_resize_mode", None)
+        if cached is None:
+            try:
+                cached = self.resize_mode_file().read_text(encoding="utf-8").strip()
+            except OSError:
+                cached = ""
+            if cached not in {key for key, _label in self.RESIZE_MODES}:
+                cached = self.RESIZE_MODE_DEFAULT
+            cached = os.environ.get("MEMORYPAL_RESIZE_MODE", cached)
+            self._resize_mode = cached
+        return cached
+
+    def render_resize_choice(self, parent):
+        labels = dict(self.RESIZE_MODES)
+        keys = {label: key for key, label in self.RESIZE_MODES}
+        ttk.Label(parent, text="While resizing the window", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(14), 0))
+        choice = tk.StringVar(value=labels.get(self.resize_mode(), labels[self.RESIZE_MODE_DEFAULT]))
+
+        def chosen(value):
+            key = keys.get(value, self.RESIZE_MODE_DEFAULT)
+            try:
+                path = self.resize_mode_file()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(key, encoding="utf-8")
+            except OSError:
+                pass
+            self._resize_mode = key
+            self.toast_message("Saved. Drag a window edge to try it.")
+
+        self.select_button(parent, choice, [label for _key, label in self.RESIZE_MODES], on_change=chosen).pack(fill="x", pady=(self.px(4), 0))
+
+    def _set_composited(self, on):
+        if not IS_WINDOWS:
+            return
+        hwnd = self.window_handle(self)
+        if hwnd:
+            winfullscreen.set_composited(hwnd, on)
+
     def _begin_live_resize(self):
         self._live_resizing = True
+        self._live_mode = self.resize_mode()
+        if self._live_mode == "buffered":
+            self._set_composited(True)
         self._live_laid_out = None
         self._live_cursor = current_cursor()
         self._live_reflow_done = 0.0
         self._live_reflow_cost = 0.0
 
     def _schedule_live_reflow(self):
+        if getattr(self, "_live_mode", "follow") == "reveal":
+            if getattr(self, "_live_reflow_after", None) is None:
+                self._live_reflow_after = self.after(30, self._live_reflow)
+            return
         if getattr(self, "_live_reflow_after", None) is not None and getattr(self, "_live_reflow_moving", False):
             return  # one is already on its way for this stretch of movement
         pending = getattr(self, "_live_reflow_after", None)
@@ -4095,8 +4381,15 @@ class MemoryPalApp(tk.Tk):
         self._live_reflow_after = None
         self._live_reflow_moving = False
         held = mouse_button_down()
+        mode = getattr(self, "_live_mode", "follow")
         if not held:
             self._live_resizing = False  # let go: this is the final layout
+            if mode == "buffered":
+                self.after_idle(lambda: self._set_composited(False))
+        elif mode == "reveal":
+            # Nothing is drawn while the edge moves: wait for the release.
+            self._live_reflow_after = self.after(30, self._live_reflow)
+            return
         else:
             # Still held: look again shortly, so letting go without moving
             # further ends the drag too.
@@ -4106,6 +4399,10 @@ class MemoryPalApp(tk.Tk):
             return  # already laid out at this size
         self._live_laid_out = size
         began = time.perf_counter()
+        # (Tried 2026-11-21: holding a still picture over the window during
+        # each reflow. On Windows CI it halved how often the edge kept up
+        # with the mouse and didn't cut half-drawn frames, so it was dropped.
+        # WS_EX_COMPOSITED is the "buffered" mode, see RESIZE_MODES.)
         self._relayout_after_resize()
         self._live_reflow_done = time.perf_counter()
         self._live_reflow_cost = self._live_reflow_done - began
@@ -4133,7 +4430,13 @@ class MemoryPalApp(tk.Tk):
         # that may not have run yet when a timer brings us here: lay out for
         # the size the window reported. (No update_idletasks first: during
         # a drag that let Tk put the window back to a size it remembered.)
-        self.run_hidden_change(lambda: self.layout_app_body(size=getattr(self, "_last_window_size", None)))
+        size = getattr(self, "_last_window_size", None)
+        if getattr(self, "_live_resizing", False) and getattr(self, "_live_mode", "follow") == "buffered":
+            # Double-buffered by Windows for the drag: pausing painting on
+            # top of that would show the page colour where Tk's windows are.
+            self.layout_app_body(size=size)
+        else:
+            self.run_hidden_change(lambda: self.layout_app_body(size=size))
         if not getattr(self, "_live_resizing", False):
             self.layout_app_body()  # settled now: the shell's own size has the last word
         self.drop_resize_cover()
@@ -4154,7 +4457,7 @@ class MemoryPalApp(tk.Tk):
     def nav_hint(self, key):
         return {
             "dashboard": "Today's steps from your study plan, your streak and level, and ways to study.",
-            "talkback": "Hands-free: each question is read aloud, you answer out loud, and you hear whether you were right.",
+            "talkback": "Talk with the AI tutor, or hear each question read aloud and type the answer.",
             "elder": "Large, calm memory support for routines, people, places, and caregiver-created prompts.",
             "decks": "Browse your sets, see how well you know each one, and study one set at a time.",
             "plan": "Answer a few questions and get a tailored study plan for today.",
@@ -4164,6 +4467,7 @@ class MemoryPalApp(tk.Tk):
             "review": "Answer each card from memory, let Smart Check compare, then rate how it went.",
             "quiz": "Varied questions from one set or all of them: multiple choice, fill in the blank, true or false, matching and more.",
             "tools": "Turn a list into an acronym, a story, a peg list or a memory palace route.",
+            "shuffle": "Recall a set in growing runs: 5, 5-4, 5-4-3, then 3-2-1.",
             "games": "Short recall games for attention and memory.",
             "library": "Search, filter, import, export, and review saved material.",
             "feedback": "Rate the app, report a problem, or suggest an idea.",
@@ -4181,7 +4485,7 @@ class MemoryPalApp(tk.Tk):
             "plan": ("Today", "Study plan"), "stats": ("Progress", "Progress"),
             "capture": ("Create", "New set"), "review": ("Study", "Review"),
             "quiz": ("Study", "Quick quiz"), "talkback": ("Study", "Talk-back study"),
-            "tools": ("Practice", "Memory techniques"),
+            "tools": ("Practice", "Memory techniques"), "shuffle": ("Practice", "Repetition path"),
             "games": ("Practice", "Puzzles"), "library": ("Create", "Library"),
             "settings": ("Personalize", "Settings"),
             "welcome": ("Welcome", "Let's set things up"),
@@ -4717,7 +5021,10 @@ class MemoryPalApp(tk.Tk):
                 if not self.draw_antialiased_shape(avatar, size, size, fill, radius=size // 2, inset=1):
                     avatar.create_oval(0, 0, size, size, fill=fill, outline="")
                 initials = self.profile_initials(name) or "?"
-                self.create_centered_canvas_text(avatar, size / 2, size / 2, initials, fill=self.on_color(fill) if current else COLORS["ink"], font=self.font("Segoe UI Semibold", 10 if len(initials) <= 1 else 9))
+                initials_ink = self.on_color(fill) if current else COLORS["ink"]
+                initials_font = self.font("Segoe UI Semibold", 10 if len(initials) <= 1 else 9)
+                if not self.draw_badge_text(avatar, size, size, initials, initials_ink, initials_font):
+                    self.create_centered_canvas_text(avatar, size / 2, size / 2, initials, fill=initials_ink, font=initials_font)
                 avatar.grid(row=line, column=0, padx=(self.px(4), self.px(12)), pady=self.px(10))
                 text = tk.Frame(rows, bg=COLORS["surface"])
                 text.grid(row=line, column=1, sticky="ew")
@@ -5758,6 +6065,12 @@ class MemoryPalApp(tk.Tk):
         # Native Tk menus get a light system border on Windows; this opens
         # MemoryPal's own borderless list instead.
         def open_list(_event=None):
+            # The dropdown's own press binding hides Tooltip's general one,
+            # so put the tip away here; a tip window closing just after the
+            # list opened could take focus away and shut the list.
+            tip = getattr(button, "_memorypal_tooltip", None)
+            if tip is not None:
+                tip.hide()
             if str(button.cget("state")) != "disabled":
                 self.open_dropdown(button, entries())
             return "break"
@@ -5894,8 +6207,17 @@ class MemoryPalApp(tk.Tk):
             mark(max(0, min(len(entries) - 1, index + step)))
             return "break"
 
+        opened_at = time.perf_counter()
+
+        def settling():
+            # The click that opened the list is still finishing (its release,
+            # and on Windows the window activation that follows it).
+            return time.perf_counter() - opened_at < 0.4
+
         def press(event):
             # With the grab set, clicks anywhere in the app arrive here.
+            if settling():
+                return "break"
             inside = 0 <= event.x_root - top.winfo_rootx() < top.winfo_width() and 0 <= event.y_root - top.winfo_rooty() < top.winfo_height()
             if not inside:
                 self.close_dropdown()
@@ -5920,7 +6242,22 @@ class MemoryPalApp(tk.Tk):
         canvas.bind("<Button-5>", wheel)
         top.bind("<ButtonPress-1>", press)
         canvas.bind("<ButtonPress-1>", press, add="+")
-        canvas.bind("<FocusOut>", lambda _event: self.after(1, lambda: self.focus_get() is None and self.close_dropdown()))
+        def focus_left(_event=None):
+            # Close when MemoryPal itself loses focus (another app came
+            # forward), not when focus only wobbles while the list opens.
+            if getattr(self, "_dropdown", None) is None or self._dropdown[0] is not top:
+                return
+            if self.focus_get() is not None:
+                return
+            if settling():
+                try:
+                    canvas.focus_force()
+                except tk.TclError:
+                    pass
+                return
+            self.close_dropdown()
+
+        canvas.bind("<FocusOut>", lambda _event: self.after(150, focus_left))
 
         x, y, width, height = self.fit_popup_rect(width, rows * row_height + inset * 2 + edge * 2, anchor_rect, gap=self.px(4))
         top.geometry(f"{width}x{height}+{x}+{y}")
@@ -5932,6 +6269,28 @@ class MemoryPalApp(tk.Tk):
             top.grab_set()
         except tk.TclError:
             pass
+
+        # The list is its own window, so it stayed where it opened when the
+        # field under it moved (the window dragged, resized or snapped, the
+        # page scrolled or reflowed). Close it then, as Windows and Mac menus
+        # do.
+        def where():
+            try:
+                return (anchor.winfo_rootx(), anchor.winfo_rooty(), anchor.winfo_width(), anchor.winfo_viewable())
+            except tk.TclError:
+                return None
+
+        anchored_at = where()
+
+        def follow():
+            if getattr(self, "_dropdown", None) is None or self._dropdown[0] is not top:
+                return
+            if where() != anchored_at:
+                self.close_dropdown()
+                return
+            top.after(80, follow)
+
+        top.after(80, follow)
 
     def set_control_style(self, widget, style):
         """Switch a rounded control's style and refit its corners to its surface."""
@@ -6213,6 +6572,35 @@ class MemoryPalApp(tk.Tk):
         for sequence in ("<ButtonPress-1>", "<B1-Motion>", "<ButtonRelease-1>", "<Double-Button-1>", "<Triple-Button-1>",
                          "<KeyPress>", "<KeyRelease>", "<FocusIn>", "<<Paste>>", "<<Cut>>"):
             self.bind_class("TEntry", sequence, later, add="+")
+        # Steady while typing, blinking only when idle (as in Word, browsers
+        # and Windows' own boxes): every key restarts the blink with the
+        # cursor showing.
+        kick = lambda event: self.after_idle(lambda: self.steady_caret(event.widget))
+        for widget_class in ("Text", "TEntry", "Entry", "TCombobox", "TSpinbox"):
+            self.bind_class(widget_class, "<KeyPress>", kick, add="+")
+            self.bind_class(widget_class, "<<Paste>>", kick, add="+")
+
+    @staticmethod
+    def steady_caret(widget):
+        """Show the text cursor now and start its blink over.
+
+        Tk blinks the cursor on its own timer whatever you do; only gaining
+        the focus restarts it (cursor on). So the widget is told it lost and
+        got the focus again, with its bindings set aside for that moment so
+        nothing in the app reacts; the focus itself never moves.
+        """
+        try:
+            if not widget.winfo_exists() or widget.focus_get() is not widget:
+                return
+            tags = widget.bindtags()
+            widget.bindtags(("MemoryPalCaretKick",))
+            try:
+                widget.tk.call("event", "generate", widget, "<FocusOut>", "-detail", "NotifyNonlinear")
+                widget.tk.call("event", "generate", widget, "<FocusIn>", "-detail", "NotifyNonlinear")
+            finally:
+                widget.bindtags(tags)
+        except (tk.TclError, KeyError):
+            pass
 
     @staticmethod
     def sync_caret(widget):
@@ -6800,7 +7188,10 @@ class MemoryPalApp(tk.Tk):
     def needs_sign_in_prompt(self):
         """Until someone signs in or chooses to go on without an account."""
         if self.account.uses_drive():
-            return not self.account.drive.linked and not self.account.state.account_prompted
+            # The account comes first, then Google Drive (as on the phone).
+            if self.account.state.account_prompted:
+                return False
+            return (cloud.configured() and not self.account.signed_in) or not self.account.drive.linked
         return cloud.configured() and not self.account.signed_in and not self.account.state.account_prompted
 
     def mark_sign_in_prompted(self):
@@ -6828,31 +7219,39 @@ class MemoryPalApp(tk.Tk):
             self.draw_chrome_icon(mark, mark_size)
         tk.Label(card, text="Welcome to MemoryPal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 22)).pack()
         uses_drive = self.account.uses_drive()
+        # With Drive sync: the account first, then Google Drive, in the same
+        # order as the phone (Drive used to be asked for before any account).
+        drive_step = uses_drive and (self.account.signed_in or not cloud.configured())
+        if drive_step:
+            intro = (
+                (f"Signed in as {self.account.email}. " if self.account.signed_in and self.account.email else "")
+                + "Now connect Google Drive to keep your cards, progress and settings on all your devices: this computer, your phone and more. "
+                "They're kept in your own Google Drive, in a private folder only MemoryPal can open."
+            )
+        elif uses_drive:
+            intro = "Sign in or create your account first. Next you can connect Google Drive to keep your cards on all your devices."
+        else:
+            intro = "Sign in to keep your cards, progress and settings on all your devices: this computer, your phone and more."
         tk.Label(
             card,
-            text=(
-                "Connect Google Drive to keep your cards, progress and settings on all your devices: this computer, your phone and more. "
-                "They're kept in your own Google Drive, in a private folder only MemoryPal can open."
-                if uses_drive else
-                "Sign in to keep your cards, progress and settings on all your devices: this computer, your phone and more."
-            ),
+            text=intro,
             bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(440), justify="center",
         ).pack(pady=(self.px(6), self.px(22)))
         buttons = tk.Frame(card, bg=COLORS["surface"])
         buttons.pack(fill="x")
         buttons.columnconfigure(0, weight=1)
         choices = (
-            (("Connect Google Drive", self.connect_drive, "Primary.TButton"),) if uses_drive else
+            (("Connect Google Drive", self.connect_drive, "Primary.TButton"),) if drive_step else
             (("Sign in", lambda: self.open_account_dialog("sign_in"), "Primary.TButton"),
              ("Create an account", lambda: self.open_account_dialog("create"), "TButton"))
         )
         for row, (label, command, style_name) in enumerate(choices):
             self.row_button(buttons, label, command, style_name).grid(row=row, column=0, sticky="ew", pady=(0, self.px(10)))
-        skip = tk.Label(card, text="Continue without syncing" if uses_drive else "Continue without an account", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2", takefocus=1)
+        skip = tk.Label(card, text="Skip for now" if drive_step else "Continue without an account", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), cursor="hand2", takefocus=1)
         skip.pack(pady=(self.px(8), 0))
         self.keyboard_link(skip, lambda _event: self.continue_without_account())
-        self.add_tooltip(skip, "Your cards stay on this computer. You can connect Google Drive later from Settings." if uses_drive else "Your cards stay on this computer. You can sign in later from Settings.")
-        tk.Label(card, text="You can connect or disconnect any time in Settings." if uses_drive else "You can sign in or out any time in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(pady=(self.px(10), 0))
+        self.add_tooltip(skip, "Your cards stay on this computer. You can connect Google Drive later from Settings." if drive_step else "Your cards stay on this computer. You can sign in later from Settings.")
+        tk.Label(card, text="You can connect or disconnect any time in Settings." if drive_step else "You can sign in or out any time in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(pady=(self.px(10), 0))
 
     def view_welcome(self):
         page = ScrollFrame(self.view_host)
@@ -6888,7 +7287,12 @@ class MemoryPalApp(tk.Tk):
                     hover=colors[key],
                     command=lambda value=key: choose(value),
                 )
-                tile.configure(highlightthickness=max(2, self.px(3)) if selected else 1)
+                # Without explicit colours Tk draws this outline in the system
+                # colour (white on Windows), so give it the theme's line colour,
+                # or the persona's colour once picked.
+                edge = colors[key] if selected else COLORS["line"]
+                tile.configure(highlightthickness=max(2, self.px(3)) if selected else max(1, self.px(1)),
+                               highlightbackground=edge, highlightcolor=edge)
                 row, column = divmod(index, 2)
                 tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
                 tk.Frame(tile, bg=colors[key], width=self.px(36), height=self.px(4)).pack(anchor="w", pady=(0, self.px(10)))
@@ -7104,9 +7508,9 @@ class MemoryPalApp(tk.Tk):
         Everyday Memory first for the people it is made for."""
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        keys = ["tools", "games", "elder"]
+        keys = ["tools", "shuffle", "games", "elder"]
         if self.store.onboarding.get("persona") in ("everyday", "caregiver"):
-            keys = ["elder", "games", "tools"]
+            keys = ["elder", "games", "tools", "shuffle"]
         rows = [(key, self.page_titles()[key][1], self.nav_hint(key), "", lambda view=key: self.show_view(view)) for key in keys]
         self.link_list(page.inner, rows).pack(fill="x", padx=(0, 8))
         self.hub_heading(page.inner, "Why these work", top=self.px(22))
@@ -8372,9 +8776,13 @@ class MemoryPalApp(tk.Tk):
             self.quiz_mode = step["quiz_mode"]
             self.view_drafts["quiz"] = {}
         view = step["view"]
-        if view in ("focus", "testing", "shuffle"):
+        if view == "shuffle":
+            # Repetition drilling runs the path on the weakest cards.
+            self.open_repetition("weak", self.deck_filter)
+            return
+        if view in ("focus", "testing"):
             # Weak-card practice, now a Review mode (plans saved before the
-            # Focus, Test Lab and Repetition pages went still name them).
+            # Focus and Test Lab pages went still name them).
             if not self.start_review("weak", self.deck_filter):
                 self.show_view("review")
             return
@@ -9838,8 +10246,10 @@ class MemoryPalApp(tk.Tk):
         """The "Made with AI, check it" label, with Report beside it."""
         bg = bg or COLORS["surface"]
         row = tk.Frame(parent, bg=bg)
-        chip = tk.Label(row, text="Made with AI, check it", bg=self.blend_hex(bg, COLORS["warm_text"], 0.14), fg=COLORS["warm_text"],
-                        font=self.font("Segoe UI Semibold", 10), padx=self.px(10), pady=self.px(3))
+        # A quiet note, not a warning: muted text on a faint chip, with one
+        # small amber dot (the logo's) as the only colour.
+        chip = tk.Label(row, text="\u25cf  Made with AI, check it", bg=self.blend_hex(bg, COLORS["muted"], 0.10), fg=COLORS["muted"],
+                        font=self.font("Segoe UI", 10), padx=self.px(10), pady=self.px(3))
         chip.pack(side="left")
         self.add_tooltip(chip, "An AI wrote this from your notes or file. AI can be wrong: check it before you rely on it.")
         if not report:
@@ -9986,7 +10396,7 @@ class MemoryPalApp(tk.Tk):
         """A progress line with Cancel for a running AI request (hidden until shown)."""
         surface = COLORS["surface"]
         frame = tk.Frame(parent, bg=surface)
-        bar = ttk.Progressbar(frame, mode="indeterminate", style="Horizontal.TProgressbar", length=self.px(160))
+        bar = SweepBar(frame, width=self.px(160), height=max(4, self.px(5)), track=COLORS["alt"], fill=COLORS["primary"], bg=surface)
         label = tk.Label(frame, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI", 11), anchor="w", justify="left")
         cancel = ttk.Button(frame, text="Cancel", cursor="hand2")
         bar.pack(side="left", padx=(0, self.px(12)))
@@ -10251,10 +10661,46 @@ class MemoryPalApp(tk.Tk):
         remaining = self.ai_remaining_text()
         limit = f"Each account can make up to {aiflow.AI_DAILY_LIMIT} AI requests a day; the count starts again every day."
         self.fit_wrap(ttk.Label(card, text=f"{limit} {remaining}." if remaining and not remaining.endswith(".") else f"{limit} {remaining}".strip(), style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(0, self.px(4)))
+        if liveaudio.available():
+            self.render_microphone_choice(card)
         if cloud_config.PRIVACY_URL:
             link = tk.Label(card, text="How AI uses your data (privacy policy)", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI", 10), cursor="hand2")
             link.pack(anchor="w", pady=(self.px(6), 0))
             self.keyboard_link(link, lambda _event: open_web_page(cloud_config.PRIVACY_URL))
+
+    DEFAULT_MICROPHONE = "System default"
+
+    def microphone_file(self):
+        return Path(app_paths.DATA_DIR) / "microphone.txt"
+
+    def saved_microphone(self):
+        """The chosen microphone's name on this computer ("" = the system default)."""
+        try:
+            return self.microphone_file().read_text(encoding="utf-8").strip()[:200]
+        except OSError:
+            return ""
+
+    def render_microphone_choice(self, parent):
+        row = tk.Frame(parent, bg=COLORS["surface"])
+        row.pack(fill="x", pady=(self.px(10), self.px(4)))
+        tk.Label(row, text="Microphone for the AI tutor", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 11)).pack(side="left", padx=(0, self.px(12)))
+        names = [name for name, _default in liveaudio.input_devices()]
+        saved = self.saved_microphone()
+        if saved and saved not in names:
+            names.append(saved)
+        choice = tk.StringVar(value=saved or self.DEFAULT_MICROPHONE)
+
+        def chosen(value):
+            try:
+                path = self.microphone_file()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("" if value == self.DEFAULT_MICROPHONE else value, encoding="utf-8")
+            except OSError:
+                self.toast_message("Couldn't save the microphone choice.")
+                return
+            self.toast_message(f"The AI tutor will listen with: {value}.")
+
+        self.select_button(row, choice, [self.DEFAULT_MICROPHONE] + names, on_change=chosen).pack(side="left", fill="x", expand=True)
 
     # ------------------------------------------------------------------
     # Notifications: the week's reminders, shown by Windows or macOS
@@ -10440,7 +10886,7 @@ class MemoryPalApp(tk.Tk):
             self.show_view("talkback")
 
         option("Talk with the AI tutor", "A real conversation, like a voice call. Answer in your own words, talk over it, ask for a hint or why. It saves how you did on each card. Needs the internet and uses one AI request.", "mic", live, True)
-        option("Classic Talk-back", "Each question is read aloud and you answer by voice or by typing. Works offline.", "speaker", classic, False)
+        option("Classic Talk-back", "Each question is read aloud and you type the answer. Works offline." if not CLASSIC_VOICE_ANSWERS else "Each question is read aloud and you answer by voice or by typing. Works offline.", "speaker", classic, False)
 
     def save_live_ratings(self, tutor):
         for card, outcome in tutor.take_ratings():
@@ -10496,23 +10942,80 @@ class MemoryPalApp(tk.Tk):
         hint = "Say \u201cskip\u201d, \u201cgive me a hint\u201d or \u201cwhy?\u201d at any time. AI can be wrong."
         self.fit_wrap(tk.Label(panel, text=f"{hint} {liveaudio.permission_hint()}".strip(), bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 10), justify="left", anchor="w", wraplength=self.px(860)), pady=(self.px(14), 0))
 
+        orb_cache = {}
+        orb_steps = 32
+
+        def orb_image(colour, halo_fill, step):
+            """A smooth (supersampled) halo + core for one swell step, cached."""
+            key = (colour, halo_fill, step)
+            if key in orb_cache:
+                return orb_cache[key]
+            modules = self.pillow_modules()
+            if modules is None:
+                return None
+            Image, ImageDraw, ImageTk = modules
+            grow = step / orb_steps
+            scale = 4
+            big = size * scale
+            picture = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+            pen = ImageDraw.Draw(picture)
+            middle = big / 2
+            halo = big * 0.42 * (1 + 0.22 * grow)
+            core = big * 0.30 * (1 + 0.22 * grow)
+            pen.ellipse((middle - halo, middle - halo, middle + halo, middle + halo), fill=halo_fill)
+            pen.ellipse((middle - core, middle - core, middle + core, middle + core), fill=colour)
+            picture = picture.resize((size, size), Image.LANCZOS)
+            orb_cache[key] = ImageTk.PhotoImage(picture)
+            return orb_cache[key]
+
+        orb_items = {"orb": None, "icon": None, "drawn": None}
+
         def draw(who, muted):
             # A soft circle that swells with whoever is speaking: the tutor in the
-            # app's colour, you in green.
+            # app's colour, you in green. Runs every frame (see animate) and is
+            # drawn from cached smooth images, so it stays round and fluid.
+            state["who"], state["muted_now"] = who, muted
             target = 0.0 if muted else state["levels"].get(who or "you", 0.0) if who else 0.0
-            state["shown"] = state["shown"] * 0.6 + target * 0.4
-            grow = 0.0 if self.accessibility.get("reduce_motion") else state["shown"]
+            state["shown"] = state["shown"] * 0.78 + target * 0.22
+            grow = 0.0 if self.accessibility.get("reduce_motion") else min(1.0, state["shown"])
             colour = COLORS["line"] if muted else COLORS["green"] if who == "you" else COLORS["primary"]
-            orb.delete("all")
+            step = round(grow * orb_steps)
+            # The halo tint changes with grow too: quantise it with the step.
+            halo_fill = self.blend_hex(surface, colour, 0.16 + 0.2 * step / orb_steps)
+            icon_name = "mic" if who == "you" or muted else "speaker"
+            drawn = (colour, halo_fill, step, icon_name)
+            if drawn == orb_items["drawn"]:
+                return
+            orb_items["drawn"] = drawn
             middle = size / 2
-            core = size * 0.30 * (1 + 0.22 * grow)
-            halo = size * 0.42 * (1 + 0.22 * grow)
-            orb.create_oval(middle - halo, middle - halo, middle + halo, middle + halo, fill=self.blend_hex(surface, colour, 0.16 + 0.2 * grow), outline="")
-            orb.create_oval(middle - core, middle - core, middle + core, middle + core, fill=colour, outline="")
-            image = self.line_icon("mic" if who == "you" or muted else "speaker", self.px(44), self.on_color(colour))
+            picture = orb_image(colour, halo_fill, step)
+            if picture is None:
+                orb.delete("all")
+                orb_items["orb"] = orb_items["icon"] = None
+                core = size * 0.30 * (1 + 0.22 * step / orb_steps)
+                halo = size * 0.42 * (1 + 0.22 * step / orb_steps)
+                orb.create_oval(middle - halo, middle - halo, middle + halo, middle + halo, fill=halo_fill, outline="")
+                orb.create_oval(middle - core, middle - core, middle + core, middle + core, fill=colour, outline="")
+            elif orb_items["orb"] is None:
+                orb.delete("all")
+                orb_items["orb"] = orb.create_image(middle, middle, image=picture)
+            else:
+                orb.itemconfigure(orb_items["orb"], image=picture)
+            image = self.line_icon(icon_name, self.px(44), self.on_color(colour))
             if image is not None:
-                orb.create_image(middle, middle, image=image)
+                if orb_items["icon"] is None or picture is None:
+                    orb_items["icon"] = orb.create_image(middle, middle, image=image)
+                else:
+                    orb.itemconfigure(orb_items["icon"], image=image)
                 orb._memorypal_icon = image
+
+        def animate():
+            # The orb's own frame clock (~60 fps); poll() updates text at 12 fps.
+            if not alive() or state["tutor"] is None or not orb.winfo_exists():
+                state["frame"] = None
+                return
+            draw(state.get("who", ""), state.get("muted_now", False))
+            state["frame"] = self.after(16, animate)
 
         def on_level(who, value):
             state["levels"][who] = value  # from the audio thread: a plain float swap
@@ -10588,7 +11091,10 @@ class MemoryPalApp(tk.Tk):
                 state["muted"] = snap.muted
                 mute.configure(text=" Unmute" if snap.muted else " Mute")
             state["phase"] = snap.phase
-            draw("you" if snap.speaking == "you" else "tutor" if snap.speaking == "tutor" else "", snap.muted)
+            state["who"] = "you" if snap.speaking == "you" else "tutor" if snap.speaking == "tutor" else ""
+            state["muted_now"] = snap.muted
+            if state.get("frame") is None:
+                animate()
             state["pulse"] = self.after(80, poll)
 
         def started(result, error):
@@ -10604,7 +11110,7 @@ class MemoryPalApp(tk.Tk):
             if result.get("remaining") is not None:
                 self.set_ai_prefs(aiflow.remember_remaining(self.ai_prefs(), result["remaining"]))
             by_key = {key: cards[index] for key, index in result["keys"].items()}
-            tutor = livetutor.LiveTutor(result["token"], result["setup"], by_key, result["minutes"], livetutor.open_websocket, liveaudio.LiveAudio(on_level))
+            tutor = livetutor.LiveTutor(result["token"], result["setup"], by_key, result["minutes"], livetutor.open_websocket, liveaudio.LiveAudio(on_level, self.saved_microphone()))
             state["tutor"] = tutor
             self.stop_speaking()
             tutor.start()
@@ -11005,7 +11511,14 @@ class MemoryPalApp(tk.Tk):
         update_counts()
         refresh_controls()
         set_status("Getting ready", "checking")
-        if not listen.platform_supported():
+        if not CLASSIC_VOICE_ANSWERS:
+            # Typed answers only: the offline recogniser misheard too often.
+            # The AI tutor is the way to answer out loud.
+            state["can_listen"], state["typed"] = False, True
+            notice.configure(text="Type your answers here. To answer out loud, use the AI tutor.")
+            refresh_controls()
+            later(50, ask)
+        elif not listen.platform_supported():
             later(50, lambda: recogniser_ready(False))
         else:
             self.run_in_background(self.listener.probe, recogniser_ready)
@@ -11038,6 +11551,213 @@ class MemoryPalApp(tk.Tk):
         """The Puzzles page using one set's cards and notes."""
         self.puzzle_deck = deck
         self.show_view("games")
+
+    REPETITION_WEAK = "Weakest cards"
+    REPETITION_OWN = "My own list"
+
+    def open_repetition(self, source=None, deck=None):
+        """Open the repetition path on a set, or ("weak", deck) on the
+        weakest cards, optionally of one set (a study plan step)."""
+        draft = dict(self.view_drafts.get("shuffle", {}))
+        if source == "weak":
+            draft["source"] = self.REPETITION_WEAK
+            draft["weak_deck"] = deck
+        elif source:
+            draft["source"] = source
+        draft.pop("path", None)
+        self.view_drafts["shuffle"] = draft
+        self.show_view("shuffle")
+
+    def repetition_items(self, source, own_text, weak_deck=None):
+        """The path's items for a source: a set's cards oldest first, the
+        weakest cards, or a typed list."""
+        if source == self.REPETITION_OWN:
+            return repetition.items_from_text(own_text)
+        if source == self.REPETITION_WEAK:
+            weak = [card for card in self.store.weak_cards() if not weak_deck or (card.deck or "General") == weak_deck]
+            return repetition.items_from_cards(weak[:repetition.WEAK_LIMIT])
+        return repetition.items_from_cards(self.store.technique_items(source)[0])
+
+    def view_shuffle(self):
+        """Repetition path: recall a list in growing runs (5, 5-4, 5-4-3,
+        then 3-2-1). Practice only, so rounds never reschedule cards. The
+        phone's Repetition path screen builds the same rounds."""
+        draft = self.view_drafts.get("shuffle", {})
+        page = ScrollFrame(self.view_host)
+        page.pack(fill="both", expand=True)
+        weak_deck = draft.get("weak_deck")
+        weak_label = f"Weakest in {weak_deck}" if weak_deck else self.REPETITION_WEAK
+        sets = self.store.decks()
+        values = sets + [weak_label, self.REPETITION_OWN]
+        source = draft.get("source") or (sets[0] if sets else self.REPETITION_OWN)
+        if source == self.REPETITION_WEAK:
+            source = weak_label
+        if source not in values:
+            source = sets[0] if sets else self.REPETITION_OWN
+
+        def source_key(value):
+            return self.REPETITION_WEAK if value == weak_label else value
+
+        path = draft.get("path")
+        if path:
+            self.register_draft_saver("shuffle", lambda: self.view_drafts.get("shuffle", {}))
+            self.render_repetition_rounds(page.inner, path)
+            return
+
+        ttk.Label(page.inner, text="Recall a list in growing runs: 5, then 5-4, then 5-4-3, then back down to 1. Saying a run in order, again and again, makes it stick.", style="Muted.TLabel", wraplength=self.px(1040)).pack(anchor="w", padx=(0, 8), pady=(0, self.px(14)))
+        panel = self.card(page.inner)
+        panel.pack(fill="x", padx=(0, 8))
+        source_row = ttk.Frame(panel, style="Card.TFrame")
+        source_row.pack(fill="x", pady=(0, self.px(12)))
+        ttk.Label(source_row, text="Practise", style="CardMuted.TLabel").pack(side="left", padx=(0, self.px(8)))
+        source_var = tk.StringVar(value=source)
+        own_frame = ttk.Frame(panel, style="Card.TFrame")
+        own_box = self.answer_area(own_frame, "Things to remember", 'One per line. Write "prompt - answer" to give an item its own question.', 5)
+        own_box.insert("1.0", draft.get("own", ""))
+        count_label = ttk.Label(panel, text="", style="CardMuted.TLabel")
+        controls = ttk.Frame(panel, style="Card.TFrame")
+        start_var = tk.StringVar(value=draft.get("start", ""))
+        range_var = tk.StringVar(value=draft.get("range", ""))
+        ttk.Label(controls, text="Start at item", style="CardMuted.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Entry(controls, textvariable=start_var).grid(row=1, column=0, sticky="ew", padx=(0, self.px(10)))
+        ttk.Label(controls, text="Loop range (optional)", style="CardMuted.TLabel").grid(row=0, column=1, sticky="w")
+        ttk.Entry(controls, textvariable=range_var).grid(row=1, column=1, sticky="ew")
+        controls.columnconfigure(0, weight=1, uniform="path")
+        controls.columnconfigure(1, weight=1, uniform="path")
+        example = ttk.Label(panel, text="Example: start 5 with range 3 gives 5, 5-4, 5-4-3, then 3-2-1. Leave the range empty to walk all the way back to item 1.", style="CardMuted.TLabel", wraplength=self.px(980))
+        rounds_label = ttk.Label(panel, text="", style="Card.TLabel", wraplength=self.px(980))
+        own_shown = {"value": False}
+
+        def numbers():
+            values = []
+            for var in (start_var, range_var):
+                text = var.get().strip()
+                if not text:
+                    values.append(None)
+                elif re.fullmatch(r"-?\d+", text):
+                    values.append(int(text))
+                else:
+                    return None
+            return values
+
+        def current_items():
+            return self.repetition_items(source_key(source_var.get()), own_box.get("1.0", "end"), weak_deck)
+
+        def refresh(_event=None):
+            if not count_label.winfo_exists():
+                return
+            items = current_items()
+            own = source_var.get() == self.REPETITION_OWN
+            if own != own_shown["value"]:
+                own_shown["value"] = own
+                if own:
+                    own_frame.pack(fill="x", before=count_label)
+                else:
+                    own_frame.pack_forget()
+            count = len(items)
+            count_label.configure(text=f"{count} item{'s' if count != 1 else ''}, in order." if count else ("Nothing typed yet." if own else "No cards with answers here yet."))
+            picked = numbers()
+            steps = repetition.repetition_steps(count, *picked) if picked else []
+            rounds_label.configure(text=("Rounds: " + ", ".join(label for label, _ in steps)) if steps else "")
+            start_hint.configure(text=f"Leave the start empty to begin at item {repetition.default_start(count) or 5}.")
+
+        self.select_button(source_row, source_var, values, on_change=lambda _value: refresh()).pack(side="left")
+        count_label.pack(anchor="w", pady=(0, self.px(12)))
+        controls.pack(fill="x")
+        start_hint = ttk.Label(panel, text="", style="CardMuted.TLabel")
+        start_hint.pack(anchor="w", pady=(self.px(4), 0))
+        example.pack(anchor="w", pady=(self.px(8), self.px(4)))
+        self.bind_rewrap(example)
+        rounds_label.pack(anchor="w", pady=(0, self.px(12)))
+        own_box.bind("<KeyRelease>", refresh, add="+")
+        for var in (start_var, range_var):
+            var.trace_add("write", lambda *_args: refresh())
+
+        def save_draft(extra=None):
+            data = {"source": source_key(source_var.get()), "weak_deck": weak_deck, "own": own_box.get("1.0", "end").strip(), "start": start_var.get(), "range": range_var.get()}
+            data.update(extra or {})
+            return data
+
+        def build():
+            items = current_items()
+            if not items:
+                self.toast_message("Type a few things to remember first." if source_var.get() == self.REPETITION_OWN else "This choice has no cards with answers yet.")
+                return
+            picked = numbers()
+            if picked is None:
+                self.toast_message("Start and loop range must be whole numbers.")
+                return
+            steps = repetition.repetition_steps(len(items), *picked)
+            self.view_drafts["shuffle"] = save_draft({"path": {"items": items, "steps": [[label, list(indexes)] for label, indexes in steps], "round": 0}})
+            self.show_view("shuffle")
+
+        self.button_row(panel, [("Start the path", build, "Primary.TButton")])
+        refresh()
+        self.register_draft_saver("shuffle", lambda: save_draft() if count_label.winfo_exists() else self.view_drafts.get("shuffle", {}))
+
+    def render_repetition_rounds(self, parent, path):
+        """One round of a built path at a time: the prompts to recall in
+        order, an optional typed recall Smart Check compares, and the answers."""
+        items, steps = path["items"], path["steps"]
+        path["round"] = min(max(int(path.get("round", 0)), 0), len(steps) - 1)
+        panel = self.card(parent)
+        panel.pack(fill="x", padx=(0, 8))
+        body = ttk.Frame(panel, style="Card.TFrame")
+        body.pack(fill="x")
+
+        def leave():
+            draft = dict(self.view_drafts.get("shuffle", {}))
+            draft.pop("path", None)
+            self.view_drafts["shuffle"] = draft
+            self.show_view("shuffle")
+
+        @self.smooth
+        def render():
+            for child in body.winfo_children():
+                child.destroy()
+            index = path["round"]
+            label, indexes = steps[index]
+            ttk.Label(body, text=f"Round {index + 1} of {len(steps)}", style="CardMuted.TLabel").pack(anchor="w")
+            ttk.Label(body, text=f"Repeat {label}", style="H2.TLabel").pack(anchor="w", pady=(self.px(4), 0))
+            ttk.Progressbar(body, maximum=len(steps), value=index + 1).pack(fill="x", pady=(self.px(10), self.px(14)))
+            ttk.Label(body, text="Recall these, in this order", style="CardMuted.TLabel").pack(anchor="w")
+            for item_index in indexes:
+                ttk.Label(body, text=f"{item_index + 1}. {items[item_index]['prompt']}", style="Card.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(self.px(3), 0))
+            response = self.answer_area(body, "Your recall (optional)", "One answer per line. Type them to have Smart Check compare, or just say them and show the answers.", 4)
+            result = ttk.Frame(body, style="Card.TFrame")
+            result.pack(fill="x")
+            shown = {"value": False}
+
+            def reveal():
+                if shown["value"]:
+                    return
+                shown["value"] = True
+                expected = repetition.round_expected(items, indexes)
+                typed = response.get("1.0", "end").strip()
+                answers = "\n".join(f"{item_index + 1}. {items[item_index]['answer']}" for item_index in indexes)
+                ttk.Label(result, text="Answers", style="CardMuted.TLabel").pack(anchor="w")
+                ttk.Label(result, text=answers, style="Card.TLabel", wraplength=self.px(1040), justify="left").pack(anchor="w", pady=(self.px(3), self.px(8)))
+                self.speak_button(result, ". ".join(items[item_index]["answer"] for item_index in indexes), "Read the answers aloud", compact=True).pack(anchor="w", pady=(0, self.px(10)))
+                if typed:
+                    checked = answer_assessment(typed, expected)
+                    ttk.Label(result, text=self.describe_assessment(checked), style="Card.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(0, self.px(6)))
+                check.configure(state="disabled")
+
+            def move(delta):
+                path["round"] = min(max(path["round"] + delta, 0), len(steps) - 1)
+                render()
+
+            actions = ttk.Frame(body, style="Card.TFrame")
+            actions.pack(fill="x", pady=(self.px(10), 0))
+            check = ttk.Button(actions, text="Check or show answers", style="Primary.TButton", command=reveal)
+            check.pack(side="left")
+            last = index == len(steps) - 1
+            ttk.Button(actions, text="Previous", command=lambda: move(-1), state="disabled" if index == 0 else "normal").pack(side="left", padx=(self.px(10), 0))
+            ttk.Button(actions, text="Finish" if last else "Next round", command=leave if last else (lambda: move(1))).pack(side="left", padx=(self.px(10), 0))
+            ttk.Button(actions, text="Change the path", style="Link.TButton", command=leave).pack(side="right")
+            response.focus_set()
+
+        render()
 
     def view_tools(self):
         draft = self.view_drafts.get("tools", {})
@@ -12311,9 +13031,10 @@ class MemoryPalApp(tk.Tk):
         if self.current_view == "settings":
             self.show_view("settings")
         elif self.current_view == "signin":
-            # First launch: on to the setup questions (or Today, when the
+            # First launch: with Drive sync, on to connecting Google Drive;
+            # otherwise on to the setup questions (or Today, when the
             # account's first sync brings them along).
-            self.show_view(self.start_view())
+            self.show_view("signin" if self.account.uses_drive() and not self.account.drive.linked else self.start_view())
         self.sync_now()
 
     def client_sign_out(self, session):
@@ -12766,6 +13487,8 @@ class MemoryPalApp(tk.Tk):
         keys = "Control-Command-F" if IS_MAC else "F11"
         self.fit_wrap(ttk.Label(window_card, text=f"Full screen hides everything but MemoryPal. {keys} turns it on or off, and Esc leaves it.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(window_card, [("Leave full screen" if self.is_fullscreen else "Full screen", self.toggle_true_fullscreen, "TButton")], "Card.TFrame")
+        if IS_WINDOWS:
+            self.render_resize_choice(window_card)
 
         profile_card = self.card(grid, "Card.TFrame", 22)
         profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 16), pady=(0, 16))
@@ -12809,6 +13532,8 @@ class MemoryPalApp(tk.Tk):
             ("listen_answers", "Talk-back study listens for spoken answers (Windows)"),
             ("focus_outline", "Show a bright outline on the focused button (keyboard use)"),
         ]
+        if not CLASSIC_VOICE_ANSWERS:
+            accessibility_toggles = [item for item in accessibility_toggles if item[0] != "listen_answers"]
         for index, (key, label) in enumerate(accessibility_toggles):
             var = tk.BooleanVar(value=bool(self.accessibility.get(key)))
             row = self.check_toggle(toggle_grid, var, label, on_change=lambda checked, pref=key: self.update_accessibility_preference(pref, checked), bg=COLORS["surface"], wraplength=470, fit=True)

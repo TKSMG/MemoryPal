@@ -513,3 +513,48 @@ This build is packaged as release 0.53.1.
 - Text selection works like a web page: drags carry on across text, and the blinking cursor hides while words are highlighted (#59).
 
 This build is packaged as release 0.53.2.
+
+## v105 - Steadier Live Tutor
+
+- Phone: the tutor's greeting is kept until the audio is ready, instead of being lost while the microphone starts (#65).
+- Ending a call while the microphone is still opening now really stops it, on phone and desktop (#65).
+- A short network blip no longer ends and restarts the phone call (#65).
+
+This build is packaged as release 0.53.3.
+
+## v106 - Steadier Typing
+
+- The text cursor stays on while you type and blinks only when you stop.
+- The welcome choices' outline is in the theme's line colour instead of white.
+- "Made with AI, check it" is a quiet grey label with a small amber dot.
+- The resize arrow no longer flickers to a plain arrow on the window edges.
+- A dropdown list closes if the field under it moves (window dragged or resized, page scrolled), instead of staying where it opened.
+- The AI loading bar runs one way, left to right, and comes round again instead of bouncing.
+- The AI tutor's circle is smooth and round and moves at about 60 frames a second.
+- The AI tutor no longer hears itself as your answer at the start of a call: until the echo canceller has learned the room, the microphone pauses while the tutor talks.
+- Settings > AI features lets you choose which microphone the AI tutor uses.
+- Classic Talk-back takes typed answers; to answer out loud, use the AI tutor.
+- Closing a dialog no longer flashes another app (like the browser after Google sign-in) in front of MemoryPal.
+- Connecting Google Drive explains when this copy wasn't built with Google sign-in, instead of saying Drive is busy.
+- Phone: the dark band between each page and the tab bar is gone.
+- AI tutor calls can last 14 minutes (was 10).
+
+This build is packaged as release 0.53.4.
+
+## v107 - Patient Tutor, Clean Closes
+
+The AI tutor waits through thinking pauses and ignores coughs and its own echo before taking a turn, and it is told which card comes next after each answer, so it no longer repeats questions. Dialogs on Windows are hidden in one step before they are taken apart, so closing one no longer flashes.
+
+- Settings > Window has "While resizing the window" with three ways to compare on a real PC: the page follows the edge (as before), follows it double-buffered by Windows, or updates once when you let go.
+
+This build is packaged as release 0.53.5.
+
+## v108 - Phone Sign-in and Drive
+
+Signing in on the phone now finishes after the Cloudflare check, and setup asks for the account before Google Drive on both apps. Talk-back works the same on phone and computer: classic reads aloud and takes typed answers, and the AI tutor handles spoken answers.
+
+This build is packaged as release 0.53.6.
+
+## v109 - Repetition Path Returns
+
+Practice has the Repetition path again, on the computer and the phone. Pick a set, your weakest cards or your own typed list, choose where to start and how far to loop, and recall it in growing runs: 5, 5-4, 5-4-3, then 3-2-1. Each round shows the prompts in order; type the answers for Smart Check or just show them. Rounds are practice only, so cards keep their due dates. Study plans that ask for repetition drilling open it again on the weakest cards.

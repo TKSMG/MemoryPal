@@ -12,6 +12,7 @@ import { AttemptLimiter, accountAgeCheck, characterClasses, passwordProblems, pa
 import { answerAssessment } from '../src/core/smartCheck';
 import { MemoryStore, normalizeStudyPlan } from '../src/core/store';
 import { Entries, entriesAfter, entriesOf, newestStamp, nextStamp, payloadFromRecords, planSync, recordsFromPayload, Records, Remote, remoteFromFiles } from '../src/core/sync';
+import { defaultStart, itemsFromCards, itemsFromText, repetitionSteps, roundExpected } from '../src/core/repetition';
 import { acronym, chunkMap, hooksFor, linkChain, palace, parseIdeas, pegList, story } from '../src/core/techniques';
 import { answerKind, buildQuiz, cardQuestion, clozeCandidates, isGenericFront, listItems, noteQuestions, questionForBit, QuestionType, QuizCard, Rng } from '../src/core/questions';
 import { parsePromptAnswerLines, splitStudyBits, textTokens } from '../src/core/text';
@@ -105,6 +106,18 @@ describe('parity with the desktop logic', () => {
       for (const [kind, hooks] of Object.entries(item.hooks)) expect(hooksFor(kind, [...item.items, '  two\nlines '])).toEqual(hooks);
     }
     for (const item of fixtures.parse_ideas) expect(parseIdeas(item.raw)).toEqual(item.ideas);
+  });
+
+  test('repetition path rounds and items match', () => {
+    const rep = fixtures.repetition;
+    for (const item of rep.default_start) expect({ count: item.count, start: defaultStart(item.count) }).toEqual(item);
+    for (const item of rep.steps) {
+      expect({ ...item, steps: repetitionSteps(item.count, item.start, item.span) }).toEqual(item);
+    }
+    for (const item of rep.text) expect({ raw: item.raw, items: itemsFromText(item.raw) }).toEqual(item);
+    const items = itemsFromCards(rep.cards);
+    expect(items).toEqual(rep.card_items);
+    for (const item of rep.expected) expect({ indexes: item.indexes, text: roundExpected(items, item.indexes) }).toEqual(item);
   });
 
   test('sync plans (what to send, apply and keep) match for every case', () => {

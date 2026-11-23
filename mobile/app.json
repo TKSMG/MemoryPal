@@ -3,7 +3,7 @@
     "name": "MemoryPal",
     "slug": "memorypal",
     "scheme": "memorypal",
-    "version": "0.53.2",
+    "version": "0.53.6",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,12 +15,15 @@
       "supabasePublishableKey": "sb_publishable_2dZ7rq2PQ9oCMG7bMMWhUQ_am1Zh1E6",
       "termsUrl": "https://github.com/TKSMG/MemoryPal/blob/main/TERMS_OF_USE.md",
       "privacyUrl": "https://github.com/TKSMG/MemoryPal/blob/main/PRIVACY_POLICY.md",
-      "captchaUrl": "https://tksmg.github.io/MemoryPal/verify/"
+      "captchaUrl": "https://tksmg.github.io/MemoryPal/verify/",
+      "eas": {
+        "projectId": "e30df4c6-5d5a-4884-9789-8bf989f5afce"
+      }
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.memorypal.mobile",
-      "buildNumber": "60",
+      "buildNumber": "65",
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -108,7 +111,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 60,
+      "versionCode": 64,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",

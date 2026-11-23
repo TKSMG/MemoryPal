@@ -12,9 +12,9 @@ import { AiError } from "./logic.ts";
 
 export const MAX_LIVE_CARDS = 40;
 export const MAX_LIVE_CARD_CHARS = 300;
-export const LIVE_SESSION_MINUTES = 10;
+export const LIVE_SESSION_MINUTES = 14;
 // One use, so a leaked token starts at most one conversation; a little longer
-// than the app's own 10 minute cap so the end of the conversation isn't cut off.
+// than the call's own cap so the end of the conversation isn't cut off.
 export const LIVE_TOKEN_MINUTES = LIVE_SESSION_MINUTES + 3;
 export const LIVE_START_SECONDS = 60;
 export const LIVE_VOICES = ["Kore", "Puck", "Aoede", "Charon"] as const;
@@ -62,7 +62,9 @@ export const LIVE_RULES = [
   "Sound like a real person on a relaxed call: warm, quick and natural, with short sentences. Never read out lists, symbols or markdown.",
   "Start with one short, friendly line, then ask the first question straight away.",
   "Ask the cards one at a time, in the order given, in your own words if that sounds more natural, but keep the meaning exactly.",
-  "Then wait for the learner's answer. Judge the meaning, not the exact wording; accept synonyms, small slips and spoken numbers.",
+  "Then wait for the learner's answer. People pause to think, so give them time: never answer for them, and never take a cough, a noise, an \"um\" or a half sentence as their answer; if what you heard is unclear, ask them to say it again.",
+  "Ask each card once. Never ask a card again after you've recorded it, unless the learner asks you to repeat it. If you were cut off while asking, finish the same question instead of starting over or moving on. The record_answer reply names the next card to ask.",
+  "Judge the meaning, not the exact wording; accept synonyms, small slips and spoken numbers.",
   "If they're right, say so briefly and vary how you say it. If they're close, say what was missing. If they're wrong or don't know, give the right answer and one short, memorable hint or link, then move on.",
   "After judging each card, and before asking the next one, call record_answer with that card's key and the result. Use \"skipped\" if they ask to skip. Never tell the learner about the tool.",
   "If the learner asks for a hint, give a small clue without the answer. If they ask a question about the topic, answer briefly and then carry on with the cards.",
@@ -104,6 +106,20 @@ export const LIVE_TOOLS = [
 ];
 
 /**
+ * How the tutor hears turns. Google's defaults end a turn after a short gap
+ * and treat any sound as someone starting to talk, so the tutor cut learners
+ * off while they were thinking and stopped (then repeated its question) at a
+ * cough or its own echo. Low sensitivity both ways and a 1.2 s gap fix that;
+ * the learner talking over the tutor still stops it, as before.
+ */
+export const LIVE_LISTENING = {
+  startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
+  prefixPaddingMs: 200,
+  endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+  silenceDurationMs: 1200,
+};
+
+/**
  * The tutor set-up as the app sends it in its first WebSocket message
  * ({ setup: ... }); the token is locked to the same model and settings.
  */
@@ -118,7 +134,7 @@ export function liveSetup(request: LiveRequest, model: string): Record<string, u
     tools: LIVE_TOOLS,
     inputAudioTranscription: {},
     outputAudioTranscription: {},
-    realtimeInputConfig: { automaticActivityDetection: {}, activityHandling: "START_OF_ACTIVITY_INTERRUPTS" },
+    realtimeInputConfig: { automaticActivityDetection: LIVE_LISTENING, activityHandling: "START_OF_ACTIVITY_INTERRUPTS" },
   };
 }
 

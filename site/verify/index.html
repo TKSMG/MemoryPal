@@ -58,23 +58,50 @@ function deliver(message) {
   var target = "http://127.0.0.1:" + port + "/done?state=" + encodeURIComponent(state);
   if (message.token) target += "&token=" + encodeURIComponent(message.token);
   else target += "&error=" + encodeURIComponent(message.error || "failed");
+  (message.spares || []).forEach(function (spare) { target += "&spare=" + encodeURIComponent(spare); });
   location.replace(target);
+}
+
+// Each Turnstile pass works once, so a wrong password used to mean another
+// trip here. When the check passes without asking anything, the page quietly
+// collects a couple of spare passes (each lasts five minutes) and hands them
+// over too; the app uses them for its next tries. If Cloudflare wants an
+// answer from the person, it hands over what it has instead of asking again.
+var SPARES = 2;
+var tokens = [];
+var widget = null;
+var asked = false;
+var spareTimer = null;
+
+function handOver() {
+  if (finished || !tokens.length) return;
+  clearTimeout(spareTimer);
+  show("Done", phone ? "Continuing…" : "Going back to MemoryPal…", false);
+  deliver({ type: "turnstile", token: tokens[0], spares: tokens.slice(1) });
 }
 
 function failed(code) {
   if (finished) return;  // the token was already handed over
+  if (tokens.length) { handOver(); return; }  // a spare didn't come; the first pass still works
   show("The check didn't work", "Go back to MemoryPal and try again.", true);
   deliver({ type: "turnstile", error: String(code || "failed") });
 }
 
 window.onTurnstileLoad = function () {
-  turnstile.render("#widget", {
+  widget = turnstile.render("#widget", {
     sitekey: SITE_KEY,
     action: "memorypal-auth",
     theme: "auto",
+    "before-interactive-callback": function () {
+      if (tokens.length) handOver();  // never ask twice for spares
+      else asked = true;
+    },
     callback: function (token) {
-      show("Done", phone ? "Continuing…" : "Going back to MemoryPal…", false);
-      deliver({ type: "turnstile", token: token });
+      tokens.push(token);
+      if (asked || tokens.length > SPARES) { handOver(); return; }
+      show("Done", "Finishing up…", false);
+      if (tokens.length === 1) spareTimer = setTimeout(handOver, 6000);
+      try { turnstile.reset(widget); } catch (e) { handOver(); }
     },
     "error-callback": failed,
     "expired-callback": function () { failed("expired"); },

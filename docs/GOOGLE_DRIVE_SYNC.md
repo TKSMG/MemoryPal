@@ -56,8 +56,11 @@ Google clients still syncs through Supabase as before, and the two don't see eac
 
 Google checks the SHA-1 of the key that signed the installed app. MemoryPal's Play Console shows
 only an app signing key (no separate upload key), so one Android client covers it. If the APK
-from GitHub Releases ever fails to connect with `DEVELOPER_ERROR`, it was signed with a different
-key: add a second Android client with that key's SHA-1 (`keytool -list -v -keystore <file>.jks`).
+from GitHub Releases fails to connect (the phone says Drive sync "isn't set up correctly", or
+just "wasn't connected" right after picking an account), it was signed with a different key: add
+a second Android client with that key's SHA-1. The release APK (v0.53.5) is signed with SHA-1
+`7A:C3:94:77:4F:8F:5B:F2:16:02:2B:20:ED:80:93:BB:2C:F8:BB:BD` (check any APK with
+`keytool -printcert -jarfile MemoryPal-Android.apk`).
 
 GitHub: Settings → Secrets and variables → Actions. The build workflows write the desktop values
 into `latest_app/memorypal/google_client.py` (ignored by git) and pass `GOOGLE_IOS_CLIENT_ID` to

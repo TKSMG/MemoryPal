@@ -156,7 +156,8 @@ export class SyncController {
 
   /** The first-launch sign-in page shows until someone signs in or chooses to go on without. */
   get needsSignInPrompt() {
-    if (this.account.usesDrive) return this.account.restored && !this.account.drive && !this.account.state.account_prompted;
+    // With Drive sync the account comes first, then Google Drive (the desktop app asks in the same order).
+    if (this.account.usesDrive) return this.account.restored && !this.account.state.account_prompted && ((this.configured && !this.account.signedIn) || !this.account.drive);
     return this.configured && this.account.restored && !this.account.signedIn && !this.account.state.account_prompted;
   }
 

@@ -123,6 +123,7 @@ class LiveTutorTests(unittest.TestCase):
         responses = [r for m in talk.socket.sent if "toolResponse" in m for r in m["toolResponse"]["functionResponses"]]
         self.assertEqual([(r["id"], r["response"]["result"]) for r in responses], [("1", "saved"), ("2", "saved"), ("3", "error: unknown card key or result"), ("4", "saved")])
         self.assertTrue(all(r["response"]["scheduling"] == "SILENT" for r in responses))
+        self.assertEqual([r["response"].get("next") for r in responses], ["c2", "c2", None, "none: every card is done, so give the summary"])
         self.assertEqual([(r.card.id, r.outcome) for r in talk.tutor.snapshot().results], [("a", "wrong"), ("b", "skipped")])
 
     def test_end_session_lets_the_goodbye_play_then_hangs_up(self):
@@ -172,6 +173,18 @@ class LiveTutorTests(unittest.TestCase):
         talk.server({"setupComplete": {}})
         self.assertEqual(talk.tutor.snapshot().phase, "error")
         self.assertIn("microphone", talk.tutor.snapshot().error)
+
+    def test_ending_while_the_microphone_opens_closes_it_again(self):
+        talk = Conversation()
+
+        def slow_start(on_mic):
+            talk.tutor.stop()  # End pressed while the device was still opening
+            talk.audio.stopped = False
+
+        talk.audio.start = slow_start
+        talk.server({"setupComplete": {}})
+        self.assertEqual(talk.tutor.snapshot().phase, "done")
+        self.assertTrue(talk.audio.stopped)
 
     def test_verdicts_map_to_schedule_ratings(self):
         self.assertEqual(livetutor.live_assessment("right")["quality"], 4)

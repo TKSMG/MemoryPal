@@ -39,6 +39,51 @@ MODEL_RATE = 24000
 DEVICE_RATE = 48000
 SEND_SECONDS = 0.1
 LEVEL_EVERY = 5  # frames (50 ms) between loudness updates
+# The echo canceller needs a few seconds of the tutor's voice before it
+# removes it well. Until it has heard that much, the microphone sends
+# silence while the tutor is talking (and briefly after, for the room's
+# echo), so the tutor never hears itself and takes that as an answer.
+WARM_UP_MS = 8000
+ECHO_TAIL_MS = 300
+SPEAKING_LEVEL = 0.12
+
+
+def input_devices():
+    """[(name, is_default)] microphones, one entry per device, or [] without sounddevice."""
+    try:
+        import sounddevice
+    except Exception:  # noqa: BLE001 - no audio package in this copy
+        return []
+    try:
+        devices = sounddevice.query_devices()
+        default_input = sounddevice.default.device[0]
+        default_api = devices[default_input]["hostapi"] if isinstance(default_input, int) and default_input >= 0 else 0
+    except Exception:  # noqa: BLE001 - no audio system
+        return []
+    names, seen = [], set()
+    for index, device in enumerate(devices):
+        if device.get("max_input_channels", 0) <= 0 or device.get("hostapi") != default_api:
+            continue
+        name = str(device.get("name", "")).strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append((name, index == default_input))
+    return names
+
+
+def find_input(sounddevice, name):
+    """The device index for a saved microphone name, or None for the default."""
+    if not name:
+        return None
+    try:
+        default_api = sounddevice.query_devices(kind="input")["hostapi"]
+        for index, device in enumerate(sounddevice.query_devices()):
+            if device.get("max_input_channels", 0) > 0 and device.get("hostapi") == default_api and str(device.get("name", "")).strip() == name:
+                return index
+    except Exception:  # noqa: BLE001 - fall back to the default device
+        pass
+    return None
 
 
 def available():
@@ -123,8 +168,12 @@ def level(data):
 
 
 class LiveAudio:
-    def __init__(self, on_level=None):
+    def __init__(self, on_level=None, device_name=""):
         self.on_level = on_level or (lambda who, value: None)
+        self.device_name = device_name or ""
+        self.device = None
+        self.warm_ms = 0
+        self.tail_ms = 0
         self.lock = threading.Lock()
         self.jobs = queue.Queue()
         self.playback = bytearray()
@@ -146,8 +195,9 @@ class LiveAudio:
         self.on_mic = on_mic
         self.apm = rtc.AudioProcessingModule(echo_cancellation=True, noise_suppression=True, high_pass_filter=True, auto_gain_control=True)
         self.AudioFrame = rtc.AudioFrame
+        self.device = find_input(sounddevice, self.device_name)
         last_error = None
-        for rate in self.rates(sounddevice):
+        for rate in self.rates(sounddevice, self.device):
             try:
                 self.open(sounddevice, rate)
                 break
@@ -163,10 +213,11 @@ class LiveAudio:
             stream.start()
 
     @staticmethod
-    def rates(sounddevice):
+    def rates(sounddevice, device=None):
         rates = [DEVICE_RATE]
         try:
-            native = int(sounddevice.query_devices(kind="input")["default_samplerate"])
+            info = sounddevice.query_devices(device) if device is not None else sounddevice.query_devices(kind="input")
+            native = int(info["default_samplerate"])
             if native not in rates:
                 rates.append(native)
         except Exception:  # noqa: BLE001 - no default device; the open below reports it
@@ -182,7 +233,7 @@ class LiveAudio:
         self.sending = bytearray()
         self.counts = {"tutor": 0, "you": 0}
         self.streams = [
-            sounddevice.RawInputStream(samplerate=rate, channels=1, dtype="int16", blocksize=frames, callback=self.heard, latency="low"),
+            sounddevice.RawInputStream(samplerate=rate, channels=1, dtype="int16", blocksize=frames, callback=self.heard, latency="low", device=self.device),
             sounddevice.RawOutputStream(samplerate=rate, channels=1, dtype="int16", blocksize=frames, callback=self.speak, latency="low"),
         ]
 
@@ -259,10 +310,17 @@ class LiveAudio:
         if kind == "speaker":
             self.apm.process_reverse_stream(frame)
             self.report("tutor", data)
+            if self.warm_ms < WARM_UP_MS and level(data) >= SPEAKING_LEVEL:
+                self.warm_ms += 10
+                self.tail_ms = ECHO_TAIL_MS
+            elif self.tail_ms > 0:
+                self.tail_ms -= 10
             return
         self.apm.set_stream_delay_ms(self.latency_ms())
         self.apm.process_stream(frame)
         clean = bytes(frame.data.cast("B"))
+        if self.warm_ms < WARM_UP_MS and self.tail_ms > 0:
+            clean = bytes(len(clean))  # still learning the echo: send silence
         if self.muted:
             self.sending.clear()
             self.report("you", b"")

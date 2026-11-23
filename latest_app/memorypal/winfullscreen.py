@@ -580,11 +580,12 @@ def on_resize_border(hwnd):
     return bool(state and state["border"])
 
 
-def keep_border_cursor(hwnd):
+def keep_border_cursor(hwnd, check=False):
     """Put the resize arrow back if the mouse is still on the window's edge
-    and shows something else. True if it had to be put back."""
+    and shows something else. True if it had to be put back. With check,
+    look even if the watcher hasn't seen the mouse on the edge yet."""
     state = _resize_watch.get(hwnd)
-    if not state or not state["border"]:
+    if not state or not (state["border"] or check):
         return False
     try:
         ctypes, wintypes, user32, _gdi32, _dwmapi, _kernel32 = _cover_api()
@@ -614,4 +615,32 @@ def keep_border_cursor(hwnd):
         user32.SetCursor(wanted)
         return True
     except (AttributeError, OSError, ValueError):
+        return False
+
+
+WS_EX_COMPOSITED = 0x02000000
+
+
+def set_composited(hwnd, on):
+    """Turn double-buffered painting of the whole window (and its child
+    windows) on or off, as Windows Forms apps do against flicker: Windows
+    draws every child window into a hidden buffer, bottom to top, and shows
+    the finished frame. Best effort: returns whether it changed."""
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        get = getattr(user32, "GetWindowLongPtrW", None) or user32.GetWindowLongW
+        set_ = getattr(user32, "SetWindowLongPtrW", None) or user32.SetWindowLongW
+        get.restype = ctypes.c_ssize_t
+        get.argtypes = (ctypes.c_void_p, ctypes.c_int)
+        set_.restype = ctypes.c_ssize_t
+        set_.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_ssize_t)
+        style = get(hwnd, -20)  # GWL_EXSTYLE
+        wanted = (style | WS_EX_COMPOSITED) if on else (style & ~WS_EX_COMPOSITED)
+        if wanted == style:
+            return False
+        set_(hwnd, -20, wanted)
+        return True
+    except (AttributeError, OSError):
         return False

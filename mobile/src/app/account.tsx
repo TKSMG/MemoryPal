@@ -110,11 +110,14 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
 
   // On the first-launch page, signing in moves straight on to the setup
   // questions (or to Today when the account already brought them along).
+  // With Drive sync the account comes first and Google Drive second, as on
+  // the desktop app: Drive used to be asked for before there was an account.
   const usesDrive = account.usesDrive;
   const linked = Boolean(account.drive);
+  const accountDone = account.signedIn || !sync.configured;
   useEffect(() => {
-    if (intro && (usesDrive ? linked : account.signedIn) && !sync.syncing) router.replace(onboarded ? '/' : '/welcome');
-  }, [intro, usesDrive, linked, account.signedIn, sync.syncing, onboarded]);
+    if (intro && (usesDrive ? linked && accountDone : account.signedIn) && !sync.syncing) router.replace(onboarded ? '/' : '/welcome');
+  }, [intro, usesDrive, linked, accountDone, account.signedIn, sync.syncing, onboarded]);
 
   const continueWithout = () => {
     sync.markPrompted();
@@ -322,17 +325,17 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
     )
   ) : null;
 
-  if (usesDrive && intro && !linked) {
+  if (usesDrive && intro && !linked && accountDone) {
     return (
       <Screen narrow>
         <View style={{ alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 8 }}>
           <Image source={require('../../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 18 }} accessibilityIgnoresInvertColors accessible={false} />
           <Txt variant="title" center>MemoryPal</Txt>
-          <Txt variant="muted" center>Connect Google Drive to keep your cards, progress and settings on all your devices.</Txt>
+          <Txt variant="muted" center>{account.signedIn ? `Signed in as ${account.email}. Now connect Google Drive to keep your cards, progress and settings on all your devices.` : 'Connect Google Drive to keep your cards, progress and settings on all your devices.'}</Txt>
         </View>
         {driveCards}
         {errorBox}
-        <Button kind="ghost" label="Continue without syncing" hint="Your cards stay on this phone. You can connect Google Drive later from Settings." onPress={continueWithout} />
+        <Button kind="ghost" label="Skip for now" hint="Your cards stay on this phone. You can connect Google Drive later from Settings." onPress={continueWithout} />
       </Screen>
     );
   }
@@ -446,13 +449,13 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
   return (
     <Screen narrow>
       {captcha.sheet}
-      {driveCards}
-      {usesDrive && mode === 'signin' ? <Txt variant="h3">MemoryPal account</Txt> : null}
+      {intro ? null : driveCards}
+      {usesDrive && mode === 'signin' && !intro ? <Txt variant="h3">MemoryPal account</Txt> : null}
       {intro ? (
         <View style={{ alignItems: 'center', gap: 8, marginTop: 24, marginBottom: 8 }}>
           <Image source={require('../../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 18 }} accessibilityIgnoresInvertColors accessible={false} />
           <Txt variant="title" center>MemoryPal</Txt>
-          <Txt variant="muted" center>Sign in to keep your cards, progress and settings on all your devices.</Txt>
+          <Txt variant="muted" center>{usesDrive ? 'Sign in or create your account first. Next you can connect Google Drive to keep your cards on all your devices.' : 'Sign in to keep your cards, progress and settings on all your devices.'}</Txt>
         </View>
       ) : null}
       {mode === 'signin' || mode === 'create' ? (

@@ -104,15 +104,12 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 ## Talk-Back And Read Aloud
 
 - Confirm every card, question, answer and note has one read-aloud button: Review, Quick Quiz, Library, the set builder and AI notes on the desktop; review, quiz and AI notes on the phone. Pressing it again while speaking stops the voice.
-- Desktop (Windows): open Study > Talk-back study. Confirm each question is read aloud ("Question 1 ..."), the status then says "Listening. Say your answer.", and saying the answer gives "Correct." or "Not quite. The answer is ...". Not yet tried on a real Windows PC with a microphone.
-- Desktop (Windows): say "I don't know" and confirm the answer is given and the card counts as missed. Stay silent and confirm "Didn't catch that", then a pause with a Resume button after repeated silence.
-- Desktop (Windows): with no microphone or no speech recogniser installed, confirm Talk-back switches to typed answers with a short message instead of failing.
-- Desktop (Mac and Linux): confirm Talk-back reads each question aloud and asks you to type the answer, then press Enter. Not yet tried on a real Mac.
+- Phone and desktop: open Study > Talk-back study and confirm the same two choices on both: "Talk with the AI tutor" and "Classic Talk-back". The AI tutor choice shows even when signed out; pressing it then asks you to sign in (or to turn AI on).
+- Classic Talk-back (both): each question is read aloud and you type the answer, then press Enter or Check. It never opens the microphone. Confirm the result is spoken and the card is rated.
 - Desktop: with no due cards, confirm Talk-back uses cards that need more practice and says so. With no cards that have answers, confirm "Nothing to practise yet".
 - Desktop: finish a round and confirm "Round finished" with your score read aloud, plus Study again and Back to Study.
-- Phone: start Talk-back and confirm the microphone and speech-recognition permissions are asked the first time. Answer out loud and confirm the result is spoken and the card is rated. Not yet tried on a real phone.
-- Phone: refuse the microphone permission and confirm the message says questions will be read and you can type the answer.
-- Phone: with a screen reader (VoiceOver or TalkBack) on, confirm the screen reader announces the questions and the app's own voice stays quiet.
+- AI tutor (both, signed in): the microphone permission is asked the first time; talk, interrupt, ask for a hint, and confirm the cards are rated afterwards.
+- Phone: with a screen reader (VoiceOver or TalkBack) on, confirm the screen reader announces the questions, the app's own voice stays quiet, and the answer box appears.
 - Leave the Talk-back page in the middle of a question and confirm the voice and microphone stop.
 
 ## Set Builder
@@ -256,7 +253,11 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Start Weak cards and New cards and confirm each shows its own name and count, and ends after its cards (at most 20).
 - Start Quick 10 with nothing due and no weak cards and confirm a fast quiz opens instead.
 - Open Review from the page finder (Ctrl+K) with nothing due and confirm "You're all caught up" with Practise weak cards and Quick quiz.
-- Open a study plan step that drills weak cards (or one saved before v97 that named Focus, Test Lab or Repetition) and confirm weak-card review starts.
+- Open a study plan step that drills weak cards (or one saved before v97 that named Focus or Test Lab) and confirm weak-card review starts.
+- Make a plan with "I like structured repetition drilling", open its Repetition drilling step and confirm the Repetition path opens on the weakest cards (of the plan's set, if it has one).
+- Practice > Repetition path, on desktop and phone: pick a set, leave the start and range empty and confirm the rounds read 5, 5-4, 5-4-3, 5-4-3-2, 5-4-3-2-1 (or start at the last item of a shorter set). Start 5 with range 3 gives 5, 5-4, 5-4-3, 3-2-1.
+- Start the path, type a round's answers one per line and check: the answers show in the round's order with a Smart Check result. Previous and Next round move between rounds; Finish on the last round goes back to the setup. Confirm no card's due date changed.
+- Choose My own list, type a few lines (one as "prompt - answer") and confirm plain lines are prompted as "Item N" and the other keeps its prompt.
 - Type a close answer and use Smart Check.
 - Type the correct answer without repeating the question wording and confirm Smart Check still scores it as correct.
 - Type an incorrect answer for a proper noun such as Paris and confirm the missing-cue text stays readable.
