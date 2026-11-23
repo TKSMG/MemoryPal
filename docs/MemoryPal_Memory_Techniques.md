@@ -272,69 +272,28 @@ The current planner supports:
 
 This helps the learner choose what to do with the material instead of only storing it.
 
-## Sequence Recall
+## Memory Puzzles
 
-Sequence Recall briefly shows a sequence, hides it, and asks for the same sequence back.
+Eleven short puzzles, the same on the desktop and the phone (the rules live in `memorypal/puzzles.py` and `mobile/src/core/puzzles.ts`, checked against each other by the parity tests). They are made with older players in mind:
 
-This can help with numbers, steps, routines, and ordered lists.
+- Every answer is a big tap: a number pad, word tiles, or a short list of choices. Typing is optional (Word recall has "Type them instead").
+- Each puzzle opens with what it asks and a tip for doing it well (say numbers in groups, picture the words in one scene, link the name to the detail).
+- A game is four short rounds. A remembered round makes the next one a step harder, a missed one a step easier, so it stays just challenging enough. The level is saved, so the next game starts where the last ended.
+- "Help me" gives a clue (two choices instead of four, the first numbers, one of the words, the next step). A helped round never raises the level.
+- Feedback is friendly and never scolds: "Nearly. That one was tricky." Simpler words with the simple-language setting.
+- More time doubles every timer, "I'm ready" moves on early, and with a screen reader on, things stay up until "I'm ready".
+- Results (level, best, recent rounds, days played) stay on the device with its other preferences, never synced.
 
-## Word Recall
+**Today's puzzles** is a five-minute mix of three puzzles from different skills, chosen from the ones not played for a while or going worst. With the everyday-memory or caregiver profile, the everyday puzzles come up more. When Story recall is in the mix it goes first and some of its questions come back at the very end, because remembering after a delay is what trains memory most. A gentle line counts days in a row and never scolds a missed day.
 
-Word Recall briefly shows a small group of words.
+The puzzles, by skill:
 
-The learner then tries to type the words back from memory.
+- **Memory.** *Number run* (digits shown in groups of two and three, like a phone number, then tapped back on a number pad). *Word recall* (pick out the words you saw from twice as many). *Pair recall* (which word went with which; a set's own questions and answers when chosen). *What's missing?* (remember a list, then spot the one that has gone).
+- **Everyday memory.** *Names and faces* (meet a few people, each with one detail, then answer "Who grows roses?"). *Where did I put it?* (glasses in the bedroom, keys in the hallway, then find them again). *Story recall* (a short everyday story, then who, where, when and what).
+- **Thinking.** *Put it in order* (the steps of an everyday task such as making tea, tapped back in order). *Sort it out* (put each thing in its group: fruit, clothes, in the kitchen).
+- **Attention.** *Spot them all* (find every copy of one word in a grid). *Same as before?* (words one at a time: does each match the one before it?).
 
-This is simple but useful for attention and short-term recall.
-
-## Pair Recall
-
-Pair Recall practises prompt-answer pairs one at a time.
-
-This is useful for names, definitions, vocabulary, and short facts.
-
-## Missing Item
-
-Missing Item hides one item from a small sequence.
-
-The learner identifies the missing word or idea.
-
-This supports order memory and attention to detail.
-
-## Visual Search
-
-Visual Search asks the learner to find every tile that matches a target word.
-
-This is meant to practise scanning, attention, and focus without needing a long study session.
-
-It can be especially useful as a quick warmup before review.
-
-## N-Back Lite
-
-N-Back Lite shows one item at a time.
-
-The learner decides whether the current item matches the one just before it.
-
-This is a short working-memory exercise, so it should stay simple and not feel punishing.
-
-## Category Sort
-
-Category Sort asks the learner to group bits of information into rough categories.
-
-This can help students organize topics before revision.
-
-It can also help older adults practise sorting familiar objects, appointments, places, names, and daily tasks.
-
-The exercise should stay flexible because the goal is organization, not perfect labels.
-
-## Routine Recall
-
-Routine Recall briefly shows a small set of steps.
-
-The learner then types the steps back in order.
-
-This is useful for everyday sequences such as morning tasks, appointments, packing items, or simple safety routines.
-
-The activity should feel gentle. Missing a step means the routine needs another pass, not that the learner failed.
+Pair recall, Word recall, What's missing?, Spot them all and Same as before? can use a set's own cards (on the phone from the set's page, on the desktop with the set picker on the Puzzles page).
 
 ## Media Cues
 
