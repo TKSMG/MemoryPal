@@ -145,7 +145,7 @@ Every page stays reachable through Ctrl+K and Back.
 The desktop had 22 pages behind those five tabs, about a third of them repeating each other, while the phone did the same work with about 12 screens. The desktop now matches the phone:
 
 - Focus and Test Lab were Review under other names. Review is now one page that runs in modes (due, Quick 10, weak, new, gentle), as on the phone. Each mode takes its card list when it starts.
-- Repetition Path kept its items only in a page draft, never as cards, so they didn't sync or get scheduled. It was removed; plan steps that pointed at it now start weak-card practice.
+- Repetition Path kept its items only in a page draft, never as cards, so they didn't sync or get scheduled. It was removed in v97, then brought back in v109 (Kirthik: it was an important part of the app) as Practice > Repetition path on both apps, drilling a set's cards, the weakest cards or a typed list. Rounds are practice only and never reschedule cards.
 - Cue Lab moved into Edit card: hint ideas go into the memory hook, and Picture, Sound and Video menus attach media to that card.
 - Memory Gym only linked to pages one click away, so it went.
 - Feedback is a dialog over the page it is about, not a page of its own.

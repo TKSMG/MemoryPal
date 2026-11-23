@@ -73,6 +73,10 @@ export default function Practice() {
         ) : null}
       </Card>
 
+      <ListGroup header="Drill a list">
+        <ListRow icon="repeat-outline" title="Repetition path" detail="Recall a set in growing runs: 5, 5-4, 5-4-3, then 3-2-1." onPress={() => router.push('/repetition' as Href)} />
+      </ListGroup>
+
       <ListGroup header="Puzzles">
         {PUZZLES.map((puzzle) => (
           <ListRow key={puzzle.kind} icon={puzzle.icon} title={puzzle.title} detail={puzzle.body} onPress={() => router.push(`/puzzle?kind=${puzzle.kind}` as Href)} />
