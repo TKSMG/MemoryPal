@@ -4470,54 +4470,27 @@ class MemoryPalApp(tk.Tk):
     LIVE_REFLOW_MIN_GAP_MS = 12
     LIVE_REFLOW_FREE_SHARE = 0.8  # free time after a reflow, as a share of what it cost
 
-    # How the page behaves while an edge is dragged. Which one looks
-    # smoothest depends on the computer (CI can't see the flicker people
-    # see), so Settings > Window offers all three to compare.
+    # How the page behaves while an edge is dragged. Settings > Window used
+    # to offer all three to compare (0.53.5 to 0.53.6). Measured on Windows
+    # CI 2026-11-23 (scroll-probe resize_modes): the window edge updates
+    # about 22 times a second in every mode, even "reveal" where nothing is
+    # laid out during the drag, so the cap is in Tk's own sizing loop and
+    # the choice made no visible difference. "follow" twice ended a drag at
+    # the wrong size; "buffered" never did, so it is now the only behaviour.
+    # MEMORYPAL_RESIZE_MODE still picks one for the render probes.
     #   follow   - reflow as often as it can afford, painting paused for each
     #              reflow (WM_SETREDRAW) and resumed in one go.
     #   buffered - reflow as often as it can afford, painting never paused;
     #              the whole window is double-buffered by Windows instead
     #              (WS_EX_COMPOSITED), so each frame shows up finished.
-    #   reveal   - no reflow while the edge moves (the page stays as it was
-    #              and new space is filled with the page colour); the new
-    #              layout is drawn hidden and shown in one step on letting go.
-    RESIZE_MODES = (("follow", "Page follows the edge"), ("buffered", "Page follows the edge (buffered)"), ("reveal", "Page updates when you let go"))
-    RESIZE_MODE_DEFAULT = "follow"
-
-    def resize_mode_file(self):
-        return Path(app_paths.DATA_DIR) / "resize_mode.txt"
+    #   reveal   - no reflow while the edge moves; the new layout is drawn
+    #              hidden and shown in one step on letting go.
+    RESIZE_MODES = ("follow", "buffered", "reveal")
+    RESIZE_MODE_DEFAULT = "buffered"
 
     def resize_mode(self):
-        cached = getattr(self, "_resize_mode", None)
-        if cached is None:
-            try:
-                cached = self.resize_mode_file().read_text(encoding="utf-8").strip()
-            except OSError:
-                cached = ""
-            if cached not in {key for key, _label in self.RESIZE_MODES}:
-                cached = self.RESIZE_MODE_DEFAULT
-            cached = os.environ.get("MEMORYPAL_RESIZE_MODE", cached)
-            self._resize_mode = cached
-        return cached
-
-    def render_resize_choice(self, parent):
-        labels = dict(self.RESIZE_MODES)
-        keys = {label: key for key, label in self.RESIZE_MODES}
-        ttk.Label(parent, text="While resizing the window", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(14), 0))
-        choice = tk.StringVar(value=labels.get(self.resize_mode(), labels[self.RESIZE_MODE_DEFAULT]))
-
-        def chosen(value):
-            key = keys.get(value, self.RESIZE_MODE_DEFAULT)
-            try:
-                path = self.resize_mode_file()
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(key, encoding="utf-8")
-            except OSError:
-                pass
-            self._resize_mode = key
-            self.toast_message("Saved. Drag a window edge to try it.")
-
-        self.select_button(parent, choice, [label for _key, label in self.RESIZE_MODES], on_change=chosen).pack(fill="x", pady=(self.px(4), 0))
+        mode = os.environ.get("MEMORYPAL_RESIZE_MODE", self.RESIZE_MODE_DEFAULT)
+        return mode if mode in self.RESIZE_MODES else self.RESIZE_MODE_DEFAULT
 
     def _set_composited(self, on):
         if not IS_WINDOWS:
@@ -13379,8 +13352,6 @@ class MemoryPalApp(tk.Tk):
         keys = "Control-Command-F" if IS_MAC else "F11"
         self.fit_wrap(ttk.Label(window_card, text=f"Full screen hides everything but MemoryPal. {keys} turns it on or off, and Esc leaves it.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(window_card, [("Leave full screen" if self.is_fullscreen else "Full screen", self.toggle_true_fullscreen, "TButton")], "Card.TFrame")
-        if IS_WINDOWS:
-            self.render_resize_choice(window_card)
 
         profile_card = self.card(grid, "Card.TFrame", 22)
         profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, self.card_gap()), pady=(0, self.card_gap()))
