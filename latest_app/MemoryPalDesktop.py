@@ -71,6 +71,7 @@ from memorypal import feedback as feedback_report
 from memorypal import iconcache, media
 from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
 from memorypal import ai, aiflow, liveaudio, livetutor, puzzles, richtext
+from memorypal import desktopnotify, notifications
 from memorypal import questions as quiz_questions
 from memorypal.speech import Speaker
 from memorypal.planning import (
@@ -1559,9 +1560,11 @@ class MemoryPalApp(tk.Tk):
         self.track_focus_source()
         self._shell()
         self.after_idle(self.theme_title_bar)
-        self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.protocol("WM_DELETE_WINDOW", self.close_app)
         if IS_MAC:
             self.install_mac_menus()
+        # The week's notifications, once the window is up and settled.
+        self._notify_after = self.after(5000, self.keep_notifications_fresh)
         # Any key, click or pointer move counts as someone using the app, so
         # background page building waits (bound in Tcl on the "all" tag with
         # "+", which leaves every other binding in place).
@@ -1648,7 +1651,7 @@ class MemoryPalApp(tk.Tk):
         try:
             self.createcommand("tkAboutDialog", lambda: self.tk.call("tk::mac::standardAboutPanel"))
             self.createcommand("tk::mac::ShowPreferences", lambda *_args: self.show_view("settings"))
-            self.createcommand("tk::mac::Quit", self.destroy)
+            self.createcommand("tk::mac::Quit", self.close_app)
         except tk.TclError:
             pass
 
@@ -5143,6 +5146,7 @@ class MemoryPalApp(tk.Tk):
         self.tour = None
         self.rebuild_shell(self.start_view())
         self.toast_message(f"Switched to {name}.")
+        self.refresh_notifications(force=True)
 
     def open_profile_manager(self):
         top = tk.Toplevel(self)
@@ -10941,6 +10945,123 @@ class MemoryPalApp(tk.Tk):
         self.select_button(row, choice, [self.DEFAULT_MICROPHONE] + names, on_change=chosen).pack(side="left", fill="x", expand=True)
 
     # ------------------------------------------------------------------
+    # Notifications: the week's reminders, shown by Windows or macOS
+    # ------------------------------------------------------------------
+    NOTIFY_REFRESH_MS = 10 * 60 * 1000
+
+    def notification_settings(self):
+        return notifications.normalize_settings((self.store.preferences or {}).get("notifications"))
+
+    def set_notification_settings(self, **changes):
+        settings = self.notification_settings()
+        settings.update(changes)
+        prefs = dict(self.store.preferences or {})
+        prefs["notifications"] = notifications.normalize_settings(settings)
+        self.set_ai_prefs(prefs)
+        self.refresh_notifications(force=True)
+
+    def refresh_notifications(self, force=False):
+        """Hand the next week's notifications to the system, if they changed.
+
+        Run when MemoryPal starts, closes, switches profile, the settings
+        change, and every few minutes while it is open, so studying takes
+        back a reminder about what was just done.
+        """
+        if not desktopnotify.supported():
+            return
+        try:
+            planned = notifications.plan_notifications(self.store, self.notification_settings())
+        except Exception:
+            return
+        signature = desktopnotify.signature(planned)
+        if not force and signature == getattr(self, "_notify_signature", None):
+            return
+        if not planned and getattr(self, "_notify_signature", None) is None and not self.notification_settings()["enabled"] and not force:
+            # Never turned on in this run: nothing of ours to take back.
+            self._notify_signature = signature
+            return
+        self._notify_signature = signature
+        desktopnotify.schedule(planned, app_paths.DATA_DIR / "notifications")
+
+    def keep_notifications_fresh(self):
+        self.refresh_notifications()
+        self._notify_after = self.after(self.NOTIFY_REFRESH_MS, self.keep_notifications_fresh)
+
+    def close_app(self):
+        try:
+            self.refresh_notifications()
+        finally:
+            self.destroy()
+
+    def send_test_notification(self):
+        planned = notifications.plan_notifications(self.store, self.notification_settings())
+        if desktopnotify.send_test(planned, app_paths.DATA_DIR / "notifications"):
+            self._notify_signature = desktopnotify.signature(planned)
+            self.toast_message("A sample notification is on its way.")
+        else:
+            self.dialog_alert("Notifications aren't available", "This computer didn't accept MemoryPal's notification. Check that notifications are allowed for MemoryPal in the system settings.", "error")
+
+    def render_notification_settings(self, parent):
+        card = self.card(parent, "Card.TFrame", 22)
+        card.pack(fill="x", padx=(0, 8), pady=(0, 16))
+        ttk.Label(card, text="Notifications", style="H2.TLabel").pack(anchor="w")
+        settings = self.notification_settings()
+        system = "Windows" if sys.platform == "win32" else "macOS" if IS_MAC else ""
+        where = f"{system} shows them even when MemoryPal is closed, and studying takes back the ones you no longer need." if system else "They need Windows or macOS, so this computer won't show them."
+        self.fit_wrap(ttk.Label(
+            card,
+            text=f"Reminders about what's waiting for you: due cards, your study plan, tests and streaks. {where} The same choices as on the phone.",
+            style="CardMuted.TLabel",
+            wraplength=self.px(1040),
+        ), pady=(self.px(4), self.px(12)))
+        enabled = tk.BooleanVar(value=settings["enabled"])
+
+        def switched(checked):
+            self.set_notification_settings(enabled=bool(checked))
+            self.show_view("settings")
+
+        self.check_toggle(card, enabled, "Study notifications", on_change=switched, fit=True).pack(fill="x", pady=(0, self.px(10)))
+        if not settings["enabled"]:
+            return
+
+        time_labels = {time: datetime(2000, 1, 1, *notifications.clock(time)).strftime("%I:%M %p").lstrip("0") for time in notifications.REMINDER_TIMES}
+        time_labels[notifications.BEST_TIME] = "Best time for you"
+        quiet_labels = {quiet: "Off" if quiet == "off" else " to ".join(datetime(2000, 1, 1, *notifications.clock(part)).strftime("%I:%M %p").lstrip("0") for part in quiet.split("-")) for quiet in notifications.QUIET_CHOICES}
+        choices = tk.Frame(card, bg=COLORS["surface"])
+        choices.pack(fill="x", pady=(0, self.px(12)))
+        for column, (title, labels, key) in enumerate((("Reminder time", time_labels, "time"), ("Quiet hours", quiet_labels, "quiet"))):
+            box = tk.Frame(choices, bg=COLORS["surface"])
+            box.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else self.px(12), 0))
+            choices.columnconfigure(column, weight=1, uniform="notify")
+            ttk.Label(box, text=title, style="CardMuted.TLabel").pack(anchor="w")
+            by_label = {label: value for value, label in labels.items()}
+            variable = tk.StringVar(value=labels[settings[key]])
+            self.select_button(box, variable, list(labels.values()), on_change=lambda label, key=key, by_label=by_label: self.set_notification_settings(**{key: by_label[label]})).pack(fill="x", pady=(self.px(4), 0))
+        if settings["time"] == notifications.BEST_TIME:
+            self.fit_wrap(ttk.Label(card, text="The hour you usually get the most right, once MemoryPal has seen enough of your practice. Until then, 7:00 PM. Nothing shows in quiet hours.", style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(0, self.px(10)))
+
+        toggle_grid = tk.Frame(card, bg=COLORS["surface"])
+        toggle_grid.pack(fill="x", pady=(0, self.px(12)))
+        rows = [(kind, notifications.KIND_LABELS[kind]) for kind in notifications.KINDS]
+        for index, (kind, (label, detail)) in enumerate(rows + [("one_a_day", ("At most one a day", "Only the most useful notification each day."))]):
+            on = settings["one_a_day"] if kind == "one_a_day" else kind in settings["kinds"]
+            var = tk.BooleanVar(value=on)
+
+            def toggled(checked, kind=kind):
+                if kind == "one_a_day":
+                    self.set_notification_settings(one_a_day=bool(checked))
+                    return
+                current = set(self.notification_settings()["kinds"])
+                current.add(kind) if checked else current.discard(kind)
+                self.set_notification_settings(kinds=[each for each in notifications.KINDS if each in current])
+
+            row = self.check_toggle(toggle_grid, var, f"{label}: {detail}", on_change=toggled, bg=COLORS["surface"], wraplength=470, fit=True)
+            row.grid(row=index // 2, column=index % 2, sticky="ew", padx=(0 if index % 2 == 0 else self.px(12), 0), pady=(0 if index < 2 else self.px(8), 0))
+            toggle_grid.columnconfigure(index % 2, weight=1, uniform="notify-toggles")
+        if desktopnotify.supported():
+            self.button_row(card, [("Send a test notification", self.send_test_notification, "TButton")], "Card.TFrame")
+
+    # ------------------------------------------------------------------
     # Talk-back study: hands-free review
     # ------------------------------------------------------------------
     def talkback_queue(self):
@@ -13825,6 +13946,7 @@ class MemoryPalApp(tk.Tk):
 
         self.render_account_card(page.inner)
         self.render_ai_settings(page.inner)
+        self.render_notification_settings(page.inner)
 
         grid = self.page_frame(page.inner)
         grid.pack(fill="x", padx=(0, 8), pady=(0, 16))

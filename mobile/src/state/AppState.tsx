@@ -9,6 +9,7 @@ import { CloudAccount } from '../cloud/account';
 import { CloudError, cloudConfigured, Session } from '../cloud/client';
 import { normalizeResults, PuzzleResults } from '../core/puzzles';
 import { MemoryStore } from '../core/store';
+import { DEFAULT_QUIET, KINDS, normalizeSettings } from '../features/notifications';
 import { keyAdapter } from './storage';
 
 export type ThemeChoice = 'system' | 'light' | 'dark';
@@ -28,8 +29,14 @@ export interface DevicePrefs {
   ai_allowed_at: string;
   /** A daily reminder when cards are due (asks for notification permission when turned on). */
   reminders: boolean;
-  /** "HH:MM", one of REMINDER_TIMES. */
+  /** "HH:MM", one of REMINDER_TIMES, or "best" (the hour the practice log likes best). */
   reminder_time: string;
+  /** Which notifications are on (features/notifications KINDS); `reminders` is the switch for them all. */
+  notify_kinds: string[];
+  /** "off" or one of QUIET_CHOICES, like "22:00-07:00". */
+  quiet_hours: string;
+  /** At most one notification a day. */
+  one_a_day: boolean;
   /** Cards due today on the app icon. */
   badge: boolean;
   /** Memory puzzle levels, bests and the days played (this phone only, like the desktop's). */
@@ -39,6 +46,7 @@ export interface DevicePrefs {
 const DEFAULT_PREFS: DevicePrefs = {
   theme: 'system', haptics: true, quiz_recent: [], ai_allowed: true, ai_allowed_at: '',
   reminders: false, reminder_time: '19:00', badge: true, puzzles: { kinds: {}, days: [] },
+  notify_kinds: [...KINDS], quiet_hours: DEFAULT_QUIET, one_a_day: false,
 };
 
 /** Preferences that belong to this phone, not the profile (so a backup never changes them). */
@@ -59,6 +67,11 @@ class PrefsStore {
       this.prefs.badge = this.prefs.badge !== false;
       this.prefs.puzzles = normalizeResults(this.prefs.puzzles);
       this.prefs.reminder_time = typeof this.prefs.reminder_time === 'string' ? this.prefs.reminder_time : '19:00';
+      const notify = normalizeSettings({ enabled: true, time: this.prefs.reminder_time, kinds: this.prefs.notify_kinds, quiet: this.prefs.quiet_hours, one_a_day: this.prefs.one_a_day });
+      this.prefs.reminder_time = notify.time;
+      this.prefs.notify_kinds = notify.kinds;
+      this.prefs.quiet_hours = notify.quiet;
+      this.prefs.one_a_day = notify.one_a_day;
     } catch {
       this.prefs = { ...DEFAULT_PREFS };
     }
