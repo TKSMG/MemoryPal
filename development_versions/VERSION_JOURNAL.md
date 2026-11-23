@@ -554,3 +554,7 @@ This build is packaged as release 0.53.5.
 Signing in on the phone now finishes after the Cloudflare check, and setup asks for the account before Google Drive on both apps. Talk-back works the same on phone and computer: classic reads aloud and takes typed answers, and the AI tutor handles spoken answers.
 
 This build is packaged as release 0.53.6.
+
+## v109 - Repetition Path Returns
+
+Practice has the Repetition path again, on the computer and the phone. Pick a set, your weakest cards or your own typed list, choose where to start and how far to loop, and recall it in growing runs: 5, 5-4, 5-4-3, then 3-2-1. Each round shows the prompts in order; type the answers for Smart Check or just show them. Rounds are practice only, so cards keep their due dates. Study plans that ask for repetition drilling open it again on the weakest cards.
