@@ -37,7 +37,7 @@ on:
         type: boolean
         default: false
       modes:
-        description: "Which resize modes (with resize_modes)"
+        description: "Which resize modes (with resize_modes); mode:VAR=1,VAR2=1 sets environment switches for that run"
         type: string
         default: ""
 
@@ -90,10 +90,14 @@ jobs:
         shell: bash
         run: |
           : > modes.txt
-          for mode in ${{ inputs.modes || 'reveal buffered follow' }}; do
-            mkdir -p "render-$mode"
-            PROFILE_SCENARIOS="${{ inputs.profile }}" MEMORYPAL_RESIZE_MODE=$mode WHOLE_SCREEN=1 python tools/render_check/render_probe.py "render-$mode" drag_setup2 drag_resize_grow drag_resize_shrink drag_resize_bottom_grow drag_resize_left zz_control_drag > "render-$mode.txt" 2>&1 || true
-            grep -v '^PNG \|^SERIES ' "render-$mode.txt" | sed "s/^/$mode /" >> modes.txt || true
+          for spec in ${{ inputs.modes || 'reveal buffered follow' }}; do
+            mode="${spec%%:*}"
+            switches=""
+            [ "$spec" != "$mode" ] && switches="${spec#*:}"
+            tag=$(echo "$spec" | tr ':=,' '-__')
+            mkdir -p "render-$tag"
+            env $(echo "$switches" | tr ',' ' ') PROFILE_SCENARIOS="${{ inputs.profile }}" MEMORYPAL_RESIZE_MODE=$mode WHOLE_SCREEN=1 python tools/render_check/render_probe.py "render-$tag" drag_setup2 drag_resize_grow drag_resize_shrink drag_resize_bottom_grow drag_resize_left zz_control_drag > "render-$tag.txt" 2>&1 || true
+            grep -v '^PNG \|^SERIES \|^PROF ' "render-$tag.txt" | sed "s/^/$tag /" >> modes.txt || true
           done
           cat modes.txt
           python -c "import sys; t=open('modes.txt').read()[-3900:]; print('::notice title=Resize modes::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
