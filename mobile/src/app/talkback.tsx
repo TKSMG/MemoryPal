@@ -135,7 +135,7 @@ export default function Talkback() {
       screenReader,
       onRate: (talkCard, assessment) => {
         const card = store.findCard(talkCard.id);
-        if (card) store.schedule(card, assessment.quality, assessment);
+        if (card) store.schedule(card, assessment.quality, assessment, 'talkback');
       },
     });
     setSession(next);

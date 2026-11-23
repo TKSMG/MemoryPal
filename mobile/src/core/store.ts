@@ -7,6 +7,7 @@ import { Card, Capture, DECK_INFO_FIELDS, DeckInfo, DeckInfoField, FeedbackEntry
 import { Assessment } from './smartCheck';
 import { pyMod, pyRound, strip } from './py';
 import { AI_NOTE } from './questions';
+import { hookKind, TECHNIQUE_KEYS } from './techniques';
 import { normalizeSpace, splitStudyBits } from './text';
 
 export type TextSize = 'Comfort' | 'Large' | 'Extra Large';
@@ -97,6 +98,59 @@ export interface Payload {
   feedback: FeedbackEntry[];
   onboarding: Onboarding;
   study_plan: StudyPlan | Record<string, never>;
+  practice_log: PracticeEntry[];
+}
+
+// The practice log: one line per answer on this device (never synced), so the
+// study plan can learn the person's real pace, which ways of practising work
+// for them and when in the day they remember best (see store.py).
+export const PRACTICE_LOG_MAX = 500;
+/** A gap longer than this between two answers is a pause, not time on a card. */
+export const PRACTICE_GAP_SECONDS = 300;
+export const PRACTICE_METHODS = ['review', 'quiz', 'quiz_choices', 'talkback', 'tutor', 'repetition', 'puzzle'] as const;
+export type PracticeMethod = (typeof PRACTICE_METHODS)[number];
+const PRACTICE_HOOKS: readonly string[] = ['', 'own', ...TECHNIQUE_KEYS];
+
+export interface PracticeEntry {
+  /** Local time, YYYY-MM-DDTHH:MM:SS. */
+  at: string;
+  m: PracticeMethod;
+  ok: boolean;
+  /** Seconds since the answer before (0 when unknown or after a pause). */
+  sec: number;
+  /** The technique of the card's hook ('own', or '' for none). */
+  hook: string;
+}
+
+export function normalizePracticeEntry(raw: unknown): PracticeEntry | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const source = raw as Record<string, unknown>;
+  const at = source.at;
+  if (typeof at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(at)) return null;
+  const method = source.m as PracticeMethod;
+  if (!PRACTICE_METHODS.includes(method)) return null;
+  const sec = source.sec;
+  const hook = source.hook;
+  return {
+    at,
+    m: method,
+    ok: source.ok === true,
+    sec: typeof sec === 'number' && Number.isInteger(sec) && sec >= 0 && sec <= PRACTICE_GAP_SECONDS ? sec : 0,
+    hook: typeof hook === 'string' && PRACTICE_HOOKS.includes(hook) ? hook : '',
+  };
+}
+
+export function normalizePracticeLog(raw: unknown): PracticeEntry[] {
+  const entries = (Array.isArray(raw) ? raw : []).map(normalizePracticeEntry).filter((entry): entry is PracticeEntry => !!entry);
+  // A stable sort by time, as Python's sort is.
+  entries.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  return entries.slice(-PRACTICE_LOG_MAX);
+}
+
+/** Local date and time as the log writes it. */
+export function localStamp(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${isoDate(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 export interface StorageAdapter {
@@ -292,6 +346,8 @@ interface LastAction {
   snapshot: Card;
   activityKey: string;
   practicedBefore: number;
+  /** The practice log's length before the rating, to take its line back on undo. */
+  logged: number;
 }
 
 export class MemoryStore {
@@ -307,6 +363,8 @@ export class MemoryStore {
   feedback: FeedbackEntry[] = [];
   onboarding: Onboarding = { done: false, persona: '' };
   studyPlan: StudyPlan | Record<string, never> = {};
+  /** This device's answers, newest last (see PracticeEntry). */
+  practiceLog: PracticeEntry[] = [];
   lastAction: LastAction | null = null;
   /** Set when the saved data couldn't be read and the app started fresh. */
   loadProblem = '';
@@ -374,6 +432,8 @@ export class MemoryStore {
     this.feedback = loadItems(raw.feedback, feedbackFromDict);
     this.onboarding = normalizeOnboarding(raw.onboarding);
     this.studyPlan = normalizeStudyPlan(raw.study_plan);
+    // Synced data never carries this device's log, so keep ours when it is missing.
+    if ('practice_log' in raw) this.practiceLog = normalizePracticeLog(raw.practice_log);
   }
 
   payload(): Payload {
@@ -389,6 +449,7 @@ export class MemoryStore {
       feedback: this.feedback.map((entry) => ({ ...entry })),
       onboarding: { ...this.onboarding },
       study_plan: normalizeStudyPlan(this.studyPlan),
+      practice_log: this.practiceLog.map((entry) => ({ ...entry })),
     };
   }
 
@@ -469,6 +530,7 @@ export class MemoryStore {
     this.feedback = [];
     this.onboarding = { done: false, persona: '' };
     this.studyPlan = {};
+    this.practiceLog = [];
     this.lastAction = null;
     this.save();
   }
@@ -765,8 +827,26 @@ export class MemoryStore {
     return Math.max(1, Math.min(MAX_INTERVAL, interval));
   }
 
-  schedule(card: Card, quality: number, assessment?: Assessment | null) {
+  /** Note one answer in the practice log (how long it took is the gap since the last one). */
+  logPractice(method: PracticeMethod, ok: boolean, card?: Card | null, when?: Date, save = false) {
+    if (!PRACTICE_METHODS.includes(method)) return;
+    const at = localStamp(when ?? now());
+    let sec = 0;
+    const last = this.practiceLog[this.practiceLog.length - 1];
+    if (last) {
+      const gap = (new Date(at).getTime() - new Date(last.at).getTime()) / 1000;
+      sec = gap > 0 && gap <= PRACTICE_GAP_SECONDS ? Math.trunc(gap) : 0;
+    }
+    this.practiceLog.push({ at, m: method, ok: !!ok, sec, hook: card ? hookKind(card.association) : '' });
+    if (this.practiceLog.length > PRACTICE_LOG_MAX) this.practiceLog.splice(0, this.practiceLog.length - PRACTICE_LOG_MAX);
+    if (save) this.save();
+  }
+
+  schedule(card: Card, quality: number, assessment?: Assessment | null, method: PracticeMethod = 'review') {
     const snapshot = { ...card };
+    const logged = this.practiceLog.length;
+    // The answer's hook is the one the card had while it was being recalled.
+    this.logPractice(method, quality >= 3, card);
     const activityKey = todayIso();
     if (quality < 3) {
       card.repetitions = 0;
@@ -787,7 +867,7 @@ export class MemoryStore {
     }
     this.practiced += 1;
     this.logActivity();
-    this.lastAction = { cardId: card.id, snapshot, activityKey, practicedBefore: this.practiced - 1 };
+    this.lastAction = { cardId: card.id, snapshot, activityKey, practicedBefore: this.practiced - 1, logged };
     this.save();
   }
 
@@ -804,6 +884,7 @@ export class MemoryStore {
       this.activity[key] -= 1;
       if (this.activity[key] <= 0) delete this.activity[key];
     }
+    if (this.practiceLog.length === action.logged + 1) this.practiceLog.pop();
     this.lastAction = null;
     this.save();
     return true;

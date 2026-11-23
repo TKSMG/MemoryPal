@@ -1,6 +1,6 @@
 /** Practice: memory techniques for lists, plus short memory puzzles. */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Href, router } from 'expo-router';
+import { Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -36,6 +36,20 @@ export default function Practice() {
   const output = items.length ? chosen.make(items) : '';
   const fromSet = set ? techniqueItems(store, set) : null;
   const unchanged = !!fromSet && fromSet.items.join('\n') === ideas;
+
+  // A study plan step opens this tab on one set with a technique chosen
+  // (applied once per new link, while rendering, as React suggests for props).
+  const params = useLocalSearchParams<{ technique?: string; deck?: string }>();
+  const link = params.technique || params.deck ? `${params.technique ?? ''}\u0000${params.deck ?? ''}` : '';
+  const [appliedLink, setAppliedLink] = useState('');
+  if (link && link !== appliedLink) {
+    setAppliedLink(link);
+    if (params.technique && TECHNIQUES.some((item) => item.key === params.technique)) setTechnique(params.technique);
+    if (params.deck && sets.includes(params.deck)) {
+      setSet(params.deck);
+      setIdeas(techniqueItems(store, params.deck).items.join('\n'));
+    }
+  }
 
   const chooseSet = (name: string) => {
     setSet(name);

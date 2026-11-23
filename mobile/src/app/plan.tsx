@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { buildMultiDayPlan, buildStudyPlan, GOAL_KEYS, MAX_PLAN_DAYS, planMinutes, PlanStep, STUDY_HABIT_OPTIONS, TIME_UNIT_OPTIONS, TIME_UNIT_ORDER } from '../core/planning';
+import { buildMultiDayPlan, buildStudyPlan, GOAL_KEYS, MAX_PLAN_DAYS, planInsights, planMinutes, PlanStep, STUDY_HABIT_OPTIONS, TIME_UNIT_OPTIONS, TIME_UNIT_ORDER } from '../core/planning';
 import { StudyPlan } from '../core/store';
 import { useStore } from '../state/AppState';
 import { Button, Card, Pills, Row, Screen, SectionTitle, SpeakButton, ToggleRow, Txt, useStopSpeechOnLeave } from '../ui/components';
@@ -62,6 +62,8 @@ export default function Plan() {
   const totalDays = Number(amount) * (unit === 'weeks' ? 7 : 1);
   const session = minutes !== null ? buildStudyPlan(store, minutes, deck, habits, goalKey) : null;
   const days = minutes === null ? buildMultiDayPlan(store, totalDays, deck, habits, goalKey) : null;
+  // What the practice log on this device has taught the plan about the person.
+  const insights = planInsights(store);
 
   const changeUnit = (value: string) => {
     setUnit(value);
@@ -103,6 +105,7 @@ export default function Plan() {
       </Card>
 
       <SectionTitle action={<SpeakButton text={session ? stepsText(session) : days ? days.map((day) => `Day ${day.day}, ${day.minutes} minutes. ${day.steps.map((step) => step.title).join(', ')}.`).join(' ') : ''} label="Read the plan aloud" />}>Your plan</SectionTitle>
+      {insights.length ? <Txt variant="muted">{`Fitted to you: ${insights.join(' ')}`}</Txt> : null}
       {session ? (
         <Card tone="alt">
           <Txt variant="muted">{`${minutes} minutes · ${goal} · ${deckLabel(deck)}`}</Txt>

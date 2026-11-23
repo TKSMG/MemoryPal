@@ -255,6 +255,10 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Open Review from the page finder (Ctrl+K) with nothing due and confirm "You're all caught up" with Practise weak cards and Quick quiz.
 - Open a study plan step that drills weak cards (or one saved before v97 that named Focus or Test Lab) and confirm weak-card review starts.
 - Make a plan with "I like structured repetition drilling", open its Repetition drilling step and confirm the Repetition path opens on the weakest cards (of the plan's set, if it has one).
+- Make a plan with "mnemonics", "explain" and "games" ticked. Confirm the hook step names a technique (for example "Strengthen weak hooks: memory palace") and opens Memory techniques with that set loaded and that technique made; "Explain it back" opens Talk-back; the game step opens Pair recall from the set (phone and desktop).
+- Save some notes that aren't cards yet, make a plan, and confirm a "Turn notes into cards" step names those notes and opens them.
+- Choose "Help with everyday memory" (or caregiver) at welcome, make a Long-term plan, and confirm it is calm: Gentle review, Repetition path, Today's puzzles, short sessions, 15-minute breaks, no exam wording.
+- After a few days of reviews and quizzes on one device, open Study plan and confirm the "Fitted to you" line (your pace, best technique, best time of day) appears, and that it is per device (it doesn't sync).
 - Practice > Repetition path, on desktop and phone: pick a set, leave the start and range empty and confirm the rounds read 5, 5-4, 5-4-3, 5-4-3-2, 5-4-3-2-1 (or start at the last item of a shorter set). Start 5 with range 3 gives 5, 5-4, 5-4-3, 3-2-1.
 - Start the path, type a round's answers one per line and check: the answers show in the round's order with a Smart Check result. Previous and Next round move between rounds; Finish on the last round goes back to the setup. Confirm no card's due date changed.
 - Choose My own list, type a few lines (one as "prompt - answer") and confirm plain lines are prompted as "Item N" and the other keeps its prompt.
