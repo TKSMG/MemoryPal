@@ -27,7 +27,8 @@ export function openStep(step: PlanStep) {
       // A named technique opens with the set's cards loaded and that technique chosen.
       return router.push((step.technique ? `/practice?technique=${encodeURIComponent(step.technique)}${deck}` : '/practice') as Href);
     case 'games':
-      // Pair recall from the step's set, falling back to numbers without one.
+      // Today's mix, or one puzzle from the step's set (numbers without one).
+      if (step.puzzle_kind === 'daily') return router.push('/puzzle?daily=1');
       return router.push(`/puzzle?kind=${encodeURIComponent(step.puzzle_kind || 'sequence')}${deck}` as Href);
     case 'stats':
       return router.push('/progress');

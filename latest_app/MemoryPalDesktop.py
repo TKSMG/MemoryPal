@@ -8798,6 +8798,22 @@ class MemoryPalApp(tk.Tk):
             kept = self.kept_pages().pop("tools", None)
             if kept is not None and kept.winfo_exists():
                 kept.destroy()
+        if view == "games" and step.get("puzzle_kind") in (["daily"] + puzzles.KINDS):
+            # Open the Puzzles page straight into the step's game: today's mix,
+            # or one puzzle made from the step's set.
+            kind = step["puzzle_kind"]
+            self.puzzle_deck = step.get("deck") if step.get("deck") in self.store.decks() else "All my sets"
+            self.show_view("games")
+
+            def start():
+                if getattr(self, "puzzle_host", None) is None or not self.puzzle_host.winfo_exists():
+                    return
+                if kind == "daily":
+                    self.start_puzzles(puzzles.todays_puzzles(self.puzzle_results(), today_iso(), self.puzzle_everyday()), daily=True)
+                else:
+                    self.start_puzzles([kind])
+            self.after_idle(start)
+            return
         if view == "notes":
             capture = self.store.find_capture(step.get("capture_id", ""))
             if capture is not None:

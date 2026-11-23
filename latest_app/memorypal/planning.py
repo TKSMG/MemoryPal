@@ -339,8 +339,11 @@ def build_study_plan(store, minutes, deck_choice, habits, goal, on=None, since=N
             blurb += f" Your cards with {name.lower()} hooks are the ones you remember best."
         steps.append({"title": f"{title}: {name.lower()}", "share": share, "view": "tools", "blurb": blurb, "deck": focus, "technique": kind})
 
-    def add_puzzle(title, share, blurb):
-        add(title, share, "games", blurb, puzzle_kind="pairs" if focus else "sequence", **({"deck": focus} if focus else {}))
+    def add_puzzle(title, share, blurb, daily=False):
+        if daily:
+            add(title, share, "games", blurb, puzzle_kind="daily")
+        else:
+            add(title, share, "games", blurb, puzzle_kind="pairs" if focus else "sequence", **({"deck": focus} if focus else {}))
 
     def add_notes_steps():
         capture, count = notes_not_yet_cards(store, deck, memo)
@@ -372,7 +375,7 @@ def build_study_plan(store, minutes, deck_choice, habits, goal, on=None, since=N
                 add_technique("Make a memory picture", 0.15, "Turn something you keep forgetting into a picture or a short story.")
             if "explain" in habits or (getattr(store, "accessibility", None) or {}).get("read_aloud"):
                 add("Listen and answer", 0.15, "talkback", "Hear each question read aloud and answer out loud, in your own words.")
-        add_puzzle("Today's puzzle", 0.3 if minutes <= SHORT_SESSION_MINUTES else 0.2, "A short, friendly memory game made from your own cards.")
+        add_puzzle("Today's puzzles", 0.3 if minutes <= SHORT_SESSION_MINUTES else 0.2, "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.", daily=True)
         if fresh and minutes > SHORT_SESSION_MINUTES:
             add("Meet a few new cards", 0.1, "review", f"Look at {plural(min(3, len(fresh)), 'new card')}, no more. A few at a time is plenty.", review_mode="new")
         if minutes >= 20:

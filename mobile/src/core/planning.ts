@@ -380,8 +380,9 @@ export function buildStudyPlan(
     steps.push({ title: `${title}: ${name.toLowerCase()}`, share, view: 'tools', blurb, deck: focus, minutes: 0, technique: kind });
   };
 
-  const addPuzzle = (title: string, share: number, blurb: string) => {
-    add(title, share, 'games', blurb, { puzzle_kind: focus ? 'pairs' : 'sequence', ...(focus ? { deck: focus } : {}) });
+  const addPuzzle = (title: string, share: number, blurb: string, daily = false) => {
+    if (daily) add(title, share, 'games', blurb, { puzzle_kind: 'daily' });
+    else add(title, share, 'games', blurb, { puzzle_kind: focus ? 'pairs' : 'sequence', ...(focus ? { deck: focus } : {}) });
   };
 
   const addNotesSteps = () => {
@@ -418,7 +419,7 @@ export function buildStudyPlan(
       if (habits.has('mnemonics')) addTechnique('Make a memory picture', 0.15, 'Turn something you keep forgetting into a picture or a short story.');
       if (habits.has('explain') || store.accessibility?.read_aloud) add('Listen and answer', 0.15, 'talkback', 'Hear each question read aloud and answer out loud, in your own words.');
     }
-    addPuzzle("Today's puzzle", short ? 0.3 : 0.2, 'A short, friendly memory game made from your own cards.');
+    addPuzzle("Today's puzzles", short ? 0.3 : 0.2, 'Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.', true);
     if (fresh.length && !short) add('Meet a few new cards', 0.1, 'review', `Look at ${plural(Math.min(3, fresh.length), 'new card')}, no more. A few at a time is plenty.`, { review_mode: 'new' });
     if (minutes >= 20) add('See how you did', 0.06, 'stats', 'A quick look at what you practised today.');
   } else if (minutes <= SHORT_SESSION_MINUTES) {

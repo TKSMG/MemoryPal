@@ -238054,12 +238054,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -238082,12 +238082,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -238111,12 +238111,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -238291,12 +238291,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -238319,12 +238319,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -238348,12 +238348,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -238890,12 +238890,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -238955,12 +238955,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -239021,12 +239021,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -239427,12 +239427,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -239492,12 +239492,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -239558,12 +239558,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -240340,12 +240340,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -240412,12 +240412,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -240485,12 +240485,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -240964,12 +240964,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -241036,12 +241036,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -241109,12 +241109,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -242003,12 +242003,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 9,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -242082,12 +242082,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 7,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -242162,12 +242162,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 7,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -242662,12 +242662,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 9,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -242741,12 +242741,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 7,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -242821,12 +242821,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 7,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -243750,12 +243750,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -243811,12 +243811,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -243872,12 +243872,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -243946,12 +243946,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 4,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244146,12 +244146,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244207,12 +244207,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244268,12 +244268,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244329,12 +244329,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244390,12 +244390,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244451,12 +244451,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244512,12 +244512,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244586,12 +244586,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 4,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -244654,12 +244654,12 @@
          "deck": null
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 4,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -245179,12 +245179,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -245207,12 +245207,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -245236,12 +245236,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -245416,12 +245416,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -245444,12 +245444,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -245473,12 +245473,12 @@
        "review_mode": "gentle"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       }
      ]
     },
@@ -246008,12 +246008,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -246073,12 +246073,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -246132,12 +246132,12 @@
        "technique": "story"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -246531,12 +246531,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -246596,12 +246596,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -246655,12 +246655,12 @@
        "technique": "story"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 3,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -247430,12 +247430,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 5,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -247502,12 +247502,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -247568,12 +247568,12 @@
        "technique": "story"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -248040,12 +248040,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 5,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -248112,12 +248112,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -248178,12 +248178,12 @@
        "technique": "story"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 4,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -249065,12 +249065,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 10,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -249144,12 +249144,12 @@
        "deck": null
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 7,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -249217,12 +249217,12 @@
        "technique": "story"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 9,
-       "blurb": "A short, friendly memory game made from your own cards.",
-       "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+       "deck": null,
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -249710,12 +249710,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 10,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -249789,12 +249789,12 @@
        "deck": "Biology"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 7,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -249862,12 +249862,12 @@
        "technique": "story"
       },
       {
-       "title": "Today's puzzle",
+       "title": "Today's puzzles",
        "view": "games",
        "minutes": 9,
-       "blurb": "A short, friendly memory game made from your own cards.",
+       "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
        "deck": "Biology",
-       "puzzle_kind": "pairs"
+       "puzzle_kind": "daily"
       },
       {
        "title": "Meet a few new cards",
@@ -250784,12 +250784,12 @@
          "technique": "story"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 4,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -250838,12 +250838,12 @@
          "technique": "chunk"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -250892,12 +250892,12 @@
          "technique": "palace"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -250959,12 +250959,12 @@
          "technique": "story"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 4,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251152,12 +251152,12 @@
          "technique": "story"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 4,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251206,12 +251206,12 @@
          "technique": "chunk"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251260,12 +251260,12 @@
          "technique": "palace"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251314,12 +251314,12 @@
          "technique": "story"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251368,12 +251368,12 @@
          "technique": "chunk"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251422,12 +251422,12 @@
          "technique": "palace"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251476,12 +251476,12 @@
          "technique": "story"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 3,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251543,12 +251543,12 @@
          "technique": "story"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 4,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
@@ -251604,12 +251604,12 @@
          "technique": "chunk"
         },
         {
-         "title": "Today's puzzle",
+         "title": "Today's puzzles",
          "view": "games",
          "minutes": 4,
-         "blurb": "A short, friendly memory game made from your own cards.",
-         "deck": "Biology",
-         "puzzle_kind": "pairs"
+         "blurb": "Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.",
+         "deck": null,
+         "puzzle_kind": "daily"
         },
         {
          "title": "Meet a few new cards",
