@@ -8,14 +8,14 @@ MemoryPal now comes as a Python/Tkinter desktop app for Windows and macOS and a 
 
 ## Download
 
-Installers for every platform are on the [latest release](https://github.com/TKSMG/MemoryPal/releases/latest). [installers/README.md](installers/README.md) explains how to install each one.
+On Windows, get it from the [Microsoft Store](https://apps.microsoft.com/detail/9N22T06CGQJG). Installers for every platform are on the [latest release](https://github.com/TKSMG/MemoryPal/releases/latest). [installers/README.md](installers/README.md) explains how to install each one.
 
 ## What it does
 
 - **Flashcards that come back at the right time**: spaced review with Smart Check, which tells you how close a typed answer was.
 - **Make with AI** (optional, needs an account): turn notes, a PDF or a photo of a page into study notes or practice questions.
 - **Quizzes that mix it up**: multiple choice, the other way round, fill the gap, true or false, match, put in order and recall.
-- **Talk-back and read aloud**: hear each question and answer out loud, hands-free.
+- **Talk-back and read aloud**: talk your cards through with a live AI tutor (optional, needs an account), or hear each question read aloud and type the answer.
 - **Memory techniques**: acronyms, stories, peg lists, memory palaces, chunk maps and link chains, plus memory puzzles.
 - **Study plans and progress**: daily goals, streaks, charts and badges.
 - **Made for everyone**: larger text, a simpler-language mode, extra time, high contrast and screen-reader support.
@@ -89,4 +89,4 @@ npm install
 npx expo start
 ```
 
-Talk-back needs a development build (`npx expo run:android` or `run:ios`) because Expo Go doesn't include speech recognition. [mobile/README.md](mobile/README.md) covers tests, structure and the parity checks.
+The live AI tutor in Talk-back needs a development build (`npx expo run:android` or `run:ios`) because Expo Go doesn't include its audio and speech modules. [mobile/README.md](mobile/README.md) covers tests, structure and the parity checks.

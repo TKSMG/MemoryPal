@@ -29,6 +29,7 @@ sys.dont_write_bytecode = True
 from memorypal import paths as app_paths
 from memorypal.constants import (
     APP_NAME,
+    APP_VERSION,
     BASE_DPI,
     BASE_MIN_WINDOW,
     BASE_WINDOW,
@@ -13441,6 +13442,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(storage, text="Storage and backups", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(storage, text="MemoryPal stores profiles in the platform app-data folder and keeps attachments beside the active profile.", style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
         for label, value in [
+            ("Version", f"{APP_NAME} {APP_VERSION}"),
             ("App data", storage_path),
             ("Active profile", profile_path),
             ("Attachments", attachment_path),
