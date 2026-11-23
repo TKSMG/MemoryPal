@@ -644,3 +644,29 @@ def set_composited(hwnd, on):
         return True
     except (AttributeError, OSError):
         return False
+
+
+def probe_class_styles(wrapper, child, clear_redraw=False):
+    """For the resize checks: print the window class styles of Tk's frame
+    window and its child, and optionally clear CS_HREDRAW / CS_VREDRAW (which
+    make Windows invalidate the whole window on every size step)."""
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        get = getattr(user32, "GetClassLongPtrW", None) or user32.GetClassLongW
+        set_ = getattr(user32, "SetClassLongPtrW", None) or user32.SetClassLongW
+        get.restype = ctypes.c_size_t
+        get.argtypes = (ctypes.c_void_p, ctypes.c_int)
+        set_.restype = ctypes.c_size_t
+        set_.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t)
+        for label, hwnd in (("wrapper", wrapper), ("child", child)):
+            name = ctypes.create_unicode_buffer(128)
+            user32.GetClassNameW(ctypes.c_void_p(hwnd), name, 128)
+            style = get(hwnd, -26)  # GCL_STYLE
+            print(f"CLASS {label} {name.value} style=0x{style:x} hredraw={bool(style & 2)} vredraw={bool(style & 1)}", flush=True)
+            if clear_redraw and style & 3:
+                set_(hwnd, -26, style & ~3)
+                print(f"CLASS {label} cleared -> 0x{get(hwnd, -26):x}", flush=True)
+    except (AttributeError, OSError, ValueError) as error:
+        print(f"CLASS failed {error}", flush=True)

@@ -203,6 +203,9 @@ def display_refresh_hz(widget, default=60.0):
 
         user32 = ctypes.windll.user32
         hwnd = user32.GetAncestor(widget.winfo_id(), 2) or widget.winfo_id()  # GA_ROOT
+        hz = _monitor_refresh_hz(hwnd)
+        if hz:
+            return hz
         hdc = user32.GetDC(hwnd)
         if not hdc:
             return default
@@ -213,6 +216,68 @@ def display_refresh_hz(widget, default=60.0):
         return float(hz) if 24 <= hz <= 500 else default
     except (AttributeError, OSError, tk.TclError):
         return default
+
+
+_DEVMODEW = None
+_MONITOR_HZ = {}
+
+
+def _monitor_refresh_hz(hwnd):
+    """Refresh rate of the monitor the window is (mostly) on, or None.
+
+    GetDeviceCaps(VREFRESH) on a window's DC answers for the display the
+    DC belongs to, which with two screens can be the main one: a window on
+    a 144Hz monitor next to a 60Hz main screen was animated at 60. This
+    asks the window's own monitor for its current mode instead.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    global _DEVMODEW
+    if _DEVMODEW is None:
+        # DEVMODEW, display variant of the union; only dmDisplayFrequency is read.
+        fields = [("dmDeviceName", wintypes.WCHAR * 32), ("dmSpecVersion", wintypes.WORD),
+                  ("dmDriverVersion", wintypes.WORD), ("dmSize", wintypes.WORD), ("dmDriverExtra", wintypes.WORD),
+                  ("dmFields", wintypes.DWORD), ("dmPositionX", wintypes.LONG), ("dmPositionY", wintypes.LONG),
+                  ("dmDisplayOrientation", wintypes.DWORD), ("dmDisplayFixedOutput", wintypes.DWORD),
+                  ("dmColor", ctypes.c_short), ("dmDuplex", ctypes.c_short), ("dmYResolution", ctypes.c_short),
+                  ("dmTTOption", ctypes.c_short), ("dmCollate", ctypes.c_short), ("dmFormName", wintypes.WCHAR * 32),
+                  ("dmLogPixels", wintypes.WORD), ("dmBitsPerPel", wintypes.DWORD), ("dmPelsWidth", wintypes.DWORD),
+                  ("dmPelsHeight", wintypes.DWORD), ("dmDisplayFlags", wintypes.DWORD),
+                  ("dmDisplayFrequency", wintypes.DWORD), ("dmICMMethod", wintypes.DWORD),
+                  ("dmICMIntent", wintypes.DWORD), ("dmMediaType", wintypes.DWORD), ("dmDitherType", wintypes.DWORD),
+                  ("dmReserved1", wintypes.DWORD), ("dmReserved2", wintypes.DWORD),
+                  ("dmPanningWidth", wintypes.DWORD), ("dmPanningHeight", wintypes.DWORD)]
+        _DEVMODEW = type("DEVMODEW", (ctypes.Structure,), {"_fields_": fields})
+
+    class MONITORINFOEXW(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT),
+                    ("dwFlags", wintypes.DWORD), ("szDevice", wintypes.WCHAR * 32)]
+
+    try:
+        user32 = ctypes.windll.user32
+        user32.MonitorFromWindow.restype = ctypes.c_void_p
+        user32.MonitorFromWindow.argtypes = (ctypes.c_void_p, wintypes.DWORD)
+        monitor = user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
+        if not monitor:
+            return None
+        cached = _MONITOR_HZ.get(monitor)
+        if cached and time.perf_counter() - cached[0] < 3.0:
+            return cached[1]  # asking the driver can take a few ms; scrolls start often
+        info = MONITORINFOEXW()
+        info.cbSize = ctypes.sizeof(info)
+        if not user32.GetMonitorInfoW(ctypes.c_void_p(monitor), ctypes.byref(info)):
+            return None
+        mode = _DEVMODEW()
+        mode.dmSize = ctypes.sizeof(mode)
+        if not user32.EnumDisplaySettingsW(info.szDevice, -1, ctypes.byref(mode)):  # ENUM_CURRENT_SETTINGS
+            return None
+        hz = int(mode.dmDisplayFrequency)
+        result = float(hz) if 24 <= hz <= 500 else None
+        _MONITOR_HZ[monitor] = (time.perf_counter(), result)
+        return result
+    except (AttributeError, OSError, ValueError):
+        return None
 
 
 def _mac_refresh_hz():
@@ -439,6 +504,98 @@ def _destroy_toplevel(self):
 tk.Toplevel.destroy = _destroy_toplevel
 
 
+class FrameClock:
+    """One timer for all the app's animations, stepped once per screen refresh.
+
+    Each animation used to keep its own after(16) loop: about 60 steps a
+    second at best, whatever the screen (a 144Hz monitor still saw 60),
+    and with Windows' default ~15.6ms timer tick often 32. Now every
+    running animation is stepped from here, just after each refresh of the
+    monitor the window is on, with 1ms timers held only while something
+    moves. Animations work from the time passed, not from a count of
+    frames, so they take the same time at 60Hz or 144Hz.
+    """
+
+    RATE_CHECK_S = 1.0
+
+    def __init__(self, widget):
+        self.widget = widget
+        self.jobs = {}
+        self._after = None
+        self._fine = False
+        self._frame_ms = 1000.0 / 60
+        self._rate_checked = 0.0
+        self._last_tick = 0.0
+
+    @classmethod
+    def of(cls, widget):
+        root = widget._root()
+        clock = getattr(root, "_memorypal_frame_clock", None)
+        if clock is None:
+            clock = cls(root)
+            root._memorypal_frame_clock = clock
+        return clock
+
+    @property
+    def frame_ms(self):
+        now = time.perf_counter()
+        if now - self._rate_checked > self.RATE_CHECK_S:
+            self._rate_checked = now
+            self._frame_ms = 1000.0 / display_refresh_hz(self.widget)
+        return self._frame_ms
+
+    def add(self, key, step):
+        """Run step(now) every frame until it returns False (or remove(key))."""
+        self.jobs[key] = step
+        if self._after is None:
+            if not self._fine:
+                self._fine = set_fine_timers(True)
+            try:
+                self._after = self.widget.after(1, self._tick)
+            except tk.TclError:
+                self._after = None
+
+    def remove(self, key):
+        self.jobs.pop(key, None)
+
+    def running(self, key):
+        return key in self.jobs
+
+    def _next_wait(self, began):
+        frame = self.frame_ms
+        spent = (time.perf_counter() - began) * 1000
+        ahead = ms_to_next_vblank()
+        if ahead is None or spent > frame * 0.85:
+            return max(1, round(frame - spent))
+        if ahead < frame * 0.3 and spent < frame * 0.3:
+            # The refresh is only just ahead and we stepped only just after
+            # the last one: step after the one after it instead of twice in
+            # one frame.
+            ahead += frame
+        return max(1, int(ahead) + 1)
+
+    def _tick(self):
+        self._after = None
+        now = time.perf_counter()
+        self._last_tick = now
+        for key, step in list(self.jobs.items()):
+            try:
+                keep = step(now)
+            except tk.TclError:
+                keep = False
+            if not keep and self.jobs.get(key) is step:
+                del self.jobs[key]
+        if self.jobs:
+            try:
+                self._after = self.widget.after(self._next_wait(now), self._tick)
+                return
+            except tk.TclError:
+                self.jobs.clear()
+        if self._fine:
+            set_fine_timers(False)
+            self._fine = False
+
+
 class SweepBar(tk.Canvas):
     """A "working on it" bar whose stripe always travels one way: it slides
     in from the left, runs off the right edge, and comes round again (like
@@ -458,20 +615,30 @@ class SweepBar(tk.Canvas):
     def start(self, _interval=None):
         if self._timer is None:
             self._started = time.perf_counter()
-            self._step()
+            self._timer = ("sweep", id(self))
+            FrameClock.of(self).add(self._timer, self._step)
 
     def stop(self):
         if self._timer is not None:
-            try:
-                self.after_cancel(self._timer)
-            except tk.TclError:
-                pass
+            FrameClock.of(self).remove(self._timer)
             self._timer = None
-        self.coords(self._stripe, 0, 0, 0, self._bar_h)
-
-    def _step(self):
         try:
-            phase = ((time.perf_counter() - self._started) / self.PERIOD) % 1.0
+            self.coords(self._stripe, 0, 0, 0, self._bar_h)
+        except tk.TclError:
+            pass
+
+    def destroy(self):
+        if self._timer is not None:
+            FrameClock.of(self).remove(self._timer)
+            self._timer = None
+        super().destroy()
+
+    def _step(self, now=None):
+        if not self.winfo_exists():
+            self._timer = None
+            return False
+        try:
+            phase = (((now or time.perf_counter()) - self._started) / self.PERIOD) % 1.0
             # Ease in and out so it gathers speed across the middle; the last
             # 15% of each pass it is off the right edge, then re-enters left.
             travel = min(1.0, phase / 0.85)
@@ -479,9 +646,10 @@ class SweepBar(tk.Canvas):
             stripe = self._bar_w * 0.35
             left = -stripe + eased * (self._bar_w + stripe)
             self.coords(self._stripe, max(0, left), 0, min(self._bar_w, left + stripe), self._bar_h)
-            self._timer = self.after(16, self._step)
+            return True
         except tk.TclError:
             self._timer = None
+            return False
 
 
 class FormMessage(tk.Label):
@@ -1435,7 +1603,9 @@ class MemoryPalApp(tk.Tk):
         self._ui_ready = True
         if IS_WINDOWS:
             hwnd = self.window_handle(self)
-            if winfullscreen.watch_big_resizes(hwnd, self.px(160)):
+            if os.environ.get("MEMORYPAL_PROBE_CLASS_STYLES"):
+                winfullscreen.probe_class_styles(hwnd, self.winfo_id(), clear_redraw=os.environ.get("MEMORYPAL_PROBE_CLASS_STYLES") == "clear")
+            if not os.environ.get("MEMORYPAL_PROBE_NO_WATCH") and winfullscreen.watch_big_resizes(hwnd, self.px(160)):
                 winfullscreen.arm_resize_cover(hwnd, True)
                 self._keep_border_cursor(hwnd)
                 # Why the arrow flickered on the edges: when the mouse leaves
@@ -2268,26 +2438,12 @@ class MemoryPalApp(tk.Tk):
         coverage = self.icon_coverage(icon, glyph_px) if fg_rgb and tile_rgb else None
         if coverage is None:
             return None
-        radius = tile_px * 0.3
         offset = (tile_px - glyph_px) // 2
-        samples = (0.125, 0.375, 0.625, 0.875)
-
-        def inside(x, y):
-            # Rounded-square coverage, 4x4 supersampled.
-            hits = 0
-            for sy in samples:
-                for sx in samples:
-                    px_, py_ = x + sx, y + sy
-                    dx = max(radius - px_, 0, px_ - (tile_px - radius))
-                    dy = max(radius - py_, 0, py_ - (tile_px - radius))
-                    if dx * dx + dy * dy <= radius * radius:
-                        hits += 1
-            return hits * 255 // 16
-
+        mask = self.rounded_tile_mask(tile_px)
         pixels = bytearray()
         for y in range(tile_px):
             for x in range(tile_px):
-                alpha = inside(x, y)
+                alpha = mask[y * tile_px + x]
                 gx, gy = x - offset, y - offset
                 ink = coverage[gy * glyph_px + gx] / 255 if 0 <= gx < glyph_px and 0 <= gy < glyph_px else 0
                 pixels.extend(round(t + (f - t) * ink) for t, f in zip(tile_rgb, fg_rgb))
@@ -2295,6 +2451,31 @@ class MemoryPalApp(tk.Tk):
         photo = tk.PhotoImage(master=self, data=base64.b64encode(self.png_rgba(tile_px, tile_px, bytes(pixels))).decode("ascii"), format="png")
         cache[key] = photo
         return photo
+
+    def rounded_tile_mask(self, tile_px):
+        """Coverage (0-255 per pixel) of a rounded square, 4x4 supersampled.
+
+        The same for every icon tile of a size, so worked out once: in Python
+        it was about half of building Today the first time (four tiles)."""
+        masks = self.__dict__.setdefault("_tile_mask_cache", {})
+        if tile_px in masks:
+            return masks[tile_px]
+        radius = tile_px * 0.3
+        samples = (0.125, 0.375, 0.625, 0.875)
+        mask = bytearray()
+        for y in range(tile_px):
+            for x in range(tile_px):
+                hits = 0
+                for sy in samples:
+                    for sx in samples:
+                        px_, py_ = x + sx, y + sy
+                        dx = max(radius - px_, 0, px_ - (tile_px - radius))
+                        dy = max(radius - py_, 0, py_ - (tile_px - radius))
+                        if dx * dx + dy * dy <= radius * radius:
+                            hits += 1
+                mask.append(hits * 255 // 16)
+        masks[tile_px] = bytes(mask)
+        return masks[tile_px]
 
     def hex_to_rgb(self, hex_color):
         raw = str(hex_color).lstrip("#")
@@ -2831,7 +3012,8 @@ class MemoryPalApp(tk.Tk):
                 fill = f"#{red:02x}{green:02x}{blue:02x}"
             except tk.TclError:
                 fill = COLORS["bg"]
-            windowtheme.fill_on_erase(window.winfo_id(), fill)
+            if not os.environ.get("MEMORYPAL_PROBE_NO_ERASE"):
+                windowtheme.fill_on_erase(window.winfo_id(), fill)
         except (tk.TclError, AttributeError):
             pass
 
@@ -4294,54 +4476,27 @@ class MemoryPalApp(tk.Tk):
     LIVE_REFLOW_MIN_GAP_MS = 12
     LIVE_REFLOW_FREE_SHARE = 0.8  # free time after a reflow, as a share of what it cost
 
-    # How the page behaves while an edge is dragged. Which one looks
-    # smoothest depends on the computer (CI can't see the flicker people
-    # see), so Settings > Window offers all three to compare.
+    # How the page behaves while an edge is dragged. Settings > Window used
+    # to offer all three to compare (0.53.5 to 0.53.6). Measured on Windows
+    # CI 2026-11-23 (scroll-probe resize_modes): the window edge updates
+    # about 22 times a second in every mode, even "reveal" where nothing is
+    # laid out during the drag, so the cap is in Tk's own sizing loop and
+    # the choice made no visible difference. "follow" twice ended a drag at
+    # the wrong size; "buffered" never did, so it is now the only behaviour.
+    # MEMORYPAL_RESIZE_MODE still picks one for the render probes.
     #   follow   - reflow as often as it can afford, painting paused for each
     #              reflow (WM_SETREDRAW) and resumed in one go.
     #   buffered - reflow as often as it can afford, painting never paused;
     #              the whole window is double-buffered by Windows instead
     #              (WS_EX_COMPOSITED), so each frame shows up finished.
-    #   reveal   - no reflow while the edge moves (the page stays as it was
-    #              and new space is filled with the page colour); the new
-    #              layout is drawn hidden and shown in one step on letting go.
-    RESIZE_MODES = (("follow", "Page follows the edge"), ("buffered", "Page follows the edge (buffered)"), ("reveal", "Page updates when you let go"))
-    RESIZE_MODE_DEFAULT = "follow"
-
-    def resize_mode_file(self):
-        return Path(app_paths.DATA_DIR) / "resize_mode.txt"
+    #   reveal   - no reflow while the edge moves; the new layout is drawn
+    #              hidden and shown in one step on letting go.
+    RESIZE_MODES = ("follow", "buffered", "reveal")
+    RESIZE_MODE_DEFAULT = "buffered"
 
     def resize_mode(self):
-        cached = getattr(self, "_resize_mode", None)
-        if cached is None:
-            try:
-                cached = self.resize_mode_file().read_text(encoding="utf-8").strip()
-            except OSError:
-                cached = ""
-            if cached not in {key for key, _label in self.RESIZE_MODES}:
-                cached = self.RESIZE_MODE_DEFAULT
-            cached = os.environ.get("MEMORYPAL_RESIZE_MODE", cached)
-            self._resize_mode = cached
-        return cached
-
-    def render_resize_choice(self, parent):
-        labels = dict(self.RESIZE_MODES)
-        keys = {label: key for key, label in self.RESIZE_MODES}
-        ttk.Label(parent, text="While resizing the window", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(14), 0))
-        choice = tk.StringVar(value=labels.get(self.resize_mode(), labels[self.RESIZE_MODE_DEFAULT]))
-
-        def chosen(value):
-            key = keys.get(value, self.RESIZE_MODE_DEFAULT)
-            try:
-                path = self.resize_mode_file()
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(key, encoding="utf-8")
-            except OSError:
-                pass
-            self._resize_mode = key
-            self.toast_message("Saved. Drag a window edge to try it.")
-
-        self.select_button(parent, choice, [label for _key, label in self.RESIZE_MODES], on_change=chosen).pack(fill="x", pady=(self.px(4), 0))
+        mode = os.environ.get("MEMORYPAL_RESIZE_MODE", self.RESIZE_MODE_DEFAULT)
+        return mode if mode in self.RESIZE_MODES else self.RESIZE_MODE_DEFAULT
 
     def _set_composited(self, on):
         if not IS_WINDOWS:
@@ -4454,6 +4609,14 @@ class MemoryPalApp(tk.Tk):
         self.update_idletasks()
         winfullscreen.wait_for_compose(1, display_refresh_hz(self))
         winfullscreen.drop_resize_cover(hwnd)
+
+    # The live tutor's circle: halo and core radius as a share of its canvas,
+    # and how much both swell at full loudness. The swollen halo must stay
+    # inside the canvas (0.39 x 1.22 = 0.476 of the width, under the 0.5
+    # edge); at 0.42 it reached 0.51 and was cut off flat at the sides.
+    ORB_HALO = 0.39
+    ORB_CORE = 0.29
+    ORB_SWELL = 0.22
 
     def nav_hint(self, key):
         return {
@@ -5154,13 +5317,13 @@ class MemoryPalApp(tk.Tk):
         surface colour with a hairline edge (not a black slab in a corner),
         rising a few pixels into place and leaving after a moment."""
         self.toast_var.set(text)
-        for name in ("_toast_after", "_toast_rise"):
-            pending = getattr(self, name, None)
-            if pending is not None:
-                try:
-                    self.after_cancel(pending)
-                except tk.TclError:
-                    pass
+        pending = getattr(self, "_toast_after", None)
+        if pending is not None:
+            try:
+                self.after_cancel(pending)
+            except tk.TclError:
+                pass
+        FrameClock.of(self).remove("toast")
         if self.toast_popup(text):
             return
         room = max(self.px(200), self.winfo_width() - self.px(96))
@@ -5186,19 +5349,28 @@ class MemoryPalApp(tk.Tk):
         canvas.create_text(pad_x - self.px(1), pad_y - self.text_lift(font), text=text, anchor="nw", fill=COLORS["ink"], font=font, width=wrap, justify="left")
         rise = 0 if self.accessibility.get("reduce_motion") else self.px(8)
 
-        def place(step=0, steps=6):
-            offset = round(rise * (1 - step / steps) ** 2)
+        began = time.perf_counter()
+
+        def place(now=None):
             # A theme change rebuilds the window, toast included, while a
             # rise or hide is still queued for the old one.
             if not canvas.winfo_exists():
-                return
+                return False
+            offset = self.toast_rise_offset(rise, began, now)
             canvas.place(relx=0.5, rely=1, anchor="s", y=-margin + offset)
             self.tk.call("raise", canvas._w)
-            if offset:
-                self._toast_rise = self.after(16, lambda: place(step + 1, steps))
+            return bool(offset)
 
-        place()
+        if place():
+            FrameClock.of(self).add("toast", place)
         self._toast_after = self.after(self.pace(2800), lambda: canvas.winfo_exists() and canvas.place_forget())
+
+    TOAST_RISE_S = 0.11
+
+    def toast_rise_offset(self, rise, began, now=None):
+        """How far below its resting place the toast still is (eases out)."""
+        done = min(1.0, ((now or time.perf_counter()) - began) / self.TOAST_RISE_S)
+        return round(rise * (1 - done) ** 2)
 
     def hide_toast_popup(self):
         popup = getattr(self, "_toast_popup", None)
@@ -5254,15 +5426,17 @@ class MemoryPalApp(tk.Tk):
         self.toast.place_forget()
         rise = 0 if self.accessibility.get("reduce_motion") else self.px(8)
 
-        def move(step=0, steps=6):
-            if self._toast_popup is not popup or not popup.winfo_exists():
-                return
-            offset = round(rise * (1 - step / steps) ** 2)
-            popup.wm_geometry(f"+{x}+{bottom - height + offset}")
-            if offset:
-                self._toast_rise = self.after(16, lambda: move(step + 1, steps))
+        began = time.perf_counter()
 
-        move()
+        def move(now=None):
+            if self._toast_popup is not popup or not popup.winfo_exists():
+                return False
+            offset = self.toast_rise_offset(rise, began, now)
+            popup.wm_geometry(f"+{x}+{bottom - height + offset}")
+            return bool(offset)
+
+        if move():
+            FrameClock.of(self).add("toast", move)
         self._toast_after = self.after(self.pace(2800), lambda: self._toast_popup is popup and self.hide_toast_popup())
         return True
 
@@ -5639,6 +5813,17 @@ class MemoryPalApp(tk.Tk):
         entry.selection_range(0, "end")
         top.wait_window()
         return result["value"]
+
+    # One spacing scale for every page (desktop; the phone's theme.ts uses the
+    # same steps): cards are 22 inside, 16 apart in rows and columns, a
+    # panel's title sits 4 above its description, and a section heading sits
+    # 22 below what came before it and 10 above what it introduces.
+    CARD_PAD = 22
+    CARD_GAP = 16
+    TITLE_GAP = 4
+
+    def card_gap(self):
+        return self.px(self.CARD_GAP)
 
     def card(self, parent, style="Card.TFrame", padding=22):
         """A rounded panel: a classic Tk frame with four corner pictures.
@@ -6498,21 +6683,28 @@ class MemoryPalApp(tk.Tk):
             state["target"] += pixels
             state["tau"] = tau
         if state["after"] is None:
-            state["last"] = now - 1 / 60
-            self._box_glide(widget)
+            clock = FrameClock.of(self)
+            state["last"] = now - clock.frame_ms / 1000
+            state["after"] = ("box-glide", str(widget))
+            if self._box_glide(widget, now):
+                clock.add(state["after"], lambda when: self._box_glide(widget, when))
+            else:
+                state["after"] = None
         return "break"
 
-    def _box_glide(self, widget):
+    def _box_glide(self, widget, now=None):
+        """One frame of a text box or list's wheel glide (on the FrameClock)."""
         state = getattr(widget, "_mp_glide", None)
         if state is None:
-            return
-        state["after"] = None
+            return False
         try:
             if not widget.winfo_exists():
-                return
+                state["after"] = None
+                return False
         except tk.TclError:
-            return
-        now = time.perf_counter()
+            state["after"] = None
+            return False
+        now = now or time.perf_counter()
         elapsed = min(50.0, max(1.0, (now - state["last"]) * 1000))
         state["last"] = now
         busy = False
@@ -6531,8 +6723,9 @@ class MemoryPalApp(tk.Tk):
                 busy = not done
         except tk.TclError:
             busy = False
-        if busy:
-            state["after"] = self.after(16, lambda: self._box_glide(widget))
+        if not busy:
+            state["after"] = None
+        return busy
 
     def install_text_selection(self):
         """Let people highlight and copy any text shown in a label.
@@ -7297,7 +7490,7 @@ class MemoryPalApp(tk.Tk):
                 tile.configure(highlightthickness=max(2, self.px(3)) if selected else max(1, self.px(1)),
                                highlightbackground=edge, highlightcolor=edge)
                 row, column = divmod(index, 2)
-                tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
+                tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.card_gap(), 0), pady=(0, self.card_gap()))
                 tk.Frame(tile, bg=colors[key], width=self.px(36), height=self.px(4)).pack(anchor="w", pady=(0, self.px(10)))
                 heading = ("\u2713  " if selected else "") + data["title"]
                 tk.Label(tile, text=heading, bg=COLORS["surface"], fg=colors[key] if selected else COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
@@ -7727,11 +7920,11 @@ class MemoryPalApp(tk.Tk):
         for index, (title, body, _icon) in enumerate(ideas):
             tile = tk.Frame(grid, bg=COLORS["surface"], padx=self.px(22), pady=self.px(18))
             row, column = divmod(index, idea_columns)
-            tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0), pady=(0, self.px(12)))
+            tile.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.card_gap(), 0), pady=(0, self.card_gap()))
             tk.Label(tile, text=title, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13)).pack(anchor="w")
             tk.Label(tile, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(820 if idea_columns == 1 else 430), justify="left").pack(anchor="w", pady=(self.px(4), 0))
 
-        safety = self.card(page.inner, "AltCard.TFrame", 20)
+        safety = self.card(page.inner, "AltCard.TFrame")
         safety.pack(fill="x", padx=(0, 8))
         ttk.Label(safety, text="Care note", style="AltH2.TLabel").pack(anchor="w")
         ttk.Label(safety, text="MemoryPal can support practice and reminders, but it is not a medical device, emergency tool, or replacement for professional care. For urgent safety concerns, use the person's normal care plan or emergency contacts.", style="AltCard.TLabel", wraplength=self.px(900), justify="left").pack(anchor="w", pady=(4, 0))
@@ -7907,7 +8100,7 @@ class MemoryPalApp(tk.Tk):
             per_row = min(per_row, 2 if count >= 4 else 1)
         row = tk.Frame(parent, bg=COLORS["bg"])
         row.pack(fill="x", padx=(0, 8), pady=(0, self.px(16)))
-        gap = self.px(14)
+        gap = self.card_gap()
         cells = []
         for index in range(count):
             r, c = divmod(index, per_row)
@@ -7922,7 +8115,7 @@ class MemoryPalApp(tk.Tk):
     def panel_title(self, panel, title, subtitle=None):
         tk.Label(panel, text=title, bg=panel.cget("bg"), fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
         if subtitle:
-            tk.Label(panel, text=subtitle, bg=panel.cget("bg"), fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(600), justify="left").pack(anchor="w", pady=(self.px(2), 0))
+            tk.Label(panel, text=subtitle, bg=panel.cget("bg"), fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(600), justify="left").pack(anchor="w", pady=(self.px(self.TITLE_GAP), 0))
         tk.Frame(panel, bg=panel.cget("bg"), height=self.px(12)).pack(fill="x")
 
     # ------------------------------------------------------------------
@@ -7931,8 +8124,8 @@ class MemoryPalApp(tk.Tk):
     def view_dashboard(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        path = tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(28), pady=self.px(24))
-        path.pack(fill="x", padx=(0, 8), pady=(0, self.px(16)))
+        path = tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(26), pady=self.px(22))
+        path.pack(fill="x", padx=(0, 8), pady=(0, self.card_gap()))
         self.render_today_path(path)
         self.render_progress_strip(page.inner)
         self.render_study_modes(page.inner)
@@ -8085,7 +8278,7 @@ class MemoryPalApp(tk.Tk):
         message = "Practise today to start one." if streak == 0 else ("Practise today to keep it going." if today == 0 else "Kept alive today.")
         tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}." if best else message, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
 
-        tk.Label(goal_panel, text="Daily goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
+        tk.Label(goal_panel, text="Daily goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
         ring = tk.Frame(goal_panel, bg=COLORS["surface"])
         ring.pack(anchor="w", pady=(self.px(6), 0))
         self.render_goal_ring(ring, today, goal, size=96, color=COLORS["primary"]).pack()
@@ -8098,8 +8291,8 @@ class MemoryPalApp(tk.Tk):
         tk.Label(level_panel, text=f"+{progress.XP_PER_REVIEW} XP for every review.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
 
         total = sum(count for _day, count in week)
-        tk.Label(week_panel, text="This week", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
-        tk.Label(week_panel, text=f"{total} review{'s' if total != 1 else ''} in 7 days", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x")
+        tk.Label(week_panel, text="This week", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
+        tk.Label(week_panel, text=f"{total} review{'s' if total != 1 else ''} in 7 days", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(self.TITLE_GAP), 0))
         chart = self.bar_chart(
             week_panel,
             [count for _day, count in week],
@@ -8146,12 +8339,12 @@ class MemoryPalApp(tk.Tk):
     def render_study_modes(self, parent):
         _subtitle, modes = self.study_modes()
         head = tk.Frame(parent, bg=COLORS["bg"])
-        head.pack(fill="x", padx=(0, 8), pady=(self.px(4), self.px(10)))
+        head.pack(fill="x", padx=(0, 8), pady=(self.px(22) - self.card_gap(), self.px(10)))
         tk.Label(head, text="Study modes", bg=COLORS["bg"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(side="left")
         # Two short lists side by side, like the hub pages, rather than a
         # fourth row of same-size cards under the stat cards.
         columns = self.page_frame(parent)
-        columns.pack(fill="x", padx=(0, 8), pady=(0, self.px(12)))
+        columns.pack(fill="x", padx=(0, 8), pady=(0, self.card_gap()))
         columns.columnconfigure(0, weight=1, uniform="modes")
         columns.columnconfigure(1, weight=1, uniform="modes")
         half = (len(modes) + 1) // 2
@@ -8159,7 +8352,7 @@ class MemoryPalApp(tk.Tk):
             if not chunk:
                 continue
             rows = [(icon, title, body, "", action) for icon, title, body, action, _color in chunk]
-            self.link_list(columns, rows).grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(12), 0))
+            self.link_list(columns, rows).grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else self.card_gap(), 0))
 
     def render_next_badge(self, parent):
         badges = progress.achievements(self.store)
@@ -8430,7 +8623,7 @@ class MemoryPalApp(tk.Tk):
         grid.pack(fill="x", padx=(0, 8))
         for index, (deck, info) in enumerate(summary.items()):
             tile = self.hover_card(tk.Frame(grid, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20)))
-            tile.grid(row=index // 2, column=index % 2, sticky="nsew", padx=(0 if index % 2 == 0 else 12, 0), pady=(0, 12))
+            tile.grid(row=index // 2, column=index % 2, sticky="nsew", padx=(0 if index % 2 == 0 else self.card_gap(), 0), pady=(0, self.card_gap()))
             grid.columnconfigure(index % 2, weight=1, uniform="decks")
             self.icon_badge(tile, "decks", 36, tone=set_tone(deck)).pack(anchor="w", pady=(0, self.px(10)))
             tk.Label(tile, text=deck, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 16)).pack(anchor="w")
@@ -9104,7 +9297,7 @@ class MemoryPalApp(tk.Tk):
         wrapper.columnconfigure(1, weight=2, uniform="capture")
         wrapper.rowconfigure(0, weight=1)
         form = self.card(wrapper)
-        form.grid(row=0, column=0, sticky="nsew", padx=(0, self.px(16)))
+        form.grid(row=0, column=0, sticky="nsew", padx=(0, self.card_gap()))
         side = self.card(wrapper)
         side.grid(row=0, column=1, sticky="nsew")
         surface = COLORS["surface"]
@@ -10514,13 +10707,13 @@ class MemoryPalApp(tk.Tk):
         """AI study notes, readable and scrollable, with read aloud, save and report."""
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        panel = self.card(page.inner, padding=32)
+        panel = self.card(page.inner)
         panel.pack(fill="both", expand=True, padx=(0, self.px(8)))
         surface = COLORS["surface"]
         state = self.ai_notes
         if not state:
             ttk.Label(panel, text="No AI notes yet", style="H2.TLabel").pack(anchor="w")
-            self.fit_wrap(ttk.Label(panel, text="Open a set, choose Make with AI, and press Make notes.", style="CardMuted.TLabel", wraplength=self.px(640)), pady=(self.px(6), self.px(16)))
+            self.fit_wrap(ttk.Label(panel, text="Open a set, choose Make with AI, and press Make notes.", style="CardMuted.TLabel", wraplength=self.px(640)), pady=(self.px(self.TITLE_GAP), self.px(16)))
             ttk.Button(panel, text="Make with AI", style="Primary.TButton", cursor="hand2", command=lambda: self.start_new_set(mode="Make with AI")).pack(anchor="w")
             return
         notes = state["notes"]
@@ -10846,8 +11039,8 @@ class MemoryPalApp(tk.Tk):
             picture = Image.new("RGBA", (big, big), (0, 0, 0, 0))
             pen = ImageDraw.Draw(picture)
             middle = big / 2
-            halo = big * 0.42 * (1 + 0.22 * grow)
-            core = big * 0.30 * (1 + 0.22 * grow)
+            halo = big * self.ORB_HALO * (1 + self.ORB_SWELL * grow)
+            core = big * self.ORB_CORE * (1 + self.ORB_SWELL * grow)
             pen.ellipse((middle - halo, middle - halo, middle + halo, middle + halo), fill=halo_fill)
             pen.ellipse((middle - core, middle - core, middle + core, middle + core), fill=colour)
             picture = picture.resize((size, size), Image.LANCZOS)
@@ -10862,7 +11055,12 @@ class MemoryPalApp(tk.Tk):
             # drawn from cached smooth images, so it stays round and fluid.
             state["who"], state["muted_now"] = who, muted
             target = 0.0 if muted else state["levels"].get(who or "you", 0.0) if who else 0.0
-            state["shown"] = state["shown"] * 0.78 + target * 0.22
+            # Ease towards the loudness by the time passed (the same feel at
+            # 60Hz or 144Hz): about 22% of the way per 60Hz frame.
+            now = time.perf_counter()
+            elapsed = min(0.1, max(0.0, now - state.get("drawn_at", now - 1 / 60)))
+            state["drawn_at"] = now
+            state["shown"] += (target - state["shown"]) * (1 - 0.78 ** (elapsed * 60))
             grow = 0.0 if self.accessibility.get("reduce_motion") else min(1.0, state["shown"])
             colour = COLORS["line"] if muted else COLORS["green"] if who == "you" else COLORS["primary"]
             step = round(grow * orb_steps)
@@ -10878,8 +11076,8 @@ class MemoryPalApp(tk.Tk):
             if picture is None:
                 orb.delete("all")
                 orb_items["orb"] = orb_items["icon"] = None
-                core = size * 0.30 * (1 + 0.22 * step / orb_steps)
-                halo = size * 0.42 * (1 + 0.22 * step / orb_steps)
+                core = size * self.ORB_CORE * (1 + self.ORB_SWELL * step / orb_steps)
+                halo = size * self.ORB_HALO * (1 + self.ORB_SWELL * step / orb_steps)
                 orb.create_oval(middle - halo, middle - halo, middle + halo, middle + halo, fill=halo_fill, outline="")
                 orb.create_oval(middle - core, middle - core, middle + core, middle + core, fill=colour, outline="")
             elif orb_items["orb"] is None:
@@ -10895,13 +11093,16 @@ class MemoryPalApp(tk.Tk):
                     orb.itemconfigure(orb_items["icon"], image=image)
                 orb._memorypal_icon = image
 
-        def animate():
-            # The orb's own frame clock (~60 fps); poll() updates text at 12 fps.
+        def animate(_now=None):
+            # Every screen refresh (FrameClock); poll() updates text at 12 fps.
             if not alive() or state["tutor"] is None or not orb.winfo_exists():
                 state["frame"] = None
-                return
+                return False
             draw(state.get("who", ""), state.get("muted_now", False))
-            state["frame"] = self.after(16, animate)
+            if state.get("frame") is None:
+                state["frame"] = ("tutor-orb", str(orb))
+                FrameClock.of(self).add(state["frame"], animate)
+            return True
 
         def on_level(who, value):
             state["levels"][who] = value  # from the audio thread: a plain float swap
@@ -11010,7 +11211,7 @@ class MemoryPalApp(tk.Tk):
     def view_talkback(self):
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        panel = self.card(page.inner, padding=32)
+        panel = self.card(page.inner)
         panel.pack(fill="both", expand=True, padx=(0, self.px(8)))
         surface = COLORS["surface"]
         queue, practising = self.talkback_queue()
@@ -11652,7 +11853,7 @@ class MemoryPalApp(tk.Tk):
         panel = self.card(page.inner)
         panel.pack(fill="x", padx=(0, 8), pady=(0, 16))
         ttk.Label(panel, text="Association builder", style="H2.TLabel").pack(anchor="w")
-        ttk.Label(panel, text="Ideas, separated by commas or new lines", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(6, 12))
+        ttk.Label(panel, text="Ideas, separated by commas or new lines", style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(self.px(self.TITLE_GAP), 12))
         self.render_resource_strip(page.inner, "Reference cues")
         ideas = self.text_box(panel, 4, 12)
         ideas.insert("1.0", draft.get("ideas", "mitosis, meiosis, chromosomes"))
@@ -13580,7 +13781,7 @@ class MemoryPalApp(tk.Tk):
         grid.columnconfigure(1, weight=1, uniform="settings")
 
         appearance = self.card(grid, "Card.TFrame", 22)
-        appearance.grid(row=0, column=0, sticky="nsew", padx=(0, 16), pady=(0, 16))
+        appearance.grid(row=0, column=0, sticky="nsew", padx=(0, self.card_gap()), pady=(0, self.card_gap()))
         ttk.Label(appearance, text="Appearance", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(appearance, text=f"Current theme: {self.theme.title()}. Navigation stays expanded for a steadier layout.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(
@@ -13591,22 +13792,20 @@ class MemoryPalApp(tk.Tk):
         )
 
         window_card = self.card(grid, "Card.TFrame", 22)
-        window_card.grid(row=0, column=1, sticky="nsew", pady=(0, 16))
+        window_card.grid(row=0, column=1, sticky="nsew", pady=(0, self.card_gap()))
         ttk.Label(window_card, text="Window", style="H2.TLabel").pack(anchor="w")
         keys = "Control-Command-F" if IS_MAC else "F11"
         self.fit_wrap(ttk.Label(window_card, text=f"Full screen hides everything but MemoryPal. {keys} turns it on or off, and Esc leaves it.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(window_card, [("Leave full screen" if self.is_fullscreen else "Full screen", self.toggle_true_fullscreen, "TButton")], "Card.TFrame")
-        if IS_WINDOWS:
-            self.render_resize_choice(window_card)
 
         profile_card = self.card(grid, "Card.TFrame", 22)
-        profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, 16), pady=(0, 16))
+        profile_card.grid(row=1, column=0, sticky="nsew", padx=(0, self.card_gap()), pady=(0, self.card_gap()))
         ttk.Label(profile_card, text="Profiles", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(profile_card, text=f"Active profile: {active_profile_name()}  \u00b7  {profile_count} profile{'s' if profile_count != 1 else ''} on this PC.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(profile_card, [("Manage profiles", self.open_profile_manager, "TButton"), ("Edit daily goal", self.edit_daily_goal, "TButton")])
 
         study_card = self.card(grid, "Card.TFrame", 22)
-        study_card.grid(row=1, column=1, sticky="nsew", pady=(0, 16))
+        study_card.grid(row=1, column=1, sticky="nsew", pady=(0, self.card_gap()))
         ttk.Label(study_card, text="Study defaults", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(study_card, text=f"Daily goal: {self.store.daily_goal} cards. Due now: {due}. Cards stay on this computer unless you sync them with an account or export them.", style="CardMuted.TLabel", wraplength=self.px(500)), pady=(4, 12))
         self.button_row(study_card, [("Start due review", lambda: self.show_view("review"), "TButton")], "Card.TFrame")
@@ -13695,8 +13894,8 @@ class MemoryPalApp(tk.Tk):
     def view_library(self):
         # On a card, like the other pages: on the bare page background the
         # quiet buttons and the filter had no visible edge in the light theme.
-        tools = self.card(self.view_host, "Card.TFrame", 16)
-        tools.pack(fill="x", padx=(0, 8), pady=(0, 12))
+        tools = self.card(self.view_host)
+        tools.pack(fill="x", padx=(0, 8), pady=(0, self.card_gap()))
         if self.deck_filter:
             filter_row = tk.Frame(tools, bg=COLORS["alt"], padx=self.px(14), pady=self.px(8))
             filter_row.pack(fill="x", pady=(0, 10))
