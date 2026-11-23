@@ -86,7 +86,7 @@ export default function Deck() {
         <ListRow icon="list-circle-outline" title="Quick quiz" detail="Mixed questions: pick, match, fill in" onPress={() => router.push(`/quiz?deck=${q}` as Href)} />
         <ListRow icon="add-circle-outline" title="Add cards" onPress={() => router.push(`/add?deck=${q}` as Href)} />
         <ListRow icon="sparkles-outline" title="Make with AI" detail="Notes or questions from notes, a PDF or a photo" onPress={() => router.push(`/ai?deck=${q}` as Href)} />
-        <ListRow icon="extension-puzzle-outline" title="Puzzles with these cards" detail="Pair and sequence recall from this set" onPress={() => router.push(`/puzzle?deck=${q}` as Href)} />
+        <ListRow icon="extension-puzzle-outline" title="Puzzles with these cards" detail="Pairs, words and lists from this set" onPress={() => router.push(`/puzzle?deck=${q}` as Href)} />
         {daysLeft !== null && daysLeft > 0 ? (
           <ListRow icon="calendar-outline" title="Plan for the exam" detail={`A day-by-day plan for the next ${plural(daysLeft, 'day')}`} onPress={() => router.push(`/plan?deck=${q}&days=${daysLeft}` as Href)} />
         ) : null}

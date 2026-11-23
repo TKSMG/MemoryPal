@@ -9,7 +9,8 @@ ai.py talks to the server; this module holds what sits around it in the app:
 - Job: one request on a worker thread that the UI polls with after(), with Cancel;
 - staging: AI questions as set-builder rows, with the picture or PDF page they
   came from attached, and AI notes as a capture;
-- quiz history: the last round's question ids, so the next round avoids them.
+- quiz history: the last round's question ids, so the next round avoids them;
+- puzzle results (levels, bests, days played), kept with the other device-only choices.
 
 Preferences live in MemoryStore.preferences (this device only, not synced).
 """
@@ -19,7 +20,7 @@ import urllib.error
 from datetime import datetime
 from pathlib import Path
 
-from . import ai, cloud
+from . import ai, cloud, puzzles
 from .core import normalize_space, today_iso
 from .models import deck_name
 
@@ -55,6 +56,8 @@ def default_preferences():
         "ai_remaining_day": "",
         "quiz_recent": [],
         "quiz_deck": "",
+        # Memory puzzle levels, bests and days played (puzzles.normalize_results).
+        "puzzles": puzzles.normalize_results(None),
     }
 
 
@@ -74,6 +77,7 @@ def normalize_preferences(raw):
     recent = raw.get("quiz_recent")
     prefs["quiz_recent"] = [str(item)[:120] for item in recent if isinstance(item, (str, int))][-QUIZ_RECENT_MAX:] if isinstance(recent, list) else []
     prefs["quiz_deck"] = str(raw.get("quiz_deck") or "")[:200]
+    prefs["puzzles"] = puzzles.normalize_results(raw.get("puzzles"))
     return prefs
 
 
