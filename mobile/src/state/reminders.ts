@@ -1,7 +1,8 @@
 /**
- * Daily study reminders and the due-cards badge, through the phone's own
+ * Study notifications and the due-cards badge, through the phone's own
  * notifications (expo-notifications). Everything is scheduled on the phone:
- * nothing goes through a server, and no push token is ever made.
+ * nothing goes through a server, and no push token is ever made. What they
+ * say and when comes from features/notifications (the desktop's twin).
  *
  * The module is loaded on first use, like speech recognition, so a build
  * without it (web, an old Expo Go) simply has no reminders.
@@ -9,7 +10,7 @@
 import { Platform } from 'react-native';
 
 import { MemoryStore } from '../core/store';
-import { planReminders } from '../features/reminders';
+import { NotificationSettings, planNotifications, routeFor } from '../features/notifications';
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -40,7 +41,7 @@ export function setUpNotifications() {
     module
       .setNotificationChannelAsync(CHANNEL, {
         name: 'Study reminders',
-        description: 'One reminder a day when cards are due.',
+        description: 'Cards due, your study plan, test countdowns, streaks and a weekly recap. Each can be turned off in MemoryPal’s Settings.',
         importance: module.AndroidImportance.DEFAULT,
       })
       .catch(() => undefined);
@@ -65,11 +66,11 @@ export async function askForNotifications(): Promise<Permission> {
 }
 
 /**
- * Replaces MemoryPal's scheduled reminders with the next week's, and sets
- * the app icon badge to the cards due today. Called when the app goes to
- * the background and when the settings change. Quiet if not allowed.
+ * Replaces MemoryPal's scheduled notifications with the next week's, and
+ * sets the app icon badge to the cards due today. Called when the app goes
+ * to the background and when the settings change. Quiet if not allowed.
  */
-export async function refreshReminders(store: MemoryStore, options: { reminders: boolean; time: string; badge: boolean }) {
+export async function refreshReminders(store: MemoryStore, options: { settings: NotificationSettings; badge: boolean }) {
   const module = notifications();
   if (!module) return;
   try {
@@ -82,17 +83,17 @@ export async function refreshReminders(store: MemoryStore, options: { reminders:
     const permission = await module.getPermissionsAsync();
     if (!permission.granted) return;
     await module.setBadgeCountAsync(options.badge ? store.dueCards().length : 0);
-    if (!options.reminders) return;
-    for (const reminder of planReminders(store, options.time)) {
+    if (!options.settings.enabled) return;
+    for (const planned of planNotifications(store, options.settings)) {
       await module.scheduleNotificationAsync({
         content: {
-          title: reminder.title,
-          body: reminder.body,
-          data: { kind: KIND, url: '/review' },
-          badge: options.badge ? reminder.due : undefined,
+          title: planned.title,
+          body: planned.body,
+          data: { kind: KIND, type: planned.kind, url: routeFor(planned.open) },
+          badge: options.badge && planned.due ? planned.due : undefined,
           sound: false,
         },
-        trigger: { type: module.SchedulableTriggerInputTypes.DATE, date: reminder.at, channelId: CHANNEL },
+        trigger: { type: module.SchedulableTriggerInputTypes.DATE, date: planned.at, channelId: CHANNEL },
       });
     }
   } catch {

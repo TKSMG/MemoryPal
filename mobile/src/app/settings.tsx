@@ -7,7 +7,7 @@ import { legalLinks } from '../cloud/client';
 import { persona } from '../core/personas';
 import { TextSize } from '../core/store';
 import { AI_DAILY_LIMIT } from '../features/aiHelpers';
-import { REMINDER_TIMES, reminderLabel } from '../features/reminders';
+import { BEST_TIME, KIND_LABELS, KINDS, NotificationKind, QUIET_CHOICES, quietLabel, REMINDER_TIMES, timeLabel } from '../features/notifications';
 import { exportBackup, pickBackup } from '../state/backup';
 import { ThemeChoice, usePrefs, useStore, useSync } from '../state/AppState';
 import { askForNotifications } from '../state/reminders';
@@ -117,21 +117,43 @@ export default function Settings() {
         <ToggleRow label="Gentle vibrations" description="A light tap when you answer." value={prefs.haptics} onChange={(value) => setPrefs({ haptics: value })} />
       </Card>
 
-      <SectionTitle>Reminders</SectionTitle>
+      <SectionTitle>Notifications</SectionTitle>
       <Card>
         <ToggleRow
-          label="Daily study reminder"
-          description={prefs.reminders ? `Around ${reminderLabel(prefs.reminder_time)} on days cards are due. Skipped once you’ve studied.` : 'One notification a day when cards are due.'}
+          label="Study notifications"
+          description={prefs.reminders ? 'On. Only about what’s waiting for you, and taken back once you’ve studied.' : 'Reminders about due cards, your plan, tests and streaks.'}
           value={prefs.reminders}
           onChange={turnOnReminders}
         />
         {prefs.reminders ? (
-          <Pills<string>
-            label="Reminder time"
-            value={prefs.reminder_time}
-            onChange={(value) => setPrefs({ reminder_time: value })}
-            options={REMINDER_TIMES.map((time) => ({ value: time, label: reminderLabel(time) }))}
-          />
+          <>
+            <Txt variant="h3">Reminder time</Txt>
+            <Pills<string>
+              label="Reminder time"
+              value={prefs.reminder_time}
+              onChange={(value) => setPrefs({ reminder_time: value })}
+              options={[...REMINDER_TIMES, BEST_TIME].map((time) => ({ value: time, label: timeLabel(time) }))}
+            />
+            {prefs.reminder_time === BEST_TIME ? <Txt variant="small">The hour you usually get the most right, once MemoryPal has seen enough of your practice. Until then, 7:00 PM.</Txt> : null}
+            {KINDS.map((kind: NotificationKind) => (
+              <ToggleRow
+                key={kind}
+                label={KIND_LABELS[kind][0]}
+                description={KIND_LABELS[kind][1]}
+                value={prefs.notify_kinds.includes(kind)}
+                onChange={(value) => setPrefs({ notify_kinds: KINDS.filter((each) => (each === kind ? value : prefs.notify_kinds.includes(each))) })}
+              />
+            ))}
+            <Txt variant="h3">Quiet hours</Txt>
+            <Pills<string>
+              label="Quiet hours"
+              value={prefs.quiet_hours}
+              onChange={(value) => setPrefs({ quiet_hours: value })}
+              options={QUIET_CHOICES.map((quiet) => ({ value: quiet, label: quietLabel(quiet) }))}
+            />
+            <Txt variant="small">Nothing is shown in quiet hours.</Txt>
+            <ToggleRow label="At most one a day" description="Only the most useful notification each day." value={prefs.one_a_day} onChange={(value) => setPrefs({ one_a_day: value })} />
+          </>
         ) : null}
         <ToggleRow label="Due cards on the app icon" description="A small number on MemoryPal’s icon." value={prefs.badge} onChange={(value) => setPrefs({ badge: value })} />
       </Card>

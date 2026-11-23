@@ -78,6 +78,10 @@ def normalize_preferences(raw):
     prefs["quiz_recent"] = [str(item)[:120] for item in recent if isinstance(item, (str, int))][-QUIZ_RECENT_MAX:] if isinstance(recent, list) else []
     prefs["quiz_deck"] = str(raw.get("quiz_deck") or "")[:200]
     prefs["puzzles"] = puzzles.normalize_results(raw.get("puzzles"))
+    if "notifications" in raw:
+        from .notifications import normalize_settings  # here, not at the top: notifications imports the store
+
+        prefs["notifications"] = normalize_settings(raw.get("notifications"))
     return prefs
 
 

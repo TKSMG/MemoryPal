@@ -1,0 +1,1729 @@
+{
+ "made_on": "2026-11-23",
+ "cases": [
+  {
+   "name": "everything on",
+   "store": {
+    "cards": [
+     {
+      "id": "c0",
+      "deck": "Biology",
+      "front": "Question 0",
+      "back": "Answer 0",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-20",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c1",
+      "deck": "Biology",
+      "front": "Question 1",
+      "back": "Answer 1",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 2,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 70,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c2",
+      "deck": "History",
+      "front": "Question 2",
+      "back": "Answer 2",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-25",
+      "interval": 0,
+      "repetitions": 4,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 90,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c3",
+      "deck": "History",
+      "front": "Question 3",
+      "back": "Answer 3",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-28",
+      "interval": 0,
+      "repetitions": 1,
+      "ease": 2.5,
+      "lapses": 2,
+      "last_score": 40,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     }
+    ],
+    "captures": [
+     {
+      "id": "n1",
+      "title": "Chapter 3",
+      "notes": "Cells make energy in mitochondria.\nPlants use light.",
+      "chunks": [],
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "created_at": "2026-11-23 08:08",
+      "deck": "Cells"
+     }
+    ],
+    "decks": [
+     {
+      "id": "History",
+      "exam_date": "2026-11-26",
+      "about": "",
+      "ai_style": "",
+      "ai_examples": ""
+     },
+     {
+      "id": "Biology",
+      "exam_date": "2026-11-30",
+      "about": "",
+      "ai_style": "",
+      "ai_examples": ""
+     }
+    ],
+    "practiced": 0,
+    "activity": {
+     "2026-11-22": 6,
+     "2026-11-21": 4,
+     "2026-11-20": 9,
+     "2026-11-18": 2
+    },
+    "daily_goal": 15,
+    "nav_order": [],
+    "accessibility": {
+     "text_size": "Comfort",
+     "high_contrast": false,
+     "reduce_motion": false,
+     "simple_language": false,
+     "caregiver_mode": false,
+     "read_aloud": false,
+     "more_time": false,
+     "focus_outline": false,
+     "listen_answers": true
+    },
+    "feedback": [],
+    "onboarding": {
+     "done": false,
+     "persona": ""
+    },
+    "study_plan": {},
+    "preferences": {
+     "ai_enabled": true,
+     "ai_consent_at": "",
+     "ai_consent_version": 1,
+     "ai_remaining": null,
+     "ai_remaining_day": "",
+     "quiz_recent": [],
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
+    }
+   },
+   "settings": {
+    "enabled": true,
+    "kinds": [
+     "cards_due",
+     "plan_today",
+     "plan_unfinished",
+     "test_countdown",
+     "streak",
+     "notes_waiting",
+     "weekly_recap"
+    ],
+    "quiet": "off"
+   },
+   "start": "2026-11-23T09:00",
+   "expected": [
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-23T19:00",
+     "title": "History test in 3 days",
+     "body": "1 card still needs work. A short review now helps. Also coming up: Biology.",
+     "open": "deck:History",
+     "due": 1
+    },
+    {
+     "kind": "streak",
+     "at": "2026-11-23T21:00",
+     "title": "Keep your 3-day streak",
+     "body": "A few cards before bed keeps it going.",
+     "open": "review",
+     "due": 2
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-24T19:00",
+     "title": "2 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 2
+    },
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-25T19:00",
+     "title": "History test tomorrow",
+     "body": "1 card still needs work. A short review now helps.",
+     "open": "deck:History",
+     "due": 1
+    },
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-26T07:30",
+     "title": "History test today",
+     "body": "1 card still needs work. A short review now helps.",
+     "open": "deck:History",
+     "due": 1
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-26T19:00",
+     "title": "3 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 3
+    },
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-27T19:00",
+     "title": "Biology test in 3 days",
+     "body": "1 card still needs work. A short review now helps.",
+     "open": "deck:Biology",
+     "due": 1
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-28T19:00",
+     "title": "4 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 4
+    },
+    {
+     "kind": "notes_waiting",
+     "at": "2026-11-28T19:00",
+     "title": "Some notes aren't cards yet",
+     "body": "Turn “Chapter 3” into cards to start remembering it.",
+     "open": "notes",
+     "due": 0
+    },
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-29T19:00",
+     "title": "Biology test tomorrow",
+     "body": "1 card still needs work. A short review now helps.",
+     "open": "deck:Biology",
+     "due": 1
+    }
+   ]
+  },
+  {
+   "name": "quiet evenings, one a day",
+   "store": {
+    "cards": [
+     {
+      "id": "c0",
+      "deck": "Biology",
+      "front": "Question 0",
+      "back": "Answer 0",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-20",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c1",
+      "deck": "Biology",
+      "front": "Question 1",
+      "back": "Answer 1",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 2,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 70,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c2",
+      "deck": "History",
+      "front": "Question 2",
+      "back": "Answer 2",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-25",
+      "interval": 0,
+      "repetitions": 4,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 90,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c3",
+      "deck": "History",
+      "front": "Question 3",
+      "back": "Answer 3",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-28",
+      "interval": 0,
+      "repetitions": 1,
+      "ease": 2.5,
+      "lapses": 2,
+      "last_score": 40,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     }
+    ],
+    "captures": [
+     {
+      "id": "n1",
+      "title": "Chapter 3",
+      "notes": "Cells make energy in mitochondria.\nPlants use light.",
+      "chunks": [],
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "created_at": "2026-11-23 08:08",
+      "deck": "Cells"
+     }
+    ],
+    "decks": [
+     {
+      "id": "History",
+      "exam_date": "2026-11-26",
+      "about": "",
+      "ai_style": "",
+      "ai_examples": ""
+     },
+     {
+      "id": "Biology",
+      "exam_date": "2026-11-30",
+      "about": "",
+      "ai_style": "",
+      "ai_examples": ""
+     }
+    ],
+    "practiced": 0,
+    "activity": {
+     "2026-11-22": 6,
+     "2026-11-21": 4,
+     "2026-11-20": 9,
+     "2026-11-18": 2
+    },
+    "daily_goal": 15,
+    "nav_order": [],
+    "accessibility": {
+     "text_size": "Comfort",
+     "high_contrast": false,
+     "reduce_motion": false,
+     "simple_language": false,
+     "caregiver_mode": false,
+     "read_aloud": false,
+     "more_time": false,
+     "focus_outline": false,
+     "listen_answers": true
+    },
+    "feedback": [],
+    "onboarding": {
+     "done": false,
+     "persona": ""
+    },
+    "study_plan": {},
+    "preferences": {
+     "ai_enabled": true,
+     "ai_consent_at": "",
+     "ai_consent_version": 1,
+     "ai_remaining": null,
+     "ai_remaining_day": "",
+     "quiz_recent": [],
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
+    }
+   },
+   "settings": {
+    "enabled": true,
+    "kinds": [
+     "cards_due",
+     "plan_today",
+     "plan_unfinished",
+     "test_countdown",
+     "streak",
+     "notes_waiting",
+     "weekly_recap"
+    ],
+    "quiet": "21:00-08:00",
+    "one_a_day": true,
+    "time": "08:00"
+   },
+   "start": "2026-11-23T07:00",
+   "expected": [
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-23T08:00",
+     "title": "History test in 3 days",
+     "body": "1 card still needs work. A short review now helps. Also coming up: Biology.",
+     "open": "deck:History",
+     "due": 1
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-24T08:00",
+     "title": "2 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 2
+    },
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-25T08:00",
+     "title": "History test tomorrow",
+     "body": "1 card still needs work. A short review now helps.",
+     "open": "deck:History",
+     "due": 1
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-26T08:00",
+     "title": "3 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 3
+    },
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-27T08:00",
+     "title": "Biology test in 3 days",
+     "body": "1 card still needs work. A short review now helps.",
+     "open": "deck:Biology",
+     "due": 1
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-28T08:00",
+     "title": "4 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 4
+    },
+    {
+     "kind": "test_countdown",
+     "at": "2026-11-29T08:00",
+     "title": "Biology test tomorrow",
+     "body": "1 card still needs work. A short review now helps.",
+     "open": "deck:Biology",
+     "due": 1
+    }
+   ]
+  },
+  {
+   "name": "only cards and streak, evening start",
+   "store": {
+    "cards": [
+     {
+      "id": "c0",
+      "deck": "Biology",
+      "front": "Question 0",
+      "back": "Answer 0",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-20",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c1",
+      "deck": "Biology",
+      "front": "Question 1",
+      "back": "Answer 1",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 2,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 70,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c2",
+      "deck": "History",
+      "front": "Question 2",
+      "back": "Answer 2",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-25",
+      "interval": 0,
+      "repetitions": 4,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 90,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c3",
+      "deck": "History",
+      "front": "Question 3",
+      "back": "Answer 3",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-28",
+      "interval": 0,
+      "repetitions": 1,
+      "ease": 2.5,
+      "lapses": 2,
+      "last_score": 40,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     }
+    ],
+    "captures": [
+     {
+      "id": "n1",
+      "title": "Chapter 3",
+      "notes": "Cells make energy in mitochondria.\nPlants use light.",
+      "chunks": [],
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "created_at": "2026-11-23 08:08",
+      "deck": "Cells"
+     }
+    ],
+    "decks": [
+     {
+      "id": "History",
+      "exam_date": "2026-11-26",
+      "about": "",
+      "ai_style": "",
+      "ai_examples": ""
+     },
+     {
+      "id": "Biology",
+      "exam_date": "2026-11-30",
+      "about": "",
+      "ai_style": "",
+      "ai_examples": ""
+     }
+    ],
+    "practiced": 0,
+    "activity": {
+     "2026-11-22": 6,
+     "2026-11-21": 4,
+     "2026-11-20": 9,
+     "2026-11-18": 2
+    },
+    "daily_goal": 15,
+    "nav_order": [],
+    "accessibility": {
+     "text_size": "Comfort",
+     "high_contrast": false,
+     "reduce_motion": false,
+     "simple_language": false,
+     "caregiver_mode": false,
+     "read_aloud": false,
+     "more_time": false,
+     "focus_outline": false,
+     "listen_answers": true
+    },
+    "feedback": [],
+    "onboarding": {
+     "done": false,
+     "persona": ""
+    },
+    "study_plan": {},
+    "preferences": {
+     "ai_enabled": true,
+     "ai_consent_at": "",
+     "ai_consent_version": 1,
+     "ai_remaining": null,
+     "ai_remaining_day": "",
+     "quiz_recent": [],
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
+    }
+   },
+   "settings": {
+    "enabled": true,
+    "kinds": [
+     "cards_due",
+     "streak"
+    ],
+    "quiet": "off",
+    "time": "21:00"
+   },
+   "start": "2026-11-23T20:00",
+   "expected": [
+    {
+     "kind": "cards_due",
+     "at": "2026-11-23T21:00",
+     "title": "2 cards are ready to review",
+     "body": "A few minutes keeps your 3-day streak going.",
+     "open": "review",
+     "due": 2
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-24T21:00",
+     "title": "2 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 2
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-25T21:00",
+     "title": "3 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 3
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-26T21:00",
+     "title": "3 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 3
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-27T21:00",
+     "title": "3 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 3
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-28T21:00",
+     "title": "4 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 4
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-29T21:00",
+     "title": "4 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 4
+    }
+   ]
+  },
+  {
+   "name": "minute plan, studied today",
+   "store": {
+    "cards": [
+     {
+      "id": "c0",
+      "deck": "Spanish",
+      "front": "Question 0",
+      "back": "Answer 0",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c1",
+      "deck": "Spanish",
+      "front": "Question 1",
+      "back": "Answer 1",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c2",
+      "deck": "Spanish",
+      "front": "Question 2",
+      "back": "Answer 2",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c3",
+      "deck": "Spanish",
+      "front": "Question 3",
+      "back": "Answer 3",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c4",
+      "deck": "Spanish",
+      "front": "Question 4",
+      "back": "Answer 4",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c5",
+      "deck": "Spanish",
+      "front": "Question 5",
+      "back": "Answer 5",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c6",
+      "deck": "Spanish",
+      "front": "Question 6",
+      "back": "Answer 6",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-27",
+      "interval": 0,
+      "repetitions": 3,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 85,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     }
+    ],
+    "captures": [],
+    "decks": [],
+    "practiced": 0,
+    "activity": {
+     "2026-11-23": 3,
+     "2026-11-22": 5
+    },
+    "daily_goal": 15,
+    "nav_order": [],
+    "accessibility": {
+     "text_size": "Comfort",
+     "high_contrast": false,
+     "reduce_motion": false,
+     "simple_language": false,
+     "caregiver_mode": false,
+     "read_aloud": false,
+     "more_time": false,
+     "focus_outline": false,
+     "listen_answers": true
+    },
+    "feedback": [],
+    "onboarding": {
+     "done": false,
+     "persona": ""
+    },
+    "study_plan": {
+     "settings": {
+      "unit": "minutes",
+      "amount": "30",
+      "deck": "All decks",
+      "goal_label": "Long-term retention",
+      "habits": [
+       "games",
+       "breaks"
+      ]
+     },
+     "created": "2026-11-23",
+     "done": {}
+    },
+    "preferences": {
+     "ai_enabled": true,
+     "ai_consent_at": "",
+     "ai_consent_version": 1,
+     "ai_remaining": null,
+     "ai_remaining_day": "",
+     "quiz_recent": [],
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
+    }
+   },
+   "settings": {
+    "enabled": true,
+    "kinds": [
+     "cards_due",
+     "plan_today",
+     "plan_unfinished",
+     "test_countdown",
+     "streak",
+     "notes_waiting",
+     "weekly_recap"
+    ],
+    "quiet": "off"
+   },
+   "start": "2026-11-23T09:00",
+   "expected": [
+    {
+     "kind": "plan_today",
+     "at": "2026-11-23T19:00",
+     "title": "Today's plan: 5 steps, about 30 min",
+     "body": "First: Spaced review.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-23T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-24T19:00",
+     "title": "Today's plan: 5 steps, about 30 min",
+     "body": "First: Spaced review.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-24T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "streak",
+     "at": "2026-11-24T21:00",
+     "title": "Keep your 2-day streak",
+     "body": "A few cards before bed keeps it going.",
+     "open": "review",
+     "due": 6
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-25T19:00",
+     "title": "Today's plan: 5 steps, about 30 min",
+     "body": "First: Spaced review.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-25T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-26T19:00",
+     "title": "Today's plan: 5 steps, about 30 min",
+     "body": "First: Spaced review.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-26T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-27T19:00",
+     "title": "Today's plan: 5 steps, about 30 min",
+     "body": "First: Spaced review.",
+     "open": "plan",
+     "due": 7
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-27T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 7
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-28T19:00",
+     "title": "Today's plan: 5 steps, about 30 min",
+     "body": "First: Spaced review.",
+     "open": "plan",
+     "due": 7
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-28T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 7
+    },
+    {
+     "kind": "weekly_recap",
+     "at": "2026-11-29T18:00",
+     "title": "Your week: 3 reviews on 1 day",
+     "body": "Best day: Monday (3). 7 cards due tomorrow.",
+     "open": "progress",
+     "due": 0
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-29T19:00",
+     "title": "Today's plan: 5 steps, about 30 min",
+     "body": "First: Spaced review.",
+     "open": "plan",
+     "due": 7
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-29T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 7
+    }
+   ]
+  },
+  {
+   "name": "five-day plan under way",
+   "store": {
+    "cards": [
+     {
+      "id": "c0",
+      "deck": "Law",
+      "front": "Question 0",
+      "back": "Answer 0",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c1",
+      "deck": "Law",
+      "front": "Question 1",
+      "back": "Answer 1",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-24",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c2",
+      "deck": "Law",
+      "front": "Question 2",
+      "back": "Answer 2",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-25",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c3",
+      "deck": "Law",
+      "front": "Question 3",
+      "back": "Answer 3",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-26",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c4",
+      "deck": "Law",
+      "front": "Question 4",
+      "back": "Answer 4",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c5",
+      "deck": "Law",
+      "front": "Question 5",
+      "back": "Answer 5",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-24",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c6",
+      "deck": "Law",
+      "front": "Question 6",
+      "back": "Answer 6",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-25",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c7",
+      "deck": "Law",
+      "front": "Question 7",
+      "back": "Answer 7",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-26",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c8",
+      "deck": "Law",
+      "front": "Question 8",
+      "back": "Answer 8",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c9",
+      "deck": "Law",
+      "front": "Question 9",
+      "back": "Answer 9",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-24",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c10",
+      "deck": "Law",
+      "front": "Question 10",
+      "back": "Answer 10",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-25",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "c11",
+      "deck": "Law",
+      "front": "Question 11",
+      "back": "Answer 11",
+      "pathway": "",
+      "association": "",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-26",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     }
+    ],
+    "captures": [],
+    "decks": [],
+    "practiced": 0,
+    "activity": {},
+    "daily_goal": 15,
+    "nav_order": [],
+    "accessibility": {
+     "text_size": "Comfort",
+     "high_contrast": false,
+     "reduce_motion": false,
+     "simple_language": false,
+     "caregiver_mode": false,
+     "read_aloud": false,
+     "more_time": false,
+     "focus_outline": false,
+     "listen_answers": true
+    },
+    "feedback": [],
+    "onboarding": {
+     "done": false,
+     "persona": ""
+    },
+    "study_plan": {
+     "settings": {
+      "unit": "days",
+      "amount": "5",
+      "deck": "Law",
+      "goal_label": "Exam prep",
+      "habits": [
+       "mnemonics",
+       "repetition"
+      ]
+     },
+     "created": "2026-11-23",
+     "done": {
+      "2026-11-23": [
+       0
+      ]
+     },
+     "today": {
+      "date": "2026-11-23",
+      "steps": [
+       {
+        "title": "Spaced review",
+        "share": 0.35,
+        "view": "review",
+        "blurb": "Work through everything due with Smart Check so your intervals stay honest. 3 cards due, about 2 min.",
+        "deck": "Law",
+        "minutes": 8
+       },
+       {
+        "title": "Strengthen weak hooks",
+        "share": 0.2,
+        "view": "tools",
+        "blurb": "Build a fresh association for anything you recently rated Again or Review.",
+        "deck": "Law",
+        "minutes": 5
+       },
+       {
+        "title": "Repetition path",
+        "share": 0.2,
+        "view": "shuffle",
+        "blurb": "Walk the backward-then-forward pattern on your weakest cards until each one comes easily.",
+        "deck": "Law",
+        "minutes": 5
+       },
+       {
+        "title": "Self-check quiz",
+        "share": 0.15,
+        "view": "quiz",
+        "blurb": "Confirm recall without leaning on the saved answer.",
+        "deck": "Law",
+        "quiz_mode": "self",
+        "minutes": 5
+       },
+       {
+        "title": "Learn new cards",
+        "share": 0.15,
+        "view": "focus",
+        "blurb": "Meet up to 4 new cards (12 waiting). Keeping new cards to a steady number stops tomorrow's reviews from piling up.",
+        "deck": "Law",
+        "minutes": 4
+       },
+       {
+        "title": "Wrap up",
+        "share": 0.06,
+        "view": "stats",
+        "blurb": "Look at what you got done and what's due tomorrow. Ending with a quick look back helps the session stick.",
+        "deck": "Law",
+        "minutes": 3
+       }
+      ]
+     }
+    },
+    "preferences": {
+     "ai_enabled": true,
+     "ai_consent_at": "",
+     "ai_consent_version": 1,
+     "ai_remaining": null,
+     "ai_remaining_day": "",
+     "quiz_recent": [],
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
+    }
+   },
+   "settings": {
+    "enabled": true,
+    "kinds": [
+     "cards_due",
+     "plan_today",
+     "plan_unfinished",
+     "test_countdown",
+     "streak",
+     "notes_waiting",
+     "weekly_recap"
+    ],
+    "quiet": "22:00-07:00",
+    "time": "13:00"
+   },
+   "start": "2026-11-23T09:00",
+   "expected": [
+    {
+     "kind": "cards_due",
+     "at": "2026-11-23T13:00",
+     "title": "3 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 3
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-23T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 22 min finishes today's plan.",
+     "open": "plan",
+     "due": 3
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-24T13:00",
+     "title": "Today's plan: 7 steps, about 30 min",
+     "body": "First: Quick warm-up.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-24T20:30",
+     "title": "Your plan has 7 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 6
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-25T13:00",
+     "title": "Today's plan: 7 steps, about 30 min",
+     "body": "First: Quick warm-up.",
+     "open": "plan",
+     "due": 9
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-25T20:30",
+     "title": "Your plan has 7 steps left",
+     "body": "About 30 min finishes today's plan.",
+     "open": "plan",
+     "due": 9
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-26T13:00",
+     "title": "Today's plan: 5 steps, about 45 min",
+     "body": "First: Warm-up: quick multiple choice.",
+     "open": "plan",
+     "due": 12
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-26T20:30",
+     "title": "Your plan has 5 steps left",
+     "body": "About 45 min finishes today's plan.",
+     "open": "plan",
+     "due": 12
+    },
+    {
+     "kind": "plan_today",
+     "at": "2026-11-27T13:00",
+     "title": "Today's plan: 4 steps, about 20 min",
+     "body": "First: Warm-up: quick multiple choice.",
+     "open": "plan",
+     "due": 12
+    },
+    {
+     "kind": "plan_unfinished",
+     "at": "2026-11-27T20:30",
+     "title": "Your plan has 4 steps left",
+     "body": "About 20 min finishes today's plan.",
+     "open": "plan",
+     "due": 12
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-28T13:00",
+     "title": "12 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 12
+    },
+    {
+     "kind": "cards_due",
+     "at": "2026-11-29T13:00",
+     "title": "12 cards are ready to review",
+     "body": "A few minutes now helps them stick.",
+     "open": "review",
+     "due": 12
+    }
+   ]
+  },
+  {
+   "name": "notes and recap only",
+   "store": {
+    "cards": [
+     {
+      "id": "sample-spaced-repetition",
+      "deck": "Memory Techniques",
+      "front": "What is spaced repetition?",
+      "back": "Reviewing information at increasing intervals so recall strengthens over time.",
+      "pathway": "Dashboard > Review > due cards",
+      "association": "The space between reviews grows like stepping stones.",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "sample-retrieval-practice",
+      "deck": "Memory Techniques",
+      "front": "What is retrieval practice?",
+      "back": "Trying to recall the answer before rereading or revealing it.",
+      "pathway": "Quiz > Self Check",
+      "association": "Pull the memory out instead of looking it up first.",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "sample-chunking",
+      "deck": "Memory Techniques",
+      "front": "What is chunking?",
+      "back": "Breaking information into smaller meaningful pieces so each part is easier to practise.",
+      "pathway": "Capture > study bits",
+      "association": "One shelf per idea.",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     },
+     {
+      "id": "sample-media-cues",
+      "deck": "Memory Techniques",
+      "front": "Why use media cues?",
+      "back": "Images, audio, video, and text notes can make a memory more familiar and easier to retrieve.",
+      "pathway": "Capture > attach cues",
+      "association": "A cue gives the memory a handle.",
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "next_review": "2026-11-23",
+      "interval": 0,
+      "repetitions": 0,
+      "ease": 2.5,
+      "lapses": 0,
+      "last_score": 0,
+      "last_result": "New",
+      "created_at": "2026-11-23 08:08",
+      "buried_until": ""
+     }
+    ],
+    "captures": [
+     {
+      "id": "n2",
+      "title": "Week 1 lecture",
+      "notes": "The heart has four chambers.",
+      "chunks": [],
+      "text_file": "",
+      "image": "",
+      "audio": "",
+      "video": "",
+      "created_at": "2026-11-23 08:08",
+      "deck": ""
+     }
+    ],
+    "decks": [],
+    "practiced": 0,
+    "activity": {
+     "2026-11-22": 2,
+     "2026-11-21": 3,
+     "2026-11-20": 4,
+     "2026-11-19": 5,
+     "2026-11-18": 6,
+     "2026-11-17": 7,
+     "2026-11-16": 8,
+     "2026-11-15": 9
+    },
+    "daily_goal": 15,
+    "nav_order": [],
+    "accessibility": {
+     "text_size": "Comfort",
+     "high_contrast": false,
+     "reduce_motion": false,
+     "simple_language": false,
+     "caregiver_mode": false,
+     "read_aloud": false,
+     "more_time": false,
+     "focus_outline": false,
+     "listen_answers": true
+    },
+    "feedback": [],
+    "onboarding": {
+     "done": false,
+     "persona": ""
+    },
+    "study_plan": {},
+    "preferences": {
+     "ai_enabled": true,
+     "ai_consent_at": "",
+     "ai_consent_version": 1,
+     "ai_remaining": null,
+     "ai_remaining_day": "",
+     "quiz_recent": [],
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
+    }
+   },
+   "settings": {
+    "enabled": true,
+    "kinds": [
+     "notes_waiting",
+     "weekly_recap",
+     "streak"
+    ],
+    "quiet": "off"
+   },
+   "start": "2026-11-23T09:00",
+   "expected": [
+    {
+     "kind": "streak",
+     "at": "2026-11-23T21:00",
+     "title": "Keep your 8-day streak",
+     "body": "A few cards before bed keeps it going.",
+     "open": "review",
+     "due": 4
+    },
+    {
+     "kind": "notes_waiting",
+     "at": "2026-11-28T19:00",
+     "title": "Some notes aren't cards yet",
+     "body": "Turn “Week 1 lecture” into cards to start remembering it.",
+     "open": "notes",
+     "due": 0
+    }
+   ]
+  }
+ ]
+}
