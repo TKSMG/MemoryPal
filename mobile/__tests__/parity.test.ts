@@ -4,16 +4,16 @@
  */
 import fixtures from './fixtures/parity.json';
 import { addDays } from '../src/core/dates';
-import { cardFromDict, newCard } from '../src/core/models';
-import { buildMultiDayPlan, buildStudyPlan, PlanStep } from '../src/core/planning';
+import { captureFromDict, cardFromDict, newCard } from '../src/core/models';
+import { buildMultiDayPlan, buildStudyPlan, learnerProfile, planInsights, PlanStep } from '../src/core/planning';
 import { achievements, bestStreak, dueForecast, levelInfo, maturityBreakdown, ratingMix } from '../src/core/progress';
 import { sequenceRatio } from '../src/core/py';
 import { AttemptLimiter, accountAgeCheck, characterClasses, passwordProblems, passwordStrength, predictable, waitMessage } from '../src/core/security';
 import { answerAssessment } from '../src/core/smartCheck';
-import { MemoryStore, normalizeStudyPlan } from '../src/core/store';
+import { Accessibility, MemoryStore, normalizePracticeLog, normalizeStudyPlan, PersonaKey } from '../src/core/store';
 import { Entries, entriesAfter, entriesOf, newestStamp, nextStamp, payloadFromRecords, planSync, recordsFromPayload, Records, Remote, remoteFromFiles } from '../src/core/sync';
 import { defaultStart, itemsFromCards, itemsFromText, repetitionSteps, roundExpected } from '../src/core/repetition';
-import { acronym, chunkMap, hooksFor, linkChain, palace, parseIdeas, pegList, story } from '../src/core/techniques';
+import { acronym, chunkMap, fittingTechniques, hookKind, hooksFor, linkChain, palace, parseIdeas, pegList, pickTechnique, story } from '../src/core/techniques';
 import { answerKind, buildQuiz, cardQuestion, clozeCandidates, isGenericFront, listItems, noteQuestions, questionForBit, QuestionType, QuizCard, Rng } from '../src/core/questions';
 import { parsePromptAnswerLines, splitStudyBits, textTokens } from '../src/core/text';
 import { balanceBits, blankMarked, marked, plain, spans, Style, toggle } from '../src/core/richtext';
@@ -28,13 +28,36 @@ function storeFrom(specs: Spec[]): MemoryStore {
   return store;
 }
 
+const STEP_EXTRAS = ['quiz_mode', 'review_mode', 'technique', 'puzzle_kind', 'capture_id', 'bit'] as const;
 const strip = (step: PlanStep) => ({
   title: step.title,
   view: step.view,
   minutes: step.minutes,
   blurb: step.blurb,
-  ...(step.quiz_mode ? { quiz_mode: step.quiz_mode } : {}),
+  deck: step.deck,
+  ...Object.fromEntries(STEP_EXTRAS.filter((key) => step[key] !== undefined).map((key) => [key, step[key]])),
 });
+
+type Smart = (typeof fixtures.smart_plans)[number];
+
+/** The store a smart-plan scenario was built from (see smart_store in make_fixtures.py). */
+function smartStore(scenario: Smart['scenario']): MemoryStore {
+  const store = storeFrom(fixtures.plan_cards);
+  const hooks = ['', 'One rhymes with sun: imagine Answer stuck to a sun.', 'Put Answer at the front door. Make it oversized or moving.', 'My own picture', 'Acronym ABC: A is for Answer.'];
+  store.cards.forEach((card, index) => {
+    card.association = hooks[index % hooks.length];
+    if (index % 7 === 0) card.association = (card.association ? card.association + '\n' : '') + 'Source: "the nucleus keeps the cell\'s dna safe inside"';
+  });
+  const notes = [
+    { id: 'notes-bio', title: 'Cells', deck: 'Biology', notes: "Answer 0 is the first idea in these notes.\nThe nucleus keeps the cell's DNA safe inside.\nMitochondria turn food into energy the cell can use.\nRibosomes build proteins from the instructions in RNA." },
+    { id: 'notes-loose', title: 'History: dates', deck: '', notes: 'The war ended in 1945 after six long years.\nColumbus sailed the ocean blue in 1492.\nQuestion 4 is covered by a card already.' },
+  ];
+  store.captures = notes.map((note) => captureFromDict({ ...note, chunks: note.notes.split('\n') }));
+  store.onboarding = { done: true, persona: scenario.persona as PersonaKey | '' };
+  store.accessibility = { ...store.accessibility, ...(scenario.accessibility as Partial<Accessibility>) };
+  store.practiceLog = normalizePracticeLog(scenario.log);
+  return store;
+}
 
 describe('parity with the desktop logic', () => {
   test('bold, italics and highlighting read the same', () => {
@@ -106,6 +129,31 @@ describe('parity with the desktop logic', () => {
       for (const [kind, hooks] of Object.entries(item.hooks)) expect(hooksFor(kind, [...item.items, '  two\nlines '])).toEqual(hooks);
     }
     for (const item of fixtures.parse_ideas) expect(parseIdeas(item.raw)).toEqual(item.ideas);
+  });
+
+  test('smart plans (practice log, persona, notes, techniques) match', () => {
+    for (const item of fixtures.smart_plans) {
+      const store = smartStore(item.scenario);
+      const name = item.scenario.name;
+      expect({ name, profile: learnerProfile(store), insights: planInsights(store) }).toEqual({ name, profile: item.profile, insights: item.insights });
+      for (const session of item.sessions) {
+        const params = [name, session.minutes, session.deck, session.goal, session.habits];
+        expect({ params, steps: buildStudyPlan(store, session.minutes, session.deck, session.habits, session.goal).map(strip) }).toEqual({ params, steps: session.steps });
+      }
+      for (const multi of item.multi) {
+        const params = [name, multi.days, multi.goal];
+        const plan = buildMultiDayPlan(store, multi.days, 'All decks', ['mnemonics', 'games'], multi.goal);
+        expect({ params, plan: plan.map((day) => ({ day: day.day, kind: day.kind, due: day.due, minutes: day.minutes, steps: day.steps.map(strip) })) }).toEqual({ params, plan: multi.plan });
+      }
+    }
+  });
+
+  test('techniques are picked and hooks recognised the same', () => {
+    for (const item of fixtures.technique_picks.picks) {
+      const picks = Object.fromEntries(Object.keys(item.picks).map((preferred) => [preferred, [...Array(7).keys()].map((turn) => pickTechnique(item.items, preferred, turn))]));
+      expect({ items: item.items, fits: fittingTechniques(item.items), picks }).toEqual({ items: item.items, fits: item.fits, picks: item.picks });
+    }
+    for (const item of fixtures.technique_picks.hook_kinds) expect({ text: item.text, kind: hookKind(item.text) }).toEqual(item);
   });
 
   test('repetition path rounds and items match', () => {

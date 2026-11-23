@@ -85,7 +85,11 @@ export default function RepetitionPath() {
     const last = round === path.steps.length - 1;
     const check = () => {
       setRevealed(true);
-      if (recall.trim()) setChecked(answerAssessment(recall, expected));
+      if (recall.trim()) {
+        const assessment = answerAssessment(recall, expected);
+        setChecked(assessment);
+        store.logPractice('repetition', assessment.bucket === 'Good' || assessment.bucket === 'Easy', null, undefined, true);
+      }
     };
     const move = (delta: number) => {
       setRound((value) => Math.min(Math.max(value + delta, 0), path.steps.length - 1));

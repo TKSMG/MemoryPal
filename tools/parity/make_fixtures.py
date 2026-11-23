@@ -24,9 +24,11 @@ from difflib import SequenceMatcher  # noqa: E402
 
 from memorypal import progress, repetition, richtext, security, techniques  # noqa: E402
 from memorypal.core import add_days, answer_assessment, parse_prompt_answer_lines, split_study_bits, text_tokens, today_iso  # noqa: E402
-from memorypal.models import Card  # noqa: E402
-from memorypal.planning import build_multi_day_plan, build_study_plan  # noqa: E402
-from memorypal.store import MemoryStore  # noqa: E402
+from datetime import date, timedelta  # noqa: E402
+
+from memorypal.models import Capture, Card  # noqa: E402
+from memorypal.planning import build_multi_day_plan, build_study_plan, learner_profile, plan_insights  # noqa: E402
+from memorypal.store import MemoryStore, default_accessibility, normalize_practice_log  # noqa: E402
 
 OUT = ROOT / "mobile" / "__tests__" / "fixtures" / "parity.json"
 rng = random.Random(70)
@@ -168,11 +170,18 @@ def card_specs():
 def store_from(specs):
     store = MemoryStore()
     store.cards = [Card(id=s["id"], deck=s["deck"], front=s["front"], back=s["back"], repetitions=s["repetitions"], lapses=s["lapses"], last_score=s["last_score"], interval=s["interval"], next_review=add_days(s["due"])) for s in specs]
+    # Start from a blank profile, whatever earlier cases saved to the test data file.
+    store.captures, store.practice_log = [], []
+    store.onboarding = {"done": True, "persona": ""}
+    store.accessibility = default_accessibility()
     return store
 
 
+STEP_EXTRAS = ("quiz_mode", "review_mode", "technique", "puzzle_kind", "capture_id", "bit")
+
+
 def strip_step(step):
-    return {key: step[key] for key in ("title", "view", "minutes", "blurb") if key in step} | ({"quiz_mode": step["quiz_mode"]} if "quiz_mode" in step else {})
+    return {key: step[key] for key in ("title", "view", "minutes", "blurb", "deck") if key in step} | {key: step[key] for key in STEP_EXTRAS if key in step}
 
 
 def plan_cases(specs):
@@ -200,6 +209,77 @@ def plan_cases(specs):
                         {"day": d["day"], "offset": d["day"] - 1, "kind": d["kind"], "due": d["due"], "minutes": d["minutes"], "steps": [strip_step(s) for s in d["steps"]]} for d in plan
                     ]})
     return sessions, multi
+
+
+SMART_NOTES = [
+    {"id": "notes-bio", "title": "Cells", "deck": "Biology", "notes": "Answer 0 is the first idea in these notes.\nThe nucleus keeps the cell's DNA safe inside.\nMitochondria turn food into energy the cell can use.\nRibosomes build proteins from the instructions in RNA."},
+    {"id": "notes-loose", "title": "History: dates", "deck": "", "notes": "The war ended in 1945 after six long years.\nColumbus sailed the ocean blue in 1492.\nQuestion 4 is covered by a card already."},
+]
+HOOKS = ["", "One rhymes with sun: imagine Answer stuck to a sun.", "Put Answer at the front door. Make it oversized or moving.", "My own picture", "Acronym ABC: A is for Answer."]
+
+
+def smart_log(pattern):
+    """A practice log from a compact pattern: (days ago, hour, method, every_nth_wrong, hook, seconds, count)."""
+    entries = []
+    for days_ago, hour, method, wrong_every, hook, seconds, count in pattern:
+        for n in range(count):
+            minute, second = divmod(n * 37, 60)
+            entries.append({"at": f"{(date.today() - timedelta(days=days_ago)).isoformat()}T{hour:02d}:{minute % 60:02d}:{second:02d}", "m": method, "ok": not (wrong_every and n % wrong_every == 0), "sec": seconds, "hook": hook})
+    return entries
+
+
+SMART_SCENARIOS = [
+    {"name": "plain", "persona": "", "accessibility": {}, "log": []},
+    {"name": "more time", "persona": "student", "accessibility": {"more_time": True}, "log": []},
+    {"name": "everyday", "persona": "everyday", "accessibility": {"read_aloud": True}, "log": []},
+    {"name": "caregiver", "persona": "caregiver", "accessibility": {}, "log": smart_log([(1, 10, "review", 3, "", 25, 12)])},
+    {"name": "learned", "persona": "general", "accessibility": {}, "log": smart_log([
+        (0, 9, "review", 0, "palace", 40, 10), (1, 9, "review", 2, "", 50, 12), (2, 20, "review", 1, "", 70, 12),
+        (3, 15, "quiz", 2, "", 30, 9), (4, 21, "quiz_choices", 0, "peg", 20, 8), (5, 8, "talkback", 4, "own", 0, 6), (90, 9, "review", 0, "", 10, 20),
+    ])},
+    {"name": "struggling", "persona": "", "accessibility": {}, "log": smart_log([(0, 23, "review", 2, "story", 300, 14), (2, 3, "tutor", 1, "", 5, 12)])},
+]
+
+
+def smart_store(specs, scenario):
+    store = store_from(specs)
+    for index, card in enumerate(store.cards):
+        card.association = HOOKS[index % len(HOOKS)]
+        if index % 7 == 0:
+            card.association = (card.association + "\n" if card.association else "") + f'Source: "the nucleus keeps the cell\'s dna safe inside"'
+    store.captures = [Capture(id=note["id"], title=note["title"], notes=note["notes"], chunks=note["notes"].split("\n"), deck=note["deck"]) for note in SMART_NOTES]
+    store.onboarding = {"done": True, "persona": scenario["persona"]}
+    store.accessibility.update(scenario["accessibility"])
+    store.practice_log = normalize_practice_log(scenario["log"])
+    return store
+
+
+def smart_cases(specs):
+    out = []
+    for scenario in SMART_SCENARIOS:
+        store = smart_store(specs, scenario)
+        sessions = []
+        for minutes in (10, 20, 30, 60):
+            for deck in ("All decks", "Biology", "New material"):
+                for goal in ("long_term", "exam_prep", "cram"):
+                    for habits in ([], ["mnemonics", "explain", "games"], ["mnemonics", "repetition", "breaks", "quick_mc"]):
+                        steps = build_study_plan(store, minutes, deck, set(habits), goal)
+                        sessions.append({"minutes": minutes, "deck": deck, "goal": goal, "habits": habits, "steps": [strip_step(step) for step in steps]})
+        multi = []
+        for days in (3, 7):
+            for goal in ("long_term", "exam_prep"):
+                plan = build_multi_day_plan(store, days, "All decks", {"mnemonics", "games"}, goal)
+                multi.append({"days": days, "goal": goal, "plan": [{"day": d["day"], "kind": d["kind"], "due": d["due"], "minutes": d["minutes"], "steps": [strip_step(step) for step in d["steps"]]} for d in plan]})
+        out.append({"scenario": scenario, "profile": learner_profile(store), "insights": plan_insights(store), "sessions": sessions, "multi": multi})
+    return out
+
+
+def technique_pick_cases():
+    lists = [["Red", "Orange", "Yellow", "Green", "Blue"], ["1066", "1492", "1776", "1945"], [f"item {n}" for n in range(30)], ["light hits the leaf cells", "water is split into oxygen", "sugar is built from carbon"], ["Mercury", "Venus", "Earth", "Mars"], ["one"], [f"word{n}" for n in range(15)], ["Élan", "Ómicron", "Zeta"]]
+    picks = [{"items": items, "fits": techniques.fitting_techniques(items), "picks": {preferred: [techniques.pick_technique(items, preferred, turn) for turn in range(7)] for preferred in ("", "palace", "acronym", "chain", "story")}} for items in lists]
+    hooks = [techniques.hooks_for(kind, ["apple", "banana", "cherry"]) for kind in techniques.TECHNIQUE_KEYS]
+    texts = [line for group in hooks for line in group] + HOOKS + ["", "Made with AI, check it.", 'Made with AI, check it.\nSource: "x"', "Picture it", "two\nlines"]
+    return {"picks": picks, "hook_kinds": [{"text": text, "kind": techniques.hook_kind(text)} for text in texts]}
 
 
 def technique_cases():
@@ -598,6 +678,8 @@ def main():
         "questions": question_cases(),
         "richtext": richtext_cases(),
         "repetition": repetition_cases(),
+        "smart_plans": smart_cases(specs),
+        "technique_picks": technique_pick_cases(),
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(fixtures, indent=1, ensure_ascii=False), encoding="utf-8")

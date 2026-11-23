@@ -8,7 +8,12 @@ export function openStep(step: PlanStep) {
   const deck = step.deck ? `&deck=${encodeURIComponent(step.deck)}` : '';
   switch (step.view) {
     case 'review':
-      return router.push(`/review?mode=due${deck}` as Href);
+      return router.push(`/review?mode=${step.review_mode === 'gentle' || step.review_mode === 'new' ? step.review_mode : 'due'}${deck}` as Href);
+    case 'talkback':
+      return router.push(`/talkback?${deck.slice(1)}` as Href);
+    case 'notes':
+      if (step.capture_id) return router.push(`/notes/${encodeURIComponent(step.capture_id)}${typeof step.bit === 'number' && step.bit >= 0 ? `?bit=${step.bit}` : ''}` as Href);
+      return router.push('/add?mode=notes');
     case 'shuffle':
       return router.push(`/repetition?source=weak${deck}` as Href);
     case 'focus':
@@ -19,9 +24,11 @@ export function openStep(step: PlanStep) {
     case 'capture':
       return router.push('/add');
     case 'tools':
-      return router.push('/practice');
+      // A named technique opens with the set's cards loaded and that technique chosen.
+      return router.push((step.technique ? `/practice?technique=${encodeURIComponent(step.technique)}${deck}` : '/practice') as Href);
     case 'games':
-      return router.push('/puzzle?kind=sequence');
+      // Pair recall from the step's set, falling back to numbers without one.
+      return router.push(`/puzzle?kind=${encodeURIComponent(step.puzzle_kind || 'sequence')}${deck}` as Href);
     case 'stats':
       return router.push('/progress');
     case 'break':
