@@ -2434,26 +2434,12 @@ class MemoryPalApp(tk.Tk):
         coverage = self.icon_coverage(icon, glyph_px) if fg_rgb and tile_rgb else None
         if coverage is None:
             return None
-        radius = tile_px * 0.3
         offset = (tile_px - glyph_px) // 2
-        samples = (0.125, 0.375, 0.625, 0.875)
-
-        def inside(x, y):
-            # Rounded-square coverage, 4x4 supersampled.
-            hits = 0
-            for sy in samples:
-                for sx in samples:
-                    px_, py_ = x + sx, y + sy
-                    dx = max(radius - px_, 0, px_ - (tile_px - radius))
-                    dy = max(radius - py_, 0, py_ - (tile_px - radius))
-                    if dx * dx + dy * dy <= radius * radius:
-                        hits += 1
-            return hits * 255 // 16
-
+        mask = self.rounded_tile_mask(tile_px)
         pixels = bytearray()
         for y in range(tile_px):
             for x in range(tile_px):
-                alpha = inside(x, y)
+                alpha = mask[y * tile_px + x]
                 gx, gy = x - offset, y - offset
                 ink = coverage[gy * glyph_px + gx] / 255 if 0 <= gx < glyph_px and 0 <= gy < glyph_px else 0
                 pixels.extend(round(t + (f - t) * ink) for t, f in zip(tile_rgb, fg_rgb))
@@ -2461,6 +2447,31 @@ class MemoryPalApp(tk.Tk):
         photo = tk.PhotoImage(master=self, data=base64.b64encode(self.png_rgba(tile_px, tile_px, bytes(pixels))).decode("ascii"), format="png")
         cache[key] = photo
         return photo
+
+    def rounded_tile_mask(self, tile_px):
+        """Coverage (0-255 per pixel) of a rounded square, 4x4 supersampled.
+
+        The same for every icon tile of a size, so worked out once: in Python
+        it was about half of building Today the first time (four tiles)."""
+        masks = self.__dict__.setdefault("_tile_mask_cache", {})
+        if tile_px in masks:
+            return masks[tile_px]
+        radius = tile_px * 0.3
+        samples = (0.125, 0.375, 0.625, 0.875)
+        mask = bytearray()
+        for y in range(tile_px):
+            for x in range(tile_px):
+                hits = 0
+                for sy in samples:
+                    for sx in samples:
+                        px_, py_ = x + sx, y + sy
+                        dx = max(radius - px_, 0, px_ - (tile_px - radius))
+                        dy = max(radius - py_, 0, py_ - (tile_px - radius))
+                        if dx * dx + dy * dy <= radius * radius:
+                            hits += 1
+                mask.append(hits * 255 // 16)
+        masks[tile_px] = bytes(mask)
+        return masks[tile_px]
 
     def hex_to_rgb(self, hex_color):
         raw = str(hex_color).lstrip("#")
