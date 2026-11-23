@@ -9,8 +9,9 @@ export function openStep(step: PlanStep) {
   switch (step.view) {
     case 'review':
       return router.push(`/review?mode=due${deck}` as Href);
-    case 'focus':
     case 'shuffle':
+      return router.push(`/repetition?source=weak${deck}` as Href);
+    case 'focus':
     case 'testing':
       return router.push(`/review?mode=weak${deck}` as Href);
     case 'quiz':

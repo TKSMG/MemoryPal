@@ -96,9 +96,13 @@ Study opens on what is due and one Start button, then lists the other ways throu
 
 Create holds the ways to add cards (New set, Paste notes, Make with AI) and where they are kept (Sets and Library).
 
-Practice holds memory techniques, puzzles and Everyday Memory, with a short note on why each kind of practice works.
+Practice holds memory techniques, the Repetition path, puzzles and Everyday Memory, with a short note on why each kind of practice works.
 
-Until v97 the desktop also had Memory Gym, Focus, Test Lab, Repetition Path and Cue Lab pages. They repeated other pages, so they were folded in: Focus and Test Lab became Review's modes, cues moved into Edit card, and Memory Gym's links were already one click away.
+Until v97 the desktop also had Memory Gym, Focus, Test Lab, Repetition Path and Cue Lab pages. Most repeated other pages, so they were folded in: Focus and Test Lab became Review's modes, cues moved into Edit card, and Memory Gym's links were already one click away. Repetition Path did a job nothing else did, so it came back in v109 on both apps, now drilling a set's cards (or a typed list) instead of items kept only in a page draft.
+
+## Repetition Path
+
+Saying a list back in order, again and again, in runs that grow by one item, is how people learn routes, speeches, sequences and ordered facts. The path starts at one item and walks backward one more item each round for the loop range, then finishes with one run back to item 1: start 5 with range 3 gives 5, 5-4, 5-4-3, then 3-2-1. Each round lists the prompts in the order to recall them; the answers stay hidden until you check or show them.
 
 ## Everyday Memory
 

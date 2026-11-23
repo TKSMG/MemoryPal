@@ -253,7 +253,11 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Start Weak cards and New cards and confirm each shows its own name and count, and ends after its cards (at most 20).
 - Start Quick 10 with nothing due and no weak cards and confirm a fast quiz opens instead.
 - Open Review from the page finder (Ctrl+K) with nothing due and confirm "You're all caught up" with Practise weak cards and Quick quiz.
-- Open a study plan step that drills weak cards (or one saved before v97 that named Focus, Test Lab or Repetition) and confirm weak-card review starts.
+- Open a study plan step that drills weak cards (or one saved before v97 that named Focus or Test Lab) and confirm weak-card review starts.
+- Make a plan with "I like structured repetition drilling", open its Repetition drilling step and confirm the Repetition path opens on the weakest cards (of the plan's set, if it has one).
+- Practice > Repetition path, on desktop and phone: pick a set, leave the start and range empty and confirm the rounds read 5, 5-4, 5-4-3, 5-4-3-2, 5-4-3-2-1 (or start at the last item of a shorter set). Start 5 with range 3 gives 5, 5-4, 5-4-3, 3-2-1.
+- Start the path, type a round's answers one per line and check: the answers show in the round's order with a Smart Check result. Previous and Next round move between rounds; Finish on the last round goes back to the setup. Confirm no card's due date changed.
+- Choose My own list, type a few lines (one as "prompt - answer") and confirm plain lines are prompted as "Item N" and the other keeps its prompt.
 - Type a close answer and use Smart Check.
 - Type the correct answer without repeating the question wording and confirm Smart Check still scores it as correct.
 - Type an incorrect answer for a proper noun such as Paris and confirm the missing-cue text stays readable.
