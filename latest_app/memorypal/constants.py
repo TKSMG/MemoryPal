@@ -1,4 +1,6 @@
 APP_NAME = "MemoryPal"
+# Shown in Settings; bumped with pyproject.toml at each release (test_version checks they match).
+APP_VERSION = "0.53.6"
 APP_AUTHOR = "MemoryPal"
 DEFAULT_PROFILE = "Default"
 

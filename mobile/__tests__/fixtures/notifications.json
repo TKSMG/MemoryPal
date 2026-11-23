@@ -23,7 +23,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -44,7 +44,7 @@
       "lapses": 0,
       "last_score": 70,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -65,7 +65,7 @@
       "lapses": 0,
       "last_score": 90,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -86,7 +86,7 @@
       "lapses": 2,
       "last_score": 40,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      }
     ],
@@ -100,7 +100,7 @@
       "image": "",
       "audio": "",
       "video": "",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "deck": "Cells"
      }
     ],
@@ -153,7 +153,11 @@
      "ai_remaining": null,
      "ai_remaining_day": "",
      "quiz_recent": [],
-     "quiz_deck": ""
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
     }
    },
    "settings": {
@@ -275,7 +279,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -296,7 +300,7 @@
       "lapses": 0,
       "last_score": 70,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -317,7 +321,7 @@
       "lapses": 0,
       "last_score": 90,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -338,7 +342,7 @@
       "lapses": 2,
       "last_score": 40,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      }
     ],
@@ -352,7 +356,7 @@
       "image": "",
       "audio": "",
       "video": "",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "deck": "Cells"
      }
     ],
@@ -405,7 +409,11 @@
      "ai_remaining": null,
      "ai_remaining_day": "",
      "quiz_recent": [],
-     "quiz_deck": ""
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
     }
    },
    "settings": {
@@ -505,7 +513,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -526,7 +534,7 @@
       "lapses": 0,
       "last_score": 70,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -547,7 +555,7 @@
       "lapses": 0,
       "last_score": 90,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -568,7 +576,7 @@
       "lapses": 2,
       "last_score": 40,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      }
     ],
@@ -582,7 +590,7 @@
       "image": "",
       "audio": "",
       "video": "",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "deck": "Cells"
      }
     ],
@@ -635,7 +643,11 @@
      "ai_remaining": null,
      "ai_remaining_day": "",
      "quiz_recent": [],
-     "quiz_deck": ""
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
     }
    },
    "settings": {
@@ -729,7 +741,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -750,7 +762,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -771,7 +783,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -792,7 +804,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -813,7 +825,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -834,7 +846,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -855,7 +867,7 @@
       "lapses": 0,
       "last_score": 85,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      }
     ],
@@ -905,7 +917,11 @@
      "ai_remaining": null,
      "ai_remaining_day": "",
      "quiz_recent": [],
-     "quiz_deck": ""
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
     }
    },
    "settings": {
@@ -1075,7 +1091,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1096,7 +1112,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1117,7 +1133,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1138,7 +1154,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1159,7 +1175,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1180,7 +1196,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1201,7 +1217,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1222,7 +1238,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1243,7 +1259,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1264,7 +1280,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1285,7 +1301,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1306,7 +1322,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      }
     ],
@@ -1411,7 +1427,11 @@
      "ai_remaining": null,
      "ai_remaining_day": "",
      "quiz_recent": [],
-     "quiz_deck": ""
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
     }
    },
    "settings": {
@@ -1550,7 +1570,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1571,7 +1591,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1592,7 +1612,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      },
      {
@@ -1613,7 +1633,7 @@
       "lapses": 0,
       "last_score": 0,
       "last_result": "New",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "buried_until": ""
      }
     ],
@@ -1627,7 +1647,7 @@
       "image": "",
       "audio": "",
       "video": "",
-      "created_at": "2026-11-23 07:31",
+      "created_at": "2026-11-23 08:08",
       "deck": ""
      }
     ],
@@ -1669,7 +1689,11 @@
      "ai_remaining": null,
      "ai_remaining_day": "",
      "quiz_recent": [],
-     "quiz_deck": ""
+     "quiz_deck": "",
+     "puzzles": {
+      "kinds": {},
+      "days": []
+     }
     }
    },
    "settings": {

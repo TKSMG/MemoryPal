@@ -43,7 +43,7 @@ export const MODES: Record<string, Omit<Mode, 'key'>> = {
   cram: { icon: 'timer-outline', title: 'Exam cram', body: 'Weak cards first, aimed at the test.', go: () => router.push('/plan?minutes=45&goal=Cram') },
   notes: { icon: 'document-text-outline', title: 'Add notes', body: "Turn today's notes into cards.", go: () => router.push('/add?mode=notes') },
   gentle: { icon: 'leaf-outline', title: 'Gentle review', body: 'People, routines and places, calmly.', go: () => router.push('/review?mode=gentle') },
-  puzzles: { icon: 'extension-puzzle-outline', title: 'Daily puzzle', body: 'A short, friendly memory game.', go: () => router.push('/puzzle?kind=sequence') },
+  puzzles: { icon: 'extension-puzzle-outline', title: "Today's puzzles", body: 'Three short, friendly memory games.', go: () => router.push('/puzzle?daily=1') },
   listen: { icon: 'volume-high-outline', title: 'Listen and practise', body: 'Each question is read aloud.', go: () => router.push('/review?mode=due&read=1') },
   everyday: { icon: 'people-outline', title: 'Add a memory card', body: 'A person, routine, place or reminder.', go: () => router.push('/add?mode=everyday') },
   progress: { icon: 'stats-chart-outline', title: 'Check progress', body: 'How practice is going this week.', go: () => router.push('/progress') },

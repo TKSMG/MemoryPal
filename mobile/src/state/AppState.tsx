@@ -7,6 +7,7 @@ import { Alert, AppState as RNAppState } from 'react-native';
 
 import { CloudAccount } from '../cloud/account';
 import { CloudError, cloudConfigured, Session } from '../cloud/client';
+import { normalizeResults, PuzzleResults } from '../core/puzzles';
 import { MemoryStore } from '../core/store';
 import { DEFAULT_QUIET, KINDS, normalizeSettings } from '../features/notifications';
 import { keyAdapter } from './storage';
@@ -38,11 +39,13 @@ export interface DevicePrefs {
   one_a_day: boolean;
   /** Cards due today on the app icon. */
   badge: boolean;
+  /** Memory puzzle levels, bests and the days played (this phone only, like the desktop's). */
+  puzzles: PuzzleResults;
 }
 
 const DEFAULT_PREFS: DevicePrefs = {
   theme: 'system', haptics: true, quiz_recent: [], ai_allowed: true, ai_allowed_at: '',
-  reminders: false, reminder_time: '19:00', badge: true,
+  reminders: false, reminder_time: '19:00', badge: true, puzzles: { kinds: {}, days: [] },
   notify_kinds: [...KINDS], quiet_hours: DEFAULT_QUIET, one_a_day: false,
 };
 
@@ -62,6 +65,7 @@ class PrefsStore {
       this.prefs.ai_allowed = this.prefs.ai_allowed === true;
       this.prefs.reminders = this.prefs.reminders === true;
       this.prefs.badge = this.prefs.badge !== false;
+      this.prefs.puzzles = normalizeResults(this.prefs.puzzles);
       this.prefs.reminder_time = typeof this.prefs.reminder_time === 'string' ? this.prefs.reminder_time : '19:00';
       const notify = normalizeSettings({ enabled: true, time: this.prefs.reminder_time, kinds: this.prefs.notify_kinds, quiet: this.prefs.quiet_hours, one_a_day: this.prefs.one_a_day });
       this.prefs.reminder_time = notify.time;

@@ -29,6 +29,7 @@ sys.dont_write_bytecode = True
 from memorypal import paths as app_paths
 from memorypal.constants import (
     APP_NAME,
+    APP_VERSION,
     BASE_DPI,
     BASE_MIN_WINDOW,
     BASE_WINDOW,
@@ -69,7 +70,7 @@ from memorypal import cloud, cloud_config, drive, onboarding, progress, repetiti
 from memorypal import feedback as feedback_report
 from memorypal import iconcache, media
 from memorypal import listen, popup_geometry, scrolling, setbuilder, windowtheme, winfullscreen
-from memorypal import ai, aiflow, liveaudio, livetutor, richtext
+from memorypal import ai, aiflow, liveaudio, livetutor, puzzles, richtext
 from memorypal import desktopnotify, notifications
 from memorypal import questions as quiz_questions
 from memorypal.speech import Speaker
@@ -3358,11 +3359,12 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("ActiveTabBar.TButton", padding=self.text_pad(14, 8, self.font("Segoe UI Semibold", 11)), space=self.px(8), foreground=COLORS["primary"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.map("ActiveTabBar.TButton", foreground=[("active", COLORS["primary"])])
 
+        self.style.configure("Keypad.TButton", anchor="center", padding=self.text_pad(18, 14, self.font("Segoe UI Semibold", 20)), font=self.font("Segoe UI Semibold", 20))
         for name in ("Choice.TButton", "Choice.On.TButton", "Choice.Good.TButton", "Choice.Again.TButton"):
             self.style.configure(name, anchor="w", padding=self.text_pad(18, 13, self.font("Segoe UI", 12)), font=self.font("Segoe UI", 12))
 
         # Keyboard focus is always visible (a ring inside the button).
-        for name in ("Choice.TButton", "Choice.On.TButton", "Choice.Good.TButton", "Choice.Again.TButton", "TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TabBar.TButton", "ActiveTabBar.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton", "Link.TButton", "Hero.TButton", "HeroSoft.TButton"):
+        for name in ("Choice.TButton", "Choice.On.TButton", "Choice.Good.TButton", "Choice.Again.TButton", "TButton", "Keypad.TButton", "Primary.TButton", "Danger.TButton", "Again.TButton", "Review.TButton", "Good.TButton", "Easy.TButton", "Nav.TButton", "ActiveNav.TButton", "TabBar.TButton", "ActiveTabBar.TButton", "TMenubutton", "Select.TMenubutton", "Pill.TButton", "PillOn.TButton", "Link.TButton", "Hero.TButton", "HeroSoft.TButton"):
             self.style.configure(name, focuscolor=self.focus_color(), focusthickness=self.focus_thickness())
         self.install_rounded_controls()
 
@@ -3375,6 +3377,8 @@ class MemoryPalApp(tk.Tk):
         rating = lambda key: (COLORS[key], self.tint(COLORS[key], -12), self.tint(COLORS[key], -22))
         return {
             "TButton": ("TButton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
+            # The puzzles' number pad: big digits, easy to hit.
+            "Keypad.TButton": ("TButton", (soft, alt, self.tint(alt, -14)), COLORS["surface"]),
             "Primary.TButton": ("TButton", (COLORS["primary"], COLORS["primary_dark"], self.tint(COLORS["primary_dark"], -14)), COLORS["surface"]),
             "Danger.TButton": ("TButton", (COLORS["danger"], self.tint(COLORS["danger"], -18), self.tint(COLORS["danger"], -30)), COLORS["surface"]),
             "Again.TButton": ("TButton", rating("again_bg"), COLORS["surface"]),
@@ -5911,7 +5915,10 @@ class MemoryPalApp(tk.Tk):
             label.place(anchor=corner, **place)
             corners.append((corner, label))
         frame._mp_corners = (radius, under, corners)
-        frame.after_idle(lambda: [label.winfo_exists() and label.lift() for _corner, label in corners])
+        # Scheduled on the window, not the frame: Tkinter deletes a destroyed
+        # frame's pending callback but Tk still runs its name at idle, so a
+        # frame rebuilt before then could call whatever reused that name.
+        self.after_idle(lambda: [label.winfo_exists() and label.lift() for _corner, label in corners])
         return frame
 
     def recolor_panel(self, frame, fill):
@@ -6000,7 +6007,7 @@ class MemoryPalApp(tk.Tk):
         frame.bind("<Enter>", lambda _event: paint(hover), add="+")
         frame.bind("<Leave>", leave, add="+")
         # Children are added after this call, so wire them once built.
-        frame.after_idle(lambda: frame.winfo_exists() and wire(frame))
+        self.after_idle(lambda: frame.winfo_exists() and wire(frame))
         return frame
     def button_row(self, parent, buttons, style="Card.TFrame"):
         """Buttons side by side at the width of their labels, lined up from
@@ -11906,403 +11913,627 @@ class MemoryPalApp(tk.Tk):
             "strategy_output": strategy_out.cget("text"),
         })
 
+    # ------------------------------------------------------------------
+    # Puzzles (rules in memorypal/puzzles.py, the same as the phone's)
+    # ------------------------------------------------------------------
+    PUZZLE_ICONS = {
+        "sequence": "keyboard", "words": "library", "pairs": "decks", "missing": "search", "names": "elder",
+        "places": "dashboard", "story": "study", "routine": "plan", "sort": "tools", "search": "search", "nback": "repeat",
+    }
+    PUZZLE_SHOW_TITLES = {
+        "sequence": "Remember these numbers", "words": "Remember these words", "pairs": "Remember which go together",
+        "missing": "Remember this list", "names": "Meet these people", "places": "Remember where you put them",
+        "story": "Read this short story", "routine": "Remember the steps in order",
+    }
+    PUZZLE_AVATAR_TONES = ("#c8553d", "#2a7f62", "#3d5a80", "#9a6fb0", "#b5838d", "#6b8f71")
+
+    def puzzle_everyday(self):
+        return self.store.onboarding.get("persona") in ("everyday", "caregiver") or bool(self.accessibility.get("caregiver_mode"))
+
+    def puzzle_results(self):
+        return puzzles.normalize_results(self.store.preferences.get("puzzles"))
+
+    def save_puzzle_results(self, results):
+        self.store.preferences = aiflow.normalize_preferences(dict(self.store.preferences, puzzles=results))
+        self.store.save()
+
+    def puzzle_material(self, deck):
+        if not deck:
+            return None
+        return puzzles.material_from([(card.front, card.back) for card in self.store.cards if (card.deck or "General") == deck])
+
     def view_games(self):
-        draft = self.view_drafts.get("games", {})
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
-        self.render_resource_strip(page.inner, "Recent notes and audio")
+        self.puzzle_page = page
+        self.puzzle_host = self.page_frame(page.inner)
+        self.puzzle_host.pack(fill="both", expand=True, padx=(0, 8))
+        self.puzzle_game = None
+        self.render_puzzle_hub()
+
+    def clear_puzzle_host(self):
+        host = getattr(self, "puzzle_host", None)
+        if host is None or not host.winfo_exists():
+            return None
+        for child in host.winfo_children():
+            child.destroy()
+        try:
+            self.puzzle_page.canvas.yview_moveto(0)
+        except (AttributeError, tk.TclError):
+            pass
+        return host
+
+    def render_puzzle_hub(self):
+        self.puzzle_game = None
+        self.smooth(self._render_puzzle_hub)()
+
+    def _render_puzzle_hub(self):
+        host = self.clear_puzzle_host()
+        if host is None:
+            return
+        results = self.puzzle_results()
+        today = today_iso()
+        mix = puzzles.todays_puzzles(results, today, self.puzzle_everyday())
+
+        hero = self.card(host)
+        hero.pack(fill="x", pady=(0, self.px(14)))
+        ttk.Label(hero, text="Today's puzzles", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(hero, text="About 5 minutes: " + ", ".join(puzzles.puzzle(kind)["title"] for kind in mix) + ".", style="Card.TLabel", wraplength=self.px(900)).pack(anchor="w", pady=(self.px(6), 0))
+        ttk.Label(hero, text=puzzles.streak_text(results, today), style="CardMuted.TLabel", wraplength=self.px(900)).pack(anchor="w", pady=(self.px(4), self.px(12)))
+        self.button_row(hero, [("Start today's puzzles", lambda: self.start_puzzles(mix, daily=True), "Primary.TButton")])
+
         all_sets = "All my sets"
         set_values = [all_sets] + self.store.decks()
         if getattr(self, "puzzle_deck", None) not in set_values:
             self.puzzle_deck = all_sets
         set_var = tk.StringVar(value=self.puzzle_deck)
-        set_row = self.page_frame(page.inner)
-        set_row.pack(fill="x", padx=(0, 8), pady=(0, self.px(12)))
-        ttk.Label(set_row, text="Use cards from", style="Muted.TLabel").pack(side="left", padx=(0, self.px(8)))
-        self.select_button(set_row, set_var, set_values, on_change=lambda value: setattr(self, "puzzle_deck", value)).pack(side="left")
+        set_row = self.page_frame(host)
+        set_row.pack(fill="x", pady=(0, self.px(10)))
+        ttk.Label(set_row, text="Pairs and word puzzles use", style="Muted.TLabel").pack(side="left", padx=(0, self.px(8)))
 
-        def chosen_set():
-            return None if set_var.get() == all_sets else set_var.get()
+        def change_set(value):
+            self.puzzle_deck = value
+            self.render_puzzle_hub()
 
-        grid = self.page_frame(page.inner)
-        grid.pack(fill="both", expand=True, padx=(0, 8))
-        for column in range(2):
-            grid.columnconfigure(column, weight=1, uniform="puzzles")
+        self.select_button(set_row, set_var, set_values, on_change=change_set).pack(side="left")
+        deck = None if self.puzzle_deck == all_sets else self.puzzle_deck
+        material = self.puzzle_material(deck)
+        rows = []
+        for info in puzzles.PUZZLES:
+            kind = info["kind"]
+            saved = results["kinds"].get(kind)
+            body = f"{info['body']} {puzzles.SKILLS[info['skill']]}."
+            if deck and puzzles.uses_material(kind):
+                body += f" Uses {deck}." if puzzles.enough_for(kind, material) else f" {deck} is too short for this, so it uses everyday words."
+            note = f"Level {saved['level']}" if saved else ""
+            rows.append((self.PUZZLE_ICONS.get(kind, "games"), info["title"], body, note, lambda k=kind: self.start_puzzles([k])))
+        self.hub_heading(host, "All puzzles", top=self.px(6))
+        self.link_list(host, rows).pack(fill="x")
 
-        sequence_card = self.card(grid)
-        sequence_card.grid(row=0, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
-        ttk.Label(sequence_card, text="Sequence recall", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
-        sequence_box = ttk.Label(sequence_card, text="Watch the digits, then type them back.", style="CardMuted.TLabel", wraplength=500)
-        if draft.get("sequence"):
-            self.sequence = draft.get("sequence", "")
-            sequence_box.configure(text=draft.get("sequence_prompt", "Now type it"), style="Card.TLabel")
-        sequence_box.pack(anchor="w", pady=(0, 12))
-        answer = ttk.Entry(sequence_card)
-        answer.insert(0, draft.get("sequence_answer", ""))
-        answer.pack(fill="x", pady=(0, 12))
-
-        def start_sequence():
-            self.sequence = "".join(str(random.randint(1, 9)) for _ in range(random.randint(4, 8)))
-            sequence_box.configure(text=" ".join(self.sequence), style="Stat.TLabel")
-            answer.delete(0, "end")
-            self.after(self.pace(3000), lambda: sequence_box.configure(text="Now type it", style="Card.TLabel") if sequence_box.winfo_exists() else None)
-
-        def check_sequence():
-            typed = re.sub(r"\D", "", answer.get())
-            self.toast_message("Correct." if typed == self.sequence else f"Sequence: {self.sequence}")
-
-        self.button_row(sequence_card, [("Start", start_sequence, "TButton"), ("Check", check_sequence, "TButton")])
-
-        word_card = self.card(grid)
-        word_card.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
-        ttk.Label(word_card, text="Word recall", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
-        word_box = ttk.Label(word_card, text="A few words show for 4 seconds, then type them back.", style="CardMuted.TLabel", wraplength=500)
-        current_words = list(draft.get("current_words", []))
-        if current_words:
-            word_box.configure(text=draft.get("word_prompt", "Say them back"), style="Card.TLabel")
-        word_box.pack(anchor="w", pady=(0, 12))
-        word_answer = ttk.Entry(word_card)
-        word_answer.insert(0, draft.get("word_answer", ""))
-        word_answer.pack(fill="x", pady=(0, 12))
-
-        def word_pool():
-            pool = [word.lower() for bit in self.material_bits(chosen_set()) for word in re.findall(r"[A-Za-z][A-Za-z'-]{2,}", bit)]
-            clean = list(dict.fromkeys(pool))
-            return clean if len(clean) >= 5 else ["river", "lamp", "garden", "silver", "window", "music", "orange"]
-
-        def show_words():
-            nonlocal current_words
-            pool = word_pool()
-            current_words = random.sample(pool, min(6, len(pool)))
-            word_box.configure(text=", ".join(current_words), style="Card.TLabel")
-            word_answer.delete(0, "end")
-            self.after(self.pace(3800), lambda: word_box.configure(text="Say them back") if word_box.winfo_exists() else None)
-
-        def check_words():
-            result = answer_assessment(word_answer.get(), " ".join(current_words))
-            self.toast_message(f"{result['label']} | {result['score']}%")
-
-        self.button_row(word_card, [("Show words", show_words, "TButton"), ("Smart Check", check_words, "TButton")])
-
-        pair_card = self.card(grid)
-        pair_card.grid(row=1, column=0, sticky="nsew", padx=(0, 12), pady=(0, 12))
-        ttk.Label(pair_card, text="Pair recall", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
-        pair_prompt = ttk.Label(pair_card, text="Press New pairs, then answer one at a time.", style="CardMuted.TLabel", wraplength=500)
-        pair_prompt.pack(anchor="w", pady=(0, 12))
-        pair_answer = ttk.Entry(pair_card)
-        pair_answer.insert(0, draft.get("pair_answer", ""))
-        pair_answer.pack(fill="x", pady=(0, 12))
-        pair_status = ttk.Label(pair_card, text="", style="CardMuted.TLabel", wraplength=500)
-        pair_status.pack(anchor="w", pady=(0, 12))
-        pair_state = {"pairs": [dict(item) for item in draft.get("pairs", [])], "index": int(draft.get("pair_index", 0))}
-        if pair_state["pairs"]:
-            pair_state["index"] = min(pair_state["index"], len(pair_state["pairs"]) - 1)
-            pair_prompt.configure(text=draft.get("pair_prompt", pair_state["pairs"][pair_state["index"]]["prompt"]), style="H2.TLabel")
-            pair_status.configure(text=draft.get("pair_status", f"Pair {pair_state['index'] + 1} of {len(pair_state['pairs'])}"))
-
-        def new_pair_set():
-            pairs = [dict(zip(("prompt", "answer"), self.card_prompt(card))) for card in self.store.cards if card.front and card.back and card.back != SELF_CHECK_ANSWER and (not chosen_set() or (card.deck or "General") == chosen_set())]
-            if not pairs:
-                pairs = [
-                    {"prompt": "Where do spaced reviews go?", "answer": "Test Lab"},
-                    {"prompt": "What does Smart Check suggest?", "answer": "A review bucket"},
-                    {"prompt": "What does chunking create?", "answer": "Small study bits"},
-                ]
-            pair_state["pairs"] = random.sample(pairs, min(5, len(pairs)))
-            pair_state["index"] = 0
-            pair_answer.delete(0, "end")
-            pair_prompt.configure(text=pair_state["pairs"][0]["prompt"], style="H2.TLabel")
-            pair_status.configure(text=f"Pair 1 of {len(pair_state['pairs'])}")
-
-        def reveal_pair():
-            if not pair_state["pairs"]:
-                new_pair_set()
-            current = pair_state["pairs"][pair_state["index"]]
-            pair_status.configure(text=f"Answer: {current['answer']}")
-
-        def check_pair():
-            if not pair_state["pairs"]:
-                new_pair_set()
-            current = pair_state["pairs"][pair_state["index"]]
-            result = answer_assessment(pair_answer.get(), current["answer"], current["prompt"])
-            pair_status.configure(text=f"{result['label']} | {result['score']}% | {result['detail']}")
-            pair_state["index"] = (pair_state["index"] + 1) % len(pair_state["pairs"])
-            pair_answer.delete(0, "end")
-            self.after(self.pace(1200), lambda: pair_prompt.configure(text=pair_state["pairs"][pair_state["index"]]["prompt"]) if pair_prompt.winfo_exists() and pair_state["pairs"] else None)
-
-        self.button_row(pair_card, [("New pairs", new_pair_set, "TButton"), ("Show answer", reveal_pair, "TButton"), ("Smart Check", check_pair, "TButton")])
-
-        gap_card = self.card(grid)
-        gap_card.grid(row=1, column=1, sticky="nsew", pady=(0, 12))
-        ttk.Label(gap_card, text="Missing item", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
-        gap_prompt = ttk.Label(gap_card, text="Press New round, then find the missing word.", style="CardMuted.TLabel", wraplength=500)
-        if draft.get("gap_prompt"):
-            gap_prompt.configure(text=draft["gap_prompt"], style="Card.TLabel")
-        gap_prompt.pack(anchor="w", pady=(0, 12))
-        gap_answer = ttk.Entry(gap_card)
-        gap_answer.insert(0, draft.get("gap_answer", ""))
-        gap_answer.pack(fill="x", pady=(0, 12))
-        gap_state = {"answer": draft.get("gap_answer_key", "")}
-
-        def make_gap():
-            pool = word_pool()
-            words = random.sample(pool, min(5, len(pool)))
-            hidden = random.randrange(len(words))
-            gap_state["answer"] = words[hidden]
-            shown = list(words)
-            shown[hidden] = "_____"
-            gap_prompt.configure(text="  -  ".join(shown), style="Card.TLabel")
-            gap_answer.delete(0, "end")
-
-        def check_gap():
-            result = answer_assessment(gap_answer.get(), gap_state["answer"])
-            self.toast_message(f"{result['label']} | Missing: {gap_state['answer']}")
-
-        self.button_row(gap_card, [("New round", make_gap, "TButton"), ("Check", check_gap, "TButton")])
-
-        visual_card = self.card(grid)
-        visual_card.grid(row=2, column=0, sticky="nsew", padx=(0, self.px(12)), pady=(0, self.px(12)))
-        ttk.Label(visual_card, text="Visual search", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
-        visual_status = ttk.Label(visual_card, text=draft.get("visual_status", "Find every copy of one word in a grid."), style="CardMuted.TLabel", wraplength=self.px(500))
-        visual_status.pack(anchor="w", pady=(0, self.px(10)))
-        visual_holder = tk.Frame(visual_card, bg=COLORS["surface"])
-        visual_holder.pack(fill="x", pady=(0, self.px(12)))
-        visual_state = {
-            "target": draft.get("visual_target", ""),
-            "tiles": list(draft.get("visual_tiles", [])),
-            "found": set(draft.get("visual_found", [])),
+    def start_puzzles(self, queue, daily=False):
+        deck = None if daily or getattr(self, "puzzle_deck", "All my sets") == "All my sets" else self.puzzle_deck
+        self.puzzle_game = {
+            "queue": list(queue), "daily": daily, "slot": 0, "round_number": 1, "played": [], "log": [],
+            "later": None, "ending": False, "material": self.puzzle_material(deck), "seed": random.randrange(1, 10 ** 9),
+            "level": puzzles.start_level(self.puzzle_results(), queue[0]), "round": None, "token": 0,
         }
+        self.puzzle_render("intro")
 
-        @self.smooth
-        def render_visual_grid():
-            for child in visual_holder.winfo_children():
-                child.destroy()
-            if not visual_state["tiles"]:
-                return
-            for index, word in enumerate(visual_state["tiles"]):
-                found = index in visual_state["found"]
-                tile = ttk.Button(visual_holder, text=word, style="Good.TButton" if found else "Pill.TButton", cursor="hand2", command=lambda i=index: choose_visual_tile(i))
-                row, column = divmod(index, 4)
-                tile.grid(row=row, column=column, sticky="ew", padx=(0 if column == 0 else self.px(6), 0), pady=(0 if row == 0 else self.px(6), 0))
-                visual_holder.columnconfigure(column, weight=1)
+    def puzzle_seed(self):
+        game = self.puzzle_game
+        game["seed"] = (game["seed"] + 7919) % 2147483647
+        return game["seed"]
 
-        def choose_visual_tile(index):
-            target = visual_state["target"]
-            if not target:
+    def puzzle_rounds_for(self, kind):
+        game = self.puzzle_game
+        if game["daily"]:
+            return 1 if kind == "story" else puzzles.DAILY_ROUNDS
+        return puzzles.ROUNDS
+
+    def puzzle_render(self, phase):
+        game = self.puzzle_game
+        if game is None:
+            return
+        game["phase"] = phase
+        game["token"] += 1
+        self.smooth(lambda: self._puzzle_render(phase))()
+
+    def _puzzle_render(self, phase):
+        game = self.puzzle_game
+        host = self.clear_puzzle_host()
+        if host is None:
+            return
+        kind = game["queue"][game["slot"]]
+        info = puzzles.puzzle(kind)
+        title = "Today's puzzles" if game["daily"] else info["title"]
+        top = self.page_frame(host)
+        top.pack(fill="x", pady=(0, self.px(10)))
+        back = ttk.Button(top, text="Back to puzzles", style="Link.TButton", cursor="hand2", command=self.leave_puzzles)
+        back.pack(side="left")
+        line = title
+        if phase not in ("intro", "done", "later"):
+            line = f"{info['title']} · round {game['round_number']} of {self.puzzle_rounds_for(kind)} · level {game['round']['level']}"
+        elif phase == "intro" and game["daily"]:
+            line = f"Puzzle {game['slot'] + 1} of {len(game['queue'])}"
+        ttk.Label(top, text=line, style="Muted.TLabel").pack(side="right")
+        panel = self.card(host)
+        panel.pack(fill="x")
+        getattr(self, f"puzzle_phase_{phase}")(panel, kind, info)
+
+    def leave_puzzles(self):
+        self.stop_speaking()
+        self.render_puzzle_hub()
+
+    def puzzle_big(self, parent, text, size=30, wrap=900, anchor="center"):
+        label = tk.Label(parent, text=text, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", size), wraplength=self.px(wrap), justify="left" if anchor == "w" else "center")
+        label.pack(anchor=anchor, pady=(self.px(6), self.px(10)))
+        return label
+
+    def puzzle_phase_intro(self, panel, kind, info):
+        game = self.puzzle_game
+        ttk.Label(panel, text=info["title"], style="H2.TLabel").pack(anchor="w")
+        ttk.Label(panel, text=info["body"], style="Card.TLabel", wraplength=self.px(900)).pack(anchor="w", pady=(self.px(6), self.px(10)))
+        tip = tk.Frame(panel, bg=COLORS["alt"], padx=self.px(14), pady=self.px(10), bd=0, highlightthickness=0)
+        self.round_tk_panel(tip)
+        tip.pack(fill="x", pady=(0, self.px(10)))
+        tk.Label(tip, text=f"Tip: {info['tip']}", bg=COLORS["alt"], fg=COLORS["ink"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(860)).pack(fill="x")
+        best = self.puzzle_results()["kinds"].get(kind, {}).get("best", 0)
+        ttk.Label(panel, text=f"Level {game['level']}" + (f" · your best is {best}" if best else ""), style="CardMuted.TLabel").pack(anchor="w", pady=(0, self.px(12)))
+        self.button_row(panel, [("Start", lambda: self.puzzle_new_round(kind, game["level"]), "Primary.TButton")])
+
+    def puzzle_new_round(self, kind, level):
+        game = self.puzzle_game
+        made = puzzles.make_round(kind, level, self.puzzle_seed(), game["material"])
+        if game["daily"] and kind == "story":
+            half = (len(made["questions"]) + 1) // 2
+            game["later"] = {"round": dict(made, questions=made["questions"][half:]), "played": []}
+            made = dict(made, questions=made["questions"][:half])
+        game.update(round=made, helped=False, q_index=0, picks=[], trimmed=None, digits="", chosen=[], order=[], found=[], wrong_taps=0, nback_started=False)
+        self.puzzle_render("show" if puzzles.show_ms(made) > 0 else "answer")
+
+    def puzzle_phase_show(self, panel, kind, info):
+        game = self.puzzle_game
+        made = game["round"]
+        head = ttk.Frame(panel, style="Card.TFrame")
+        head.pack(fill="x")
+        ttk.Label(head, text=self.PUZZLE_SHOW_TITLES.get(kind, "Remember these"), style="H2.TLabel").pack(side="left")
+        spoken = " ".join(made["answer"]) if kind == "sequence" else ". ".join(made["show"])
+        self.speak_button(head, spoken).pack(side="right")
+        if kind == "sequence":
+            self.puzzle_big(panel, made["show"][0], 40)
+        elif kind == "story":
+            self.puzzle_big(panel, made["show"][0], 17, anchor="w")
+        elif kind == "names":
+            for index, (name, detail) in enumerate(made["people"]):
+                row = tk.Frame(panel, bg=COLORS["surface"])
+                row.pack(fill="x", pady=(self.px(6), 0))
+                size = self.px(52)
+                avatar = tk.Canvas(row, width=size, height=size, bg=COLORS["surface"], highlightthickness=0)
+                avatar.create_oval(1, 1, size - 1, size - 1, fill=self.PUZZLE_AVATAR_TONES[index % len(self.PUZZLE_AVATAR_TONES)], outline="")
+                avatar.create_text(size // 2, size // 2, text=name[0], fill="#ffffff", font=self.font("Segoe UI Semibold", 18))
+                avatar.pack(side="left", padx=(0, self.px(14)))
+                words = tk.Frame(row, bg=COLORS["surface"])
+                words.pack(side="left", fill="x")
+                tk.Label(words, text=name, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w").pack(anchor="w")
+                tk.Label(words, text=detail, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 13), anchor="w").pack(anchor="w")
+        else:
+            for item in made["show"]:
+                tk.Label(panel, text=item, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w" if kind in ("routine", "places") else "center", justify="left", wraplength=self.px(900)).pack(anchor="w" if kind in ("routine", "places") else "center", pady=(self.px(4), 0))
+        total = self.pace(puzzles.show_ms(made))
+        bar = ttk.Progressbar(panel, orient="horizontal", mode="determinate", maximum=total, value=total, style="Horizontal.TProgressbar")
+        bar.pack(fill="x", pady=(self.px(16), self.px(4)))
+        left_label = ttk.Label(panel, text="", style="CardMuted.TLabel")
+        left_label.pack(anchor="w", pady=(0, self.px(12)))
+        self.button_row(panel, [("I'm ready", lambda: self.puzzle_render("answer"), "Primary.TButton")])
+        token = game["token"]
+        started = time.monotonic()
+
+        def tick():
+            if self.puzzle_game is not game or game["token"] != token or not bar.winfo_exists():
                 return
-            if visual_state["tiles"][index] == target:
-                visual_state["found"].add(index)
-                total = len([item for item in visual_state["tiles"] if item == target])
-                visual_status.configure(text=f"Target: {target} | Found {len(visual_state['found'])} of {total}")
-                render_visual_grid()
-                if len(visual_state["found"]) == total:
-                    self.toast_message("Visual search complete.")
+            left = max(0, total - int((time.monotonic() - started) * 1000))
+            bar.configure(value=left)
+            left_label.configure(text=f"{math.ceil(left / 1000)} seconds left")
+            if left <= 0:
+                self.puzzle_render("answer")
             else:
-                self.toast_message("Different tile. Keep scanning.")
+                self.after(200, tick)
 
-        def start_visual_search():
-            pool = word_pool()
-            target = random.choice(pool)
-            distractors = [word for word in pool if word != target]
-            if len(distractors) < 10:
-                distractors.extend(["focus", "garden", "music", "window", "silver", "table"])
-            target_count = random.randint(3, 5)
-            tiles = [target] * target_count + random.sample(distractors, min(16 - target_count, len(distractors)))
-            random.shuffle(tiles)
-            visual_state["target"] = target
-            visual_state["tiles"] = tiles
-            visual_state["found"] = set()
-            visual_status.configure(text=f"Target: {target} | Found 0 of {target_count}")
-            render_visual_grid()
+        tick()
 
-        if visual_state["tiles"]:
-            render_visual_grid()
-        self.button_row(visual_card, [("New round", start_visual_search, "TButton")])
+    def puzzle_finish(self, response, later=False):
+        game = self.puzzle_game
+        result = puzzles.score(game["round"], response)
+        game["last"] = result
+        game["last_line"] = puzzles.feedback(result["right"], self.puzzle_seed(), bool(self.accessibility.get("simple_language")))
+        if later:
+            story = game["later"]
+            self.puzzle_save_game("story", story["played"] + [{"level": game["round"]["level"], "right": result["right"]}])
+            game["later"] = None
+            game["ending"] = True
+        else:
+            game["played"].append({"level": game["round"]["level"], "right": result["right"], "helped": game["helped"]})
+        self.puzzle_render("result")
 
-        nback_card = self.card(grid)
-        nback_card.grid(row=2, column=1, sticky="nsew", pady=(0, self.px(12)))
-        ttk.Label(nback_card, text="N-back", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
-        nback_word = ttk.Label(nback_card, text=draft.get("nback_word", "Say whether each word matches the one before it."), style="Stat.TLabel" if draft.get("nback_word") else "CardMuted.TLabel", wraplength=self.px(500))
-        nback_word.pack(anchor="w", pady=(0, self.px(8)))
-        nback_status = ttk.Label(nback_card, text=draft.get("nback_status", ""), style="CardMuted.TLabel", wraplength=self.px(500))
-        nback_status.pack(anchor="w", pady=(0, self.px(12)))
-        nback_state = {
-            "items": list(draft.get("nback_items", [])),
-            "index": int(draft.get("nback_index", 0)),
-            "score": int(draft.get("nback_score", 0)),
-            "total": int(draft.get("nback_total", 0)),
-        }
+    def puzzle_save_game(self, kind, rounds):
+        game = self.puzzle_game
+        before = self.puzzle_results()["kinds"].get(kind, {}).get("best", 0)
+        results = puzzles.record_game(self.puzzle_results(), kind, rounds, today_iso())
+        self.save_puzzle_results(results)
+        best = results["kinds"].get(kind, {}).get("best", 0) > before > 0
+        game["log"].append({"kind": kind, "right": sum(1 for item in rounds if item["right"]), "rounds": len(rounds), "best": best})
 
-        def show_nback_word():
-            if not nback_state["items"]:
-                nback_word.configure(text="Say whether each word matches the one before it.", style="CardMuted.TLabel")
+    def puzzle_go_on(self):
+        game = self.puzzle_game
+        kind = game["queue"][game["slot"]]
+        if game["ending"]:
+            self.puzzle_render("done")
+            return
+        if game["round_number"] < self.puzzle_rounds_for(kind):
+            level = puzzles.next_level(kind, game["round"]["level"], game["last"]["right"], game["helped"])
+            game["round_number"] += 1
+            self.puzzle_new_round(kind, level)
+            return
+        if game["daily"] and kind == "story" and game["later"]:
+            game["later"]["played"] = list(game["played"])
+        else:
+            self.puzzle_save_game(kind, game["played"])
+        self.store.record_practice()
+        if game["slot"] + 1 < len(game["queue"]):
+            game["slot"] += 1
+            game["round_number"] = 1
+            game["played"] = []
+            game["level"] = puzzles.start_level(self.puzzle_results(), game["queue"][game["slot"]])
+            self.puzzle_render("intro")
+            return
+        if game["later"]:
+            game.update(round=game["later"]["round"], helped=False, q_index=0, picks=[], trimmed=None)
+            self.puzzle_render("later")
+            return
+        self.puzzle_render("done")
+
+    def puzzle_phase_result(self, panel, kind, info):
+        game = self.puzzle_game
+        result = game["last"]
+        made = game["round"]
+        good = result["right"]
+        box = tk.Frame(panel, bg=COLORS["good_bg" if good else "review_bg"], padx=self.px(16), pady=self.px(12), bd=0, highlightthickness=0)
+        self.round_tk_panel(box)
+        box.pack(fill="x", pady=(0, self.px(14)))
+        fg = COLORS["good_fg" if good else "review_fg"]
+        bg = COLORS["good_bg" if good else "review_bg"]
+        tk.Label(box, text=game["last_line"], bg=bg, fg=fg, font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
+        if made["kind"] == "sequence":
+            detail = f"It was {' '.join(puzzles.digit_groups(made['answer']))}."
+        elif made["kind"] == "words":
+            detail = f"You remembered {result['correct']} of {result['total']}: {', '.join(made['answer'])}."
+        elif made["kind"] == "routine":
+            detail = f"{result['correct']} of {result['total']} steps in the right place. The order was: {', then '.join(made['answer'])}."
+        elif made["kind"] == "search":
+            detail = f"You found {result['correct']} of {result['total']}."
+        else:
+            detail = f"{result['correct']} of {result['total']} right."
+        tk.Label(box, text=detail, bg=bg, fg=fg, font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(860)).pack(fill="x", pady=(self.px(4), 0))
+        last_one = game["ending"] or (game["round_number"] >= self.puzzle_rounds_for(kind) and game["slot"] + 1 >= len(game["queue"]) and not game["later"])
+        label = "Finish" if last_one else "Next puzzle" if game["round_number"] >= self.puzzle_rounds_for(kind) else "Next round"
+        self.button_row(panel, [(label, self.puzzle_go_on, "Primary.TButton")])
+
+    def puzzle_phase_done(self, panel, kind, info):
+        game = self.puzzle_game
+        ttk.Label(panel, text="All done", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        for line in game["log"]:
+            row = tk.Frame(panel, bg=COLORS["surface"])
+            row.pack(fill="x", pady=(self.px(2), 0))
+            tk.Label(row, text=puzzles.puzzle(line["kind"])["title"], bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(side="left")
+            tk.Label(row, text=f"{line['right']} of {line['rounds']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 13)).pack(side="right")
+        for line in game["log"]:
+            if line["best"]:
+                tk.Label(panel, text=f"New best in {puzzles.puzzle(line['kind'])['title']}!", bg=COLORS["surface"], fg=COLORS["good_fg"], font=self.font("Segoe UI Semibold", 12), anchor="w").pack(fill="x", pady=(self.px(6), 0))
+        ttk.Label(panel, text=puzzles.streak_text(self.puzzle_results(), today_iso()), style="Card.TLabel").pack(anchor="w", pady=(self.px(10), 0))
+        ttk.Label(panel, text=self.plain("The puzzles follow your level, so they stay just challenging enough.", "Come back tomorrow for more."), style="CardMuted.TLabel", wraplength=self.px(900)).pack(anchor="w", pady=(self.px(4), self.px(14)))
+        self.button_row(panel, [("Play again", lambda: self.start_puzzles(game["queue"], game["daily"]), "Primary.TButton"), ("Back to puzzles", self.leave_puzzles, "TButton")])
+
+    def puzzle_phase_later(self, panel, kind, info):
+        self.puzzle_phase_answer(panel, "story", puzzles.puzzle("story"), later=True)
+
+    def puzzle_help_button(self, parent, command, used):
+        button = ttk.Button(parent, text="Help me", command=command, cursor="hand2")
+        if used:
+            button.state(["disabled"])
+        self.add_tooltip(button, "Gives a clue. The level stays the same.")
+        return button
+
+    def puzzle_phase_answer(self, panel, kind, info, later=False):
+        game = self.puzzle_game
+        made = game["round"]
+        if later or made["kind"] in ("pairs", "missing", "names", "places", "story", "sort", "nback"):
+            self.puzzle_answer_choice(panel, made, later)
+        elif made["kind"] == "sequence":
+            self.puzzle_answer_sequence(panel, made)
+        elif made["kind"] == "words":
+            self.puzzle_answer_words(panel, made)
+        elif made["kind"] == "routine":
+            self.puzzle_answer_routine(panel, made)
+        elif made["kind"] == "search":
+            self.puzzle_answer_search(panel, made)
+
+    def puzzle_answer_choice(self, panel, made, later):
+        game = self.puzzle_game
+        if made["kind"] == "nback" and not game["nback_started"]:
+            ttk.Label(panel, text="Remember this word", style="H2.TLabel").pack(anchor="w")
+            self.puzzle_big(panel, made["items"][0], 34)
+            ttk.Label(panel, text="Next, say whether each new word is the same as the one just before it.", style="CardMuted.TLabel", wraplength=self.px(900)).pack(anchor="w", pady=(0, self.px(12)))
+
+            def begin():
+                game["nback_started"] = True
+                self.puzzle_render("answer")
+
+            self.button_row(panel, [("Next word", begin, "Primary.TButton")])
+            return
+        questions = made["questions"]
+        index = game["q_index"]
+        question = questions[index]
+        options = game["trimmed"] or question["options"]
+        if later:
+            ttk.Label(panel, text="Earlier you read a story. Do you still remember it?", style="CardMuted.TLabel", wraplength=self.px(900)).pack(anchor="w", pady=(0, self.px(8)))
+        if made["kind"] == "missing" and made.get("remaining"):
+            ttk.Label(panel, text="Still here", style="CardMuted.TLabel").pack(anchor="w")
+            ttk.Label(panel, text=", ".join(made["remaining"]), style="Card.TLabel", wraplength=self.px(900)).pack(anchor="w", pady=(0, self.px(10)))
+        if made["kind"] in ("nback", "sort"):
+            self.puzzle_big(panel, question["prompt"], 30)
+        prompt = "Same as the word before?" if made["kind"] == "nback" else "Where does it belong?" if made["kind"] == "sort" else question["prompt"]
+        head = ttk.Frame(panel, style="Card.TFrame")
+        head.pack(fill="x", pady=(0, self.px(10)))
+        ttk.Label(head, text=prompt, style="H2.TLabel", wraplength=self.px(760)).pack(side="left")
+        spoken = (f"{question['prompt']}. " if made["kind"] in ("nback", "sort") else "") + f"{prompt} The choices are {', '.join(options)}."
+        self.speak_button(head, spoken, compact=True).pack(side="right")
+        if len(questions) > 1 and made["kind"] != "nback":
+            ttk.Label(panel, text=f"Question {index + 1} of {len(questions)}", style="CardMuted.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+        holder = tk.Frame(panel, bg=COLORS["surface"])
+        holder.pack(fill="x")
+        buttons = {}
+        side_by_side = len(options) == 2
+        for column, option in enumerate(options):
+            button = ttk.Button(holder, text=option, style="Choice.TButton", cursor="hand2")
+            buttons[option] = button
+            if side_by_side:
+                holder.columnconfigure(column, weight=1, uniform="choice")
+                button.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else self.px(10), 0))
+            else:
+                button.pack(fill="x", pady=(0, self.px(8)))
+        token = game["token"]
+
+        def choose(option):
+            if game.get("revealing"):
                 return
-            index = min(nback_state["index"], len(nback_state["items"]) - 1)
-            nback_word.configure(text=nback_state["items"][index], style="Stat.TLabel")
-            nback_status.configure(text=f"Item {index + 1} of {len(nback_state['items'])} | Score {nback_state['score']} / {nback_state['total']}")
+            game["revealing"] = True
+            for name, button in buttons.items():
+                button.configure(style="Choice.Good.TButton" if name == question["answer"] else "Choice.Again.TButton" if name == option else "Choice.TButton", command=lambda: None)
 
-        def start_nback():
-            pool = word_pool()
-            items = []
-            for index in range(10):
-                if index > 0 and random.random() < 0.35:
-                    items.append(items[index - 1])
+            def advance():
+                game["revealing"] = False
+                if self.puzzle_game is not game or game["token"] != token:
+                    return
+                game["picks"] = game["picks"] + [option]
+                game["trimmed"] = None
+                if index + 1 < len(questions):
+                    game["q_index"] = index + 1
+                    self.puzzle_render(game["phase"])
                 else:
-                    items.append(random.choice(pool))
-            nback_state.update({"items": items, "index": 0, "score": 0, "total": 0})
-            show_nback_word()
+                    self.puzzle_finish(game["picks"], later=later)
 
-        def answer_nback(same):
-            if not nback_state["items"]:
-                start_nback()
+            self.after(self.pace(900), advance)
+
+        for option, button in buttons.items():
+            button.configure(command=lambda o=option: choose(o))
+        if len(options) > 2:
+            def helper():
+                game["helped"] = True
+                game["trimmed"] = puzzles.clue(question, self.puzzle_seed())
+                self.puzzle_render(game["phase"])
+
+            row = ttk.Frame(panel, style="Card.TFrame")
+            row.pack(fill="x", pady=(self.px(6), 0))
+            self.puzzle_help_button(row, helper, bool(game["trimmed"])).pack(side="left")
+
+    def puzzle_answer_sequence(self, panel, made):
+        game = self.puzzle_game
+        answer = made["answer"]
+        ttk.Label(panel, text="Tap the numbers in order", style="H2.TLabel").pack(anchor="w")
+        shown = self.puzzle_big(panel, " ".join(puzzles.digit_groups(game["digits"])) or "–", 34)
+        pad = tk.Frame(panel, bg=COLORS["surface"])
+        pad.pack(fill="x", pady=(0, self.px(10)))
+        for column in range(3):
+            pad.columnconfigure(column, weight=1, uniform="keypad")
+
+        def refresh():
+            shown.configure(text=" ".join(puzzles.digit_groups(game["digits"])) or "–")
+
+        def press(key):
+            if key == "back":
+                game["digits"] = game["digits"][:-1]
+            elif key == "ok":
+                if game["digits"]:
+                    self.puzzle_finish(game["digits"])
                 return
-            index = nback_state["index"]
-            if index == 0:
-                nback_state["index"] = 1
-                show_nback_word()
+            elif len(game["digits"]) < len(answer) + 2:
+                game["digits"] += key
+            refresh()
+
+        keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "back", "0", "ok"]
+        for index, key in enumerate(keys):
+            label = "Undo" if key == "back" else "Check" if key == "ok" else key
+            button = ttk.Button(pad, text=label, style="Primary.TButton" if key == "ok" else "Keypad.TButton" if key.isdigit() else "TButton", cursor="hand2", command=lambda k=key: press(k))
+            row, column = divmod(index, 3)
+            button.grid(row=row, column=column, sticky="nsew", padx=(0 if column == 0 else self.px(8), 0), pady=(0 if row == 0 else self.px(8), 0))
+        # The keyboard's own number keys work too.
+        def key_event(event):
+            if self.puzzle_game is not game or game.get("phase") != "answer" or self.current_view != "games" or not pad.winfo_exists():
+                return None
+            if isinstance(event.widget, (tk.Entry, tk.Text, ttk.Entry)):
+                return None
+            if event.char and event.char.isdigit():
+                press(event.char)
+            elif event.keysym == "BackSpace":
+                press("back")
+            elif event.keysym in ("Return", "KP_Enter"):
+                press("ok")
+            return None
+
+        self.bind("<Key>", key_event)
+        pad.bind("<Destroy>", lambda _e: self.unbind("<Key>"), add="+")
+
+        def helper():
+            game["helped"] = True
+            game["digits"] = answer[: max(1, len(answer) // 3)]
+            self.puzzle_render("answer")
+
+        row = ttk.Frame(panel, style="Card.TFrame")
+        row.pack(fill="x")
+        self.puzzle_help_button(row, helper, game["helped"]).pack(side="left")
+
+    def puzzle_answer_words(self, panel, made):
+        game = self.puzzle_game
+        shown = made["answer"]
+        if game.get("typing"):
+            ttk.Label(panel, text="Type the words you remember", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
+            box = self.text_box(panel, 4, 12)
+            box.pack(fill="x", pady=(0, self.px(10)))
+            box.focus_set()
+
+            def stop_typing():
+                game["typing"] = False
+                self.puzzle_render("answer")
+
+            self.button_row(panel, [("Check", lambda: self.puzzle_finish(box.get("1.0", "end")), "Primary.TButton"), ("Tap them instead", stop_typing, "TButton")])
+            return
+        ttk.Label(panel, text="Tap the words you saw", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(panel, text=f"{len(shown)} of these were on the screen.", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(4), self.px(10)))
+        grid = tk.Frame(panel, bg=COLORS["surface"])
+        grid.pack(fill="x", pady=(0, self.px(10)))
+        columns = 3
+        for column in range(columns):
+            grid.columnconfigure(column, weight=1, uniform="words")
+        buttons = {}
+
+        def toggle(option):
+            chosen = game["chosen"]
+            game["chosen"] = [item for item in chosen if item != option] if option in chosen else chosen + [option]
+            buttons[option].configure(style="Choice.On.TButton" if option in game["chosen"] else "Choice.TButton")
+
+        for index, option in enumerate(made["options"]):
+            button = ttk.Button(grid, text=option, style="Choice.On.TButton" if option in game["chosen"] else "Choice.TButton", cursor="hand2", command=lambda o=option: toggle(o))
+            buttons[option] = button
+            row, column = divmod(index, columns)
+            button.grid(row=row, column=column, sticky="ew", padx=(0 if column == 0 else self.px(8), 0), pady=(0 if row == 0 else self.px(8), 0))
+
+        def helper():
+            missing = next((word for word in shown if word not in game["chosen"]), None)
+            game["helped"] = True
+            if missing:
+                toggle(missing)
+            self.puzzle_render("answer")
+
+        def start_typing():
+            game["typing"] = True
+            self.puzzle_render("answer")
+
+        row = ttk.Frame(panel, style="Card.TFrame")
+        row.pack(fill="x")
+        ttk.Button(row, text="Done", style="Primary.TButton", cursor="hand2", command=lambda: self.puzzle_finish(list(game["chosen"]))).pack(side="left", padx=(0, self.px(8)))
+        self.puzzle_help_button(row, helper, game["helped"]).pack(side="left", padx=(0, self.px(8)))
+        ttk.Button(row, text="Type them instead", style="Link.TButton", cursor="hand2", command=start_typing).pack(side="left")
+
+    def puzzle_answer_routine(self, panel, made):
+        game = self.puzzle_game
+        options = made["options"]
+        order = game["order"]
+        ttk.Label(panel, text="Tap the steps in order", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(panel, text=f"Which comes first? {len(order)} of {len(options)} placed.", style="CardMuted.TLabel").pack(anchor="w", pady=(self.px(4), self.px(10)))
+
+        def tap(index):
+            if index in game["order"]:
                 return
-            actual_same = nback_state["items"][index] == nback_state["items"][index - 1]
-            nback_state["total"] += 1
-            if same == actual_same:
-                nback_state["score"] += 1
-                self.toast_message("Correct.")
+            game["order"] = game["order"] + [index]
+            if len(game["order"]) == len(options):
+                self.puzzle_finish([options[i] for i in game["order"]])
             else:
-                self.toast_message("Not this time.")
-            if index >= len(nback_state["items"]) - 1:
-                nback_status.configure(text=f"Round complete | Score {nback_state['score']} / {nback_state['total']}")
+                self.puzzle_render("answer")
+
+        for index, option in enumerate(options):
+            at = order.index(index) if index in order else -1
+            text = f"{at + 1}. {option}" if at >= 0 else option
+            ttk.Button(panel, text=text, style="Choice.On.TButton" if at >= 0 else "Choice.TButton", cursor="hand2", command=lambda i=index: tap(i)).pack(fill="x", pady=(0, self.px(8)))
+
+        def undo():
+            game["order"] = game["order"][:-1]
+            self.puzzle_render("answer")
+
+        def helper():
+            game["helped"] = True
+            want = made["answer"][len(game["order"])]
+            index = next((i for i, option in enumerate(options) if option == want and i not in game["order"]), None)
+            if index is not None:
+                tap(index)
+
+        row = ttk.Frame(panel, style="Card.TFrame")
+        row.pack(fill="x", pady=(self.px(4), 0))
+        undo_button = ttk.Button(row, text="Undo", command=undo, cursor="hand2")
+        if not order:
+            undo_button.state(["disabled"])
+        undo_button.pack(side="left", padx=(0, self.px(8)))
+        self.puzzle_help_button(row, helper, game["helped"]).pack(side="left")
+
+    def puzzle_answer_search(self, panel, made):
+        game = self.puzzle_game
+        total = made["answer"]
+        head = ttk.Frame(panel, style="Card.TFrame")
+        head.pack(fill="x")
+        ttk.Label(head, text=f"Find every “{made['target']}”", style="H2.TLabel").pack(side="left")
+        self.speak_button(head, f"Find every {made['target']}", compact=True).pack(side="right")
+        status = ttk.Label(panel, text="", style="CardMuted.TLabel")
+        status.pack(anchor="w", pady=(self.px(4), self.px(10)))
+        grid = tk.Frame(panel, bg=COLORS["surface"])
+        grid.pack(fill="x", pady=(0, self.px(10)))
+        columns = 4
+        for column in range(columns):
+            grid.columnconfigure(column, weight=1, uniform="tiles")
+        buttons = []
+
+        def show_status():
+            wrong = game["wrong_taps"]
+            status.configure(text=f"Found {len(game['found'])} of {total}" + (f" · {wrong} other word{'s' if wrong != 1 else ''} tapped" if wrong else ""))
+
+        def tap(index):
+            if index in game["found"]:
                 return
-            nback_state["index"] += 1
-            show_nback_word()
-
-        if nback_state["items"]:
-            show_nback_word()
-        self.button_row(
-            nback_card,
-            [
-                ("New round", start_nback, "TButton"),
-                ("Same as last", lambda: answer_nback(True), "TButton"),
-                ("Different", lambda: answer_nback(False), "TButton"),
-            ],
-        )
-
-        sort_card = self.card(grid)
-        sort_card.grid(row=3, column=0, sticky="nsew", padx=(0, self.px(12)), pady=(0, self.px(12)))
-        ttk.Label(sort_card, text="Category sort", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
-        sort_input = self.text_box(sort_card, 4, 11)
-        sort_input.insert("1.0", draft.get("sort_input", "doctor appointment\nfamily photos\nbiology definition\npick up medicine\nbus stop"))
-        sort_input.pack(fill="x", pady=(0, self.px(10)))
-        sort_output = ttk.Label(sort_card, text=draft.get("sort_output", "Build a sorting round, then group the items in your head or on paper."), style="Card.TLabel", wraplength=self.px(500))
-        sort_output.pack(anchor="w", pady=(0, self.px(12)))
-
-        def category_for(item):
-            text = item.lower()
-            groups = [
-                ("People", ("name", "family", "friend", "teacher", "doctor", "grand", "mother", "father")),
-                ("Places", ("home", "room", "school", "class", "store", "bus", "park", "door", "kitchen")),
-                ("Tasks", ("take", "pick", "call", "pay", "bring", "send", "read", "write", "finish")),
-                ("Study", ("definition", "formula", "chapter", "exam", "biology", "history", "math", "science")),
-                ("Time", ("today", "tomorrow", "morning", "night", "date", "appointment", "minute", "hour")),
-            ]
-            for name, words in groups:
-                if any(word in text for word in words):
-                    return name
-            return "Other"
-
-        def build_sort():
-            raw_items = split_study_bits(sort_input.get("1.0", "end"))
-            if not raw_items:
-                raw_items = self.material_bits(chosen_set())[:10]
-            if not raw_items:
-                raw_items = ["family photo", "doctor appointment", "new word", "front door", "take medicine"]
-            items = raw_items[:12]
-            shuffled = list(items)
-            random.shuffle(shuffled)
-            buckets = {}
-            for item in items:
-                buckets.setdefault(category_for(item), []).append(item)
-            lines = ["Sort these:", ", ".join(shuffled), "", "Suggested groups:"]
-            lines.extend(f"{name}: {', '.join(values)}" for name, values in buckets.items())
-            sort_output.configure(text="\n".join(lines))
-
-        def sample_sort():
-            sort_input.delete("1.0", "end")
-            sort_input.insert("1.0", "family photo\nfront door key\nmorning medicine\nmath formula\ndoctor appointment\nchapter summary")
-
-        self.button_row(sort_card, [("Sort", build_sort, "TButton"), ("Use sample", sample_sort, "TButton")])
-
-        routine_card = self.card(grid)
-        routine_card.grid(row=3, column=1, sticky="nsew", pady=(0, self.px(12)))
-        ttk.Label(routine_card, text="Routine recall", style="H2.TLabel").pack(anchor="w", pady=(0, self.px(8)))
-        routine_prompt = ttk.Label(routine_card, text=draft.get("routine_prompt", "A short routine shows, then type the steps back in order."), style="Card.TLabel", wraplength=self.px(500))
-        routine_prompt.pack(anchor="w", pady=(0, self.px(10)))
-        routine_answer = self.text_box(routine_card, 4, 11)
-        routine_answer.insert("1.0", draft.get("routine_answer", ""))
-        routine_answer.pack(fill="x", pady=(0, self.px(10)))
-        routine_status = ttk.Label(routine_card, text=draft.get("routine_status", ""), style="CardMuted.TLabel", wraplength=self.px(500))
-        routine_status.pack(anchor="w", pady=(0, self.px(12)))
-        routine_state = {"steps": list(draft.get("routine_steps", []))}
-
-        def routine_pool():
-            bits = [bit for bit in self.material_bits(chosen_set()) if len(bit.split()) <= 12]
-            if len(bits) >= 3:
-                return bits[:8]
-            return [
-                "Check today's date",
-                "Take the morning medicine",
-                "Put keys by the front door",
-                "Call a family member",
-                "Drink a glass of water",
-            ]
-
-        def show_routine():
-            steps = routine_pool()
-            routine_state["steps"] = random.sample(steps, min(4, len(steps)))
-            routine_answer.delete("1.0", "end")
-            routine_status.configure(text="Read the routine, then recall it after it hides.")
-            routine_prompt.configure(text="\n".join(f"{index + 1}. {step}" for index, step in enumerate(routine_state["steps"])))
-            self.after(self.pace(4200), lambda: routine_prompt.configure(text="Now type the steps in order.") if routine_prompt.winfo_exists() else None)
-
-        def check_routine():
-            expected = "\n".join(routine_state["steps"])
-            if not expected:
-                show_routine()
+            if made["tiles"][index] != made["target"]:
+                game["wrong_taps"] += 1
+                show_status()
                 return
-            result = answer_assessment(routine_answer.get("1.0", "end"), expected)
-            routine_status.configure(text=f"{result['label']} | {result['score']}% | {result['detail']}")
+            game["found"] = game["found"] + [index]
+            buttons[index].configure(style="Choice.Good.TButton")
+            show_status()
+            if len(game["found"]) >= total:
+                self.after(400, lambda: self.puzzle_game is game and self.puzzle_finish({"found": len(game["found"]), "wrong": game["wrong_taps"]}))
 
-        self.button_row(routine_card, [("Show routine", show_routine, "TButton"), ("Check", check_routine, "TButton")])
-        self.register_draft_saver("games", lambda: {
-            "sequence": self.sequence,
-            "sequence_prompt": sequence_box.cget("text"),
-            "sequence_answer": answer.get(),
-            "current_words": list(current_words),
-            "word_prompt": word_box.cget("text"),
-            "word_answer": word_answer.get(),
-            "pairs": [dict(item) for item in pair_state["pairs"]],
-            "pair_index": pair_state["index"],
-            "pair_prompt": pair_prompt.cget("text"),
-            "pair_status": pair_status.cget("text"),
-            "pair_answer": pair_answer.get(),
-            "gap_prompt": gap_prompt.cget("text"),
-            "gap_answer": gap_answer.get(),
-            "gap_answer_key": gap_state["answer"],
-            "visual_status": visual_status.cget("text"),
-            "visual_target": visual_state["target"],
-            "visual_tiles": list(visual_state["tiles"]),
-            "visual_found": sorted(visual_state["found"]),
-            "nback_word": nback_word.cget("text"),
-            "nback_status": nback_status.cget("text"),
-            "nback_items": list(nback_state["items"]),
-            "nback_index": nback_state["index"],
-            "nback_score": nback_state["score"],
-            "nback_total": nback_state["total"],
-            "sort_input": sort_input.get("1.0", "end").strip(),
-            "sort_output": sort_output.cget("text"),
-            "routine_prompt": routine_prompt.cget("text"),
-            "routine_answer": routine_answer.get("1.0", "end").strip(),
-            "routine_status": routine_status.cget("text"),
-            "routine_steps": list(routine_state["steps"]),
-        })
+        for index, tile in enumerate(made["tiles"]):
+            button = ttk.Button(grid, text=tile, style="Choice.Good.TButton" if index in game["found"] else "Choice.TButton", cursor="hand2", command=lambda i=index: tap(i))
+            row, column = divmod(index, columns)
+            button.grid(row=row, column=column, sticky="ew", padx=(0 if column == 0 else self.px(8), 0), pady=(0 if row == 0 else self.px(8), 0))
+            buttons.append(button)
+        show_status()
+
+        def helper():
+            game["helped"] = True
+            index = next((i for i, tile in enumerate(made["tiles"]) if tile == made["target"] and i not in game["found"]), None)
+            if index is not None:
+                tap(index)
+
+        row = ttk.Frame(panel, style="Card.TFrame")
+        row.pack(fill="x")
+        ttk.Button(row, text="I'm done", cursor="hand2", command=lambda: self.puzzle_finish({"found": len(game["found"]), "wrong": game["wrong_taps"]})).pack(side="left", padx=(0, self.px(8)))
+        self.puzzle_help_button(row, helper, game["helped"]).pack(side="left")
 
     def open_path(self, path):
         target = Path(path)
@@ -13563,6 +13794,7 @@ class MemoryPalApp(tk.Tk):
         ttk.Label(storage, text="Storage and backups", style="H2.TLabel").pack(anchor="w")
         self.fit_wrap(ttk.Label(storage, text="MemoryPal stores profiles in the platform app-data folder and keeps attachments beside the active profile.", style="CardMuted.TLabel", wraplength=self.px(1040)), pady=(4, 12))
         for label, value in [
+            ("Version", f"{APP_NAME} {APP_VERSION}"),
             ("App data", storage_path),
             ("Active profile", profile_path),
             ("Attachments", attachment_path),

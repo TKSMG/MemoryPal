@@ -1,0 +1,48 @@
+name: Check AI Function
+
+# Type-checks, lints and tests the Supabase "ai" Edge Function
+# (supabase/functions/ai) before it can be deployed. Deno comes from its
+# official npm package, so only first-party GitHub actions are used.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/check-ai-function.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/functions/**"
+
+permissions:
+  contents: read
+
+jobs:
+  check-ai-function:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: supabase/functions/ai
+    env:
+      DENO: npx --yes deno@2.5.6
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Type-check
+        run: $DENO check index.ts
+
+      - name: Lint
+        run: $DENO lint
+
+      - name: Unit tests
+        run: $DENO test

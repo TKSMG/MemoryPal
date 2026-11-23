@@ -1,0 +1,31 @@
+# Dependabot: keeps the GitHub Actions in the workflows up to date (one
+# grouped pull request a month) and, once "Dependabot security updates" is
+# turned on in Settings > Code security, opens a pull request whenever a
+# phone or desktop package has a known security fix.
+#
+# Routine version bumps for npm and pip are off (limit 0): Expo pins its
+# own package versions, and upgrades go through `npx expo install` instead.
+# The limit does not apply to security updates.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
