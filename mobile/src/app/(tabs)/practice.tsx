@@ -4,24 +4,29 @@ import { Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { todayIso } from '../../core/dates';
+import { PUZZLES, PuzzleKind, SKILLS, streakText, todaysPuzzles, puzzle as puzzleInfo } from '../../core/puzzles';
 import { parseIdeas, TECHNIQUES } from '../../core/techniques';
 import { addTechniqueHooks, techniqueItems } from '../../features/decks';
-import { useStore } from '../../state/AppState';
+import { usePrefs, useStore } from '../../state/AppState';
 import { confirm, notify } from '../../ui/feedback';
 import { Button, Card, Field, ListGroup, ListRow, Pills, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
 import { useTheme } from '../../ui/theme';
 
-const PUZZLES: { kind: string; icon: keyof typeof Ionicons.glyphMap; title: string; body: string }[] = [
-  { kind: 'sequence', icon: 'keypad-outline', title: 'Sequence recall', body: 'See a short run of numbers, then type it back.' },
-  { kind: 'words', icon: 'reader-outline', title: 'Word recall', body: 'Look at a few words, then list as many as you can.' },
-  { kind: 'pairs', icon: 'swap-horizontal-outline', title: 'Pair recall', body: 'See a word pair, then remember the partner.' },
-];
+const PUZZLE_ICONS: Record<PuzzleKind, keyof typeof Ionicons.glyphMap> = {
+  sequence: 'keypad-outline', words: 'reader-outline', pairs: 'swap-horizontal-outline', missing: 'eye-off-outline',
+  names: 'people-outline', places: 'home-outline', story: 'book-outline', routine: 'list-outline',
+  sort: 'albums-outline', search: 'search-outline', nback: 'repeat-outline',
+};
 
 export default function Practice() {
   const theme = useTheme();
   const c = theme.colors;
   const store = useStore();
+  const [prefs] = usePrefs();
   const sets = store.decks();
+  const everyday = ['everyday', 'caregiver'].includes(store.onboarding.persona) || store.accessibility.caregiver_mode;
+  const mix = todaysPuzzles(prefs.puzzles, todayIso(), everyday);
   const [ideas, setIdeas] = useState('');
   // A set chosen here fills the box with its answers; its cards can then keep their lines as hooks.
   const [set, setSet] = useState('');
@@ -91,10 +96,25 @@ export default function Practice() {
         <ListRow icon="repeat-outline" title="Repetition path" detail="Recall a set in growing runs: 5, 5-4, 5-4-3, then 3-2-1." onPress={() => router.push('/repetition' as Href)} />
       </ListGroup>
 
-      <ListGroup header="Puzzles">
-        {PUZZLES.map((puzzle) => (
-          <ListRow key={puzzle.kind} icon={puzzle.icon} title={puzzle.title} detail={puzzle.body} onPress={() => router.push(`/puzzle?kind=${puzzle.kind}` as Href)} />
-        ))}
+      <ListGroup header="Puzzles" footer={streakText(prefs.puzzles, todayIso())}>
+        <ListRow
+          icon="sunny-outline"
+          title="Today’s puzzles"
+          detail={`About 5 minutes: ${mix.map((kind) => puzzleInfo(kind).title).join(', ')}`}
+          onPress={() => router.push('/puzzle?daily=1' as Href)}
+        />
+        {PUZZLES.map((puzzle) => {
+          const saved = prefs.puzzles.kinds[puzzle.kind];
+          return (
+            <ListRow
+              key={puzzle.kind}
+              icon={PUZZLE_ICONS[puzzle.kind]}
+              title={puzzle.title}
+              detail={`${puzzle.body} ${SKILLS[puzzle.skill]}${saved ? ` · level ${saved.level}` : ''}.`}
+              onPress={() => router.push(`/puzzle?kind=${puzzle.kind}` as Href)}
+            />
+          );
+        })}
       </ListGroup>
 
       <ListGroup header="Why these work">

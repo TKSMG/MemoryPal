@@ -60,7 +60,7 @@ These need a Supabase project with the `ai` function deployed (see `supabase/fun
 - Save AI notes in a set, then confirm they show on the set's page (phone) and in the Library filtered to that set (desktop). Open them, use Read aloud and "Make questions from these notes". Rename the set and confirm the notes and details move with it; delete it and confirm the notes stay (Saved notes / Library).
 - On an AI card made from saved notes, confirm "Where it came from" (phone card page) or "Open ..., where this card came from" (desktop Edit card) opens the notes with the right part marked.
 - In Practice (phone) or Techniques (desktop), pick a set, choose a technique, and save the hooks. Confirm each card in the set gained its own line in its memory hook, and that saving again adds nothing.
-- From a set's page (phone) open "Puzzles with these cards" and play pair and word recall with that set's answers; on the desktop choose the set under "Use cards from" on the Puzzles page.
+- From a set's page (phone) open "Puzzles with these cards" and play Pair recall, Word recall and What's missing? with that set's answers; on the desktop choose the set with the picker on the Puzzles page.
 - Confirm AI questions make sense on their own (they name the topic instead of "the text"), and that each AI card's hook ends with Source: and the sentence the answer came from.
 - Press Make questions and confirm the questions arrive as cards in the set builder to check, edit or remove before saving. Save the set and confirm each card keeps the "Made with AI, check it" label in the Library and in quizzes.
 - Desktop: choose A PDF or picture, then Choose a file, and try a text PDF, a scanned PDF and a PNG or JPEG photo of a page. Confirm cards made from a picture show that picture, and cards from a PDF say which page they came from (with the page's picture when the page has one).
@@ -285,7 +285,9 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Generate an Acronym and confirm it also shows an acrostic sentence.
 - Separate ideas with commas, new lines, semicolons, pipes, and `/n`, and confirm each is split correctly.
 - In Memory techniques, build a technique plan for retrieval practice, spaced practice, interleaving, elaboration, concrete examples, dual coding, and spaced retrieval.
-- In Puzzles, play Sequence Recall, Word Recall, Pair Recall, Missing Item, Visual Search, N-Back Lite, Category Sort, and Routine Recall.
+- In Puzzles, play all eleven on both apps. Each one answers by tapping, Help me gives a clue, a right round raises the level and a miss lowers it, and the level shown on the list is where the next game starts.
+- Play Today's puzzles: three puzzles from different skills; if Story recall is in it, its last questions come back at the end. Next day the days-in-a-row line counts up; skipping a day says "Welcome back", never a scold.
+- On the desktop, Number run also takes the keyboard's number keys, Backspace and Enter.
 - Confirm Visual Search marks only correct target tiles.
 - Confirm N-Back Lite advances item by item and keeps score.
 - Confirm Category Sort creates suggested groups from pasted or sample items.

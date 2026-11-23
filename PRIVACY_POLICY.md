@@ -1,6 +1,6 @@
 # MemoryPal Privacy Policy
 
-Last updated: November 1, 2026
+Last updated: November 23, 2026
 
 MemoryPal is made by Kirthik Sai Mouli Parthiban ("we"). This policy explains what MemoryPal
 collects, why, and the choices you have. Contact us at memorypal09@gmail.com with any question or
@@ -115,7 +115,7 @@ AI features above, and only starts when you press **Talk with the AI tutor**:
 - While the conversation is on, **your voice from the microphone goes straight from your device
   to Google's Gemini Live API**, which listens, writes down what was said and answers out loud.
   It does not go through our server, and we don't record or keep it. The microphone stops when
-  the conversation ends, after at most 10 minutes.
+  the conversation ends, after at most 14 minutes.
 - The tutor's verdict for each card (right, nearly, wrong or skipped) is saved on your device as
   a review, like any other review.
 - The free-tier terms above apply to your voice and the cards too: Google may keep them, use

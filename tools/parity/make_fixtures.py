@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "latest_app"))
 
 from difflib import SequenceMatcher  # noqa: E402
 
-from memorypal import progress, repetition, richtext, security, techniques  # noqa: E402
+from memorypal import progress, puzzles, repetition, richtext, security, techniques  # noqa: E402
 from memorypal.core import add_days, answer_assessment, parse_prompt_answer_lines, split_study_bits, text_tokens, today_iso  # noqa: E402
 from datetime import date, timedelta  # noqa: E402
 
@@ -650,6 +650,78 @@ def drive_cases():
     }
 
 
+def puzzle_cases():
+    """Rounds, scores, clues, results and today's mix for the memory puzzles."""
+    cards = [("Largest heart chamber?", "Left ventricle"), ("Pacemaker of the heart?", "SA node"), ("Valve between LA and LV?", "Mitral"),
+             ("Carries blood to the lungs?", "Pulmonary artery"), ("Blood cell that fights infection?", "White cell"), ("Clotting cells?", "Platelets"),
+             ("Explain the cardiac cycle", "A long answer that goes on for many words and would never fit a puzzle round"), ("Self-check", "")]
+    material = puzzles.material_from(cards)
+    rounds = []
+    scores = []
+    for kind in puzzles.KINDS:
+        info = puzzles.puzzle(kind)
+        for level in sorted({info["low"] - 1, info["low"], info["first"], (info["low"] + info["high"]) // 2, info["high"], info["high"] + 1}):
+            for seed in (1, 77):
+                for mat in ((None, material) if puzzles.uses_material(kind) else (None,)):
+                    made = puzzles.make_round(kind, level, seed * 31 + level, mat)
+                    rounds.append({"kind": kind, "level": level, "seed": seed * 31 + level, "material": mat is not None, "round": made,
+                                   "show_ms": [puzzles.show_ms(made), puzzles.show_ms(made, True)]})
+                    if seed != 77:
+                        continue
+                    responses = []
+                    if kind == "sequence":
+                        responses = [made["answer"], made["answer"][:-1], "x" + made["answer"], "", " ".join(made["answer"])]
+                    elif kind == "words":
+                        responses = [made["answer"], made["answer"][:-1], made["options"], [], " ".join(made["answer"]).upper(), made["answer"][0]]
+                    elif kind == "routine":
+                        responses = [made["answer"], made["options"], list(reversed(made["answer"])), []]
+                    elif kind == "search":
+                        responses = [{"found": made["answer"], "wrong": 0}, {"found": made["answer"], "wrong": 3}, {"found": 1, "wrong": 0}, {}]
+                    else:
+                        responses = [[q["answer"] for q in made["questions"]], [q["options"][0] for q in made["questions"]], [], ["nope"]]
+                    for response in responses:
+                        scores.append({"round": made, "response": response, "score": puzzles.score(made, response)})
+    clues = []
+    for item in rounds[::7]:
+        for index, question in enumerate(item["round"]["questions"][:2]):
+            clues.append({"question": question, "seed": index + 5, "clue": puzzles.clue(question, index + 5)})
+    levels = [{"kind": kind, "level": level, "right": right, "helped": helped, "next": puzzles.next_level(kind, level, right, helped)}
+              for kind in puzzles.KINDS for level in (1, 4, 9, 30) for right in (True, False) for helped in (True, False)]
+    games = [
+        ("words", [{"level": 4, "right": True}, {"level": 5, "right": False}, {"level": 4, "right": True}], "2026-11-20"),
+        ("story", [{"level": 3, "right": True}, {"level": 4, "right": True, "helped": True}], "2026-11-21"),
+        ("sequence", [{"level": 4, "right": False}], "2026-11-22"),
+        ("names", [{"level": 2, "right": True}, {"level": 3, "right": True}], "2026-11-23"),
+        ("bogus", [{"level": 2, "right": True}], "2026-11-23"),
+        ("sort", [], "2026-11-23"),
+    ]
+    results_steps = []
+    state = {}
+    for kind, played, day in games:
+        state = puzzles.record_game(state, kind, played, day)
+        results_steps.append({"kind": kind, "rounds": played, "day": day, "results": state})
+    histories = [{}, state, {"kinds": {"words": {"level": 99, "best": -3, "plays": "x", "last": 5, "recent": [1, True, 0, "1", None]}, "nope": {}}, "days": ["2026-11-23", 3, "bad", "2026-11-22T10:00"]},
+                 "junk", None, {"kinds": [], "days": {}}]
+    queries = []
+    for history in histories:
+        for today in ("2026-11-23", "2026-11-24", "2026-11-26", "2027-01-01"):
+            queries.append({
+                "results": history, "today": today, "normalized": puzzles.normalize_results(history),
+                "streak": puzzles.streak(history, today), "streak_text": puzzles.streak_text(history, today),
+                "today3": puzzles.todays_puzzles(history, today), "today_everyday": puzzles.todays_puzzles(history, today, True),
+                "weakest": puzzles.weakest_puzzle(history, today), "summary": puzzles.summary(history, today),
+                "start": {kind: puzzles.start_level(history, kind) for kind in puzzles.KINDS},
+                "accuracy": {kind: puzzles.accuracy(history, kind) for kind in puzzles.KINDS},
+            })
+    return {
+        "cards": [list(card) for card in cards], "material": material, "rounds": rounds, "scores": scores, "clues": clues, "levels": levels,
+        "games": results_steps, "queries": queries,
+        "groups": [{"digits": "1234567890"[:n], "groups": puzzles.digit_groups("1234567890"[:n])} for n in range(0, 11)],
+        "feedback": [{"right": right, "seed": seed, "simple": simple, "text": puzzles.feedback(right, seed, simple)} for right in (True, False) for seed in range(6) for simple in (True, False)],
+        "enough": [{"kind": kind, "material": mat, "enough": puzzles.enough_for(kind, mat)} for kind in puzzles.KINDS for mat in (None, material, puzzles.material_from(cards[:2]))],
+    }
+
+
 def main():
     specs = card_specs()
     sessions, multi = plan_cases(specs)
@@ -677,6 +749,7 @@ def main():
         "today_check": today_iso(),
         "questions": question_cases(),
         "richtext": richtext_cases(),
+        "puzzles": puzzle_cases(),
         "repetition": repetition_cases(),
         "smart_plans": smart_cases(specs),
         "technique_picks": technique_pick_cases(),
