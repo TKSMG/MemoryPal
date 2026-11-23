@@ -157,3 +157,79 @@ def hooks_for(kind, items):
         return []
     lines = re.findall(r"^\d+\. (.+)$", make(items), re.M)
     return lines if len(lines) == len(items) else []
+
+
+TECHNIQUE_TITLES = {"acronym": "Acronym", "story": "Mini-story", "peg": "Peg list", "palace": "Memory palace", "chunk": "Chunk map", "chain": "Link chain"}
+
+
+def hook_kind(association):
+    """Which technique a card's memory hook came from ("own" for a hook the person wrote, "" for none).
+
+    Reads the lines hooks_for writes, so the practice log can tell whether
+    cards with, say, palace hooks are recalled better than cards without.
+    """
+    text = str(association or "")
+    checks = (
+        ("acronym", r"^Acronym [A-Z0-9]+: "),
+        ("chunk", r"^Chunk \d+ of \d+: "),
+        ("chain", r"^Start of a link chain: | leads to .+: imagine "),
+        ("peg", r"^\w+ rhymes with \w+: imagine "),
+        ("palace", r"^Put .+ at the .+\. Make it oversized or moving\."),
+        ("story", r"^Picture .+\. It \w+ so you notice it"),
+    )
+    for kind, pattern in checks:
+        if re.search(pattern, text, re.M):
+            return kind
+    lines = [line for line in text.splitlines() if line.strip() and not line.startswith("Source:") and not line.startswith("Made with AI")]
+    return "own" if lines else ""
+
+
+def fitting_techniques(items):
+    """The techniques that suit a list, best fit first.
+
+    Numbers and long lists chunk; a handful of single words with different
+    first letters make an acronym; longer phrases link into a chain; up to
+    ten items fit the rhyming pegs; anything in order fits a palace walk.
+    """
+    items = [" ".join(str(item).split()) for item in items if str(item).strip()]
+    count = len(items)
+    if count < 2:
+        return []
+    numeric = sum(1 for item in items if re.search(r"\d", item)) * 2 > count
+    words = sum(len(item.split()) for item in items) / count
+    initials = [item[0].lower() for item in items]
+    fits = []
+    if numeric or count > 20:
+        fits.append("chunk")
+    if count <= 7 and words <= 3 and len(set(initials)) == count and all(letter.isalpha() for letter in initials):
+        fits.append("acronym")
+    if words > 3 and count <= 12:
+        fits.append("chain")
+    if count <= 10:
+        fits.append("peg")
+    if count <= 20:
+        fits.append("palace")
+    if count <= 12:
+        fits.append("story")
+    if "chunk" not in fits:
+        fits.append("chunk")
+    return fits
+
+
+def pick_technique(items, preferred="", turn=0):
+    """One technique for a list: the person's proven one when it fits, else the fits in turn.
+
+    `turn` (the day) rotates through the fitting techniques so a plan tries
+    several and the practice log can learn which works. A proven technique
+    still gives way one day in three, so the others keep being compared.
+    """
+    fits = fitting_techniques(items)
+    if not fits:
+        return ""
+    if preferred in fits:
+        if turn % 3 != 2:
+            return preferred
+        others = [kind for kind in fits[:3] if kind != preferred] or fits
+        return others[(turn // 3) % len(others)]
+    options = fits[:3]
+    return options[turn % len(options)]

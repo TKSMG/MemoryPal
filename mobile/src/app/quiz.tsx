@@ -113,6 +113,8 @@ export default function Quiz() {
 
   const finish = (result: Outcome) => {
     if (result === 'right') setScore((value) => value + 1);
+    // Typed answers and multiple choice are logged apart, so the plan can tell which works.
+    store.logPractice(question.typed ? 'quiz' : 'quiz_choices', result === 'right', card ?? null);
     store.recordPractice();
     if (store.accessibility.read_aloud) speak(result === 'right' ? 'Correct.' : `The answer is ${question.answer}`, slow);
   };

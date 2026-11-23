@@ -115,7 +115,7 @@ export default function TalkLive() {
           onRate: (talkCard, outcome) => {
             const card = store.findCard(talkCard.id);
             const assessment = liveAssessment(outcome);
-            if (card && assessment) store.schedule(card, assessment.quality, assessment);
+            if (card && assessment) store.schedule(card, assessment.quality, assessment, 'tutor');
           },
         });
         setTutor(made);

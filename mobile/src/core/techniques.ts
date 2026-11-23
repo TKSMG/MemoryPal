@@ -147,3 +147,57 @@ export function hooksFor(kind: string, raw: string[]): string[] {
   const lines = [...make(items).matchAll(/^\d+\. (.+)$/gm)].map((match) => match[1]);
   return lines.length === items.length ? lines : [];
 }
+
+export const TECHNIQUE_TITLES: Record<string, string> = { acronym: 'Acronym', story: 'Mini-story', peg: 'Peg list', palace: 'Memory palace', chunk: 'Chunk map', chain: 'Link chain' };
+
+/**
+ * Which technique a card's memory hook came from ('own' for a hook the person
+ * wrote, '' for none). Reads the lines hooksFor writes.
+ */
+export function hookKind(association: unknown): string {
+  const text = String(association ?? '');
+  const checks: [string, RegExp][] = [
+    ['acronym', /^Acronym [A-Z0-9]+: /m],
+    ['chunk', /^Chunk \d+ of \d+: /m],
+    ['chain', /^Start of a link chain: | leads to .+: imagine /m],
+    ['peg', /^\w+ rhymes with \w+: imagine /m],
+    ['palace', /^Put .+ at the .+\. Make it oversized or moving\./m],
+    ['story', /^Picture .+\. It \w+ so you notice it/m],
+  ];
+  for (const [kind, pattern] of checks) if (pattern.test(text)) return kind;
+  const lines = text.split(/\r\n|\r|\n/).filter((line) => line.trim() && !line.startsWith('Source:') && !line.startsWith('Made with AI'));
+  return lines.length ? 'own' : '';
+}
+
+/** The techniques that suit a list, best fit first (see techniques.py). */
+export function fittingTechniques(raw: string[]): string[] {
+  const items = raw.map((item) => String(item).split(/\s+/).filter(Boolean).join(' ')).filter(Boolean);
+  const count = items.length;
+  if (count < 2) return [];
+  const numeric = items.filter((item) => /\p{Nd}/u.test(item)).length * 2 > count;
+  const words = items.reduce((sum, item) => sum + item.split(' ').length, 0) / count;
+  const initials = items.map((item) => item[0].toLowerCase());
+  const fits: string[] = [];
+  if (numeric || count > 20) fits.push('chunk');
+  if (count <= 7 && words <= 3 && new Set(initials).size === count && initials.every((letter) => /\p{L}/u.test(letter))) fits.push('acronym');
+  if (words > 3 && count <= 12) fits.push('chain');
+  if (count <= 10) fits.push('peg');
+  if (count <= 20) fits.push('palace');
+  if (count <= 12) fits.push('story');
+  if (!fits.includes('chunk')) fits.push('chunk');
+  return fits;
+}
+
+/** One technique for a list: the proven one when it fits (two days in three), else the fits in turn. */
+export function pickTechnique(items: string[], preferred = '', turn = 0): string {
+  const fits = fittingTechniques(items);
+  if (!fits.length) return '';
+  if (fits.includes(preferred)) {
+    if (turn % 3 !== 2) return preferred;
+    const others = fits.slice(0, 3).filter((kind) => kind !== preferred);
+    const pool = others.length ? others : fits;
+    return pool[Math.floor(turn / 3) % pool.length];
+  }
+  const options = fits.slice(0, 3);
+  return options[turn % options.length];
+}
