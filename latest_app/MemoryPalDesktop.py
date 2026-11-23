@@ -202,6 +202,9 @@ def display_refresh_hz(widget, default=60.0):
 
         user32 = ctypes.windll.user32
         hwnd = user32.GetAncestor(widget.winfo_id(), 2) or widget.winfo_id()  # GA_ROOT
+        hz = _monitor_refresh_hz(hwnd)
+        if hz:
+            return hz
         hdc = user32.GetDC(hwnd)
         if not hdc:
             return default
@@ -212,6 +215,68 @@ def display_refresh_hz(widget, default=60.0):
         return float(hz) if 24 <= hz <= 500 else default
     except (AttributeError, OSError, tk.TclError):
         return default
+
+
+_DEVMODEW = None
+_MONITOR_HZ = {}
+
+
+def _monitor_refresh_hz(hwnd):
+    """Refresh rate of the monitor the window is (mostly) on, or None.
+
+    GetDeviceCaps(VREFRESH) on a window's DC answers for the display the
+    DC belongs to, which with two screens can be the main one: a window on
+    a 144Hz monitor next to a 60Hz main screen was animated at 60. This
+    asks the window's own monitor for its current mode instead.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    global _DEVMODEW
+    if _DEVMODEW is None:
+        # DEVMODEW, display variant of the union; only dmDisplayFrequency is read.
+        fields = [("dmDeviceName", wintypes.WCHAR * 32), ("dmSpecVersion", wintypes.WORD),
+                  ("dmDriverVersion", wintypes.WORD), ("dmSize", wintypes.WORD), ("dmDriverExtra", wintypes.WORD),
+                  ("dmFields", wintypes.DWORD), ("dmPositionX", wintypes.LONG), ("dmPositionY", wintypes.LONG),
+                  ("dmDisplayOrientation", wintypes.DWORD), ("dmDisplayFixedOutput", wintypes.DWORD),
+                  ("dmColor", ctypes.c_short), ("dmDuplex", ctypes.c_short), ("dmYResolution", ctypes.c_short),
+                  ("dmTTOption", ctypes.c_short), ("dmCollate", ctypes.c_short), ("dmFormName", wintypes.WCHAR * 32),
+                  ("dmLogPixels", wintypes.WORD), ("dmBitsPerPel", wintypes.DWORD), ("dmPelsWidth", wintypes.DWORD),
+                  ("dmPelsHeight", wintypes.DWORD), ("dmDisplayFlags", wintypes.DWORD),
+                  ("dmDisplayFrequency", wintypes.DWORD), ("dmICMMethod", wintypes.DWORD),
+                  ("dmICMIntent", wintypes.DWORD), ("dmMediaType", wintypes.DWORD), ("dmDitherType", wintypes.DWORD),
+                  ("dmReserved1", wintypes.DWORD), ("dmReserved2", wintypes.DWORD),
+                  ("dmPanningWidth", wintypes.DWORD), ("dmPanningHeight", wintypes.DWORD)]
+        _DEVMODEW = type("DEVMODEW", (ctypes.Structure,), {"_fields_": fields})
+
+    class MONITORINFOEXW(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT),
+                    ("dwFlags", wintypes.DWORD), ("szDevice", wintypes.WCHAR * 32)]
+
+    try:
+        user32 = ctypes.windll.user32
+        user32.MonitorFromWindow.restype = ctypes.c_void_p
+        user32.MonitorFromWindow.argtypes = (ctypes.c_void_p, wintypes.DWORD)
+        monitor = user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
+        if not monitor:
+            return None
+        cached = _MONITOR_HZ.get(monitor)
+        if cached and time.perf_counter() - cached[0] < 3.0:
+            return cached[1]  # asking the driver can take a few ms; scrolls start often
+        info = MONITORINFOEXW()
+        info.cbSize = ctypes.sizeof(info)
+        if not user32.GetMonitorInfoW(ctypes.c_void_p(monitor), ctypes.byref(info)):
+            return None
+        mode = _DEVMODEW()
+        mode.dmSize = ctypes.sizeof(mode)
+        if not user32.EnumDisplaySettingsW(info.szDevice, -1, ctypes.byref(mode)):  # ENUM_CURRENT_SETTINGS
+            return None
+        hz = int(mode.dmDisplayFrequency)
+        result = float(hz) if 24 <= hz <= 500 else None
+        _MONITOR_HZ[monitor] = (time.perf_counter(), result)
+        return result
+    except (AttributeError, OSError, ValueError):
+        return None
 
 
 def _mac_refresh_hz():
@@ -438,6 +503,98 @@ def _destroy_toplevel(self):
 tk.Toplevel.destroy = _destroy_toplevel
 
 
+class FrameClock:
+    """One timer for all the app's animations, stepped once per screen refresh.
+
+    Each animation used to keep its own after(16) loop: about 60 steps a
+    second at best, whatever the screen (a 144Hz monitor still saw 60),
+    and with Windows' default ~15.6ms timer tick often 32. Now every
+    running animation is stepped from here, just after each refresh of the
+    monitor the window is on, with 1ms timers held only while something
+    moves. Animations work from the time passed, not from a count of
+    frames, so they take the same time at 60Hz or 144Hz.
+    """
+
+    RATE_CHECK_S = 1.0
+
+    def __init__(self, widget):
+        self.widget = widget
+        self.jobs = {}
+        self._after = None
+        self._fine = False
+        self._frame_ms = 1000.0 / 60
+        self._rate_checked = 0.0
+        self._last_tick = 0.0
+
+    @classmethod
+    def of(cls, widget):
+        root = widget._root()
+        clock = getattr(root, "_memorypal_frame_clock", None)
+        if clock is None:
+            clock = cls(root)
+            root._memorypal_frame_clock = clock
+        return clock
+
+    @property
+    def frame_ms(self):
+        now = time.perf_counter()
+        if now - self._rate_checked > self.RATE_CHECK_S:
+            self._rate_checked = now
+            self._frame_ms = 1000.0 / display_refresh_hz(self.widget)
+        return self._frame_ms
+
+    def add(self, key, step):
+        """Run step(now) every frame until it returns False (or remove(key))."""
+        self.jobs[key] = step
+        if self._after is None:
+            if not self._fine:
+                self._fine = set_fine_timers(True)
+            try:
+                self._after = self.widget.after(1, self._tick)
+            except tk.TclError:
+                self._after = None
+
+    def remove(self, key):
+        self.jobs.pop(key, None)
+
+    def running(self, key):
+        return key in self.jobs
+
+    def _next_wait(self, began):
+        frame = self.frame_ms
+        spent = (time.perf_counter() - began) * 1000
+        ahead = ms_to_next_vblank()
+        if ahead is None or spent > frame * 0.85:
+            return max(1, round(frame - spent))
+        if ahead < frame * 0.3 and spent < frame * 0.3:
+            # The refresh is only just ahead and we stepped only just after
+            # the last one: step after the one after it instead of twice in
+            # one frame.
+            ahead += frame
+        return max(1, int(ahead) + 1)
+
+    def _tick(self):
+        self._after = None
+        now = time.perf_counter()
+        self._last_tick = now
+        for key, step in list(self.jobs.items()):
+            try:
+                keep = step(now)
+            except tk.TclError:
+                keep = False
+            if not keep and self.jobs.get(key) is step:
+                del self.jobs[key]
+        if self.jobs:
+            try:
+                self._after = self.widget.after(self._next_wait(now), self._tick)
+                return
+            except tk.TclError:
+                self.jobs.clear()
+        if self._fine:
+            set_fine_timers(False)
+            self._fine = False
+
+
 class SweepBar(tk.Canvas):
     """A "working on it" bar whose stripe always travels one way: it slides
     in from the left, runs off the right edge, and comes round again (like
@@ -457,20 +614,30 @@ class SweepBar(tk.Canvas):
     def start(self, _interval=None):
         if self._timer is None:
             self._started = time.perf_counter()
-            self._step()
+            self._timer = ("sweep", id(self))
+            FrameClock.of(self).add(self._timer, self._step)
 
     def stop(self):
         if self._timer is not None:
-            try:
-                self.after_cancel(self._timer)
-            except tk.TclError:
-                pass
+            FrameClock.of(self).remove(self._timer)
             self._timer = None
-        self.coords(self._stripe, 0, 0, 0, self._bar_h)
-
-    def _step(self):
         try:
-            phase = ((time.perf_counter() - self._started) / self.PERIOD) % 1.0
+            self.coords(self._stripe, 0, 0, 0, self._bar_h)
+        except tk.TclError:
+            pass
+
+    def destroy(self):
+        if self._timer is not None:
+            FrameClock.of(self).remove(self._timer)
+            self._timer = None
+        super().destroy()
+
+    def _step(self, now=None):
+        if not self.winfo_exists():
+            self._timer = None
+            return False
+        try:
+            phase = (((now or time.perf_counter()) - self._started) / self.PERIOD) % 1.0
             # Ease in and out so it gathers speed across the middle; the last
             # 15% of each pass it is off the right edge, then re-enters left.
             travel = min(1.0, phase / 0.85)
@@ -478,9 +645,10 @@ class SweepBar(tk.Canvas):
             stripe = self._bar_w * 0.35
             left = -stripe + eased * (self._bar_w + stripe)
             self.coords(self._stripe, max(0, left), 0, min(self._bar_w, left + stripe), self._bar_h)
-            self._timer = self.after(16, self._step)
+            return True
         except tk.TclError:
             self._timer = None
+            return False
 
 
 class FormMessage(tk.Label):
@@ -4449,6 +4617,14 @@ class MemoryPalApp(tk.Tk):
         winfullscreen.wait_for_compose(1, display_refresh_hz(self))
         winfullscreen.drop_resize_cover(hwnd)
 
+    # The live tutor's circle: halo and core radius as a share of its canvas,
+    # and how much both swell at full loudness. The swollen halo must stay
+    # inside the canvas (0.39 x 1.22 = 0.476 of the width, under the 0.5
+    # edge); at 0.42 it reached 0.51 and was cut off flat at the sides.
+    ORB_HALO = 0.39
+    ORB_CORE = 0.29
+    ORB_SWELL = 0.22
+
     def nav_hint(self, key):
         return {
             "dashboard": "Today's steps from your study plan, your streak and level, and ways to study.",
@@ -5147,13 +5323,13 @@ class MemoryPalApp(tk.Tk):
         surface colour with a hairline edge (not a black slab in a corner),
         rising a few pixels into place and leaving after a moment."""
         self.toast_var.set(text)
-        for name in ("_toast_after", "_toast_rise"):
-            pending = getattr(self, name, None)
-            if pending is not None:
-                try:
-                    self.after_cancel(pending)
-                except tk.TclError:
-                    pass
+        pending = getattr(self, "_toast_after", None)
+        if pending is not None:
+            try:
+                self.after_cancel(pending)
+            except tk.TclError:
+                pass
+        FrameClock.of(self).remove("toast")
         if self.toast_popup(text):
             return
         room = max(self.px(200), self.winfo_width() - self.px(96))
@@ -5179,19 +5355,28 @@ class MemoryPalApp(tk.Tk):
         canvas.create_text(pad_x - self.px(1), pad_y - self.text_lift(font), text=text, anchor="nw", fill=COLORS["ink"], font=font, width=wrap, justify="left")
         rise = 0 if self.accessibility.get("reduce_motion") else self.px(8)
 
-        def place(step=0, steps=6):
-            offset = round(rise * (1 - step / steps) ** 2)
+        began = time.perf_counter()
+
+        def place(now=None):
             # A theme change rebuilds the window, toast included, while a
             # rise or hide is still queued for the old one.
             if not canvas.winfo_exists():
-                return
+                return False
+            offset = self.toast_rise_offset(rise, began, now)
             canvas.place(relx=0.5, rely=1, anchor="s", y=-margin + offset)
             self.tk.call("raise", canvas._w)
-            if offset:
-                self._toast_rise = self.after(16, lambda: place(step + 1, steps))
+            return bool(offset)
 
-        place()
+        if place():
+            FrameClock.of(self).add("toast", place)
         self._toast_after = self.after(self.pace(2800), lambda: canvas.winfo_exists() and canvas.place_forget())
+
+    TOAST_RISE_S = 0.11
+
+    def toast_rise_offset(self, rise, began, now=None):
+        """How far below its resting place the toast still is (eases out)."""
+        done = min(1.0, ((now or time.perf_counter()) - began) / self.TOAST_RISE_S)
+        return round(rise * (1 - done) ** 2)
 
     def hide_toast_popup(self):
         popup = getattr(self, "_toast_popup", None)
@@ -5247,15 +5432,17 @@ class MemoryPalApp(tk.Tk):
         self.toast.place_forget()
         rise = 0 if self.accessibility.get("reduce_motion") else self.px(8)
 
-        def move(step=0, steps=6):
-            if self._toast_popup is not popup or not popup.winfo_exists():
-                return
-            offset = round(rise * (1 - step / steps) ** 2)
-            popup.wm_geometry(f"+{x}+{bottom - height + offset}")
-            if offset:
-                self._toast_rise = self.after(16, lambda: move(step + 1, steps))
+        began = time.perf_counter()
 
-        move()
+        def move(now=None):
+            if self._toast_popup is not popup or not popup.winfo_exists():
+                return False
+            offset = self.toast_rise_offset(rise, began, now)
+            popup.wm_geometry(f"+{x}+{bottom - height + offset}")
+            return bool(offset)
+
+        if move():
+            FrameClock.of(self).add("toast", move)
         self._toast_after = self.after(self.pace(2800), lambda: self._toast_popup is popup and self.hide_toast_popup())
         return True
 
@@ -6488,21 +6675,28 @@ class MemoryPalApp(tk.Tk):
             state["target"] += pixels
             state["tau"] = tau
         if state["after"] is None:
-            state["last"] = now - 1 / 60
-            self._box_glide(widget)
+            clock = FrameClock.of(self)
+            state["last"] = now - clock.frame_ms / 1000
+            state["after"] = ("box-glide", str(widget))
+            if self._box_glide(widget, now):
+                clock.add(state["after"], lambda when: self._box_glide(widget, when))
+            else:
+                state["after"] = None
         return "break"
 
-    def _box_glide(self, widget):
+    def _box_glide(self, widget, now=None):
+        """One frame of a text box or list's wheel glide (on the FrameClock)."""
         state = getattr(widget, "_mp_glide", None)
         if state is None:
-            return
-        state["after"] = None
+            return False
         try:
             if not widget.winfo_exists():
-                return
+                state["after"] = None
+                return False
         except tk.TclError:
-            return
-        now = time.perf_counter()
+            state["after"] = None
+            return False
+        now = now or time.perf_counter()
         elapsed = min(50.0, max(1.0, (now - state["last"]) * 1000))
         state["last"] = now
         busy = False
@@ -6521,8 +6715,9 @@ class MemoryPalApp(tk.Tk):
                 busy = not done
         except tk.TclError:
             busy = False
-        if busy:
-            state["after"] = self.after(16, lambda: self._box_glide(widget))
+        if not busy:
+            state["after"] = None
+        return busy
 
     def install_text_selection(self):
         """Let people highlight and copy any text shown in a label.
@@ -10832,8 +11027,8 @@ class MemoryPalApp(tk.Tk):
             picture = Image.new("RGBA", (big, big), (0, 0, 0, 0))
             pen = ImageDraw.Draw(picture)
             middle = big / 2
-            halo = big * 0.42 * (1 + 0.22 * grow)
-            core = big * 0.30 * (1 + 0.22 * grow)
+            halo = big * self.ORB_HALO * (1 + self.ORB_SWELL * grow)
+            core = big * self.ORB_CORE * (1 + self.ORB_SWELL * grow)
             pen.ellipse((middle - halo, middle - halo, middle + halo, middle + halo), fill=halo_fill)
             pen.ellipse((middle - core, middle - core, middle + core, middle + core), fill=colour)
             picture = picture.resize((size, size), Image.LANCZOS)
@@ -10848,7 +11043,12 @@ class MemoryPalApp(tk.Tk):
             # drawn from cached smooth images, so it stays round and fluid.
             state["who"], state["muted_now"] = who, muted
             target = 0.0 if muted else state["levels"].get(who or "you", 0.0) if who else 0.0
-            state["shown"] = state["shown"] * 0.78 + target * 0.22
+            # Ease towards the loudness by the time passed (the same feel at
+            # 60Hz or 144Hz): about 22% of the way per 60Hz frame.
+            now = time.perf_counter()
+            elapsed = min(0.1, max(0.0, now - state.get("drawn_at", now - 1 / 60)))
+            state["drawn_at"] = now
+            state["shown"] += (target - state["shown"]) * (1 - 0.78 ** (elapsed * 60))
             grow = 0.0 if self.accessibility.get("reduce_motion") else min(1.0, state["shown"])
             colour = COLORS["line"] if muted else COLORS["green"] if who == "you" else COLORS["primary"]
             step = round(grow * orb_steps)
@@ -10864,8 +11064,8 @@ class MemoryPalApp(tk.Tk):
             if picture is None:
                 orb.delete("all")
                 orb_items["orb"] = orb_items["icon"] = None
-                core = size * 0.30 * (1 + 0.22 * step / orb_steps)
-                halo = size * 0.42 * (1 + 0.22 * step / orb_steps)
+                core = size * self.ORB_CORE * (1 + self.ORB_SWELL * step / orb_steps)
+                halo = size * self.ORB_HALO * (1 + self.ORB_SWELL * step / orb_steps)
                 orb.create_oval(middle - halo, middle - halo, middle + halo, middle + halo, fill=halo_fill, outline="")
                 orb.create_oval(middle - core, middle - core, middle + core, middle + core, fill=colour, outline="")
             elif orb_items["orb"] is None:
@@ -10881,13 +11081,16 @@ class MemoryPalApp(tk.Tk):
                     orb.itemconfigure(orb_items["icon"], image=image)
                 orb._memorypal_icon = image
 
-        def animate():
-            # The orb's own frame clock (~60 fps); poll() updates text at 12 fps.
+        def animate(_now=None):
+            # Every screen refresh (FrameClock); poll() updates text at 12 fps.
             if not alive() or state["tutor"] is None or not orb.winfo_exists():
                 state["frame"] = None
-                return
+                return False
             draw(state.get("who", ""), state.get("muted_now", False))
-            state["frame"] = self.after(16, animate)
+            if state.get("frame") is None:
+                state["frame"] = ("tutor-orb", str(orb))
+                FrameClock.of(self).add(state["frame"], animate)
+            return True
 
         def on_level(who, value):
             state["levels"][who] = value  # from the audio thread: a plain float swap

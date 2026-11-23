@@ -32,6 +32,10 @@ on:
         description: "Only drag-select text with the real mouse (selection_probe.py)"
         type: boolean
         default: false
+      resize_modes:
+        description: "Only compare the three window resize modes (edge and corner drags, Windows)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -67,8 +71,38 @@ jobs:
       - name: Hear spoken answers from sound files
         run: python tools/listen_check/listen_check.py
 
+  resize-modes:
+    if: ${{ inputs.resize_modes }}
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install app packages
+        run: python -m pip install platformdirs pypdf Pillow
+      - name: Drag edges in each resize mode
+        shell: bash
+        run: |
+          : > modes.txt
+          for mode in follow buffered reveal; do
+            mkdir -p "render-$mode"
+            MEMORYPAL_RESIZE_MODE=$mode WHOLE_SCREEN=1 python tools/render_check/render_probe.py "render-$mode" drag_setup2 drag_resize_grow drag_resize_shrink drag_resize_bottom_grow drag_resize_left > "render-$mode.txt" 2>&1 || true
+            grep -v '^PNG \|^SERIES ' "render-$mode.txt" | sed "s/^/$mode /" >> modes.txt || true
+          done
+          cat modes.txt
+          python -c "import sys; t=open('modes.txt').read()[-3900:]; print('::notice title=Resize modes::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: resize-modes
+          path: |
+            modes.txt
+            render-*/*.png
+
   probe:
-    if: ${{ !inputs.listen && !inputs.selection }}
+    if: ${{ !inputs.listen && !inputs.selection && !inputs.resize_modes }}
     strategy:
       fail-fast: false
       matrix:
