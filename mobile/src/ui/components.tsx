@@ -266,6 +266,7 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: pressed ? pressedBg : bg, minHeight: compact ? MIN_TOUCH : 52, opacity: disabled ? 0.45 : 1 },
+        sublabel ? { paddingVertical: 14 } : null,
         inline && styles.inlineButton,
         // A press answers the moment the finger lands, not on release.
         pressed && !disabled && !theme.reduceMotion && styles.pressedButton,
@@ -275,7 +276,9 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
       {icon ? <Ionicons name={icon} size={theme.font(20)} color={fg} /> : null}
       <View style={{ alignItems: 'center', flexShrink: 1 }}>
         <Text maxFontSizeMultiplier={1.8} style={{ color: fg, fontSize: theme.font(compact ? 15 : 17), fontWeight: '600', textAlign: 'center' }}>{label}</Text>
-        {sublabel ? <Text maxFontSizeMultiplier={1.6} style={{ color: fg, fontSize: theme.font(12), fontWeight: '500' }}>{sublabel}</Text> : null}
+        {/* Centred under the label like the label itself, with room to breathe: a
+            left-aligned 12pt line under a centred title read as a cramped footnote. */}
+        {sublabel ? <Text maxFontSizeMultiplier={1.6} style={{ color: fg, fontSize: theme.font(13), lineHeight: theme.font(18), fontWeight: '500', textAlign: 'center', opacity: 0.9, marginTop: 2 }}>{sublabel}</Text> : null}
       </View>
     </Pressable>
   );

@@ -28,6 +28,7 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
+        "CADisableMinimumFrameDurationOnPhone": true,
         "NSMicrophoneUsageDescription": "MemoryPal uses the microphone in Talk-back study, so you can say your answers out loud or talk with the AI tutor.",
         "NSSpeechRecognitionUsageDescription": "MemoryPal turns your spoken answers into text to check them. Where your iPhone supports it, this happens on the device.",
         "NSCameraUsageDescription": "MemoryPal uses the camera when you take a photo of your notes to make study notes or questions with AI. The photo is only sent when you press an AI button.",

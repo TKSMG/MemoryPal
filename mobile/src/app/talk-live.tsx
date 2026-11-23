@@ -8,7 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useNetworkState } from 'expo-network';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, Animated, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, View } from 'react-native';
 
 import { startLive } from '../cloud/ai';
 import { aiErrorText, aiGate, isOnline } from '../features/aiHelpers';
@@ -38,7 +38,9 @@ function VoiceOrb({ level, who, muted }: { level: Animated.Value; who: LiveSnaps
   const scale = theme.reduceMotion ? 1 : level.interpolate({ inputRange: [0, 1], outputRange: [1, 1.22], extrapolate: 'clamp' });
   const halo = theme.reduceMotion ? 0.18 : level.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.34], extrapolate: 'clamp' });
   return (
-    <View accessible={false} style={{ width: size * 1.4, height: size * 1.4, alignItems: 'center', justifyContent: 'center' }}>
+    // The box holds the halo at full swell (1.3 x 1.22 = 1.59 x size), so
+    // nothing clips it on Android or at the screen's edge.
+    <View accessible={false} style={{ width: size * 1.6, height: size * 1.6, alignItems: 'center', justifyContent: 'center' }}>
       <Animated.View style={{ position: 'absolute', width: size * 1.3, height: size * 1.3, borderRadius: size, backgroundColor: color, opacity: halo, transform: [{ scale }] }} />
       <Animated.View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: 'center', justifyContent: 'center', transform: [{ scale }] }}>
         <Ionicons name={muted ? 'mic-off' : who === 'you' ? 'mic' : 'chatbubble-ellipses'} size={theme.icon(46)} color={muted ? c.muted : c.onPrimary} />
@@ -90,8 +92,11 @@ export default function TalkLive() {
       }
       const audio = makeLiveAudio((who, value) => {
         // Smooth the loudness a little so the circle breathes rather than flickers.
+        // The loudness arrives a few times a second; glide to each new value
+        // on the native animation thread, which runs at the screen's own
+        // refresh rate (60, 90, 120Hz), instead of jumping to it.
         levelNow.current = levelNow.current * 0.6 + Math.min(1, value * 1.6) * 0.4;
-        level.setValue(levelNow.current);
+        Animated.timing(level, { toValue: levelNow.current, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
       });
       if (!audio) return setStartError('Live conversations aren’t available in this copy of the app.');
       try {

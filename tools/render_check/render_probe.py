@@ -47,7 +47,7 @@ if sys.platform.startswith("win"):
     _ex = ctypes.windll.user32.GetWindowLongW(app.window_handle(app), -20)  # GWL_EXSTYLE
     _cl = ctypes.c_int(0)
     ctypes.windll.dwmapi.DwmGetWindowAttribute(app.window_handle(app), 14, ctypes.byref(_cl), 4)  # DWMWA_CLOAKED
-    print(f"WINDOW layered={bool(_ex & 0x80000)} cloaked={_cl.value}")
+    print(f"WINDOW layered={bool(_ex & 0x80000)} cloaked={_cl.value} resize_mode={app.resize_mode()}")
 
 
 def png(path, w, h, bgra):
