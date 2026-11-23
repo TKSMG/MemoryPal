@@ -4,7 +4,7 @@ import re
 import shutil
 import time
 from dataclasses import asdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from . import paths, techniques
 from .aiflow import normalize_preferences
@@ -139,7 +139,46 @@ def default_payload():
         "onboarding": default_onboarding(),
         "study_plan": {},
         "preferences": normalize_preferences(None),
+        "practice_log": [],
     }
+
+
+# The practice log: one line per answer on this device (never synced), so the
+# study plan can learn the person's real pace, which ways of practising work
+# for them and when in the day they remember best.
+PRACTICE_LOG_MAX = 500
+# A gap longer than this between two answers is a pause, not time on a card.
+PRACTICE_GAP_SECONDS = 300
+PRACTICE_METHODS = ("review", "quiz", "quiz_choices", "talkback", "tutor", "repetition", "puzzle")
+PRACTICE_HOOKS = ("", "own") + techniques.TECHNIQUE_KEYS
+
+
+def normalize_practice_entry(raw):
+    if not isinstance(raw, dict):
+        return None
+    at = raw.get("at")
+    if not isinstance(at, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", at):
+        return None
+    method = raw.get("m")
+    if method not in PRACTICE_METHODS:
+        return None
+    seconds = raw.get("sec", 0)
+    seconds = seconds if isinstance(seconds, int) and not isinstance(seconds, bool) and 0 <= seconds <= PRACTICE_GAP_SECONDS else 0
+    hook = raw.get("hook", "")
+    return {"at": at, "m": method, "ok": raw.get("ok") is True, "sec": seconds, "hook": hook if hook in PRACTICE_HOOKS else ""}
+
+
+def normalize_practice_log(raw):
+    entries = [entry for entry in (normalize_practice_entry(item) for item in as_list(raw)) if entry]
+    entries.sort(key=lambda entry: entry["at"])
+    return entries[-PRACTICE_LOG_MAX:]
+
+
+def merge_practice_logs(existing, local, loaded):
+    """Another window's answers plus the ones this window added since it loaded."""
+    seen = {json.dumps(entry, sort_keys=True) for entry in loaded}
+    added = [entry for entry in local if json.dumps(entry, sort_keys=True) not in seen]
+    return normalize_practice_log(list(existing) + added)
 
 
 # What a saved plan may say. Plans arrive from other devices through sync, so
@@ -403,6 +442,8 @@ class MemoryStore:
         self.study_plan = {}
         # This device's own choices (AI consent, quiz history): saved, never synced.
         self.preferences = normalize_preferences(None)
+        self.practice_log = []
+        self._loaded_practice_log = []
         self.last_action = None
         self._file_stamp = None
         self._loaded_preferences = normalize_preferences(None)
@@ -467,6 +508,7 @@ class MemoryStore:
         self.onboarding = normalize_onboarding(raw.get("onboarding"))
         self.study_plan = normalize_study_plan(raw.get("study_plan"))
         self.preferences = normalize_preferences(raw.get("preferences"))
+        self.practice_log = normalize_practice_log(raw.get("practice_log"))
 
     def remember_loaded_state(self, payload=None):
         self._loaded_practiced = self.practiced
@@ -477,6 +519,7 @@ class MemoryStore:
         self._loaded_onboarding = dict(self.onboarding)
         self._loaded_study_plan = normalize_study_plan(self.study_plan)
         self._loaded_preferences = normalize_preferences(self.preferences)
+        self._loaded_practice_log = list(self.practice_log)
         if payload is None:
             self._loaded_cards = self.item_snapshot(self.cards)
             self._loaded_captures = self.item_snapshot(self.captures)
@@ -516,6 +559,7 @@ class MemoryStore:
             "onboarding": dict(self.onboarding),
             "study_plan": normalize_study_plan(self.study_plan),
             "preferences": normalize_preferences(self.preferences),
+            "practice_log": [dict(entry) for entry in self.practice_log],
         }
 
     def merge_items(self, local_items, existing_items, loaded_items=None):
@@ -590,6 +634,7 @@ class MemoryStore:
             merged["study_plan"] = normalize_study_plan(existing.get("study_plan"))
         if normalize_preferences(self.preferences) == self._loaded_preferences and "preferences" in existing:
             merged["preferences"] = normalize_preferences(existing.get("preferences"))
+        merged["practice_log"] = merge_practice_logs(normalize_practice_log(existing.get("practice_log")), local.get("practice_log", []), self._loaded_practice_log)
         return merged
 
     @staticmethod
@@ -634,6 +679,9 @@ class MemoryStore:
         # Synced payloads never carry this device's preferences: keep ours.
         if "preferences" in payload:
             self.preferences = normalize_preferences(payload.get("preferences"))
+        # Nor this device's practice log.
+        if "practice_log" in payload:
+            self.practice_log = normalize_practice_log(payload.get("practice_log"))
         self.revision += 1
         self.remember_loaded_state()
 
@@ -1085,8 +1133,29 @@ class MemoryStore:
                 interval = max(interval, card.interval + 1)
         return max(1, min(self.MAX_INTERVAL, interval))
 
-    def schedule(self, card, quality, assessment=None):
+    def log_practice(self, method, ok, card=None, when=None, save=False):
+        """Note one answer in the practice log (how long it took is the gap since the last one)."""
+        if method not in PRACTICE_METHODS:
+            return
+        when = (when or datetime.now()).replace(microsecond=0)
+        seconds = 0
+        if self.practice_log:
+            try:
+                gap = (when - datetime.fromisoformat(self.practice_log[-1]["at"])).total_seconds()
+            except ValueError:
+                gap = -1
+            seconds = int(gap) if 0 < gap <= PRACTICE_GAP_SECONDS else 0
+        hook = techniques.hook_kind(card.association) if card is not None else ""
+        self.practice_log.append({"at": when.isoformat(), "m": method, "ok": bool(ok), "sec": seconds, "hook": hook})
+        del self.practice_log[:-PRACTICE_LOG_MAX]
+        if save:
+            self.save()
+
+    def schedule(self, card, quality, assessment=None, method="review"):
         snapshot = asdict(card)
+        logged = len(self.practice_log)
+        # The answer's hook is the one the card had while it was being recalled.
+        self.log_practice(method, quality >= 3, card)
         activity_key = today_iso()
         if quality < 3:
             card.repetitions = 0
@@ -1105,7 +1174,7 @@ class MemoryStore:
             card.last_result = {1: "Again", 2: "Weak", 3: "Review", 4: "Good", 5: "Easy"}.get(quality, "Checked")
         self.practiced += 1
         self.log_activity()
-        self.last_action = {"card_id": card.id, "snapshot": snapshot, "activity_key": activity_key, "practiced_before": self.practiced - 1}
+        self.last_action = {"card_id": card.id, "snapshot": snapshot, "activity_key": activity_key, "practiced_before": self.practiced - 1, "logged": logged}
         self.save()
 
     def undo_last(self):
@@ -1124,6 +1193,9 @@ class MemoryStore:
             self.activity[key] -= 1
             if self.activity[key] <= 0:
                 del self.activity[key]
+        logged = action.get("logged")
+        if isinstance(logged, int) and len(self.practice_log) == logged + 1:
+            self.practice_log.pop()
         self.last_action = None
         self.save()
         return True
@@ -1142,5 +1214,6 @@ class MemoryStore:
         self.study_plan = {}
         # This device's own choices (AI consent, quiz history): saved, never synced.
         self.preferences = normalize_preferences(None)
+        self.practice_log = []
         self.last_action = None
         self.save(merge_existing=False)

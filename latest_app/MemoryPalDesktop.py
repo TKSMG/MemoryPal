@@ -79,6 +79,7 @@ from memorypal.planning import (
     build_multi_day_plan,
     build_study_plan,
     plan_for_today,
+    plan_insights,
 )
 from memorypal.store import MemoryStore, capture_deck, days_until, default_accessibility, exam_countdown, load_items, normalize_accessibility, safe_int
 
@@ -8679,6 +8680,12 @@ class MemoryPalApp(tk.Tk):
                 self.solid_button(row, "Make this my plan", follow, COLORS["primary"]).pack(side="left")
                 tk.Label(row, text="Your Dashboard will show these steps each day, ready to tick off.", bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 10)).pack(side="left", padx=(self.px(12), 0))
 
+        def render_insights(container):
+            # What the practice log has taught the plan about this person.
+            lines = plan_insights(self.store)
+            if lines:
+                tk.Label(container, text="Fitted to you: " + " ".join(lines), bg=COLORS["alt"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), justify="left", anchor="w", wraplength=self.px(1000)).pack(fill="x", pady=(self.px(8), 0))
+
         @self.smooth
         def render_plan():
             for child in result_holder.winfo_children():
@@ -8709,6 +8716,7 @@ class MemoryPalApp(tk.Tk):
                     parts.append(f"{rests} rest break{'s' if rests != 1 else ''}")
                 ttk.Label(summary, text=" \u2022 ".join(parts), style="AltMuted.TLabel").pack(anchor="w", pady=(2, 0))
                 render_follow_row(summary)
+                render_insights(summary)
                 render_steps_list(result_holder, steps)
                 self.fit_wrap_tree(result_holder)
             else:
@@ -8720,6 +8728,7 @@ class MemoryPalApp(tk.Tk):
                 total_minutes = sum(day["minutes"] for day in days)
                 ttk.Label(summary, text=f"Learn early, reinforce in the middle, sharpen near the end \u2022 {deck_choice} \u2022 {goal_var.get()} \u2022 about {round(total_minutes / 60, 1):g} hours in total", style="AltMuted.TLabel", wraplength=1000).pack(anchor="w", pady=(2, 0))
                 render_follow_row(summary)
+                render_insights(summary)
                 chart_host = tk.Frame(result_holder, bg=COLORS["surface"], padx=self.px(20), pady=self.px(16))
                 chart_host.pack(fill="x", pady=(0, 12))
                 tab_host = tk.Frame(result_holder, bg=COLORS["bg"])
@@ -8772,6 +8781,23 @@ class MemoryPalApp(tk.Tk):
             self.quiz_mode = step["quiz_mode"]
             self.view_drafts["quiz"] = {}
         view = step["view"]
+        if view == "review" and step.get("review_mode"):
+            if not self.start_review(step["review_mode"], self.deck_filter):
+                self.show_view("review")
+            return
+        if view == "tools" and step.get("technique"):
+            # Open the techniques page with the set loaded and the chosen technique made.
+            self.view_drafts["tools"] = {"preset": {"deck": step.get("deck") or "", "technique": step["technique"]}}
+            kept = self.kept_pages().pop("tools", None)
+            if kept is not None and kept.winfo_exists():
+                kept.destroy()
+        if view == "notes":
+            capture = self.store.find_capture(step.get("capture_id", ""))
+            if capture is not None:
+                self.open_notes(capture, step.get("bit", -1) if isinstance(step.get("bit"), int) else -1)
+            else:
+                self.show_view("capture")
+            return
         if view == "shuffle":
             # Repetition drilling runs the path on the weakest cards.
             self.open_repetition("weak", self.deck_filter)
@@ -10229,7 +10255,7 @@ class MemoryPalApp(tk.Tk):
             card = self.quiz_card(items[quiz["index"]])
             quality = quality if quality is not None else answered.get("quality")
             if card is not None and quality is not None:
-                self.store.schedule(card, quality, answered.get("assessment"))
+                self.store.schedule(card, quality, answered.get("assessment"), method="quiz_choices" if self.quiz_mode == "choices" else "quiz")
         quiz["index"] += 1
         quiz["answered"] = None
         quiz["match"] = None
@@ -10771,7 +10797,7 @@ class MemoryPalApp(tk.Tk):
         for card, outcome in tutor.take_ratings():
             assessment = livetutor.live_assessment(outcome)
             if assessment is not None and card in self.store.cards:
-                self.store.schedule(card, assessment["quality"], assessment)
+                self.store.schedule(card, assessment["quality"], assessment, method="tutor")
 
     def view_live_tutor(self, panel, queue):
         surface = COLORS["surface"]
@@ -11258,7 +11284,7 @@ class MemoryPalApp(tk.Tk):
             correct = checked["bucket"] in ("Good", "Easy")
             state["answered"] += 1
             state["right"] += 1 if correct else 0
-            self.store.schedule(current, checked["quality"], checked)
+            self.store.schedule(current, checked["quality"], checked, method="talkback")
             heard.configure(text=f"You said: {said}" if said else "")
             if correct:
                 message = "Correct."
@@ -11619,6 +11645,7 @@ class MemoryPalApp(tk.Tk):
                 self.speak_button(result, ". ".join(items[item_index]["answer"] for item_index in indexes), "Read the answers aloud", compact=True).pack(anchor="w", pady=(0, self.px(10)))
                 if typed:
                     checked = answer_assessment(typed, expected)
+                    self.store.log_practice("repetition", checked["bucket"] in ("Good", "Easy"), save=True)
                     ttk.Label(result, text=self.describe_assessment(checked), style="Card.TLabel", wraplength=self.px(1040)).pack(anchor="w", pady=(0, self.px(6)))
                 check.configure(state="disabled")
 
@@ -11640,6 +11667,10 @@ class MemoryPalApp(tk.Tk):
 
     def view_tools(self):
         draft = self.view_drafts.get("tools", {})
+        # A study plan step can open this page on one set with a technique chosen.
+        preset = draft.pop("preset", None) if isinstance(draft.get("preset"), dict) else None
+        if preset and preset.get("deck") in self.store.decks():
+            draft = dict(draft, ideas="\n".join(self.store.technique_items(preset["deck"])[1]), hook_set=preset["deck"], output="")
         page = ScrollFrame(self.view_host)
         page.pack(fill="both", expand=True)
         panel = self.card(page.inner)
@@ -11710,6 +11741,8 @@ class MemoryPalApp(tk.Tk):
             load = ttk.Button(set_row, text="Load set", command=load_set)
             load.pack(side="left", padx=(0, self.px(8)))
             self.add_tooltip(load, "Fill the box with this set's answers, oldest card first.")
+            if preset and preset.get("deck") in sets:
+                set_var.set(preset["deck"])
             save = ttk.Button(set_row, text="Save as hooks", command=save_hooks)
             save.pack(side="left")
             self.add_tooltip(save, "Add each card's line from the technique to that card's memory hook.")
@@ -11777,6 +11810,9 @@ class MemoryPalApp(tk.Tk):
         self.button_row(strategy_panel, [("Build plan", build_strategy_plan, "TButton"), ("Use my notes", lambda: (strategy_text.delete("1.0", "end"), strategy_text.insert("1.0", "\n".join(self.material_bits()[:8]))), "Link.TButton")])
         if strategy_out.cget("text"):
             strategy_out.pack(anchor="w", pady=(self.px(14), 0))
+        runners = {"acronym": acronym, "story": story, "peg": peg_list, "palace": palace, "chunk": chunk_map, "chain": link_chain}
+        if preset and preset.get("technique") in runners:
+            runners[preset["technique"]]()
         self.register_draft_saver("tools", lambda: {
             "ideas": ideas.get("1.0", "end").strip(),
             "output": out.cget("text"),
