@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState as RNAppState, Platform, Pressable, Text } from 'react-native';
 
+import { normalizeSettings } from '../features/notifications';
 import { AppStateProvider, usePrefs, useStore } from '../state/AppState';
 import { onReminderTapped, refreshReminders, setUpNotifications } from '../state/reminders';
 import { ThemeProvider, useTheme } from '../ui/theme';
@@ -21,24 +22,26 @@ function SheetButton({ label, bold }: { label: string; bold?: boolean }) {
 /**
  * Keeps the next week of study reminders and the icon badge up to date:
  * rescheduled whenever MemoryPal goes to the background (after studying)
- * and when the reminder settings change. A tapped reminder opens Review.
+ * and when the notification settings change. A tapped one opens its screen.
  */
 function Reminders() {
   const store = useStore();
   const [prefs] = usePrefs();
-  const { reminders, reminder_time: time, badge } = prefs;
+  const { reminders, reminder_time: time, badge, notify_kinds: kinds, quiet_hours: quiet, one_a_day: oneADay } = prefs;
+  const kindsKey = kinds.join(',');
   useEffect(() => {
     setUpNotifications();
     return onReminderTapped((url) => router.push(url as Href));
   }, []);
   useEffect(() => {
-    const refresh = () => refreshReminders(store, { reminders, time, badge });
+    const settings = normalizeSettings({ enabled: reminders, time, kinds: kindsKey.split(','), quiet, one_a_day: oneADay });
+    const refresh = () => refreshReminders(store, { settings, badge });
     refresh();
     const subscription = RNAppState.addEventListener('change', (state) => {
       if (state !== 'active') refresh();
     });
     return () => subscription.remove();
-  }, [store, reminders, time, badge]);
+  }, [store, reminders, time, badge, kindsKey, quiet, oneADay]);
   return null;
 }
 
