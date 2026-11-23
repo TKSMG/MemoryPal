@@ -734,6 +734,12 @@ class MemoryStore:
             "latest": self.feedback[0].created_at if self.feedback else "None yet",
         }
 
+    def record_practice(self, count=1):
+        """Count practice that isn't a scheduled review (puzzle games, as on the phone)."""
+        self.practiced += count
+        self.log_activity(count)
+        self.save()
+
     def log_activity(self, count=1):
         key = today_iso()
         self.activity[key] = self.activity.get(key, 0) + count
