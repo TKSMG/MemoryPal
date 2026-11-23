@@ -68,6 +68,14 @@
             "NSPrivacyCollectedDataTypePurposes": [
               "NSPrivacyCollectedDataTypePurposeAppFunctionality"
             ]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeAudioData",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           }
         ],
         "NSPrivacyAccessedAPITypes": [
