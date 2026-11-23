@@ -57,10 +57,11 @@ It runs these steps in order and stops at the first failure:
 5. Builds `release\MemoryPalSetup.exe` with `build_installer_windows.cmd` (Inno Setup).
 6. Builds `release\MemoryPalTesterPackage.zip` with `package_for_testers.cmd`.
 
-Before a new tester round, bump the version in three places so testers and Windows can tell builds apart:
+Before a new tester round, bump the version in four places so testers and Windows can tell builds apart:
 
 ```text
 pyproject.toml                  version = "0.53.6"
+latest_app\memorypal\constants.py  APP_VERSION = "0.53.6"
 installer\inno\MemoryPal.iss    #define MyAppVersion "0.53.6"
 build_nuitka_windows.cmd        --product-version / --file-version
 ```

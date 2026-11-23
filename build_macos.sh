@@ -114,7 +114,22 @@ rm -rf "$DMG_ROOT" "$DMG_PATH" "$ZIP_PATH"
 mkdir -p "$DMG_ROOT"
 ditto "$RELEASE_DIR/MemoryPal.app" "$DMG_ROOT/MemoryPal.app"
 ln -s /Applications "$DMG_ROOT/Applications"
-hdiutil create -volname "MemoryPal" -srcfolder "$DMG_ROOT" -ov -format UDZO "$DMG_PATH"
+# hdiutil sometimes fails with "Resource busy" on CI Macs (Spotlight or a
+# leftover mount holding the image); it has failed the Intel build several
+# times. Wait and try again a few times before giving up.
+for attempt in 1 2 3 4 5; do
+  if hdiutil create -volname "MemoryPal" -srcfolder "$DMG_ROOT" -ov -format UDZO "$DMG_PATH"; then
+    break
+  fi
+  if [[ "$attempt" == 5 ]]; then
+    echo "hdiutil create failed 5 times" >&2
+    exit 1
+  fi
+  echo "hdiutil create failed (try $attempt of 5); trying again in $((attempt * 10)) seconds"
+  hdiutil info | grep -E '^/dev/disk' || true
+  rm -f "$DMG_PATH"
+  sleep $((attempt * 10))
+done
 if [[ "$SIGN_IDENTITY" != "-" ]]; then
   codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG_PATH"
   if [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" ]]; then
