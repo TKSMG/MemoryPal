@@ -1602,6 +1602,8 @@ class MemoryPalApp(tk.Tk):
         self._ui_ready = True
         if IS_WINDOWS:
             hwnd = self.window_handle(self)
+            if os.environ.get("MEMORYPAL_PROBE_CLASS_STYLES"):
+                winfullscreen.probe_class_styles(hwnd, self.winfo_id(), clear_redraw=os.environ.get("MEMORYPAL_PROBE_CLASS_STYLES") == "clear")
             if not os.environ.get("MEMORYPAL_PROBE_NO_WATCH") and winfullscreen.watch_big_resizes(hwnd, self.px(160)):
                 winfullscreen.arm_resize_cover(hwnd, True)
                 self._keep_border_cursor(hwnd)
