@@ -9363,7 +9363,7 @@ class MemoryPalApp(tk.Tk):
             pick = tk.StringVar(value="Existing sets")
             chooser = self.select_button(name_row, pick, existing, on_change=lambda value: (name_var.set(value), pick.set("Existing sets")))
             chooser.configure(text="Existing sets")
-            chooser.pack(side="left", padx=(self.px(10), 0))
+            chooser.pack(side="left", fill="y", padx=(self.px(10), 0))  # as tall as the name field beside it
             self.add_tooltip(chooser, "Add these cards to a set you already have.")
 
         # 2. Cards: typed one at a time, or pasted notes split into cards.
