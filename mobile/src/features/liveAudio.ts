@@ -10,6 +10,7 @@
 import { Platform } from 'react-native';
 
 import { LiveAudio } from '../../modules/live-audio';
+import { holdForLive } from './audioSession';
 import type { LiveAudio as LiveAudioPort } from './liveTutor';
 
 /** True when this build can hold a live conversation. */
@@ -46,8 +47,11 @@ export function makeLiveAudio(onLevel?: (who: 'you' | 'tutor', level: number) =>
   // (iOS can take most of a second): keep it and play it once the player is up,
   // so the first words aren't lost.
   let waiting: string[] = [];
+  // While the call is on, read-aloud keeps its hands off the audio session.
+  let release: (() => void) | null = null;
   return {
     async start(onMic) {
+      release = holdForLive();
       subscriptions.push(native.addListener('onMic', (event) => onMic(event.data)));
       if (onLevel) subscriptions.push(native.addListener('onLevel', (event) => onLevel(event.who, event.level)));
       await native.start();
@@ -56,6 +60,8 @@ export function makeLiveAudio(onLevel?: (who: 'you' | 'tutor', level: number) =>
         // starting: the native stop() then had nothing to stop, so stop it now
         // instead of leaving the microphone on.
         native.stop();
+        release?.();
+        release = null;
         return;
       }
       started = true;
@@ -82,6 +88,8 @@ export function makeLiveAudio(onLevel?: (who: 'you' | 'tutor', level: number) =>
       // Gives the audio session back, so read-aloud and other apps sound normal again.
       native.stop();
       started = false;
+      release?.();
+      release = null;
     },
   };
 }

@@ -22,6 +22,8 @@ import time
 import urllib.parse
 from dataclasses import dataclass, field
 
+from . import speechgate
+
 # Ephemeral (one-use) tokens only work on the v1alpha Live endpoint, as in Google's SDK.
 LIVE_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained"
 MIC_RATE = 16000
@@ -100,7 +102,9 @@ class LiveTutor:
     close(); audio is a liveaudio.LiveAudio (start(on_mic), set_muted, play,
     clear, stop)."""
 
-    def __init__(self, token, setup, cards, minutes, open_socket, audio, now=time.monotonic, threaded=True):
+    _DEFAULT_GATE = object()
+
+    def __init__(self, token, setup, cards, minutes, open_socket, audio, now=time.monotonic, threaded=True, gate=_DEFAULT_GATE):
         self.token = token
         self.setup = setup
         self.cards = dict(cards)
@@ -126,6 +130,8 @@ class LiveTutor:
         self.results = []
         self.pending = []
         self.error = ""
+        # Keeps noise and echo from reaching the tutor (speechgate.py); None sends the microphone as it is.
+        self.gate = speechgate.SpeechGate(MIC_RATE) if gate is LiveTutor._DEFAULT_GATE else gate
 
     # ------------------------------------------------------------ controls
     def start(self):
@@ -164,6 +170,8 @@ class LiveTutor:
             if self.phase != "live" or muted == self.muted:
                 return
             self.muted = muted
+            if self.gate is not None:
+                self.gate.reset()
         self.audio.set_muted(muted)
         # Tells the voice detector the speaker went quiet, so a half-said answer is still heard.
         if muted:
@@ -245,8 +253,16 @@ class LiveTutor:
                 pass
 
     def mic(self, data_b64):
-        if self.phase == "live" and not self.muted:
-            self.send({"realtimeInput": {"audio": {"data": data_b64, "mimeType": f"audio/pcm;rate={MIC_RATE}"}}})
+        if self.phase != "live" or self.muted:
+            return
+        with self.lock:
+            chunks = self.gate.process(data_b64, self.tutor_audible()) if self.gate is not None else [data_b64]
+        for chunk in chunks:
+            self.send({"realtimeInput": {"audio": {"data": chunk, "mimeType": f"audio/pcm;rate={MIC_RATE}"}}})
+
+    def tutor_audible(self):
+        """True while the tutor's voice (or its echo) may still be on the microphone."""
+        return self.now() < self.speech_until + speechgate.ECHO_TAIL_MS / 1000
 
     def content(self, content):
         if self.phase != "live":
