@@ -299,7 +299,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Settings instead of following the phone's setting.
   const chosen = prefs.theme === 'light' || prefs.theme === 'dark' ? prefs.theme : 'unspecified';
   useEffect(() => {
-    Appearance.setColorScheme(chosen);
+    // Not on the web build (used for store screenshots).
+    Appearance.setColorScheme?.(chosen);
   }, [chosen]);
   return createElement(ThemeContext.Provider, { value: theme }, children);
 }

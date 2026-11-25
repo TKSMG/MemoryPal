@@ -3537,9 +3537,9 @@ class MemoryPalApp(tk.Tk):
         # The top tab bar: quiet tabs on the window background, and the
         # current section as a soft tinted pill in the accent colour.
         self.style.configure("TabBar.TFrame", background=COLORS["bg"])
-        self.style.configure("TabBar.TButton", padding=self.text_pad(14, 8, self.font("Segoe UI Semibold", 11)), space=self.px(8), foreground=COLORS["muted"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.configure("TabBar.TButton", padding=self.text_pad(self.TAB_PAD_X, 8, self.font("Segoe UI Semibold", 11)), space=self.px(8), foreground=COLORS["muted"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.map("TabBar.TButton", foreground=[("active", COLORS["ink"])])
-        self.style.configure("ActiveTabBar.TButton", padding=self.text_pad(14, 8, self.font("Segoe UI Semibold", 11)), space=self.px(8), foreground=COLORS["primary"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
+        self.style.configure("ActiveTabBar.TButton", padding=self.text_pad(self.TAB_PAD_X, 8, self.font("Segoe UI Semibold", 11)), space=self.px(8), foreground=COLORS["primary"], anchor="center", borderwidth=0, relief="flat", font=self.font("Segoe UI Semibold", 11))
         self.style.map("ActiveTabBar.TButton", foreground=[("active", COLORS["primary"])])
 
         self.style.configure("Keypad.TButton", anchor="center", padding=self.text_pad(18, 14, self.font("Segoe UI Semibold", 20)), font=self.font("Segoe UI Semibold", 20))
@@ -4085,6 +4085,12 @@ class MemoryPalApp(tk.Tk):
         """Every tab always shows, so this only moves the selection."""
         self.refresh_nav_selection(key)
 
+    TAB_PAD_X = 14
+
+    def tab_text_pad(self):
+        """The side padding inside a tab bar button (TabBar.TButton)."""
+        return self.px(self.TAB_PAD_X)
+
     def tab_bar_height(self):
         return self.px(64)
 
@@ -4104,7 +4110,9 @@ class MemoryPalApp(tk.Tk):
         self.layout_app_body()
 
         brand = tk.Frame(bar, bg=COLORS["bg"])
-        brand.place(x=self.px(24), rely=0.5, anchor="w")
+        # On the page's left edge: the logo, the page title and the cards
+        # below it all start at the same gutter (PAGE_GUTTER), as on the phone.
+        brand.place(x=self.px(self.PAGE_GUTTER), rely=0.5, anchor="w")
         mark_size = self.px(32)
         mark = tk.Canvas(brand, width=mark_size, height=mark_size, bg=COLORS["bg"], highlightthickness=0)
         mark.pack(side="left", padx=(0, self.px(10)))
@@ -4128,7 +4136,9 @@ class MemoryPalApp(tk.Tk):
         # It opens a dialog over the current page, so it is never "selected".
         self.nav_feedback_button = ttk.Button(bar, text="Feedback", style="TabBar.TButton", width=0, command=self.open_feedback)
         self.set_nav_button_state(self.nav_feedback_button, "feedback", False)
-        self.nav_feedback_button.place(relx=1.0, x=-self.px(24), rely=0.5, anchor="e")
+        # Its words end where the page's header icons and cards end: the
+        # button's own side padding sits in the gutter.
+        self.nav_feedback_button.place(relx=1.0, x=-(self.px(self.PAGE_GUTTER) - self.tab_text_pad()), rely=0.5, anchor="e")
         self.add_tooltip(self.nav_feedback_button, self.nav_hint("feedback"))
         self.nav_settings_button = None
 
@@ -4149,7 +4159,7 @@ class MemoryPalApp(tk.Tk):
             if width <= 1:
                 return
             feedback = self.nav_feedback_button.winfo_reqwidth()
-            side = self.px(24) * 2 + self.px(16)
+            side = self.px(self.PAGE_GUTTER) * 2 + self.px(16)
             brand_w = self.px(32) + self.px(10) + (brand.winfo_reqwidth() if brand is not None else 0)
             compact = getattr(self, "_tabs_compact", False)
             full_tabs = getattr(self, "_tabs_full_width", 0) or tabs.winfo_reqwidth()
@@ -4342,7 +4352,11 @@ class MemoryPalApp(tk.Tk):
         self.main = self.page_frame(self.app_body)
         self.main.place(x=0, y=self.tab_bar_height(), relwidth=1, height=1)
         top = ttk.Frame(self.main, style="Header.TFrame", padding=0)
-        top.pack(fill="x", padx=self.px(36), pady=(self.px(22), self.px(16)))
+        # The title's letters carry a few pixels of side bearing at this size,
+        # so the header starts that much left of the gutter and the word
+        # "Today" lines up with the logo above and the cards below.
+        gutter = self.px(self.PAGE_GUTTER)
+        top.pack(fill="x", padx=(gutter - self.px(self.TITLE_BEARING), gutter), pady=(self.px(22), self.px(16)))
         top.columnconfigure(0, weight=1)
         top.columnconfigure(1, weight=0)
         title_box = ttk.Frame(top, style="Header.TFrame")
@@ -4379,7 +4393,10 @@ class MemoryPalApp(tk.Tk):
         profile_avatar.pack(side="left")
 
         self.content = self.page_frame(self.main)
-        self.content.pack(fill="both", expand=True, padx=self.px(36), pady=(0, self.px(18)))
+        # Pages keep an 8px gap and an 8px scrollbar on their right (every
+        # block packs with padx=(0, 8)); both sit in the right gutter, so card
+        # edges line up with the header icons and Feedback above them.
+        self.content.pack(fill="both", expand=True, padx=(gutter, max(0, gutter - self.px(16))), pady=(0, self.px(18)))
         self.toast_var = tk.StringVar()
         # A rounded message pill (drawn on a canvas so its corners blend into
         # whatever it floats over), like the rounded buttons and dialogs.
@@ -5826,6 +5843,11 @@ class MemoryPalApp(tk.Tk):
     CARD_PAD = 22
     CARD_GAP = 16
     TITLE_GAP = 4
+    # One left and right edge for the whole window (the phone's gutter): the
+    # tab bar's logo and Feedback, the page title and its icons, and the cards.
+    PAGE_GUTTER = 32
+    # Side bearing of the page title's first letter at its size.
+    TITLE_BEARING = 2
 
     def card_gap(self):
         return self.px(self.CARD_GAP)
