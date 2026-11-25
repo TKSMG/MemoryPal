@@ -58,7 +58,7 @@ class Conversation:
         self.clock = 1000.0
         self.audio = FakeAudio()
         self.cards = {"c1": SimpleNamespace(id="a", front="Capital of France?", back="Paris"), "c2": SimpleNamespace(id="b", front="2 + 2?", back="4")}
-        self.tutor = livetutor.LiveTutor("auth_tokens/xyz", {"model": "models/gemini-3.8-live"}, self.cards, minutes, self.open, self.audio, now=lambda: self.clock, threaded=False)
+        self.tutor = livetutor.LiveTutor("auth_tokens/xyz", {"model": "models/gemini-3.8-live"}, self.cards, minutes, self.open, self.audio, now=lambda: self.clock, threaded=False, gate=None)
         self.tutor.start()
 
     def open(self, url):
