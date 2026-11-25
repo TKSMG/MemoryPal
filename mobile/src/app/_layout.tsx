@@ -1,6 +1,7 @@
-import { Href, router, Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Href, router, Stack, ThemeProvider as NavigationTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import * as SystemUI from 'expo-system-ui';
+import { useEffect, useMemo } from 'react';
 import { AppState as RNAppState, Platform, Pressable, Text } from 'react-native';
 
 import { normalizeSettings } from '../features/notifications';
@@ -11,12 +12,22 @@ import { ThemeProvider, useTheme } from '../ui/theme';
 /** iOS sheets get a way out in the bar; Android has its back button and arrow. */
 function SheetButton({ label, bold }: { label: string; bold?: boolean }) {
   const theme = useTheme();
-  if (Platform.OS !== 'ios') return null;
   return (
     <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
       <Text maxFontSizeMultiplier={1.6} style={{ color: theme.colors.link, fontSize: 17, fontWeight: bold ? '600' : '400' }}>{label}</Text>
     </Pressable>
   );
+}
+
+/**
+ * The sheet's Cancel or Done, on iOS only. iOS 26 puts a grey glass pill
+ * behind any custom bar button, which looked like a stray white background
+ * behind the teal text; `hidesSharedBackground` leaves plain text, as on
+ * earlier iOS and everywhere else in the app.
+ */
+function sheetButton(label: string, bold?: boolean) {
+  if (Platform.OS !== 'ios') return undefined;
+  return () => [{ type: 'custom' as const, element: <SheetButton label={label} bold={bold} />, hidesSharedBackground: true }];
 }
 
 /**
@@ -48,8 +59,18 @@ function Reminders() {
 function RootStack() {
   const theme = useTheme();
   const c = theme.colors;
+  // Everything behind the screens takes the page colour too: the phone's own
+  // root view and the navigator's theme (it fills the edges while a page
+  // slides in or a sheet opens, and was white).
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(c.bg).catch(() => undefined);
+  }, [c.bg]);
+  const navigationTheme = useMemo(() => {
+    const base = theme.dark ? DarkTheme : DefaultTheme;
+    return { ...base, dark: theme.dark, colors: { ...base.colors, background: c.bg, card: c.bg, text: c.ink, border: c.line, primary: c.link, notification: c.primary } };
+  }, [theme.dark, c.bg, c.ink, c.line, c.link, c.primary]);
   return (
-    <>
+    <NavigationTheme value={navigationTheme}>
       <StatusBar style={theme.dark ? 'light' : 'dark'} />
       <Reminders />
       <Stack
@@ -76,8 +97,8 @@ function RootStack() {
         <Stack.Screen name="talkback" options={{ title: 'Talk-back study' }} />
         <Stack.Screen name="talk-live" options={{ title: 'Live tutor' }} />
         <Stack.Screen name="quiz" options={{ title: 'Quick quiz' }} />
-        <Stack.Screen name="add" options={{ title: 'New set', presentation: 'modal', headerRight: () => <SheetButton label="Done" bold /> }} />
-        <Stack.Screen name="card/[id]" options={{ title: 'Edit card', presentation: 'modal', headerLeft: () => <SheetButton label="Cancel" /> }} />
+        <Stack.Screen name="add" options={{ title: 'New set', presentation: 'modal', unstable_headerRightItems: sheetButton('Done', true) }} />
+        <Stack.Screen name="card/[id]" options={{ title: 'Edit card', presentation: 'modal', unstable_headerLeftItems: sheetButton('Cancel') }} />
         <Stack.Screen name="deck/[name]" options={{ title: 'Set' }} />
         <Stack.Screen name="notes/index" options={{ title: 'Saved notes' }} />
         <Stack.Screen name="notes/[id]" options={{ title: 'Notes' }} />
@@ -86,10 +107,10 @@ function RootStack() {
         <Stack.Screen name="repetition" options={{ title: 'Repetition path' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen name="ai" options={{ title: 'Make with AI' }} />
-        <Stack.Screen name="ai-consent" options={{ title: 'AI features', presentation: 'modal', headerLeft: () => <SheetButton label="Cancel" /> }} />
+        <Stack.Screen name="ai-consent" options={{ title: 'AI features', presentation: 'modal', unstable_headerLeftItems: sheetButton('Cancel') }} />
         <Stack.Screen name="account" options={{ title: 'Account & sync' }} />
       </Stack>
-    </>
+    </NavigationTheme>
   );
 }
 

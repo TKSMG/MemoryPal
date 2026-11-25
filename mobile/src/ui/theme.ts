@@ -5,7 +5,7 @@
  * phone's own font-size setting.
  */
 import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, useColorScheme } from 'react-native';
+import { AccessibilityInfo, Appearance, useColorScheme } from 'react-native';
 
 import { useStore, usePrefs } from '../state/AppState';
 
@@ -294,6 +294,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     () => makeTheme(dark, a.text_size, a.high_contrast, reduceMotion, a.simple_language),
     [dark, a.text_size, a.high_contrast, reduceMotion, a.simple_language],
   );
+  // Tell the phone which look the app chose, so its own parts (sheet and bar
+  // buttons, the keyboard, alerts, pickers) match a Light or Dark choice in
+  // Settings instead of following the phone's setting.
+  const chosen = prefs.theme === 'light' || prefs.theme === 'dark' ? prefs.theme : 'unspecified';
+  useEffect(() => {
+    Appearance.setColorScheme(chosen);
+  }, [chosen]);
   return createElement(ThemeContext.Provider, { value: theme }, children);
 }
 
