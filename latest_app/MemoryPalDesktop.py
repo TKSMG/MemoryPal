@@ -8171,17 +8171,45 @@ class MemoryPalApp(tk.Tk):
             per_row = min(per_row, 2 if count >= 4 else 1)
         row = tk.Frame(parent, bg=COLORS["bg"])
         row.pack(fill="x", padx=(0, 8), pady=(0, self.px(16)))
-        gap = self.card_gap()
         cells = []
-        for index in range(count):
-            r, c = divmod(index, per_row)
+        for _index in range(count):
             cell = tk.Frame(row, bg=COLORS["surface"], padx=self.px(22), pady=self.px(20))
-            cell.grid(row=r, column=c, sticky="nsew", padx=(0 if c == 0 else gap, 0), pady=(0 if r == 0 else gap, 0))
             self.round_tk_panel(cell)
             cells.append(cell)
-        for c in range(per_row):
-            row.columnconfigure(c, weight=1, uniform=f"panels{count}")
+        # Four panels in a row need room; on a narrow window they go two by
+        # two, as the phone stacks its cards, instead of cutting off "Level 13".
+        self.reflow_grid(row, cells, per_row, min(per_row, 2), self.px(230), f"panels{count}")
         return cells
+
+    def reflow_grid(self, container, cells, wide, narrow, min_cell, uniform):
+        """Lay cells out `wide` per row, or `narrow` per row while the
+        container is too thin for each cell to get min_cell pixels; re-laid
+        only when the window crosses that width."""
+        gap = self.card_gap()
+        state = {"per_row": None}
+
+        def place(per_row):
+            if per_row == state["per_row"]:
+                return
+            state["per_row"] = per_row
+            for c in range(max(wide, narrow)):
+                container.columnconfigure(c, weight=0, uniform="", minsize=0)
+            for index, cell in enumerate(cells):
+                r, c = divmod(index, per_row)
+                cell.grid(row=r, column=c, sticky="nsew", padx=(0 if c == 0 else gap, 0), pady=(0 if r == 0 else gap, 0))
+            for c in range(per_row):
+                container.columnconfigure(c, weight=1, uniform=f"{uniform}-{per_row}")
+
+        def fit(event=None):
+            width = event.width if event is not None else container.winfo_width()
+            if width <= 1:
+                return
+            place(wide if width >= wide * min_cell + (wide - 1) * gap else narrow)
+
+        width = getattr(self, "content", None) and self.content.winfo_width()
+        place(narrow if width and width > 1 and width < wide * min_cell + (wide - 1) * gap else wide)
+        if narrow != wide:
+            container.bind("<Configure>", fit, add="+")
 
     def panel_title(self, panel, title, subtitle=None):
         tk.Label(panel, text=title, bg=panel.cget("bg"), fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
@@ -8416,14 +8444,14 @@ class MemoryPalApp(tk.Tk):
         # fourth row of same-size cards under the stat cards.
         columns = self.page_frame(parent)
         columns.pack(fill="x", padx=(0, 8), pady=(0, self.card_gap()))
-        columns.columnconfigure(0, weight=1, uniform="modes")
-        columns.columnconfigure(1, weight=1, uniform="modes")
         half = (len(modes) + 1) // 2
-        for column, chunk in enumerate((modes[:half], modes[half:])):
-            if not chunk:
-                continue
-            rows = [(icon, title, body, "", action) for icon, title, body, action, _color in chunk]
-            self.link_list(columns, rows).grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else self.card_gap(), 0))
+        lists = []
+        for chunk in (modes[:half], modes[half:]):
+            if chunk:
+                rows = [(icon, title, body, "", action) for icon, title, body, action, _color in chunk]
+                lists.append(self.link_list(columns, rows))
+        # One list under the other on a narrow window, so each line has room.
+        self.reflow_grid(columns, lists, len(lists), 1, self.px(420), "modes")
 
     def render_next_badge(self, parent):
         badges = progress.achievements(self.store)
