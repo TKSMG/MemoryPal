@@ -11,7 +11,16 @@ import { Platform } from 'react-native';
 
 import { LiveAudio } from '../../modules/live-audio';
 import { holdForLive } from './audioSession';
-import type { LiveAudio as LiveAudioPort } from './liveTutor';
+import { pcmMs } from './pcm';
+import { MODEL_RATE, type LiveAudio as LiveAudioPort } from './liveTutor';
+
+/**
+ * On an iPhone the call's audio set-up (echo cancelling, the loudspeaker
+ * route) keeps settling for a moment after it starts; the tutor's first
+ * words wait this long so they aren't spoken into a player that is about to
+ * restart.
+ */
+export const IOS_SETTLE_MS = 350;
 
 /** True when this build can hold a live conversation. */
 export function liveAudioAvailable(): boolean {
@@ -34,11 +43,10 @@ export async function prepareLiveMic(): Promise<MicPermission> {
 }
 
 /**
- * The microphone and player. `onLevel` gets 0..1 loudness for the picture:
- * `who` is 'you' for the microphone and 'tutor' for the speaker.
+ * The microphone and player. The picture's loudness comes from the tutor
+ * (liveTutor.voice()), timed to when the speech actually plays.
  */
-export function makeLiveAudio(onLevel?: (who: 'you' | 'tutor', level: number) => void): LiveAudioPort | null {
-  const native = LiveAudio;
+export function makeLiveAudio(native = LiveAudio, now: () => number = () => Date.now()): LiveAudioPort | null {
   if (!native || !liveAudioAvailable()) return null;
   let subscriptions: { remove(): void }[] = [];
   let started = false;
@@ -49,12 +57,32 @@ export function makeLiveAudio(onLevel?: (who: 'you' | 'tutor', level: number) =>
   let waiting: string[] = [];
   // While the call is on, read-aloud keeps its hands off the audio session.
   let release: (() => void) | null = null;
+  // Speech handed to the player that may not have played yet, with when it
+  // should finish. If iOS restarts the player (the audio route changed, or the
+  // call set-up settled), that speech is gone, so it is played again.
+  let recent: { data: string; end: number }[] = [];
+  let until = 0;
+  const replay = () => {
+    const at = now();
+    recent = recent.filter((chunk) => chunk.end > at);
+    until = at;
+    const again = recent;
+    recent = [];
+    again.forEach((chunk) => {
+      until += pcmMs(chunk.data, MODEL_RATE);
+      recent.push({ data: chunk.data, end: until });
+      native.play(chunk.data);
+    });
+  };
   return {
     async start(onMic) {
       release = holdForLive();
       subscriptions.push(native.addListener('onMic', (event) => onMic(event.data)));
-      if (onLevel) subscriptions.push(native.addListener('onLevel', (event) => onLevel(event.who, event.level)));
+      subscriptions.push(native.addListener('onRestart', () => {
+        if (started && !stopped) replay();
+      }));
       await native.start();
+      if (Platform.OS === 'ios' && !stopped) await new Promise((done) => setTimeout(done, IOS_SETTLE_MS));
       if (stopped) {
         // Stopped (End, or leaving the screen) while the microphone was still
         // starting: the native stop() then had nothing to stop, so stop it now
@@ -73,16 +101,24 @@ export function makeLiveAudio(onLevel?: (who: 'you' | 'tutor', level: number) =>
       if (started) native.setMuted(muted);
     },
     play(base64) {
+      if (stopped) return;
+      const at = now();
+      until = Math.max(until, at) + pcmMs(base64, MODEL_RATE);
+      recent = recent.filter((chunk) => chunk.end > at);
+      recent.push({ data: base64, end: until });
       if (started) native.play(base64);
-      else if (!stopped) waiting.push(base64);
+      else waiting.push(base64);
     },
     clear() {
       waiting = [];
+      recent = [];
+      until = now();
       if (started) native.clear();
     },
     stop() {
       stopped = true;
       waiting = [];
+      recent = [];
       subscriptions.forEach((subscription) => subscription.remove());
       subscriptions = [];
       // Gives the audio session back, so read-aloud and other apps sound normal again.

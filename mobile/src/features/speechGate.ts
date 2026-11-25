@@ -107,6 +107,9 @@ export class SpeechGate {
   private quietMs = 0;
   private preroll: { data: string; ms: number }[] = [];
   private prerollMs = 0;
+  /** The last chunk's loudness, and whether it counted as speech (for the picture and the tutor's checks). */
+  lastDb = -100;
+  lastLoud = false;
 
   constructor(private rate = 16000) {}
 
@@ -140,6 +143,8 @@ export class SpeechGate {
     const talk = Math.max(GATE.talkMinDb, this.floor + GATE.talkAboveFloorDb);
     const barge = Math.max(GATE.bargeMinDb, this.floor + GATE.bargeAboveFloorDb);
     const threshold = tutorTalking ? barge : talk;
+    this.lastDb = db;
+    this.lastLoud = db >= threshold;
     if (this.open) {
       // Once the tutor talks again, only real speech keeps the gate open, so its echo can't.
       if (db >= threshold) this.quietMs = 0;

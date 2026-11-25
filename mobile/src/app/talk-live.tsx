@@ -62,6 +62,7 @@ export default function TalkLive() {
   const [attempt, setAttempt] = useState(0);
   const [level] = useState(() => new Animated.Value(0));
   const levelNow = useRef(0);
+  const [voiceWho, setVoiceWho] = useState<LiveSnapshot['speaking']>(null);
 
   const queue = useMemo(() => talkCards(buildQueue(store, (params.mode as Mode) || 'due', params.deck || null).filter((card) => card.back.trim())), []); // eslint-disable-line react-hooks/exhaustive-deps
   const snap = useSyncExternalStore(tutor?.subscribe ?? noop, tutor?.getSnapshot ?? (() => IDLE), tutor?.getSnapshot ?? (() => IDLE));
@@ -78,6 +79,33 @@ export default function TalkLive() {
   useFocusEffect(useCallback(() => () => tutor?.stop(), [tutor]));
   useEffect(() => () => tutor?.stop(), [tutor]);
 
+  // The circle follows the voice you hear: every 33 ms (30 times a second)
+  // it reads who is talking and how loud at this moment (the tutor's speech
+  // is measured on the timeline of when it actually plays, see voiceMeter.ts)
+  // and glides there on the native animation thread, which draws at the
+  // screen's own refresh rate (60, 90 or 120Hz), so it moves smoothly.
+  const live = snap.phase === 'live';
+  useEffect(() => {
+    if (!tutor || !live) return undefined;
+    let who: LiveSnapshot['speaking'] = null;
+    const timer = setInterval(() => {
+      const voice = tutor.voice();
+      if (voice.who !== who) {
+        who = voice.who;
+        setVoiceWho(who);
+      }
+      // A little smoothing so it breathes rather than flickers, quicker to rise than to fall.
+      const target = Math.min(1, voice.level * 1.6);
+      levelNow.current += (target - levelNow.current) * (target > levelNow.current ? 0.7 : 0.35);
+      Animated.timing(level, { toValue: levelNow.current, duration: 45, easing: Easing.linear, useNativeDriver: true }).start();
+    }, 33);
+    return () => {
+      clearInterval(timer);
+      level.setValue(0);
+      levelNow.current = 0;
+    };
+  }, [tutor, live, level]);
+
   useEffect(() => {
     if (gate !== 'ready' || !queue.length) return undefined;
     let live = true;
@@ -90,14 +118,7 @@ export default function TalkLive() {
         setStartError(mic === 'denied' ? 'Microphone access is off. Allow it in the phone’s Settings, or use classic Talk-back and type your answers.' : 'Live conversations need the full MemoryPal app on a phone (not Expo Go or the browser). Classic Talk-back works here.');
         return;
       }
-      const audio = makeLiveAudio((who, value) => {
-        // Smooth the loudness a little so the circle breathes rather than flickers.
-        // The loudness arrives a few times a second; glide to each new value
-        // on the native animation thread, which runs at the screen's own
-        // refresh rate (60, 90, 120Hz), instead of jumping to it.
-        levelNow.current = levelNow.current * 0.6 + Math.min(1, value * 1.6) * 0.4;
-        Animated.timing(level, { toValue: levelNow.current, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
-      });
+      const audio = makeLiveAudio();
       if (!audio) return setStartError('Live conversations aren’t available in this copy of the app.');
       try {
         const cards = queue.slice(0, 40);
@@ -200,7 +221,7 @@ export default function TalkLive() {
         </Row>
 
         <View style={{ alignItems: 'center', justifyContent: 'center', flex: 1, gap: 18 }}>
-          {connecting ? <ActivityIndicator size="large" color={c.primary} /> : <VoiceOrb level={level} who={snap.speaking} muted={snap.muted} />}
+          {connecting ? <ActivityIndicator size="large" color={c.primary} /> : <VoiceOrb level={level} who={voiceWho} muted={snap.muted} />}
           <Txt variant="h3" center color={c.muted}>{status}</Txt>
         </View>
 

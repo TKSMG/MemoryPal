@@ -10,7 +10,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from memorypal import ai, liveaudio, livetutor  # noqa: E402
+from memorypal import ai, liveaudio, livetutor, speechgate  # noqa: E402
 from test_ai import ENV, FakeOpener  # noqa: E402
 
 
@@ -49,16 +49,27 @@ class FakeAudio:
         self.stopped = True
 
 
+def tone(seconds, db):
+    """base64 16 kHz PCM: a 220 Hz tone at `db` dBFS."""
+    import math
+    import struct
+
+    count = int(seconds * 16000)
+    amp = 10 ** (db / 20) * 32767 * math.sqrt(2)
+    samples = [max(-32768, min(32767, round(amp * math.sin(2 * math.pi * 220 * i / 16000)))) for i in range(count)]
+    return base64.b64encode(struct.pack(f"<{count}h", *samples)).decode("ascii")
+
+
 def audio_message(seconds):
     return {"serverContent": {"modelTurn": {"parts": [{"inlineData": {"data": b64(int(seconds * 48000)), "mimeType": "audio/pcm;rate=24000"}}]}}}
 
 
 class Conversation:
-    def __init__(self, minutes=10):
+    def __init__(self, minutes=10, gate=None):
         self.clock = 1000.0
         self.audio = FakeAudio()
         self.cards = {"c1": SimpleNamespace(id="a", front="Capital of France?", back="Paris"), "c2": SimpleNamespace(id="b", front="2 + 2?", back="4")}
-        self.tutor = livetutor.LiveTutor("auth_tokens/xyz", {"model": "models/gemini-3.8-live"}, self.cards, minutes, self.open, self.audio, now=lambda: self.clock, threaded=False, gate=None)
+        self.tutor = livetutor.LiveTutor("auth_tokens/xyz", {"model": "models/gemini-3.8-live"}, self.cards, minutes, self.open, self.audio, now=lambda: self.clock, threaded=False, gate=gate)
         self.tutor.start()
 
     def open(self, url):
@@ -68,6 +79,9 @@ class Conversation:
     def server(self, message, binary=False):
         text = json.dumps(message)
         self.tutor.receive(text.encode("utf-8") if binary else text)
+
+    def heard(self, text):
+        self.server({"serverContent": {"inputTranscription": {"text": text}}})
 
     def advance(self, seconds):
         self.clock += seconds
@@ -115,8 +129,11 @@ class LiveTutorTests(unittest.TestCase):
     def test_record_answer_rates_each_card_once_and_answers_every_call(self):
         talk = Conversation()
         talk.server({"setupComplete": {}})
+        talk.heard("Paris")
         talk.server({"toolCall": {"functionCalls": [{"id": "1", "name": "record_answer", "args": {"card": "c1", "result": "right", "said": "Paris"}}]}})
+        talk.heard("No wait, Lyon")
         talk.server({"toolCall": {"functionCalls": [{"id": "2", "name": "record_answer", "args": {"card": "c1", "result": "wrong"}}, {"id": "3", "name": "record_answer", "args": {"card": "c9", "result": "right"}}]}})
+        talk.heard("skip")
         talk.server({"toolCall": {"functionCalls": [{"id": "4", "name": "record_answer", "args": {"card": "c2", "result": "skipped"}}]}})
         self.assertEqual([(card.id, outcome) for card, outcome in talk.tutor.take_ratings()], [("a", "right")])
         self.assertEqual(talk.tutor.take_ratings(), [])
@@ -125,6 +142,48 @@ class LiveTutorTests(unittest.TestCase):
         self.assertTrue(all(r["response"]["scheduling"] == "SILENT" for r in responses))
         self.assertEqual([r["response"].get("next") for r in responses], ["c2", "c2", None, "none: every card is done, so give the summary"])
         self.assertEqual([(r.card.id, r.outcome) for r in talk.tutor.snapshot().results], [("a", "wrong"), ("b", "skipped")])
+
+    def test_a_card_is_saved_only_once_the_learner_has_said_something(self):
+        talk = Conversation()
+        talk.server({"setupComplete": {}})
+
+        def call(key, result):
+            talk.server({"toolCall": {"functionCalls": [{"id": "x", "name": "record_answer", "args": {"card": key, "result": result, "said": "Paris"}}]}})
+            return [m for m in talk.socket.sent if "toolResponse" in m][-1]["toolResponse"]["functionResponses"][0]["response"]
+
+        self.assertEqual(call("c1", "wrong"), {"result": livetutor.NOT_ANSWERED, "next": "c1", "scheduling": "SILENT"})
+        talk.heard("Paris")
+        self.assertEqual(call("c1", "right")["result"], "saved")
+        # Quiet now: the tutor tries to judge the next card from the last answer.
+        self.assertEqual(call("c2", "wrong"), {"result": livetutor.NOT_ANSWERED, "next": "c2", "scheduling": "SILENT"})
+        self.assertEqual(call("c1", "wrong"), {"result": "already saved", "next": "c2", "scheduling": "SILENT"})
+        talk.heard(" … ")
+        self.assertEqual(call("c2", "wrong")["result"], livetutor.NOT_ANSWERED)
+        talk.heard("four")
+        self.assertEqual(call("c2", "right")["result"], "saved")
+        self.assertEqual([(card.id, outcome) for card, outcome in talk.tutor.take_ratings()], [("a", "right"), ("b", "right")])
+
+    def test_clear_speech_through_the_gate_counts_before_the_transcript(self):
+        talk = Conversation(gate=speechgate.SpeechGate())
+        talk.server({"setupComplete": {}})
+        for _ in range(40):
+            talk.audio.on_mic(tone(0.02, -60))
+        talk.server({"toolCall": {"functionCalls": [{"id": "1", "name": "record_answer", "args": {"card": "c1", "result": "right"}}]}})
+        self.assertEqual(talk.tutor.take_ratings(), [])
+        self.assertEqual(talk.tutor.snapshot().speaking, "")
+        for _ in range(30):
+            talk.audio.on_mic(tone(0.02, -20))
+        self.assertEqual(talk.tutor.snapshot().speaking, "you")
+        talk.server({"toolCall": {"functionCalls": [{"id": "2", "name": "record_answer", "args": {"card": "c1", "result": "right"}}]}})
+        self.assertEqual([(card.id, outcome) for card, outcome in talk.tutor.take_ratings()], [("a", "right")])
+
+    def test_the_greeting_waits_for_the_microphone_and_speakers(self):
+        talk = Conversation()
+        order = []
+        talk.audio.start = lambda on_mic: order.append(("audio", any("clientContent" in m for m in talk.socket.sent)))
+        talk.server({"setupComplete": {}})
+        self.assertEqual(order, [("audio", False)])
+        self.assertIn("Greet them", json.dumps([m for m in talk.socket.sent if "clientContent" in m]))
 
     def test_end_session_lets_the_goodbye_play_then_hangs_up(self):
         talk = Conversation()
@@ -149,6 +208,7 @@ class LiveTutorTests(unittest.TestCase):
     def test_mute_stops_sending_and_a_dropped_line_keeps_results(self):
         talk = Conversation()
         talk.server({"setupComplete": {}})
+        talk.heard("five")
         talk.server({"toolCall": {"functionCalls": [{"id": "1", "name": "record_answer", "args": {"card": "c2", "result": "close"}}]}})
         talk.tutor.set_muted(True)
         self.assertTrue(talk.audio.muted)
