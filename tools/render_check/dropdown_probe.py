@@ -152,7 +152,8 @@ for view in views:
         vx, vy = page.viewport.winfo_rootx(), page.viewport.winfo_rooty()
         vw, vh = page.viewport.winfo_width(), page.viewport.winfo_height()
         list_mid = top.winfo_rooty() + top.winfo_height() // 2
-        point_y = vy + vh - 30 if list_mid - vy < vh // 2 else vy + 30
+        bottom = min(vy + vh, app.winfo_screenheight())  # the runner's screen can be shorter than the window
+        point_y = bottom - 30 if list_mid - vy < (bottom - vy) // 2 else vy + 30
         point_x = vx + vw // 2
         if top.winfo_rootx() <= point_x < top.winfo_rootx() + top.winfo_width() and top.winfo_rooty() <= point_y < top.winfo_rooty() + top.winfo_height():
             point_x = vx + 40
