@@ -3,7 +3,7 @@
     "name": "MemoryPal",
     "slug": "memorypal",
     "scheme": "memorypal",
-    "version": "0.53.6",
+    "version": "0.54.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -23,7 +23,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.memorypal.mobile",
-      "buildNumber": "65",
+      "buildNumber": "66",
       "config": {
         "usesNonExemptEncryption": false
       },
