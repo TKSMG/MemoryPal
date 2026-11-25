@@ -1,13 +1,20 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { DarkTheme, DefaultTheme, Href, router, Stack, ThemeProvider as NavigationTheme } from 'expo-router';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppState as RNAppState, Platform, Pressable, Text } from 'react-native';
 
 import { normalizeSettings } from '../features/notifications';
-import { AppStateProvider, usePrefs, useStore } from '../state/AppState';
+import { AppStateProvider, usePrefs, useStore, useSync } from '../state/AppState';
 import { onReminderTapped, refreshReminders, setUpNotifications } from '../state/reminders';
 import { ThemeProvider, useTheme } from '../ui/theme';
+
+// The launch screen stays up until the first page can be drawn whole (see
+// RootLayout), instead of the page appearing and then rearranging itself.
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 /** iOS sheets get a way out in the bar; Android has its back button and arrow. */
 function SheetButton({ label, bold }: { label: string; bold?: boolean }) {
@@ -114,11 +121,43 @@ function RootStack() {
   );
 }
 
+/** Longest the launch screen waits, so a slow phone never looks stuck. */
+const SPLASH_LIMIT_MS = 2500;
+
+/**
+ * Hides the launch screen once the first page is ready to show as it will
+ * stay: the icon font is loaded (until then every icon drew as nothing and
+ * popped in a moment later, pushing titles and rows sideways) and the
+ * remembered sign-in is read (until then the tabs show a blank page).
+ */
+function LaunchScreen({ fontsReady, late }: { fontsReady: boolean; late: boolean }) {
+  const sync = useSync();
+  const ready = late || (fontsReady && (!sync.configured || sync.account.restored));
+  useEffect(() => {
+    if (!ready) return;
+    // One frame later, so the page is on screen before the launch screen goes.
+    const frame = requestAnimationFrame(() => {
+      SplashScreen.hideAsync().catch(() => undefined);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ready]);
+  return null;
+}
+
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts(Ionicons.font);
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setLate(true), SPLASH_LIMIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  // A font that can't load still lets the app open (icons then load on their own).
+  const fontsReady = fontsLoaded || !!fontError || late;
   return (
     <AppStateProvider>
       <ThemeProvider>
-        <RootStack />
+        <LaunchScreen fontsReady={fontsReady} late={late} />
+        {fontsReady ? <RootStack /> : null}
       </ThemeProvider>
     </AppStateProvider>
   );

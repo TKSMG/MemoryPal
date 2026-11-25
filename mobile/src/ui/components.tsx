@@ -3,8 +3,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import { ReactElement, ReactNode, Ref, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
+  Animated,
+  Easing,
   FlatList,
   KeyboardAvoidingView,
+  LayoutAnimation,
   ListRenderItem,
   Platform,
   Pressable,
@@ -21,7 +24,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { BottomTabBarHeightContext } from 'expo-router/build/react-navigation/bottom-tabs';
-import { Edge, SafeAreaView } from 'react-native-safe-area-context';
+import { HeaderHeightContext, HeaderShownContext } from 'expo-router/build/react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useStore } from '../state/AppState';
 import { onSpeakingChange, speak, speakingOwner, stopSpeaking } from './feedback';
@@ -103,38 +107,43 @@ function ScreenHeader({ title, subtitle, right }: { title?: string; subtitle?: s
 }
 
 /**
- * Safe-area edges for a screen. Above the tab bar the bottom edge is left
- * out: the tab bar already sits clear of the home indicator or the system
- * buttons, and on Android the native safe area view still added that gap
- * again above the bar (a dark band under every tab's content).
+ * Room a screen leaves for the status bar, the notch and the home indicator,
+ * as padding worked out before the first frame. The native SafeAreaView this
+ * replaced measured itself after the page was first drawn, so pages drew
+ * under the status bar for a frame and then jumped down into place, most
+ * visibly while a page slid in.
+ *
+ * Under a navigation bar the top needs no room (the bar has it), and above
+ * the tab bar the bottom needs none: the tab bar already sits clear of the
+ * home indicator or the system buttons (on Android the old view added that
+ * gap again above the bar, a dark band under every tab's content).
  */
-function useScreenEdges(): Edge[] {
+function useScreenPadding(): ViewStyle {
+  const insets = useSafeAreaInsets();
   const tabBarHeight = useContext(BottomTabBarHeightContext);
-  return tabBarHeight ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right'];
+  const headerShown = useContext(HeaderShownContext);
+  return {
+    paddingTop: headerShown ? 0 : insets.top,
+    paddingBottom: tabBarHeight ? 0 : insets.bottom,
+    paddingLeft: insets.left,
+    paddingRight: insets.right,
+  };
 }
 
 export function Screen({ title, subtitle, right, children, scroll = true, padded = true, narrow }: { title?: string; subtitle?: string; right?: ReactNode; children: ReactNode; scroll?: boolean; padded?: boolean; /** Cap the content at form width (centred) on wide screens. */ narrow?: boolean }) {
   const theme = useTheme();
-  const edges = useScreenEdges();
+  const frame = useScreenPadding();
   const header = <ScreenHeader title={title} subtitle={subtitle} right={right} />;
   const gutter = useGutter();
   const pad = padded ? { paddingHorizontal: gutter } : null;
   const width = narrow ? { maxWidth: FORM_WIDTH + (padded ? gutter * 2 : 0) } : null;
   // iOS scroll views move clear of the keyboard on their own
   // (automaticallyAdjustKeyboardInsets); Android, drawn edge to edge, needs a
-  // keyboard-avoiding view, offset by however far the screen sits below the
-  // top of the window (the navigation bar, when there is one).
-  const frameRef = useRef<View>(null);
-  const [topOffset, setTopOffset] = useState(0);
-  const measureTop = () => {
-    if (Platform.OS !== 'android') return;
-    frameRef.current?.measureInWindow((_x, y) => setTopOffset(Math.max(0, Math.round(y))));
-  };
-  // The native safe area view pads only where the screen really meets the
-  // status bar or home indicator, so screens under a navigation bar or above
-  // the tab bar get no extra gap.
+  // keyboard-avoiding view, offset by the navigation bar above the screen
+  // (known up front, so the page isn't measured and drawn a second time).
+  const topOffset = useContext(HeaderHeightContext) ?? 0;
   return (
-    <SafeAreaView ref={frameRef} onLayout={measureTop} edges={edges} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <View style={[{ flex: 1, backgroundColor: theme.colors.bg }, frame]}>
       {scroll ? (
         <KeyboardAvoidingView style={{ flex: 1 }} enabled={Platform.OS === 'android'} behavior="padding" keyboardVerticalOffset={topOffset}>
         <ScrollView
@@ -154,7 +163,7 @@ export function Screen({ title, subtitle, right, children, scroll = true, padded
           {children}
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -165,11 +174,11 @@ export function Screen({ title, subtitle, right, children, scroll = true, padded
  */
 export function ScreenList<T>({ title, subtitle, right, header, data, renderItem, keyExtractor, empty }: { title?: string; subtitle?: string; right?: ReactNode; header?: ReactNode; data: readonly T[]; renderItem: ListRenderItem<T>; keyExtractor: (item: T) => string; empty?: ReactElement | null }) {
   const theme = useTheme();
-  const edges = useScreenEdges();
+  const frame = useScreenPadding();
   const gutter = useGutter();
   const column = [styles.readable, { paddingHorizontal: gutter }];
   return (
-    <SafeAreaView edges={edges} style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <View style={[{ flex: 1, backgroundColor: theme.colors.bg }, frame]}>
       <FlatList
         style={{ flex: 1 }}
         data={data}
@@ -189,7 +198,7 @@ export function ScreenList<T>({ title, subtitle, right, header, data, renderItem
         keyboardDismissMode="on-drag"
         automaticallyAdjustKeyboardInsets
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -197,15 +206,52 @@ function ListGap() {
   return <View style={{ height: 16 }} />;
 }
 
+// ---------------------------------------------------------------- press
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * The small shrink when a finger lands on a card or button, run by the
+ * phone's own animation thread so it glides in and springs back even while
+ * the app is busy (it used to jump straight to the smaller size and back).
+ * Reduce Motion leaves it out; the pressed colour still shows.
+ */
+function usePress(to: number, still: boolean, disabled?: boolean) {
+  const [scale] = useState(() => new Animated.Value(1));
+  const [pressed, setPressed] = useState(false);
+  const move = (value: number) => {
+    if (still) return;
+    scale.stopAnimation();
+    (value < 1
+      ? Animated.timing(scale, { toValue: value, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: true })
+      : Animated.spring(scale, { toValue: value, speed: 28, bounciness: 4, useNativeDriver: true })
+    ).start();
+  };
+  return {
+    pressed: pressed && !disabled,
+    scaleStyle: still ? null : { transform: [{ scale }] },
+    onPressIn: () => {
+      setPressed(true);
+      if (!disabled) move(to);
+    },
+    onPressOut: () => {
+      setPressed(false);
+      move(1);
+    },
+  };
+}
+
 // ---------------------------------------------------------------- card
 export function Card({ children, tone = 'default', style, onPress, accessibilityLabel, accessibilityHint, accessibilityRole = 'button', accessibilityState }: { children: ReactNode; tone?: 'default' | 'alt' | 'warm' | 'primary' | 'hero'; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; accessibilityRole?: 'button' | 'radio'; accessibilityState?: { selected?: boolean; checked?: boolean } }) {
   const theme = useTheme();
   const background = { default: theme.colors.surface, alt: theme.colors.alt, warm: theme.colors.warm, primary: theme.colors.primary, hero: theme.colors.hero }[tone];
   const base: StyleProp<ViewStyle> = [styles.card, { backgroundColor: background }, style];
+  const press = usePress(0.98, theme.reduceMotion);
   if (!onPress) return <View style={base}>{children}</View>;
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       // A short delay keeps the pressed look off cards a finger only lands
       // on to start scrolling.
       unstable_pressDelay={80}
@@ -213,10 +259,10 @@ export function Card({ children, tone = 'default', style, onPress, accessibility
       accessibilityState={accessibilityState}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
-      style={({ pressed }) => [base, pressed && { opacity: 0.85 }, pressed && !theme.reduceMotion && styles.pressedCard]}
+      style={[base, press.pressed && { opacity: 0.85 }, press.scaleStyle]}
     >
       {children}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -254,22 +300,26 @@ function buttonColors(theme: Theme, kind: ButtonKind): [string, string, string] 
 export function Button({ label, onPress, kind = 'secondary', icon, disabled, hint, compact, inline, style, sublabel, accessibilityLabel }: { label: string; onPress: () => void; kind?: ButtonKind; icon?: IconName; disabled?: boolean; hint?: string; compact?: boolean; /** Text-only ghost action that lines its text up with the content edge (e.g. a section title's action); the hit area grows outward instead. */ inline?: boolean; style?: StyleProp<ViewStyle>; sublabel?: string; accessibilityLabel?: string }) {
   const theme = useTheme();
   const [bg, fg, pressedBg] = buttonColors(theme, kind);
+  const press = usePress(0.97, theme.reduceMotion, disabled);
+  const pressed = press.pressed;
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       hitSlop={inline ? { left: 8, right: 8 } : undefined}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? (sublabel ? `${label}, ${sublabel}` : label)}
       accessibilityHint={hint}
       accessibilityState={{ disabled: !!disabled }}
-      style={({ pressed }) => [
+      style={[
         styles.button,
         { backgroundColor: pressed ? pressedBg : bg, minHeight: compact ? MIN_TOUCH : 52, opacity: disabled ? 0.45 : 1 },
         sublabel ? { paddingVertical: 14 } : null,
         inline && styles.inlineButton,
         // A press answers the moment the finger lands, not on release.
-        pressed && !disabled && !theme.reduceMotion && styles.pressedButton,
+        press.scaleStyle,
         style,
       ]}
     >
@@ -280,7 +330,7 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
             left-aligned 12pt line under a centred title read as a cramped footnote. */}
         {sublabel ? <Text maxFontSizeMultiplier={1.6} style={{ color: fg, fontSize: theme.font(13), lineHeight: theme.font(18), fontWeight: '500', textAlign: 'center', opacity: 0.9, marginTop: 2 }}>{sublabel}</Text> : null}
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -679,10 +729,16 @@ export function HeroEyebrow({ children, dot = false }: { children: string; /** T
 /** A heading that shows or hides what's under it, for options most people don't need. */
 export function Disclosure({ title, open, onToggle, children, summary }: { title: string; open: boolean; onToggle: () => void; children: ReactNode; summary?: string }) {
   const theme = useTheme();
+  // What opens slides the rows below it down (and back up) instead of
+  // jumping, the way iOS and Android expand a section.
+  const toggle = () => {
+    if (!theme.reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.create(200, 'easeInEaseOut', 'opacity'));
+    onToggle();
+  };
   return (
     <View style={{ gap: 12 }}>
       <Pressable
-        onPress={onToggle}
+        onPress={toggle}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         accessibilityLabel={summary ? `${title}, ${summary}` : title}
@@ -704,8 +760,6 @@ export function Icon({ name, size = 22, color }: { name: IconName; size?: number
 
 const styles = StyleSheet.create({
   readable: { width: '100%', maxWidth: READABLE_WIDTH, alignSelf: 'center' },
-  pressedCard: { transform: [{ scale: 0.98 }] },
-  pressedButton: { transform: [{ scale: 0.97 }] },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
   card: { borderRadius: 16, padding: 16, gap: 10 },
   button: { borderRadius: 12, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
