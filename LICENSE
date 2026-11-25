@@ -1,0 +1,17 @@
+Copyright (c) 2026 Kirthik Sai Mouli Parthiban. All rights reserved.
+
+The MemoryPal source code, design, name, logo and other assets in this
+repository are published so that people can read them and see how the app
+works. No licence is granted to copy, modify, distribute, sublicense or sell
+them, or to publish MemoryPal or any app built from this code in an app store
+or anywhere else, without written permission from the copyright holder.
+
+Reading the code, and forking it on GitHub only as GitHub's Terms of Service
+allow, is fine. Reporting bugs and security issues is welcome (see
+SECURITY.md).
+
+Third-party libraries and files included here keep their own licences, for
+example mobile/LICENSE (the MIT licence of Expo's app template). Use of the
+MemoryPal apps themselves is covered by TERMS_OF_USE.md and PRIVACY_POLICY.md.
+
+Contact: memorypal09@gmail.com
