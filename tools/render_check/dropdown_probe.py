@@ -152,12 +152,19 @@ for view in views:
         vx, vy = page.viewport.winfo_rootx(), page.viewport.winfo_rooty()
         vw, vh = page.viewport.winfo_width(), page.viewport.winfo_height()
         list_mid = top.winfo_rooty() + top.winfo_height() // 2
-        bottom = min(vy + vh, app.winfo_screenheight())  # the runner's screen can be shorter than the window
+        # The runner's screen can be shorter than the window, and the taskbar covers its bottom.
+        bottom = min(vy + vh, app.winfo_screenheight() - 60)
         point_y = bottom - 30 if list_mid - vy < (bottom - vy) // 2 else vy + 30
         point_x = vx + vw // 2
         if top.winfo_rootx() <= point_x < top.winfo_rootx() + top.winfo_width() and top.winfo_rooty() <= point_y < top.winfo_rooty() + top.winfo_height():
             point_x = vx + 40
         move(point_x, point_y)
+        if app.winfo_containing(point_x, point_y) is None:
+            print(f"   wheel: skipped, ({point_x},{point_y}) is not over the app", flush=True)
+            original_close()
+            app._dropdown = None
+            pump(0.3)
+            continue
         start = page.viewport.canvasy(0)
         wheel_down()
         moved_open, closed_after_ms, began = 0.0, None, time.perf_counter()
