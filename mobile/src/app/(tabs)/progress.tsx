@@ -22,7 +22,7 @@ function Bars({ values, labels, color, summary }: { values: number[]; labels: st
       {labels.length === values.length ? (
         <View style={{ flexDirection: 'row', gap: 4 }}>
           {labels.map((label, i) => (
-            <Txt key={i} variant="small" center numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.5} style={{ flex: 1, fontSize: theme.font(11) }}>{label}</Txt>
+            <Txt key={i} variant="small" center numberOfLines={1} maxFontSizeMultiplier={1.5} style={{ flex: 1, fontSize: theme.font(11) }}>{label}</Txt>
           ))}
         </View>
       ) : (
