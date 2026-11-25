@@ -5,6 +5,9 @@ Windows moves the system pointer (SetCursorPos + mouse_event); Linux uses
 XTest (pip install python-xlib, run under Xvfb). For every dropdown button on
 each page it clicks once (press, short pause, release) and reports whether the
 list is still open a moment later, and which events closed it if not.
+Then, with the list open again, it turns the wheel once over the page below
+the list and checks the list is gone before the page has moved at all (a
+list left behind while the field slides away looks broken).
 """
 import os
 import sys
@@ -43,6 +46,9 @@ if WINDOWS:
     def button(press):
         user32.mouse_event(0x0002 if press else 0x0004, 0, 0, 0, 0)
         pump()
+
+    def wheel_down():
+        user32.mouse_event(0x0800, 0, 0, ctypes.c_ulong(-120 & 0xFFFFFFFF).value, 0)
 else:
     from Xlib import X, display
     from Xlib.ext import xtest
@@ -58,6 +64,11 @@ else:
         xtest.fake_input(_display, X.ButtonPress if press else X.ButtonRelease, 1)
         _display.sync()
         pump()
+
+    def wheel_down():
+        xtest.fake_input(_display, X.ButtonPress, 5)
+        xtest.fake_input(_display, X.ButtonRelease, 5)
+        _display.sync()
 
 M.enable_dpi_awareness()
 app = M.MemoryPalApp()
@@ -119,6 +130,59 @@ for view in views:
         print(f"{view} [{b.cget('text')}] opened={opened} open_after_release={still} focus={app.focus_get()}", flush=True)
         for s in closes:
             print("   closed by:\n" + s, flush=True)
+        original_close()
+        app._dropdown = None
+        pump(0.3)
+        if page is None or not still:
+            continue
+        # Open it again, point at the page beside the list and turn the wheel.
+        # (Rest the pointer on the page first, as a person's would have been.)
+        move(page.viewport.winfo_rootx() + page.viewport.winfo_width() // 2, page.viewport.winfo_rooty() + page.viewport.winfo_height() // 2)
+        pump(0.2)
+        try:
+            app.open_dropdown(b, [(f"Option {n}", lambda: None, n == 0) for n in range(4)])
+        except tk.TclError:
+            continue
+        pump(0.6)
+        top = app._dropdown[0] if getattr(app, "_dropdown", None) else None
+        if top is None:
+            continue
+        # A point on the page (inside the window), as far from the list as
+        # the page allows, so the wheel turns over the page and not the list.
+        vx, vy = page.viewport.winfo_rootx(), page.viewport.winfo_rooty()
+        vw, vh = page.viewport.winfo_width(), page.viewport.winfo_height()
+        list_mid = top.winfo_rooty() + top.winfo_height() // 2
+        # The runner's screen can be shorter than the window, and the taskbar covers its bottom.
+        bottom = min(vy + vh, app.winfo_screenheight() - 60)
+        point_y = bottom - 30 if list_mid - vy < (bottom - vy) // 2 else vy + 30
+        point_x = vx + vw // 2
+        if top.winfo_rootx() <= point_x < top.winfo_rootx() + top.winfo_width() and top.winfo_rooty() <= point_y < top.winfo_rooty() + top.winfo_height():
+            point_x = vx + 40
+        move(point_x, point_y)
+        if app.winfo_containing(point_x, point_y) is None:
+            print(f"   wheel: skipped, ({point_x},{point_y}) is not over the app", flush=True)
+            original_close()
+            app._dropdown = None
+            pump(0.3)
+            continue
+        start = page.viewport.canvasy(0)
+        wheel_down()
+        moved_open, closed_after_ms, began = 0.0, None, time.perf_counter()
+        while time.perf_counter() - began < 0.6:
+            app.update()
+            open_now = getattr(app, "_dropdown", None) is not None
+            shift = abs(page.viewport.canvasy(0) - start)
+            if open_now:
+                moved_open = max(moved_open, shift)
+            elif closed_after_ms is None:
+                closed_after_ms = (time.perf_counter() - began) * 1000
+            time.sleep(0.001)
+        page_moved = abs(page.viewport.canvasy(0) - start)
+        print(f"   wheel at ({point_x},{point_y}) over {app.winfo_containing(point_x, point_y)} page_at={start:.0f} of {page.max_y_offset():.0f}", flush=True)
+        wheel_ok = closed_after_ms is not None and moved_open == 0
+        failures += 0 if wheel_ok else 1
+        print(f"   wheel: closed={closed_after_ms is not None} after_ms={closed_after_ms and round(closed_after_ms, 1)} "
+              f"page_moved_px={page_moved:.0f} moved_while_open_px={moved_open:.0f} {'ok' if wheel_ok else 'LAGGED'}", flush=True)
         original_close()
         app._dropdown = None
         pump(0.3)

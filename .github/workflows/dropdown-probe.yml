@@ -1,7 +1,9 @@
 name: Dropdown probe
 
 # Clicks every desktop dropdown with the real mouse on Windows
-# (tools/render_check/dropdown_probe.py) and checks each list stays open.
+# (tools/render_check/dropdown_probe.py) and checks each list stays open,
+# then that one wheel notch over the page closes it before the page moves.
+# The "main" leg runs the same probe against main's app, for comparison.
 on:
   workflow_dispatch:
   push:
@@ -21,10 +23,19 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest]
+        app: [branch, main]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    # main is only the before picture; its lag is expected.
+    continue-on-error: ${{ matrix.app == 'main' }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Use main's app
+        if: matrix.app == 'main'
+        shell: bash
+        run: git checkout origin/main -- latest_app
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -37,5 +48,5 @@ jobs:
           python tools/render_check/dropdown_probe.py > probe.txt 2>&1
           code=$?
           cat probe.txt
-          python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Dropdown probe ${{ matrix.os }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Dropdown probe ${{ matrix.os }} ${{ matrix.app }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
           exit $code
