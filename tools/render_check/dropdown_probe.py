@@ -153,6 +153,8 @@ for view in views:
             side_x = max(view_left + 40, top.winfo_rootx() - 60)
         move(side_x, top.winfo_rooty() + top.winfo_height() // 2)
         start = page.viewport.canvasy(0)
+        seen = []
+        app.bind_all("<MouseWheel>", lambda e: seen.append(str(e.widget)), add="+")
         wheel_down()
         moved_open, closed_after_ms, began = 0.0, None, time.perf_counter()
         while time.perf_counter() - began < 0.6:
@@ -165,6 +167,7 @@ for view in views:
                 closed_after_ms = (time.perf_counter() - began) * 1000
             time.sleep(0.001)
         page_moved = abs(page.viewport.canvasy(0) - start)
+        print(f"   wheel events seen={len(seen)} at={seen[:1]} page_at={start:.0f} of {page.max_y_offset():.0f}", flush=True)
         wheel_ok = closed_after_ms is not None and moved_open == 0
         failures += 0 if wheel_ok else 1
         print(f"   wheel: closed={closed_after_ms is not None} after_ms={closed_after_ms and round(closed_after_ms, 1)} "

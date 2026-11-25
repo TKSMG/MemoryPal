@@ -1580,6 +1580,10 @@ class MemoryPalApp(tk.Tk):
         self._styles()
         self.install_text_selection()
         self.install_smooth_box_scrolling()
+        # Turning the wheel anywhere outside an open dropdown list closes it
+        # at once, as Windows and Mac menus do, even where nothing scrolls.
+        for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.bind_all(sequence, self._wheel_closes_dropdown, add="+")
         self.keep_flat_buttons_still()
         self.track_focus_source()
         self._shell()
@@ -6681,6 +6685,20 @@ class MemoryPalApp(tk.Tk):
         for widget_class in ("Text", "Listbox"):
             for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
                 self.bind_class(widget_class, sequence, self._box_wheel)
+
+    def _wheel_closes_dropdown(self, event):
+        dropdown = getattr(self, "_dropdown", None)
+        if dropdown is None:
+            return None
+        top = dropdown[0]
+        try:
+            inside = (0 <= event.x_root - top.winfo_rootx() < top.winfo_width()
+                      and 0 <= event.y_root - top.winfo_rooty() < top.winfo_height())
+        except tk.TclError:
+            inside = False
+        if not inside:
+            self.close_dropdown()
+        return None  # the page under the pointer still scrolls
 
     def _box_wheel(self, event):
         widget = event.widget
