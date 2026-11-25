@@ -18,7 +18,7 @@
     "expo-linking": "~57.0.12",
     "expo-network": "~57.0.2",
     "expo-notifications": "~57.0.24",
-    "expo-router": "~57.0.25",
+    "expo-router": "~58.0.32",
     "expo-secure-store": "~57.0.4",
     "expo-sharing": "~57.0.22",
     "expo-speech": "~57.0.3",
