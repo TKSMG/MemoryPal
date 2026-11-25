@@ -90,3 +90,7 @@ npx expo start
 ```
 
 The live AI tutor in Talk-back needs a development build (`npx expo run:android` or `run:ios`) because Expo Go doesn't include its audio and speech modules. [mobile/README.md](mobile/README.md) covers tests, structure and the parity checks.
+
+## Licence
+
+Copyright (c) 2026 Kirthik Sai Mouli Parthiban. All rights reserved. The code is public to read, but it may not be copied, reused or republished without permission; see [LICENSE](LICENSE). Third-party parts keep their own licences.
