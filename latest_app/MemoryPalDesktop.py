@@ -975,12 +975,33 @@ class ScrollFrame(ttk.Frame):
         )
         if not pixels:
             return "break"
+        self._close_dropdown_here()
         axis = "x" if self.horizontal and getattr(event, "state", 0) & 0x0001 else "y"
         if tau <= 0:
             self._direct_scroll(pixels, axis=axis)
         else:
             self._queue_wheel(pixels, axis=axis, tau=tau)
         return "break"
+
+    def _close_dropdown_here(self):
+        """Close an open dropdown list whose field is on this page, before
+        the page moves.
+
+        The list is its own window, so it can't move with the page. It used
+        to be closed by a check that ran every 80ms, so on a quick wheel
+        notch the page (and the field) slid away for a few frames while the
+        list stayed put, then it vanished. Closing it here, on the first
+        wheel event and before any scroll step, makes it go at once.
+        """
+        try:
+            root = self._root()
+        except (tk.TclError, AttributeError):
+            return
+        anchor = getattr(root, "_dropdown_anchor", None)
+        if getattr(root, "_dropdown", None) is None or anchor is None:
+            return
+        if str(anchor).startswith(str(self) + "."):
+            root.close_dropdown()
 
     @staticmethod
     def _inner_box_scrolls(widget):
@@ -1217,6 +1238,7 @@ class ScrollFrame(ttk.Frame):
             self.after(1, lambda: self._present(move, distance))
             return
         self._presenting = True
+        self._close_dropdown_here()
         try:
             move()
             self._sync_scrollbars()
@@ -1292,6 +1314,7 @@ class ScrollFrame(ttk.Frame):
     def preview_scrollbar_drag(self, fraction, axis):
         try:
             fraction = max(0.0, min(1.0, float(fraction)))
+            self._close_dropdown_here()
             if axis == "x" and self.x_scrollbar is not None:
                 self.viewport.xview_moveto(fraction)
             elif axis == "y":
@@ -1303,6 +1326,7 @@ class ScrollFrame(ttk.Frame):
     def handle_scrollbar(self, args, axis="y"):
         if not args:
             return
+        self._close_dropdown_here()
         try:
             if axis == "y":
                 self.viewport.yview(*args)
@@ -1556,6 +1580,10 @@ class MemoryPalApp(tk.Tk):
         self._styles()
         self.install_text_selection()
         self.install_smooth_box_scrolling()
+        # Turning the wheel anywhere outside an open dropdown list closes it
+        # at once, as Windows and Mac menus do, even where nothing scrolls.
+        for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.bind_all(sequence, self._wheel_closes_dropdown, add="+")
         self.keep_flat_buttons_still()
         self.track_focus_source()
         self._shell()
@@ -4461,6 +4489,11 @@ class MemoryPalApp(tk.Tk):
         # its own loop, which sends Tk no mouse events, and a page built
         # "while idle" would stall the window under the mouse.
         self.note_user_input()
+        # An open dropdown list stays behind when the window moves: close it
+        # on this first move, not on the next timed check.
+        check = getattr(self, "_dropdown_check", None)
+        if check is not None:
+            check()
         width, height = int(width), int(height)
         if width <= 1 or height <= 1:
             return
@@ -6313,6 +6346,8 @@ class MemoryPalApp(tk.Tk):
     def close_dropdown(self):
         dropdown = getattr(self, "_dropdown", None)
         self._dropdown = None
+        self._dropdown_anchor = None
+        self._dropdown_check = None
         if dropdown is None:
             return
         top, previous_grab = dropdown
@@ -6395,6 +6430,7 @@ class MemoryPalApp(tk.Tk):
                                font=bold if selected else font_spec, fill=COLORS["primary"] if selected else COLORS["ink"])
         state = {"index": None}
         self._dropdown = (top, previous_grab)
+        self._dropdown_anchor = anchor
 
         def mark(index):
             if index is None or not 0 <= index < len(entries):
@@ -6512,17 +6548,27 @@ class MemoryPalApp(tk.Tk):
             except tk.TclError:
                 return None
 
+        # Scrolling closes it straight away (ScrollFrame._close_dropdown_here,
+        # before the page takes its first step) and so does moving or sizing
+        # the window (handle_window_resized runs check). This slower check is
+        # only for the rest, such as the page reflowing under it.
         anchored_at = where()
 
-        def follow():
+        def check():
             if getattr(self, "_dropdown", None) is None or self._dropdown[0] is not top:
-                return
+                return False
             if where() != anchored_at:
                 self.close_dropdown()
-                return
-            top.after(80, follow)
+                return False
+            return True
 
-        top.after(80, follow)
+        self._dropdown_check = check
+
+        def follow():
+            if check():
+                top.after(50, follow)
+
+        top.after(50, follow)
 
     def set_control_style(self, widget, style):
         """Switch a rounded control's style and refit its corners to its surface."""
@@ -6678,6 +6724,20 @@ class MemoryPalApp(tk.Tk):
         for widget_class in ("Text", "Listbox"):
             for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
                 self.bind_class(widget_class, sequence, self._box_wheel)
+
+    def _wheel_closes_dropdown(self, event):
+        dropdown = getattr(self, "_dropdown", None)
+        if dropdown is None:
+            return None
+        top = dropdown[0]
+        try:
+            inside = (0 <= event.x_root - top.winfo_rootx() < top.winfo_width()
+                      and 0 <= event.y_root - top.winfo_rooty() < top.winfo_height())
+        except tk.TclError:
+            inside = False
+        if not inside:
+            self.close_dropdown()
+        return None  # the page under the pointer still scrolls
 
     def _box_wheel(self, event):
         widget = event.widget

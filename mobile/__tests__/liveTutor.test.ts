@@ -3,6 +3,7 @@ import { base64Length, pcmMs, utf8 } from '../src/features/pcm';
 import { liveAssessment, LiveAudio, LiveSocket, LiveTutor } from '../src/features/liveTutor';
 import type { Outcome, TalkCard } from '../src/features/talkback';
 import { startLive } from '../src/cloud/ai';
+import { decodeBase64, GATE, levelDb, silenceBase64, SpeechGate } from '../src/features/speechGate';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { supabaseUrl: 'https://proj.supabase.co/', supabasePublishableKey: 'sb_publishable_x' } } } }));
 
@@ -40,7 +41,7 @@ class FakeSocket implements LiveSocket {
   }
 }
 
-function setup(minutes = 10) {
+function setup(minutes = 10, gate: SpeechGate | null = null) {
   let now = 1_000_000;
   const played: string[] = [];
   let mic: ((data: string) => void) | null = null;
@@ -76,6 +77,7 @@ function setup(minutes = 10) {
     openSocket: (url) => (socket = new FakeSocket(url)),
     onRate: (card, outcome) => rated.push([card.id, outcome]),
     now: () => now,
+    gate,
   });
   tutor.start();
   const ws = socket as unknown as FakeSocket;
@@ -224,5 +226,100 @@ describe('starting a live conversation', () => {
   test('a used-up allowance is reported as such', async () => {
     const fetcher = (async () => new Response(JSON.stringify({ ok: false, error: 'limit_reached' }), { status: 429 })) as unknown as typeof fetch;
     await expect(startLive('token', [{ front: 'Q', back: 'A' }], '', { fetcher })).rejects.toMatchObject({ code: 'limit_reached' });
+  });
+});
+
+/** base64 16 kHz PCM: `ms` of a tone at `db` dBFS (or silence below -99). */
+function tone(ms: number, db: number): string {
+  const samples = Math.round((ms * 16000) / 1000);
+  const bytes = new Uint8Array(samples * 2);
+  const amp = db <= -99 ? 0 : Math.pow(10, db / 20) * 32767 * Math.SQRT2;
+  for (let i = 0; i < samples; i++) {
+    const v = Math.max(-32768, Math.min(32767, Math.round(amp * Math.sin((2 * Math.PI * 220 * i) / 16000))));
+    const u = v < 0 ? v + 0x10000 : v;
+    bytes[2 * i] = u & 0xff;
+    bytes[2 * i + 1] = u >> 8;
+  }
+  let text = '';
+  for (let i = 0; i < bytes.length; i++) text += String.fromCharCode(bytes[i]);
+  return btoa(text);
+}
+
+const isSilence = (chunk: string) => decodeBase64(chunk).every((b) => b === 0);
+
+describe('speech gate', () => {
+  test('base64 helpers', () => {
+    for (let n = 0; n < 9; n++) expect(decodeBase64(silenceBase64(n))).toEqual(new Uint8Array(n));
+    expect(Array.from(decodeBase64(btoa('\x01\x02\xff')))).toEqual([1, 2, 255]);
+    expect(Math.round(levelDb(decodeBase64(tone(100, -20))))).toBe(-20);
+    expect(levelDb(new Uint8Array(0))).toBe(-100);
+  });
+
+  test('room noise and short sounds send silence of the same length', () => {
+    const gate = new SpeechGate();
+    for (let i = 0; i < 50; i++) {
+      const chunk = tone(20, -58);
+      const out = gate.process(chunk, false);
+      expect(out).toHaveLength(1);
+      expect(isSilence(out[0])).toBe(true);
+      expect(decodeBase64(out[0]).length).toBe(decodeBase64(chunk).length);
+    }
+    // A click (two loud chunks) doesn't open it.
+    expect(gate.process(tone(20, -20), false).every(isSilence)).toBe(true);
+    expect(gate.process(tone(20, -20), false).every(isSilence)).toBe(true);
+    for (let i = 0; i < 10; i++) gate.process(tone(20, -60), false);
+    expect(gate.isOpen).toBe(false);
+  });
+
+  test('speech opens it with the half second before, then stays open through a pause', () => {
+    const gate = new SpeechGate();
+    for (let i = 0; i < 40; i++) gate.process(tone(20, -60), false);
+    const speech = tone(20, -25);
+    let out: string[] = [];
+    for (let i = 0; i < 20 && !gate.isOpen; i++) out = gate.process(speech, false);
+    expect(gate.isOpen).toBe(true);
+    // The pre-roll (about half a second of what was heard) comes first, real audio, not silence.
+    expect(out.length).toBeGreaterThan(GATE.prerollMs / 20 - 2);
+    expect(out[out.length - 1]).toBe(speech);
+    // A thinking pause shorter than hangMs keeps it open and sends the real sound.
+    for (let ms = 0; ms < GATE.hangMs - 100; ms += 20) expect(gate.process(tone(20, -60), false)).toEqual([expect.any(String)]);
+    expect(gate.isOpen).toBe(true);
+    for (let ms = 0; ms < 200; ms += 20) gate.process(tone(20, -60), false);
+    expect(gate.isOpen).toBe(false);
+  });
+
+  test('while the tutor talks, its echo and a cough are kept out but talking over it gets through', () => {
+    const gate = new SpeechGate();
+    for (let i = 0; i < 40; i++) gate.process(tone(20, -60), false);
+    // Echo of the tutor: as loud as quiet speech, for a long time.
+    for (let i = 0; i < 100; i++) expect(gate.process(tone(20, -38), true).every(isSilence)).toBe(true);
+    // A cough: loud but short.
+    for (let i = 0; i < 10; i++) gate.process(tone(20, -15), true);
+    for (let i = 0; i < 10; i++) gate.process(tone(20, -60), true);
+    expect(gate.isOpen).toBe(false);
+    // Really talking over it opens the gate.
+    for (let i = 0; i < 30 && !gate.isOpen; i++) gate.process(tone(20, -20), true);
+    expect(gate.isOpen).toBe(true);
+  });
+
+  test('the tutor sends gated audio and stops the gate when muted', async () => {
+    const { tutor, ws, mic } = setup(10, new SpeechGate());
+    ws.onopen?.();
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    const before = ws.sent.length;
+    mic(tone(20, -60));
+    const sent = ws.sent.slice(before) as { realtimeInput: { audio: { data: string; mimeType: string } } }[];
+    expect(sent).toHaveLength(1);
+    expect(isSilence(sent[0].realtimeInput.audio.data)).toBe(true);
+    expect(sent[0].realtimeInput.audio.mimeType).toBe('audio/pcm;rate=16000');
+    for (let i = 0; i < 20; i++) mic(tone(20, -20));
+    const last = ws.sent[ws.sent.length - 1] as { realtimeInput: { audio: { data: string } } };
+    expect(isSilence(last.realtimeInput.audio.data)).toBe(false);
+    tutor.setMuted(true);
+    const muted = ws.sent.length;
+    mic(tone(20, -20));
+    expect(ws.sent.length).toBe(muted);
+    tutor.stop();
   });
 });
