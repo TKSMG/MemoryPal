@@ -1996,11 +1996,13 @@ class MemoryPalApp(tk.Tk):
         del held[:-6]
         canvas._memorypal_shape = photo
 
-    def draw_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0):
-        """Draw smoother custom UI shapes with Pillow or the built-in fallback."""
+    def draw_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0, at=(0, 0)):
+        """Draw smoother custom UI shapes with Pillow or the built-in fallback.
+
+        at: where the shape's top-left corner goes on the canvas."""
         modules = self.pillow_modules()
         if not modules:
-            return self.draw_builtin_antialiased_shape(canvas, width, height, fill, shape, radius, inset)
+            return self.draw_builtin_antialiased_shape(canvas, width, height, fill, shape, radius, inset, at=at)
         Image, ImageDraw, ImageTk = modules
         try:
             width = int(width)
@@ -2034,13 +2036,13 @@ class MemoryPalApp(tk.Tk):
                 if len(self.shape_photo_cache) > 48:
                     self.shape_photo_cache.clear()
                 self.shape_photo_cache[key] = photo
-            canvas.create_image(0, 0, image=photo, anchor="nw")
+            canvas.create_image(at[0], at[1], image=photo, anchor="nw")
             self.keep_shape_photo(canvas, photo)
             return True
         except Exception:
             return False
 
-    def draw_builtin_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0):
+    def draw_builtin_antialiased_shape(self, canvas, width, height, fill, shape="round_rect", radius=None, inset=0, at=(0, 0)):
         """Draw small antialiased shapes without optional Pillow installed."""
         try:
             width = int(width)
@@ -2056,7 +2058,7 @@ class MemoryPalApp(tk.Tk):
                 if len(self.shape_photo_cache) > 64:
                     self.shape_photo_cache.clear()
                 self.shape_photo_cache[key] = photo
-            canvas.create_image(0, 0, image=photo, anchor="nw")
+            canvas.create_image(at[0], at[1], image=photo, anchor="nw")
             self.keep_shape_photo(canvas, photo)
             return True
         except Exception:
@@ -3313,13 +3315,17 @@ class MemoryPalApp(tk.Tk):
 
     def font(self, family, size):
         size = max(8, int(round(size * self.font_scale)))
-        if family in ("Segoe UI", "Segoe UI Semibold"):
+        if family in ("Segoe UI", "Segoe UI Semibold", "Segoe UI Bold"):
             system = self.system_ui_family()
             if system:
                 # Off Windows, ask for the system's own UI font (San Francisco
                 # on a Mac) instead of letting Tk swap Segoe for a lookalike,
                 # which also dropped the Semibold weight from every heading.
-                return (system, size, "bold") if family.endswith("Semibold") else (system, size)
+                return (system, size) if family == "Segoe UI" else (system, size, "bold")
+        if family == "Segoe UI Bold":
+            # Page titles and card headings, bold as on the phone (700); the
+            # smaller headings stay Semibold (600), as the phone's do.
+            return ("Segoe UI", size, "bold")
         return (family, size)
 
     def system_ui_family(self):
@@ -3447,18 +3453,18 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("CardMuted.TLabel", background=COLORS["surface"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
         self.style.configure("Header.TLabel", background=COLORS["bg"], foreground=COLORS["ink"], font=self.font("Segoe UI", 12))
         self.style.configure("HeaderMuted.TLabel", background=COLORS["bg"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
-        self.style.configure("PageTitle.TLabel", background=COLORS["bg"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 25))
+        self.style.configure("PageTitle.TLabel", background=COLORS["bg"], foreground=COLORS["ink"], font=self.font("Segoe UI Bold", 25))
         self.style.configure("AltCard.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI", 12))
         self.style.configure("AltMuted.TLabel", background=COLORS["alt"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
         self.style.configure("WarmCard.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI", 11))
         self.style.configure("WarmMuted.TLabel", background=COLORS["alt"], foreground=COLORS["muted"], font=self.font("Segoe UI", 11))
-        self.style.configure("Title.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 28))
-        self.style.configure("H2.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 18))
+        self.style.configure("Title.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Bold", 28))
+        self.style.configure("H2.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Bold", 18))
         # A list item's own heading: a step under a panel's heading.
         self.style.configure("ItemTitle.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 14))
-        self.style.configure("AltH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 18))
+        self.style.configure("AltH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Bold", 18))
         self.style.configure("WarmH2.TLabel", background=COLORS["alt"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 13))
-        self.style.configure("Stat.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Semibold", 34))
+        self.style.configure("Stat.TLabel", background=COLORS["surface"], foreground=COLORS["ink"], font=self.font("Segoe UI Bold", 34))
         self.style.configure("RailTitle.TLabel", background=COLORS["rail"], foreground=COLORS["white"], font=self.font("Segoe UI Semibold", 20))
         self.style.configure("RailText.TLabel", background=COLORS["rail"], foreground=COLORS["rail_muted"], font=self.font("Segoe UI", 12))
         self.style.configure("TEntry", padding=self.px(11), background=COLORS["input"], fieldbackground=COLORS["input"], foreground=COLORS["ink"], insertcolor=COLORS["ink"], bordercolor=COLORS["input"], lightcolor=COLORS["input"], darkcolor=COLORS["input"], relief="flat")
@@ -3498,6 +3504,9 @@ class MemoryPalApp(tk.Tk):
         self.style.configure("Rail.Vertical.TScrollbar", gripcount=0, width=self.px(13), arrowsize=self.px(11), background=COLORS["muted"], darkcolor=COLORS["rail"], lightcolor=COLORS["rail"], troughcolor=COLORS["rail"], bordercolor=COLORS["rail"], arrowcolor=COLORS["muted"], relief="flat")
         self.style.configure("Horizontal.TProgressbar", troughcolor=COLORS["alt"], background=COLORS["primary"], bordercolor=COLORS["alt"], lightcolor=COLORS["primary"], darkcolor=COLORS["primary"])
         semibold = self.font("Segoe UI Semibold", 11)
+        # The hero's buttons are its one call to action: body-size words and
+        # more room, like the phone's full-size hero button.
+        hero_font = self.font("Segoe UI Semibold", 12)
         self.style.configure("TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS["ink"], borderwidth=0, relief="flat", font=semibold)
         self.style.map("TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["primary"])])
         self.style.configure("Primary.TButton", padding=self.text_pad(18, 11, semibold), foreground=self.on_color(COLORS["primary"]), borderwidth=0, relief="flat", font=semibold)
@@ -3509,9 +3518,9 @@ class MemoryPalApp(tk.Tk):
         self.style.map("TMenubutton", foreground=[("active", COLORS["primary"])])
         self.style.configure("Select.TMenubutton", padding=self.text_pad(14, 11, self.font("Segoe UI", 12), right=10), width=0, anchor="w", foreground=COLORS["ink"], borderwidth=0, arrowcolor=COLORS["muted"], relief="flat", font=self.font("Segoe UI", 12))
         self.style.configure("Danger.TButton", padding=self.text_pad(18, 11, semibold), foreground=self.on_color(COLORS["danger"]), borderwidth=0, relief="flat", font=semibold)
-        self.style.configure("Hero.TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS["hero_button_text"], borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("Hero.TButton", padding=self.text_pad(22, 12, hero_font), foreground=COLORS["hero_button_text"], borderwidth=0, relief="flat", font=hero_font)
         self.style.map("Hero.TButton", foreground=[("disabled", COLORS["muted"]), ("active", COLORS["hero_button_text"])])
-        self.style.configure("HeroSoft.TButton", padding=self.text_pad(18, 11, semibold), foreground=COLORS["hero_soft_text"], borderwidth=0, relief="flat", font=semibold)
+        self.style.configure("HeroSoft.TButton", padding=self.text_pad(22, 12, hero_font), foreground=COLORS["hero_soft_text"], borderwidth=0, relief="flat", font=hero_font)
         self.style.map("HeroSoft.TButton", foreground=[("disabled", COLORS["hero_muted"]), ("active", COLORS["hero_soft_text"])])
         # A quiet text button ("More options", "Remove"): accent text on the
         # surface it sits on, a soft tile on hover, the usual focus ring.
@@ -5177,7 +5186,7 @@ class MemoryPalApp(tk.Tk):
         # The same surface as the other dialogs, so its buttons look the same.
         wrap = tk.Frame(top, bg=COLORS["surface"], padx=self.px(24), pady=self.px(20))
         wrap.pack(fill="both", expand=True)
-        tk.Label(wrap, text="Profiles", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w").pack(fill="x")
+        tk.Label(wrap, text="Profiles", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 18), anchor="w").pack(fill="x")
         self.fit_wrap(tk.Label(wrap, text="Each profile keeps its own sets, stats, and streak. Sign each one in to a different account to keep them apart in the cloud too.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(440), justify="left", anchor="w"), pady=(self.px(4), self.px(16)))
 
         # One list between hairlines, like a Settings page: every row's name
@@ -6102,9 +6111,17 @@ class MemoryPalApp(tk.Tk):
         panel matches what's under it (a list row that only shows its shape
         once it is tinted on hover).
         """
-        radius = radius or self.px(12)
         if getattr(frame, "_mp_corners", None):
             return frame
+        if not radius:
+            # Cards and groups round at 16, the phone's radiusLarge. A panel
+            # with tighter padding keeps 12 so its corners stay clear of what
+            # sits inside it.
+            try:
+                room = min(int(frame.cget("padx")), int(frame.cget("pady")))
+            except (tk.TclError, ValueError):
+                room = 0
+            radius = self.px(16) if room >= self.px(14) else self.px(12)
         try:
             fill = frame.cget("bg")
             under = self.surface_behind(frame)
@@ -7440,7 +7457,7 @@ class MemoryPalApp(tk.Tk):
         mark.pack(pady=(0, self.px(14)))
         if not self.draw_memorypal_logo(mark, mark_size):
             self.draw_chrome_icon(mark, mark_size)
-        tk.Label(card, text="Welcome to MemoryPal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 22)).pack()
+        tk.Label(card, text="Welcome to MemoryPal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 22)).pack()
         uses_drive = self.account.uses_drive()
         # With Drive sync: the account first, then Google Drive, in the same
         # order as the phone (Drive used to be asked for before any account).
@@ -7485,7 +7502,7 @@ class MemoryPalApp(tk.Tk):
 
         hero = self.hover_card(tk.Frame(page.inner, bg=COLORS["surface"], padx=self.px(30), pady=self.px(28)))
         hero.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        tk.Label(hero, text=f"Welcome to MemoryPal, {active_profile_name()}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24)).pack(anchor="w")
+        tk.Label(hero, text=f"Welcome to MemoryPal, {active_profile_name()}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 24)).pack(anchor="w")
         tk.Label(hero, text="Three quick questions so the app fits you. You can change any of this later in Settings.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 12), wraplength=self.px(1000), justify="left").pack(anchor="w", pady=(6, 0))
 
         who = self.card(page.inner, "Card.TFrame", 22)
@@ -7683,8 +7700,8 @@ class MemoryPalApp(tk.Tk):
         hero.pack(fill="x", padx=(0, 8), pady=(0, self.px(22)))
         self.hero_eyebrow(hero, "Review", bg).pack(fill="x", pady=(0, self.px(4)))
         title = f"{due} card{'s' if due != 1 else ''} due" if due else "Nothing due right now"
-        tk.Label(hero, text=title, bg=bg, fg=COLORS["hero_ink"], font=self.font("Segoe UI Semibold", 22), anchor="w").pack(fill="x")
-        tk.Label(hero, text=self.plain(self.HUB_INTROS["study"], "Try to remember each answer, then say how it went."), bg=bg, fg=COLORS["hero_muted"], font=self.font("Segoe UI", 11), anchor="w", justify="left", wraplength=self.px(900)).pack(fill="x", pady=(self.px(4), self.px(16)))
+        tk.Label(hero, text=title, bg=bg, fg=COLORS["hero_ink"], font=self.font("Segoe UI Bold", 22), anchor="w").pack(fill="x")
+        tk.Label(hero, text=self.plain(self.HUB_INTROS["study"], "Try to remember each answer, then say how it went."), bg=bg, fg=COLORS["hero_muted"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(900)).pack(fill="x", pady=(self.px(4), self.px(16)))
         if store.cards:
             self.hero_button(hero, "Start review" if due else "Practise anyway", lambda: self.start_review("due") if due else self.quick_session()).pack(anchor="w")
         else:
@@ -7812,7 +7829,8 @@ class MemoryPalApp(tk.Tk):
             if body:
                 tk.Label(row, text=body, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="w", justify="left", wraplength=self.px(760)).grid(row=1, column=1, sticky="ew", pady=(self.px(2), 0))
             if note:
-                tk.Label(row, text=note, bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), anchor="e").grid(row=0, column=2, rowspan=2, sticky="e", padx=(self.px(16), 0))
+                # A quiet count or state, as the phone's list rows show it.
+                tk.Label(row, text=note, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="e").grid(row=0, column=2, rowspan=2, sticky="e", padx=(self.px(16), 0))
             chevron = self.line_icon("chevron", self.px(16), COLORS["muted"])
             if chevron is not None:
                 mark = tk.Label(row, image=chevron, bg=COLORS["surface"], bd=0, padx=0, pady=0)
@@ -7836,7 +7854,7 @@ class MemoryPalApp(tk.Tk):
         # opens on today's date and the one thing to do.
         today_card = self.card(page.inner, "Card.TFrame", 22)
         today_card.pack(fill="x", padx=(0, 8), pady=(0, 16))
-        tk.Label(today_card, text=date.today().strftime("%A, %B %d").replace(" 0", " "), bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 20)).pack(anchor="w")
+        tk.Label(today_card, text=date.today().strftime("%A, %B %d").replace(" 0", " "), bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 20)).pack(anchor="w")
         due_now = len(self.store.due_cards())
         tk.Label(today_card, text=f"{due_now} {'card' if due_now == 1 else 'cards'} to review", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 13)).pack(anchor="w", pady=(self.px(4), self.px(16)))
         self.button_row(
@@ -7988,6 +8006,31 @@ class MemoryPalApp(tk.Tk):
         value = int(value)
         return f"{value / 1000:.1f}k" if value >= 1000 else str(value)
 
+    def rounded_bar(self, canvas, x0, y0, x1, y1, fill, radius=None):
+        """A bar with soft round corners, like the phone's charts and meters.
+
+        The straight middle is a plain rectangle; only two small rounded caps
+        are pictures (the same picture for every bar of one width and colour),
+        so a 30-bar chart stays cheap to redraw while the window resizes."""
+        x0, x1 = int(round(x0)), int(round(x1))
+        y0, y1 = int(round(y0)), int(round(y1))
+        width, height = x1 - x0, y1 - y0
+        if width < 1 or height < 1:
+            return
+        radius = int(min(radius if radius is not None else self.px(4), width / 2, height / 2))
+        if radius < 2:
+            canvas.create_rectangle(x0, y0, x1, y1, fill=fill, outline="")
+            return
+        cap = 2 * radius
+        if height <= cap + 1:
+            if not self.draw_antialiased_shape(canvas, width, height, fill, radius=radius, at=(x0, y0)):
+                canvas.create_rectangle(x0, y0, x1, y1, fill=fill, outline="")
+            return
+        canvas.create_rectangle(x0, y0 + radius, x1, y1 - radius, fill=fill, outline="")
+        for top in (y0, y1 - cap):
+            if not self.draw_antialiased_shape(canvas, width, cap, fill, radius=radius, at=(x0, top)):
+                canvas.create_rectangle(x0, top, x1, top + cap, fill=fill, outline="")
+
     def chart_canvas(self, parent, height, draw, bg=None):
         """A canvas that fills its width and redraws its chart whenever resized."""
         bg = bg or COLORS["surface"]
@@ -8030,7 +8073,7 @@ class MemoryPalApp(tk.Tk):
                 bar_h = plot * value / peak
                 fill = color if highlight is None or index == highlight else soft
                 if value > 0:
-                    canvas.create_rectangle(cx - bar_w / 2, baseline - max(self.px(2), bar_h), cx + bar_w / 2, baseline, fill=fill, outline="")
+                    self.rounded_bar(canvas, cx - bar_w / 2, baseline - max(self.px(2), bar_h), cx + bar_w / 2, baseline, fill)
                     if show_values:
                         canvas.create_text(cx, baseline - bar_h - self.px(3), text=self.short_number(value), anchor="s", fill=COLORS["muted"], font=bold)
                 # Label every Nth bar, always the highlighted one, and never a
@@ -8103,9 +8146,10 @@ class MemoryPalApp(tk.Tk):
         track = track or COLORS["line"]
 
         def draw(canvas, width, h):
-            canvas.create_rectangle(0, 0, width, h, fill=track, outline="")
+            # A rounded track and fill, like the phone's progress bars.
+            self.rounded_bar(canvas, 0, 0, width, h, track, radius=h / 2)
             if fraction > 0:
-                canvas.create_rectangle(0, 0, max(self.px(3), width * fraction), h, fill=color, outline="")
+                self.rounded_bar(canvas, 0, 0, max(h, width * fraction), h, color, radius=h / 2)
 
         return self.chart_canvas(parent, height, draw, bg)
 
@@ -8196,15 +8240,15 @@ class MemoryPalApp(tk.Tk):
 
         if not today:
             title, body, action, _color = self.best_next_action()
-            tk.Label(text, text=title, bg=bg, fg=ink, font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(2), 0))
-            tk.Label(text, text=body, bg=bg, fg=muted, font=self.font("Segoe UI", 13), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(6), 0))
+            tk.Label(text, text=title, bg=bg, fg=ink, font=self.font("Segoe UI Bold", 22), anchor="w").pack(fill="x", pady=(self.px(2), 0))
+            tk.Label(text, text=body, bg=bg, fg=muted, font=self.font("Segoe UI", 12), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(6), 0))
             self.hero_button(buttons, title, action).pack(fill="x")
             self.hero_button(buttons, "Make a study plan", lambda: self.show_view("plan"), soft=True).pack(fill="x", pady=(self.px(8), 0))
             return
 
         if today["finished"]:
-            tk.Label(text, text="You finished your plan", bg=bg, fg=ink, font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
-            tk.Label(text, text=f"{today['title']}. Make a new plan to keep the momentum going, or just keep reviewing what's due.", bg=bg, fg=muted, font=self.font("Segoe UI", 13), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(6), 0))
+            tk.Label(text, text="You finished your plan", bg=bg, fg=ink, font=self.font("Segoe UI Bold", 22), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+            tk.Label(text, text=f"{today['title']}. Make a new plan to keep the momentum going, or just keep reviewing what's due.", bg=bg, fg=muted, font=self.font("Segoe UI", 12), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(6), 0))
             self.hero_button(buttons, "Make a new plan", lambda: self.show_view("plan")).pack(fill="x")
             self.hero_button(buttons, "Review due cards", lambda: self.show_view("review"), soft=True).pack(fill="x", pady=(self.px(8), 0))
             return
@@ -8213,7 +8257,7 @@ class MemoryPalApp(tk.Tk):
         done = {index for index in self.store.plan_steps_done() if index < len(steps)}
         remaining = [index for index in range(len(steps)) if index not in done]
         heading = "Your plan is done for today" if not remaining else "Your study plan for today"
-        tk.Label(text, text=heading, bg=bg, fg=ink, font=self.font("Segoe UI Semibold", 24), anchor="w").pack(fill="x", pady=(self.px(4), 0))
+        tk.Label(text, text=heading, bg=bg, fg=ink, font=self.font("Segoe UI Bold", 22), anchor="w").pack(fill="x", pady=(self.px(4), 0))
         tk.Label(text, text=today["title"], bg=bg, fg=muted, font=self.font("Segoe UI", 12), wraplength=self.px(620), justify="left").pack(anchor="w", pady=(self.px(4), 0))
         if remaining:
             step = steps[remaining[0]]
@@ -8300,10 +8344,10 @@ class MemoryPalApp(tk.Tk):
         week = progress.daily_series(self.store.activity, 7)
         streak_panel, goal_panel, level_panel, week_panel = self.panel_row(parent, 4)
 
-        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 28), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 28), anchor="w").pack(fill="x")
         tk.Label(streak_panel, text="day in a row" if streak == 1 else "days in a row", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
         message = "Practise today to start one." if streak == 0 else ("Practise today to keep it going." if today == 0 else "Kept alive today.")
-        tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}." if best else message, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
+        tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}." if best else message, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
 
         tk.Label(goal_panel, text="Daily goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
         ring = tk.Frame(goal_panel, bg=COLORS["surface"])
@@ -8312,14 +8356,14 @@ class MemoryPalApp(tk.Tk):
         left = max(0, goal - today)
         tk.Label(goal_panel, text="Goal reached" if not left else f"{left} more to go", bg=COLORS["surface"], fg=COLORS["primary"] if not left else COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(6), 0))
 
-        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
+        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 26), anchor="w").pack(fill="x")
         tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
         self.meter(level_panel, level["pct"], COLORS["primary"], 10).pack(fill="x")
-        tk.Label(level_panel, text=f"+{progress.XP_PER_REVIEW} XP for every review.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
+        tk.Label(level_panel, text=f"+{progress.XP_PER_REVIEW} XP for every review.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
 
         total = sum(count for _day, count in week)
         tk.Label(week_panel, text="This week", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
-        tk.Label(week_panel, text=f"{total} review{'s' if total != 1 else ''} in 7 days", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(self.TITLE_GAP), 0))
+        tk.Label(week_panel, text=f"{total} review{'s' if total != 1 else ''} in 7 days", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="w").pack(fill="x", pady=(self.px(self.TITLE_GAP), 0))
         chart = self.bar_chart(
             week_panel,
             [count for _day, count in week],
@@ -8395,7 +8439,7 @@ class MemoryPalApp(tk.Tk):
                 mark.image = award
                 mark.grid(row=0, column=0, rowspan=3, sticky="nw", padx=(0, self.px(16)), pady=(self.px(2), 0))
             tk.Label(card, text=f"Next badge: {upcoming['title']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14), anchor="w").grid(row=0, column=1, sticky="ew")
-            tk.Label(card, text=f"{upcoming['body']}  {upcoming['current']} / {upcoming['target']}", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").grid(row=1, column=1, sticky="ew", pady=(self.px(2), self.px(8)))
+            tk.Label(card, text=f"{upcoming['body']}  {upcoming['current']} / {upcoming['target']}", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="w").grid(row=1, column=1, sticky="ew", pady=(self.px(2), self.px(8)))
             self.meter(card, upcoming["current"] / upcoming["target"], COLORS["primary"], 10).grid(row=2, column=1, sticky="ew")
         else:
             tk.Label(card, text="Every badge earned", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 14)).grid(row=0, column=1, sticky="w")
@@ -8442,7 +8486,7 @@ class MemoryPalApp(tk.Tk):
             canvas.create_oval(pad, pad, box, box, outline=COLORS["line"], width=stroke)
             if pct > 0:
                 canvas.create_arc(pad, pad, box, box, start=90, extent=-360 * pct, style="arc", outline=color, width=stroke)
-        self.create_centered_canvas_text(canvas, pixel_size / 2, pixel_size / 2 - self.px(6), text=str(done), fill=COLORS["ink"], font=self.font("Segoe UI Semibold", 22))
+        self.create_centered_canvas_text(canvas, pixel_size / 2, pixel_size / 2 - self.px(6), text=str(done), fill=COLORS["ink"], font=self.font("Segoe UI Bold", 22))
         # The small ring has room for "of 15" but not "of 15 goal".
         caption = f"of {goal}" if size < 120 else f"of {goal} goal"
         self.create_centered_canvas_text(canvas, pixel_size / 2, pixel_size / 2 + self.px(16), text=caption, fill=COLORS["muted"], font=self.font("Segoe UI", 10))
@@ -8499,10 +8543,10 @@ class MemoryPalApp(tk.Tk):
         mastery, mastered, learning = self.mastery_summary()
 
         streak_panel, level_panel, goal_panel, mastery_panel = self.panel_row(page.inner, 4)
-        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 28), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 28), anchor="w").pack(fill="x")
         tk.Label(streak_panel, text=f"current streak  \u2022  best {best}", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x")
-        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 26), anchor="w").pack(fill="x")
-        tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP  \u2022  {store.practiced} reviews", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
+        tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 26), anchor="w").pack(fill="x")
+        tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP  \u2022  {store.practiced} reviews", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
         self.meter(level_panel, level["pct"], COLORS["primary"], 10).pack(fill="x")
         goal_head = tk.Frame(goal_panel, bg=COLORS["surface"])
         goal_head.pack(fill="x")
@@ -8511,8 +8555,8 @@ class MemoryPalApp(tk.Tk):
         change.pack(side="right")
         self.keyboard_link(change, lambda _event: self.edit_daily_goal())
         self.render_goal_ring(goal_panel, today, store.daily_goal, size=96, color=COLORS["primary"]).pack(anchor="w", pady=(self.px(6), 0))
-        tk.Label(mastery_panel, text=f"{mastery}%", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 30), anchor="w").pack(fill="x")
-        tk.Label(mastery_panel, text=f"mastered  \u2022  {mastered} of {len(store.cards)} cards", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
+        tk.Label(mastery_panel, text=f"{mastery}%", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 30), anchor="w").pack(fill="x")
+        tk.Label(mastery_panel, text=f"mastered  \u2022  {mastered} of {len(store.cards)} cards", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
         self.meter(mastery_panel, mastery / 100, COLORS["primary"], 10).pack(fill="x")
 
         (month_panel,) = self.panel_row(page.inner, 1)
@@ -9137,7 +9181,7 @@ class MemoryPalApp(tk.Tk):
         """A small recorder window: live timer and level, Stop to save, Cancel to discard."""
         recorder = media.AudioRecorder()
         top, content, actions = self.dialog_window("Record audio", "Press Start, speak clearly, then press Stop and save. Recordings can be up to 5 minutes.")
-        status = tk.Label(content, text="Ready", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 22), anchor="w")
+        status = tk.Label(content, text="Ready", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 22), anchor="w")
         status.pack(fill="x")
         note = tk.Label(content, text="Your microphone is only used while recording.", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 10), anchor="w")
         note.pack(fill="x", pady=(self.px(2), self.px(10)))
@@ -10789,7 +10833,7 @@ class MemoryPalApp(tk.Tk):
         head = tk.Frame(panel, bg=surface)
         head.pack(fill="x")
         self.speak_button(head, full_text, "Read aloud").pack(side="right", anchor="n", padx=(self.px(12), 0))
-        title = tk.Label(head, text=notes.get("title") or "Study notes", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 22), justify="left", anchor="w", wraplength=self.px(820))
+        title = tk.Label(head, text=notes.get("title") or "Study notes", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Bold", 22), justify="left", anchor="w", wraplength=self.px(820))
         self.fit_wrap(title, side="left", expand=True)
         meta = tk.Frame(panel, bg=surface)
         meta.pack(fill="x", pady=(self.px(10), 0))
@@ -11430,7 +11474,7 @@ class MemoryPalApp(tk.Tk):
         if practising:
             self.fit_wrap(tk.Label(panel, text="Nothing is due right now, so this round uses cards that need more practice.", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), justify="left", wraplength=self.px(640)), pady=(self.px(4), 0))
 
-        question = tk.Label(panel, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 24), justify="left", anchor="w", wraplength=self.px(900))
+        question = tk.Label(panel, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Bold", 24), justify="left", anchor="w", wraplength=self.px(900))
         self.fit_wrap(question, pady=(self.px(28), self.px(20)))
 
         # The listening indicator: a dot (red while the microphone is open,
@@ -12389,11 +12433,11 @@ class MemoryPalApp(tk.Tk):
                 avatar.pack(side="left", padx=(0, self.px(14)))
                 words = tk.Frame(row, bg=COLORS["surface"])
                 words.pack(side="left", fill="x")
-                tk.Label(words, text=name, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w").pack(anchor="w")
+                tk.Label(words, text=name, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 18), anchor="w").pack(anchor="w")
                 tk.Label(words, text=detail, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI", 13), anchor="w").pack(anchor="w")
         else:
             for item in made["show"]:
-                tk.Label(panel, text=item, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 18), anchor="w" if kind in ("routine", "places") else "center", justify="left", wraplength=self.px(900)).pack(anchor="w" if kind in ("routine", "places") else "center", pady=(self.px(4), 0))
+                tk.Label(panel, text=item, bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 18), anchor="w" if kind in ("routine", "places") else "center", justify="left", wraplength=self.px(900)).pack(anchor="w" if kind in ("routine", "places") else "center", pady=(self.px(4), 0))
         total = self.pace(puzzles.show_ms(made))
         bar = ttk.Progressbar(panel, orient="horizontal", mode="determinate", maximum=total, value=total, style="Horizontal.TProgressbar")
         bar.pack(fill="x", pady=(self.px(16), self.px(4)))
