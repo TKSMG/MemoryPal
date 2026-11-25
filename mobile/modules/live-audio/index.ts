@@ -8,6 +8,8 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 export interface LiveAudioEvents {
   onMic: (event: { data: string }) => void;
   onLevel: (event: { who: 'you' | 'tutor'; level: number }) => void;
+  /** iOS restarted the player (the audio route changed): speech not yet played was dropped. Android never sends it. */
+  onRestart: (event: Record<string, never>) => void;
 }
 
 export interface LiveAudioNative {

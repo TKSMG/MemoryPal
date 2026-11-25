@@ -18,6 +18,8 @@ final class LiveAudioEngine {
 
   var onMic: ((Data) -> Void)?
   var onLevel: ((String, Float) -> Void)?
+  /// The player was restarted, which drops speech not yet played (JS plays it again).
+  var onRestart: (() -> Void)?
 
   enum Failure: Error {
     case format
@@ -44,31 +46,51 @@ final class LiveAudioEngine {
     engine.attach(player)
     engine.connect(player, to: engine.mainMixerNode, format: speechFormat)
 
-    // The tap gets the hardware format; convert to 16 kHz mono for Gemini.
-    let hardware = input.outputFormat(forBus: 0)
-    guard let converter = AVAudioConverter(from: hardware, to: micFormat) else {
-      throw Failure.format
-    }
-    input.installTap(onBus: 0, bufferSize: 1024, format: hardware) { [weak self] buffer, _ in
-      self?.handleMic(buffer, converter: converter)
-    }
+    try installMic()
 
+    // The first call after the app opens often changes the audio route as
+    // echo cancelling switches on; iOS then stops the engine, and the player
+    // with it, dropping the tutor's greeting. Restart both and say so, so the
+    // app plays the unplayed speech again.
     observers.append(NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
       guard let self = self, self.running, !self.engine.isRunning else { return }
-      try? self.engine.start()
+      self.restart()
     })
     observers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: session, queue: .main) { [weak self] note in
       guard let self = self, self.running,
             let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
             AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
       try? AVAudioSession.sharedInstance().setActive(true)
-      if !self.engine.isRunning { try? self.engine.start() }
+      if !self.engine.isRunning { self.restart() }
     })
 
     engine.prepare()
     try engine.start()
     player.play()
     running = true
+  }
+
+  // The tap gets the hardware format; convert to 16 kHz mono for Gemini.
+  private func installMic() throws {
+    let input = engine.inputNode
+    let hardware = input.outputFormat(forBus: 0)
+    guard hardware.sampleRate > 0, let converter = AVAudioConverter(from: hardware, to: micFormat) else {
+      throw Failure.format
+    }
+    input.installTap(onBus: 0, bufferSize: 1024, format: hardware) { [weak self] buffer, _ in
+      self?.handleMic(buffer, converter: converter)
+    }
+  }
+
+  private func restart() {
+    // The hardware format can change with the route: tap it afresh.
+    engine.inputNode.removeTap(onBus: 0)
+    try? installMic()
+    player.stop()
+    engine.prepare()
+    try? engine.start()
+    player.play()
+    onRestart?()
   }
 
   private func handleMic(_ buffer: AVAudioPCMBuffer, converter: AVAudioConverter) {

@@ -63,6 +63,8 @@ export const LIVE_RULES = [
   "Start with one short, friendly line, then ask the first question straight away.",
   "Ask the cards one at a time, in the order given, in your own words if that sounds more natural, but keep the meaning exactly.",
   "Then wait for the learner's answer. People pause to think, so give them time: never answer for them, and never take a cough, a noise, an \"um\" or a half sentence as their answer; if what you heard is unclear, ask them to say it again.",
+  "Every answer belongs to the card you have just asked: never use something the learner said for an earlier card as the answer to a new one. If the learner says nothing, stay quiet and keep waiting; don't judge, record or move past the card. If record_answer replies \"not saved\", the learner hasn't answered yet, so wait for them.",
+  "Speech recognition can mishear. If what you heard doesn't sound like a real attempt at this card, or could be a mishearing of the right answer, ask them to say it again instead of marking it wrong.",
   "Ask each card once. Never ask a card again after you've recorded it, unless the learner asks you to repeat it. If you were cut off while asking, finish the same question instead of starting over or moving on. The record_answer reply names the next card to ask.",
   "Judge the meaning, not the exact wording; accept synonyms, small slips and spoken numbers.",
   "If they're right, say so briefly and vary how you say it. If they're close, say what was missing. If they're wrong or don't know, give the right answer and one short, memorable hint or link, then move on.",
