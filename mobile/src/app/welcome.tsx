@@ -11,6 +11,12 @@ import { Button, Card, Pills, Row, Screen, ToggleRow, Txt } from '../ui/componen
 import { speak } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
+const SIZE_OPTIONS: { value: TextSize; label: string }[] = [
+  { value: 'Comfort', label: 'Standard' },
+  { value: 'Large', label: 'Large' },
+  { value: 'Extra Large', label: 'Extra large' },
+];
+
 const ICONS: Record<PersonaKey, keyof typeof Ionicons.glyphMap> = {
   student: 'school-outline',
   everyday: 'leaf-outline',
@@ -47,12 +53,18 @@ export default function Welcome() {
     });
   }, [again, navigation, store]);
 
+  // Text size applies to the whole app as soon as it changes, so this page
+  // grows or shrinks too. Say so, so the jump doesn't look like a fault.
+  const [resized, setResized] = useState(false);
   const choose = (key: PersonaKey) => {
     setChosen(key);
     // Choosing again resets only the settings a persona controls.
     const reset = Object.fromEntries(MANAGED_SETTINGS.map((name) => [name, defaultAccessibility()[name]]));
-    store.setAccessibility({ ...reset, ...personaFor(key).accessibility });
+    const next = { ...reset, ...personaFor(key).accessibility };
+    if (next.text_size !== store.accessibility.text_size) setResized(true);
+    store.setAccessibility(next);
   };
+  const sizeName = SIZE_OPTIONS.find((option) => option.value === store.accessibility.text_size)?.label ?? 'Standard';
 
   const finish = () => {
     finished.current = true;
@@ -98,15 +110,26 @@ export default function Welcome() {
         })}
       </View>
 
+      {resized ? (
+        <Row gap={10}>
+          <Ionicons name="text-outline" size={theme.icon(20)} color={theme.colors.link} />
+          <Txt variant="muted" style={{ flex: 1 }} accessibilityLiveRegion="polite">{`Text is now ${sizeName.toLowerCase()} to suit this choice. You can change it just below.`}</Txt>
+        </Row>
+      ) : null}
+
       <Txt variant="h2">2. How big should the text be?</Txt>
       <Card>
+        <Txt variant="muted">The whole app changes size as you pick, so you can see it straight away.</Txt>
         <Pills<TextSize>
           label="Text size"
           value={store.accessibility.text_size}
           onChange={(value) => store.setAccessibility({ text_size: value })}
-          options={[{ value: 'Comfort', label: 'Standard' }, { value: 'Large', label: 'Large' }, { value: 'Extra Large', label: 'Extra large' }]}
+          options={SIZE_OPTIONS}
         />
-        <Txt variant="body">This is how cards will look.</Txt>
+        <View style={{ backgroundColor: theme.colors.surfaceSoft, borderRadius: 12, padding: 14, gap: 4 }} accessible accessibilityLabel={`Preview at ${sizeName} size: What is the capital of France?`}>
+          <Txt variant="label" color={theme.colors.muted}>{`Preview: ${sizeName}`}</Txt>
+          <Txt variant="body">What is the capital of France?</Txt>
+        </View>
       </Card>
 
       <Txt variant="h2">3. Read questions aloud?</Txt>

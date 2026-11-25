@@ -40,6 +40,20 @@ const strip = (step: PlanStep) => ({
 
 type Smart = (typeof fixtures.smart_plans)[number];
 
+/**
+ * Plans rotate their memory technique by the day, and the fixtures were made
+ * on `today_check`; run plan tests on that day so they don't go stale.
+ */
+function onFixtureDay(run: () => void) {
+  const [year, month, day] = (fixtures.today_check as string).split('-').map(Number);
+  jest.useFakeTimers({ now: new Date(year, month - 1, day, 12), doNotFake: ['setTimeout', 'setInterval', 'setImmediate', 'nextTick', 'queueMicrotask'] });
+  try {
+    run();
+  } finally {
+    jest.useRealTimers();
+  }
+}
+
 /** The store a smart-plan scenario was built from (see smart_store in make_fixtures.py). */
 function smartStore(scenario: Smart['scenario']): MemoryStore {
   const store = storeFrom(fixtures.plan_cards);
@@ -104,22 +118,26 @@ describe('parity with the desktop logic', () => {
   });
 
   test('session plans match step for step', () => {
-    const store = storeFrom(fixtures.plan_cards);
-    const empty = new MemoryStore();
-    empty.cards = [];
-    for (const item of fixtures.sessions) {
-      const steps = buildStudyPlan(item.store === 'empty' ? empty : store, item.minutes, item.deck, item.habits, item.goal);
-      expect({ params: [item.minutes, item.deck, item.goal, item.habits], steps: steps.map(strip) }).toEqual({ params: [item.minutes, item.deck, item.goal, item.habits], steps: item.steps });
-    }
+    onFixtureDay(() => {
+      const store = storeFrom(fixtures.plan_cards);
+      const empty = new MemoryStore();
+      empty.cards = [];
+      for (const item of fixtures.sessions) {
+        const steps = buildStudyPlan(item.store === 'empty' ? empty : store, item.minutes, item.deck, item.habits, item.goal);
+        expect({ params: [item.minutes, item.deck, item.goal, item.habits], steps: steps.map(strip) }).toEqual({ params: [item.minutes, item.deck, item.goal, item.habits], steps: item.steps });
+      }
+    });
   });
 
   test('multi-day plans match day for day', () => {
-    const store = storeFrom(fixtures.plan_cards);
-    for (const item of fixtures.multi_day) {
-      const plan = buildMultiDayPlan(store, item.days, item.deck, item.habits, item.goal);
-      const got = plan.map((day) => ({ day: day.day, offset: day.day - 1, kind: day.kind, due: day.due, minutes: day.minutes, steps: day.steps.map(strip) }));
-      expect({ params: [item.days, item.deck, item.goal, item.habits], plan: got }).toEqual({ params: [item.days, item.deck, item.goal, item.habits], plan: item.plan });
-    }
+    onFixtureDay(() => {
+      const store = storeFrom(fixtures.plan_cards);
+      for (const item of fixtures.multi_day) {
+        const plan = buildMultiDayPlan(store, item.days, item.deck, item.habits, item.goal);
+        const got = plan.map((day) => ({ day: day.day, offset: day.day - 1, kind: day.kind, due: day.due, minutes: day.minutes, steps: day.steps.map(strip) }));
+        expect({ params: [item.days, item.deck, item.goal, item.habits], plan: got }).toEqual({ params: [item.days, item.deck, item.goal, item.habits], plan: item.plan });
+      }
+    });
   });
 
   test('memory technique text matches', () => {
@@ -132,20 +150,22 @@ describe('parity with the desktop logic', () => {
   });
 
   test('smart plans (practice log, persona, notes, techniques) match', () => {
-    for (const item of fixtures.smart_plans) {
-      const store = smartStore(item.scenario);
-      const name = item.scenario.name;
-      expect({ name, profile: learnerProfile(store), insights: planInsights(store) }).toEqual({ name, profile: item.profile, insights: item.insights });
-      for (const session of item.sessions) {
-        const params = [name, session.minutes, session.deck, session.goal, session.habits];
-        expect({ params, steps: buildStudyPlan(store, session.minutes, session.deck, session.habits, session.goal).map(strip) }).toEqual({ params, steps: session.steps });
+    onFixtureDay(() => {
+      for (const item of fixtures.smart_plans) {
+        const store = smartStore(item.scenario);
+        const name = item.scenario.name;
+        expect({ name, profile: learnerProfile(store), insights: planInsights(store) }).toEqual({ name, profile: item.profile, insights: item.insights });
+        for (const session of item.sessions) {
+          const params = [name, session.minutes, session.deck, session.goal, session.habits];
+          expect({ params, steps: buildStudyPlan(store, session.minutes, session.deck, session.habits, session.goal).map(strip) }).toEqual({ params, steps: session.steps });
+        }
+        for (const multi of item.multi) {
+          const params = [name, multi.days, multi.goal];
+          const plan = buildMultiDayPlan(store, multi.days, 'All decks', ['mnemonics', 'games'], multi.goal);
+          expect({ params, plan: plan.map((day) => ({ day: day.day, kind: day.kind, due: day.due, minutes: day.minutes, steps: day.steps.map(strip) })) }).toEqual({ params, plan: multi.plan });
+        }
       }
-      for (const multi of item.multi) {
-        const params = [name, multi.days, multi.goal];
-        const plan = buildMultiDayPlan(store, multi.days, 'All decks', ['mnemonics', 'games'], multi.goal);
-        expect({ params, plan: plan.map((day) => ({ day: day.day, kind: day.kind, due: day.due, minutes: day.minutes, steps: day.steps.map(strip) })) }).toEqual({ params, plan: multi.plan });
-      }
-    }
+    });
   });
 
   test('techniques are picked and hooks recognised the same', () => {
