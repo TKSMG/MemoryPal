@@ -11,6 +11,7 @@
  */
 import type { Assessment } from '../core/smartCheck';
 import { pcmMs, utf8 } from './pcm';
+import { GATE, SpeechGate } from './speechGate';
 import type { Outcome, TalkCard } from './talkback';
 
 // Ephemeral (one-use) tokens only work on the v1alpha Live endpoint, as in Google's SDK.
@@ -72,6 +73,8 @@ export interface LiveTutorOptions {
   audio: LiveAudio;
   onRate?: (card: TalkCard, outcome: Outcome) => void;
   now?: () => number;
+  /** Keeps noise and echo from reaching the tutor (speechGate.ts); null sends the microphone as it is. */
+  gate?: SpeechGate | null;
 }
 
 /** The schedule rating for a tutor's verdict (skipped cards aren't rated). */
@@ -124,9 +127,11 @@ export class LiveTutor {
   private listeners = new Set<() => void>();
   private snapshot: LiveSnapshot;
   private now: () => number;
+  private gate: SpeechGate | null;
 
   constructor(private options: LiveTutorOptions) {
     this.now = options.now ?? (() => Date.now());
+    this.gate = options.gate === undefined ? new SpeechGate(MIC_RATE) : options.gate;
     this.snapshot = this.makeSnapshot();
   }
 
@@ -166,6 +171,7 @@ export class LiveTutor {
     if (this.phase !== 'live' || muted === this.muted) return;
     this.muted = muted;
     this.options.audio.setMuted(muted);
+    this.gate?.reset();
     // Tells the voice detector the speaker went quiet, so a half-said answer is still heard.
     if (muted) this.send({ realtimeInput: { audioStreamEnd: true } });
     this.emit();
@@ -199,12 +205,21 @@ export class LiveTutor {
     this.startedAt = this.now();
     this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: START_LINE }] }], turnComplete: true } });
     this.options.audio
-      .start((data) => {
-        if (this.phase === 'live' && !this.muted) this.send({ realtimeInput: { audio: { data, mimeType: `audio/pcm;rate=${MIC_RATE}` } } });
-      })
+      .start((data) => this.mic(data))
       .catch(() => this.fail('The microphone couldn’t be started. Check that MemoryPal may use it in Settings.'));
     this.clockTimer = setInterval(() => this.tick(), 1000);
     this.emit();
+  }
+
+  private mic(data: string) {
+    if (this.phase !== 'live' || this.muted) return;
+    const chunks = this.gate ? this.gate.process(data, this.tutorAudible()) : [data];
+    for (const chunk of chunks) this.send({ realtimeInput: { audio: { data: chunk, mimeType: `audio/pcm;rate=${MIC_RATE}` } } });
+  }
+
+  /** True while the tutor's voice (or its echo) may still be on the microphone. */
+  private tutorAudible(): boolean {
+    return this.now() < this.speechUntil + GATE.echoTailMs;
   }
 
   private content(content: Record<string, unknown>) {

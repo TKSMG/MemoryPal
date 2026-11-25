@@ -3,6 +3,8 @@ import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { Alert, Platform } from 'react-native';
 
+import { prepareSpeech, releaseSpeechSoon } from '../features/audioSession';
+
 // Which speaker button (if any) started the voice that is talking now, so
 // only that button shows "Stop" and a screen can stop its own speech.
 let owner: object | null = null;
@@ -29,32 +31,91 @@ export function rate(slow: boolean): number {
   return slow ? 0.8 : 1.0;
 }
 
+// Utterances handed to the voice that haven't finished yet. Only then does a
+// new one stop the voice first: on iPhone, stopping the voice and speaking
+// straight away often lost the new words too (read-aloud and Talk-back went
+// quiet), so after a real stop the next words wait a moment.
+const inFlight = new Set<object>();
+let stoppedAt = -Infinity;
+let pending: ReturnType<typeof setTimeout> | null = null;
+let pendingCancel: (() => void) | null = null;
+export const RESTART_GAP_MS = 150;
+// Bumped by every new utterance, so a late "stopped" from older words is told apart.
+let serial = 0;
+
+function now(): number {
+  return Date.now();
+}
+
+function halt() {
+  if (pending) clearTimeout(pending);
+  pending = null;
+  const cancel = pendingCancel;
+  pendingCancel = null;
+  cancel?.();
+  if (inFlight.size > 0) {
+    inFlight.clear();
+    stoppedAt = now();
+    Speech.stop();
+  }
+}
+
+/**
+ * Says `text` after cutting off anything being said; `done` runs once it was
+ * said, stopped or failed (always exactly once).
+ */
+function say(text: string, slow: boolean, done: () => void) {
+  halt();
+  serial += 1;
+  if (!text.trim()) return done();
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    // A stopped utterance was already taken off the list, so it never counts against a newer one.
+    inFlight.delete(token);
+    if (inFlight.size === 0 && !pending) releaseSpeechSoon(() => inFlight.size > 0 || pending !== null);
+    done();
+  };
+  const token = {};
+  const go = () => {
+    pending = null;
+    pendingCancel = null;
+    prepareSpeech();
+    inFlight.add(token);
+    Speech.speak(text, { rate: rate(slow), onDone: finish, onStopped: finish, onError: finish });
+  };
+  const wait = Platform.OS === 'ios' ? RESTART_GAP_MS - (now() - stoppedAt) : 0;
+  if (wait > 0) {
+    pending = setTimeout(go, wait);
+    pendingCancel = finish;
+  } else go();
+}
+
 /** Says `text`, cutting off anything already being said. `who` marks the button that asked. */
 export function speak(text: string, slow = false, who: object | null = null) {
-  Speech.stop();
   if (!text.trim()) {
+    halt();
     setOwner(null);
     return;
   }
+  const mine = serial + 1; // what say() makes it
+  say(text, slow, () => {
+    if (serial === mine && owner === who) setOwner(null);
+  });
   setOwner(who);
-  const finished = () => {
-    if (owner === who) setOwner(null);
-  };
-  Speech.speak(text, { rate: rate(slow), onDone: finished, onStopped: finished, onError: finished });
 }
 
 /** Says `text` and resolves when it has been said (or was stopped). */
 export function speakAsync(text: string, slow = false): Promise<void> {
   return new Promise((resolve) => {
-    Speech.stop();
     setOwner(null);
-    if (!text.trim()) return resolve();
-    Speech.speak(text, { rate: rate(slow), onDone: () => resolve(), onStopped: () => resolve(), onError: () => resolve() });
+    say(text, slow, resolve);
   });
 }
 
 export function stopSpeaking() {
-  Speech.stop();
+  halt();
   setOwner(null);
 }
 
