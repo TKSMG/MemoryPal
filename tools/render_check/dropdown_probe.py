@@ -147,14 +147,17 @@ for view in views:
         top = app._dropdown[0] if getattr(app, "_dropdown", None) else None
         if top is None:
             continue
-        view_left, view_right = page.viewport.winfo_rootx(), page.viewport.winfo_rootx() + page.viewport.winfo_width()
-        side_x = top.winfo_rootx() + top.winfo_width() + 60
-        if side_x > view_right - 40:
-            side_x = max(view_left + 40, top.winfo_rootx() - 60)
-        move(side_x, top.winfo_rooty() + top.winfo_height() // 2)
+        # A point on the page (inside the window), as far from the list as
+        # the page allows, so the wheel turns over the page and not the list.
+        vx, vy = page.viewport.winfo_rootx(), page.viewport.winfo_rooty()
+        vw, vh = page.viewport.winfo_width(), page.viewport.winfo_height()
+        list_mid = top.winfo_rooty() + top.winfo_height() // 2
+        point_y = vy + vh - 30 if list_mid - vy < vh // 2 else vy + 30
+        point_x = vx + vw // 2
+        if top.winfo_rootx() <= point_x < top.winfo_rootx() + top.winfo_width() and top.winfo_rooty() <= point_y < top.winfo_rooty() + top.winfo_height():
+            point_x = vx + 40
+        move(point_x, point_y)
         start = page.viewport.canvasy(0)
-        seen = []
-        app.bind_all("<MouseWheel>", lambda e: seen.append(str(e.widget)), add="+")
         wheel_down()
         moved_open, closed_after_ms, began = 0.0, None, time.perf_counter()
         while time.perf_counter() - began < 0.6:
@@ -167,7 +170,7 @@ for view in views:
                 closed_after_ms = (time.perf_counter() - began) * 1000
             time.sleep(0.001)
         page_moved = abs(page.viewport.canvasy(0) - start)
-        print(f"   wheel events seen={len(seen)} at={seen[:1]} page_at={start:.0f} of {page.max_y_offset():.0f}", flush=True)
+        print(f"   wheel at ({point_x},{point_y}) over {app.winfo_containing(point_x, point_y)} page_at={start:.0f} of {page.max_y_offset():.0f}", flush=True)
         wheel_ok = closed_after_ms is not None and moved_open == 0
         failures += 0 if wheel_ok else 1
         print(f"   wheel: closed={closed_after_ms is not None} after_ms={closed_after_ms and round(closed_after_ms, 1)} "

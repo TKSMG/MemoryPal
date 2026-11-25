@@ -26,6 +26,8 @@ jobs:
         app: [branch, main]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    # main is only the before picture; its lag is expected.
+    continue-on-error: ${{ matrix.app == 'main' }}
     steps:
       - uses: actions/checkout@v5
         with:
