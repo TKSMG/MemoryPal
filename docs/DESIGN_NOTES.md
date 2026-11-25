@@ -63,6 +63,16 @@ Data trust also covers damaged files and two open windows:
 - A card deleted in one window stays deleted, even when another window saved in the meantime.
 - Two profile names that would share a data folder ("My Profile" and "my-profile") are refused, because deleting one would have deleted the other's cards.
 
+## One look on phone and PC (2026-11-25)
+
+The phone is the reference; the desktop follows it element by element.
+
+- Edges: `PAGE_GUTTER` (32) is the one left and right edge of the window. The tab bar's logo, the page title, every card and section heading start on it; Feedback, the header icons and the cards' right edges end on it. The 8px gap and 8px scrollbar on the right of each page sit inside the gutter, and the header starts `TITLE_BEARING` px left so the title's first letter, not its box, lines up. `tools/render_check/alignment_audit.py` measures this on every page.
+- Corners: cards and groups round at 16 (phone `radiusLarge`); controls at 12. Panels with less than 14px padding keep 12 so corners stay clear of their contents.
+- Lists: a row's count or state on the right is quiet muted text, as on the phone, not accent-coloured.
+- Hero: the title is bold, the line under it is body size, and the button has body-size words with more room.
+- Charts and meters: bars and progress tracks have round ends (`rounded_bar`), like the phone's.
+
 ## Palette and lists (v96)
 
 Until v96 the colours were the stock set most generated apps share: a bright blue accent, violet as the second colour, and navy-slate dark surfaces. Together with grids of identical icon cards, that is the look people now read as "made by AI". v96 replaces both:
@@ -104,7 +114,7 @@ Colour and contrast:
 - Colours are tokens in `constants.py` (`primary`, `rail_active`, `rail_text`, `rail_muted`, `focus`, `on_light`, ...). Don't use hex literals in views.
 - A secondary button that would vanish into a tinted card is lifted to the card colour automatically.
 
-Type: the scale is Title 28, H2 18, body 12, muted 11 (before the text-size multiplier). Do not set a global `*Font` option. It gives every ttk widget its own font, which overrides the style font, and until v70 it flattened every title and heading to body size. Fonts go on styles, or on classic Tk widget classes only.
+Type: the scale mirrors the phone's (`mobile/src/ui/components.tsx` SIZES) at about 0.7pt per phone point, before the text-size multiplier: page title 25 bold (phone 34/700), card and hero headings 18-22 bold (h2 22/700), section headings 15-16 semibold (20/600), row titles 13 (17), body 12 (17), muted lines 11 (15), small labels 10 (13). Bold comes from `self.font("Segoe UI Bold", size)`; Semibold stays for the smaller headings, as on the phone. Do not set a global `*Font` option. It gives every ttk widget its own font, which overrides the style font, and until v70 it flattened every title and heading to body size. Fonts go on styles, or on classic Tk widget classes only.
 
 Controls: buttons, dropdowns, choice pills and text fields are rounded 9-slice image elements (`install_rounded_controls`).
 
