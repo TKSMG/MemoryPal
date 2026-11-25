@@ -2,14 +2,15 @@ import ExpoModulesCore
 
 // Live Talk-back audio: an echo-cancelled microphone (16 kHz PCM out) and a
 // speech player (24 kHz PCM in, what Gemini Live sends), both as base64.
-// Events: onMic { data: base64 }, onLevel { who: "you" | "tutor", level: 0...1 }.
+// Events: onMic { data: base64 }, onLevel { who: "you" | "tutor", level: 0...1 },
+// onRestart {} (iOS restarted the player; speech not yet played was dropped).
 public class LiveAudioModule: Module {
   private var engine: LiveAudioEngine?
 
   public func definition() -> ModuleDefinition {
     Name("LiveAudio")
 
-    Events("onMic", "onLevel")
+    Events("onMic", "onLevel", "onRestart")
 
     AsyncFunction("start") { () -> Bool in
       if self.engine != nil {
@@ -21,6 +22,9 @@ public class LiveAudioModule: Module {
       }
       engine.onLevel = { [weak self] who, level in
         self?.sendEvent("onLevel", ["who": who, "level": level])
+      }
+      engine.onRestart = { [weak self] in
+        self?.sendEvent("onRestart", [:])
       }
       try engine.start()
       self.engine = engine

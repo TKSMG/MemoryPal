@@ -31,6 +31,11 @@ MODEL_RATE = 24000
 START_LINE = "(The learner pressed Start and is listening. Greet them in one short line and ask the first card.)"
 LAST_MINUTE_LINE = "(About one minute is left. After the current card, give the short summary, say goodbye and call end_session.)"
 OUTCOMES = ("right", "close", "wrong", "skipped")
+# How much clear speech from the learner counts as an answer when the
+# transcript hasn't caught up yet; shorter is a cough or a click.
+ANSWER_SPEECH_MS = 200
+# record_answer's reply when the learner hasn't said anything since the last card. Same text on the phone.
+NOT_ANSWERED = "not saved: the learner has not answered this card yet. Ask it if you have not, then wait quietly for their own answer. Never answer for them or reuse an earlier answer."
 
 
 def live_assessment(outcome):
@@ -126,6 +131,12 @@ class LiveTutor:
         self.tutor_turn_open = False
         self.you_fresh = True
         self.you_heard_at = -10.0
+        # What the learner has said since the last saved card: clear speech the
+        # gate let through, and words in the transcript. A card is only saved
+        # once the learner has said something, so the tutor can't "answer" the
+        # next card with the previous answer while the learner is quiet.
+        self.heard_ms = 0.0
+        self.heard_words = False
         self.muted = False
         self.results = []
         self.pending = []
@@ -237,7 +248,8 @@ class LiveTutor:
                 return
             self.phase = "live"
             self.started_at = self.now()
-        self.send({"clientContent": {"turns": [{"role": "user", "parts": [{"text": START_LINE}]}], "turnComplete": True}})
+        # The microphone and speakers first, then the greeting, as on the
+        # phone: the tutor's first words never arrive before the player is up.
         try:
             self.audio.start(self.mic)
         except Exception:  # noqa: BLE001 - no microphone, no permission, a busy device
@@ -251,12 +263,18 @@ class LiveTutor:
                 self.audio.stop()
             except Exception:  # noqa: BLE001 - already stopped
                 pass
+            return
+        self.send({"clientContent": {"turns": [{"role": "user", "parts": [{"text": START_LINE}]}], "turnComplete": True}})
 
     def mic(self, data_b64):
         if self.phase != "live" or self.muted:
             return
         with self.lock:
             chunks = self.gate.process(data_b64, self.tutor_audible()) if self.gate is not None else [data_b64]
+            if self.gate is not None and self.gate.open and self.gate.last_loud:
+                self.heard_ms += pcm_seconds(data_b64, MIC_RATE) * 1000
+                # The picture shows "you" from what the tutor really hears, not the later transcript.
+                self.you_heard_at = self.now()
         for chunk in chunks:
             self.send({"realtimeInput": {"audio": {"data": chunk, "mimeType": f"audio/pcm;rate={MIC_RATE}"}}})
 
@@ -277,6 +295,8 @@ class LiveTutor:
                     self.you_line = ""
                 self.you_line = tidy(self.you_line + heard).lstrip()
                 self.you_heard_at = self.now()
+                if re.search(r"[^\W_]", heard):
+                    self.heard_words = True
             turn = content.get("modelTurn") if isinstance(content.get("modelTurn"), dict) else {}
             for part in turn.get("parts") or []:
                 audio = ((part or {}).get("inlineData") or {}).get("data") if isinstance(part, dict) else None
@@ -328,6 +348,15 @@ class LiveTutor:
         said = tidy(args["said"]).strip()[:200] if isinstance(args.get("said"), str) else ""
         result = LiveResult(key, card, outcome, said)
         with self.lock:
+            if not self.learner_answered():
+                # Nothing said since the last saved card: the tutor is guessing,
+                # often from the previous answer. Keep the card open and have it wait.
+                done = {item.key for item in self.results}
+                if key in done:
+                    return {"result": "already saved", "next": next_card(self.cards, done)}
+                return {"result": NOT_ANSWERED, "next": key}
+            self.heard_ms = 0.0
+            self.heard_words = False
             # A card the tutor comes back to keeps its latest result, and is rated once.
             for index, item in enumerate(self.results):
                 if item.key == key:
@@ -339,6 +368,10 @@ class LiveTutor:
                     self.pending.append((card, outcome))
             done = {item.key for item in self.results}
         return {"result": "saved", "next": next_card(self.cards, done)}
+
+    def learner_answered(self):
+        """True once the learner has said something since the last saved card."""
+        return self.heard_words or self.heard_ms >= ANSWER_SPEECH_MS
 
     # -------------------------------------------------------------- timing
     def seconds_left(self):

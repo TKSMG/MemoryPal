@@ -76,6 +76,9 @@ class SpeechGate:
         self.quiet_ms = 0.0
         self.preroll = []
         self.preroll_ms = 0.0
+        # The last chunk's loudness, and whether it counted as speech (for the tutor's checks).
+        self.last_db = -100.0
+        self.last_loud = False
 
     def reset(self):
         """Back to closed (muted, or a fresh start); the noise estimate is kept."""
@@ -100,6 +103,8 @@ class SpeechGate:
         talk = max(TALK_MIN_DB, self.floor + TALK_ABOVE_FLOOR_DB)
         barge = max(BARGE_MIN_DB, self.floor + BARGE_ABOVE_FLOOR_DB)
         threshold = barge if tutor_talking else talk
+        self.last_db = db
+        self.last_loud = db >= threshold
         if self.open:
             # Once the tutor talks again, only real speech keeps the gate open, so its echo can't.
             self.quiet_ms = 0.0 if db >= threshold else self.quiet_ms + ms

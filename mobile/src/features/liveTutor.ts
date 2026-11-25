@@ -11,8 +11,9 @@
  */
 import type { Assessment } from '../core/smartCheck';
 import { pcmMs, utf8 } from './pcm';
-import { GATE, SpeechGate } from './speechGate';
+import { GATE, levelDb, decodeBase64, SpeechGate } from './speechGate';
 import type { Outcome, TalkCard } from './talkback';
+import { Voice, VoiceMeter } from './voiceMeter';
 
 // Ephemeral (one-use) tokens only work on the v1alpha Live endpoint, as in Google's SDK.
 export const LIVE_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
@@ -20,6 +21,11 @@ export const MIC_RATE = 16000;
 export const MODEL_RATE = 24000;
 const START_LINE = '(The learner pressed Start and is listening. Greet them in one short line and ask the first card.)';
 const LAST_MINUTE_LINE = '(About one minute is left. After the current card, give the short summary, say goodbye and call end_session.)';
+/**
+ * How much clear speech from the learner counts as an answer, when the
+ * transcript hasn't caught up yet. Shorter is a cough or a click.
+ */
+export const ANSWER_SPEECH_MS = 200;
 
 export interface LiveSocket {
   send(data: string): void;
@@ -32,7 +38,11 @@ export interface LiveSocket {
 }
 
 export interface LiveAudio {
-  /** Starts the echo-cancelled microphone; `onMic` gets base64 16 kHz PCM. */
+  /**
+   * Starts the echo-cancelled microphone and the player; `onMic` gets base64
+   * 16 kHz PCM. The tutor is only asked to speak once this has finished, so
+   * its first words can't land in a player that isn't ready.
+   */
   start(onMic: (base64: string) => void): Promise<void>;
   setMuted(muted: boolean): void;
   /** Plays base64 24 kHz PCM after whatever is already playing. */
@@ -77,7 +87,6 @@ export interface LiveTutorOptions {
   gate?: SpeechGate | null;
 }
 
-/** The schedule rating for a tutor's verdict (skipped cards aren't rated). */
 /**
  * What record_answer tells the tutor to ask next: the first card, in order,
  * without a result yet. Saying so each time keeps it from asking a card twice
@@ -89,6 +98,7 @@ export function nextCard(cards: Record<string, TalkCard>, results: { card: TalkC
   return 'none: every card is done, so give the summary';
 }
 
+/** The schedule rating for a tutor's verdict (skipped cards aren't rated). */
 export function liveAssessment(outcome: Outcome): Assessment | null {
   if (outcome === 'right') return { score: 80, quality: 4, label: 'Right (AI tutor)', bucket: 'Good', repetitions: 2, detail: 'Judged by the live AI tutor.' };
   if (outcome === 'close') return { score: 50, quality: 3, label: 'Nearly (AI tutor)', bucket: 'Review', repetitions: 3, detail: 'Judged by the live AI tutor.' };
@@ -105,6 +115,9 @@ export function closeText(code?: number, reason?: string): string {
 }
 
 const RESULT_SET = new Set<Outcome>(['right', 'close', 'wrong', 'skipped']);
+
+/** record_answer's reply when the learner hasn't said anything since the last card. Same text on desktop. */
+export const NOT_ANSWERED = 'not saved: the learner has not answered this card yet. Ask it if you have not, then wait quietly for their own answer. Never answer for them or reuse an earlier answer.';
 
 export class LiveTutor {
   private phase: LivePhase = 'connecting';
@@ -128,6 +141,15 @@ export class LiveTutor {
   private snapshot: LiveSnapshot;
   private now: () => number;
   private gate: SpeechGate | null;
+  private meter = new VoiceMeter(MODEL_RATE);
+  /**
+   * What the learner has said since the last saved card: clear speech the
+   * gate let through, and words in the transcript. A card is only saved once
+   * the learner has said something, so the tutor can't "answer" the next card
+   * with the previous answer while the learner is quiet.
+   */
+  private heardMs = 0;
+  private heardWords = false;
 
   constructor(private options: LiveTutorOptions) {
     this.now = options.now ?? (() => Date.now());
@@ -172,6 +194,7 @@ export class LiveTutor {
     this.muted = muted;
     this.options.audio.setMuted(muted);
     this.gate?.reset();
+    this.meter.micOff();
     // Tells the voice detector the speaker went quiet, so a half-said answer is still heard.
     if (muted) this.send({ realtimeInput: { audioStreamEnd: true } });
     this.emit();
@@ -203,9 +226,15 @@ export class LiveTutor {
     if (this.phase !== 'connecting') return;
     this.phase = 'live';
     this.startedAt = this.now();
-    this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: START_LINE }] }], turnComplete: true } });
+    // The microphone and player first, then the greeting: on an iPhone the
+    // first call's audio set-up can take most of a second and restart the
+    // player, and a greeting that arrived meanwhile was lost, so the tutor
+    // sat waiting for an answer to a question nobody heard.
     this.options.audio
       .start((data) => this.mic(data))
+      .then(() => {
+        if (this.phase === 'live') this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: START_LINE }] }], turnComplete: true } });
+      })
       .catch(() => this.fail('The microphone couldn’t be started. Check that MemoryPal may use it in Settings.'));
     this.clockTimer = setInterval(() => this.tick(), 1000);
     this.emit();
@@ -213,7 +242,15 @@ export class LiveTutor {
 
   private mic(data: string) {
     if (this.phase !== 'live' || this.muted) return;
+    const now = this.now();
     const chunks = this.gate ? this.gate.process(data, this.tutorAudible()) : [data];
+    if (this.gate) {
+      const open = this.gate.isOpen;
+      if (open && this.gate.lastLoud) this.heardMs += pcmMs(data, MIC_RATE);
+      this.meter.mic(this.gate.lastDb, open, now);
+    } else {
+      this.meter.mic(levelDb(decodeBase64(data)), true, now);
+    }
     for (const chunk of chunks) this.send({ realtimeInput: { audio: { data: chunk, mimeType: `audio/pcm;rate=${MIC_RATE}` } } });
   }
 
@@ -233,6 +270,7 @@ export class LiveTutor {
       }
       this.youLine = (this.youLine + input).replace(/\s+/g, ' ').trimStart();
       this.youHeardAt = this.now();
+      if (/[\p{L}\p{N}]/u.test(input)) this.heardWords = true;
     }
     const turn = content.modelTurn as { parts?: { inlineData?: { data?: unknown } }[] } | undefined;
     for (const part of turn?.parts ?? []) {
@@ -240,7 +278,7 @@ export class LiveTutor {
       if (typeof audio === 'string' && audio) {
         this.openTutorTurn();
         this.options.audio.play(audio);
-        this.speechUntil = Math.max(this.speechUntil, this.now()) + pcmMs(audio, MODEL_RATE);
+        this.speechUntil = this.meter.speech(audio, this.now());
       }
     }
     const output = (content.outputTranscription as { text?: unknown } | undefined)?.text;
@@ -251,6 +289,7 @@ export class LiveTutor {
     if (content.interrupted) {
       // The learner spoke over the tutor: drop what hasn't been played.
       this.options.audio.clear();
+      this.meter.clearSpeech(this.now());
       this.speechUntil = Math.min(this.speechUntil, this.now());
     }
     if (content.turnComplete || content.interrupted) this.tutorTurnOpen = false;
@@ -283,9 +322,17 @@ export class LiveTutor {
     const card = this.options.cards[String(args.card ?? '').trim()];
     const outcome = String(args.result ?? '').trim().toLowerCase() as Outcome;
     if (!card || !RESULT_SET.has(outcome)) return { result: 'error: unknown card key or result' };
+    const at = this.results.findIndex((item) => item.card.id === card.id);
+    if (!this.learnerAnswered()) {
+      // Nothing said since the last saved card: the tutor is guessing, often
+      // from the previous answer. Keep the card open and have it wait.
+      if (at >= 0) return { result: 'already saved', next: nextCard(this.options.cards, this.results) };
+      return { result: NOT_ANSWERED, next: String(args.card).trim() };
+    }
+    this.heardMs = 0;
+    this.heardWords = false;
     const said = typeof args.said === 'string' ? args.said.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
     const result = { card, outcome, said };
-    const at = this.results.findIndex((item) => item.card.id === card.id);
     // A card the tutor comes back to keeps its latest result, and is rated once.
     if (at >= 0) this.results[at] = result;
     else {
@@ -297,6 +344,18 @@ export class LiveTutor {
   }
 
   // ---------------------------------------------------------------- timing
+  /** True once the learner has said something since the last saved card. */
+  private learnerAnswered(): boolean {
+    return this.heardWords || this.heardMs >= ANSWER_SPEECH_MS;
+  }
+
+  /** Who is talking and how loud, right now, for the picture (poll it each frame or so). */
+  voice = (): Voice => {
+    if (this.phase !== 'live') return { who: null, level: 0 };
+    const voice = this.meter.voice(this.now());
+    return this.muted && voice.who === 'you' ? { who: null, level: 0 } : voice;
+  };
+
   private speechLeftMs(): number {
     return Math.max(0, this.speechUntil - this.now());
   }

@@ -7,14 +7,14 @@ import expo.modules.kotlin.modules.ModuleDefinition
 
 // Live Talk-back audio: an echo-cancelled microphone (16 kHz PCM out) and a
 // speech player (24 kHz PCM in, what Gemini Live sends), both as base64.
-// Events: onMic { data: base64 }, onLevel { who: "you" | "tutor", level: 0..1 }.
+// Events: onMic { data: base64 }, onLevel { who: "you" | "tutor", level: 0..1 }, onRestart (iOS only).
 class LiveAudioModule : Module() {
   private var engine: LiveAudioEngine? = null
 
   override fun definition() = ModuleDefinition {
     Name("LiveAudio")
 
-    Events("onMic", "onLevel")
+    Events("onMic", "onLevel", "onRestart")
 
     AsyncFunction("start") {
       if (engine != null) return@AsyncFunction true
