@@ -10,7 +10,6 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
-import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import java.util.concurrent.LinkedBlockingQueue
 import kotlin.math.log10
@@ -28,7 +27,6 @@ class LiveAudioEngine(context: Context) {
   private var record: AudioRecord? = null
   private var track: AudioTrack? = null
   private var echoCanceler: AcousticEchoCanceler? = null
-  private var noiseSuppressor: NoiseSuppressor? = null
   private var focus: AudioFocusRequest? = null
   private val speech = LinkedBlockingQueue<ByteArray>()
   private var micThread: Thread? = null
@@ -67,7 +65,9 @@ class LiveAudioEngine(context: Context) {
       throw IllegalStateException("The microphone couldn't be opened.")
     }
     if (AcousticEchoCanceler.isAvailable()) echoCanceler = AcousticEchoCanceler.create(mic.audioSessionId)?.apply { enabled = true }
-    if (NoiseSuppressor.isAvailable()) noiseSuppressor = NoiseSuppressor.create(mic.audioSessionId)?.apply { enabled = true }
+    // No extra NoiseSuppressor: the VOICE_COMMUNICATION source already cleans up
+    // noise on most phones, and a second pass on top smeared quiet consonants,
+    // so the tutor misheard words. The app's own speech gate keeps noise out.
 
     val playBytes = max(AudioTrack.getMinBufferSize(SPEECH_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT), SPEECH_RATE / 5)
     val player = AudioTrack.Builder()
@@ -169,9 +169,7 @@ class LiveAudioEngine(context: Context) {
     record?.release()
     record = null
     echoCanceler?.release()
-    noiseSuppressor?.release()
     echoCanceler = null
-    noiseSuppressor = null
     try {
       track?.stop()
     } catch (e: IllegalStateException) {

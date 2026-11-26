@@ -28,7 +28,8 @@ export const GATE = {
   floorMinDb: -75,
   /** Speech while the tutor is quiet: this far above the noise, and at least talkMinDb. */
   talkAboveFloorDb: 12,
-  talkMinDb: -48,
+  // Low enough for someone speaking softly or a little away from the phone.
+  talkMinDb: -52,
   /** Talking over the tutor: this far above the noise, and at least bargeMinDb. */
   bargeAboveFloorDb: 22,
   bargeMinDb: -36,
@@ -36,7 +37,8 @@ export const GATE = {
   openMs: 150,
   bargeMs: 350,
   /** Stays open through pauses this long (shorter once the tutor talks again). */
-  hangMs: 900,
+  // Long enough that a pause between words never cuts into an answer.
+  hangMs: 1200,
   bargeHangMs: 250,
   /** Sent ahead of the speech that opened the gate. */
   prerollMs: 500,
