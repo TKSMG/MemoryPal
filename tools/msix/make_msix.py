@@ -134,6 +134,10 @@ def make_pri(sdk_tool, layout):
         shutil.copy(layout / "AppxManifest.xml", project / "AppxManifest.xml")
         config = Path(temp) / "priconfig.xml"
         subprocess.run([makepri, "createconfig", "/cf", str(config), "/dq", "en-US", "/pv", "10.0.0", "/o"], check=True)
+        # One resources.pri with every scale: the default config splits scales into
+        # resources.scale-*.pri, which only work as separate packages in a bundle.
+        text = config.read_text(encoding="utf-8")
+        config.write_text(re.sub(r"\s*<packaging>.*?</packaging>", "", text, flags=re.S), encoding="utf-8")
         subprocess.run([makepri, "new", "/pr", str(project), "/cf", str(config), "/mn", str(project / "AppxManifest.xml"),
                         "/of", str(layout / "resources.pri"), "/o"], check=True)
 
