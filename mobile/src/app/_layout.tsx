@@ -42,6 +42,12 @@ function sheetButton(label: string, bold?: boolean) {
 const SHEETS = new Set(['add', 'card/[id]', 'ai-consent']);
 
 /**
+ * Today's tabs sit under every page, even one opened straight from a reminder
+ * or a link, so its bar always has a way back instead of a dead end.
+ */
+export const unstable_settings = { anchor: '(tabs)' };
+
+/**
  * Keeps the next week of study reminders and the icon badge up to date:
  * rescheduled whenever MemoryPal goes to the background (after studying)
  * and when the notification settings change. A tapped one opens its screen.

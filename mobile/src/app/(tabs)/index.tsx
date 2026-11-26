@@ -8,7 +8,7 @@ import { persona } from '../../core/personas';
 import { planForToday } from '../../core/planning';
 import { levelInfo, nextAchievement } from '../../core/progress';
 import { useStore, useSync } from '../../state/AppState';
-import { Button, Card, HeroEyebrow, ToneIcon, IconButton, IconName, ListGroup, ListRow, ProgressBar, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
+import { Button, Card, HeroEyebrow, IconButton, IconName, ListGroup, ListRow, ProgressBar, Row, Screen, SectionTitle, SpeakButton, Txt } from '../../ui/components';
 import { MODES, openStep } from '../../ui/routes';
 import { useTheme } from '../../ui/theme';
 
@@ -145,15 +145,11 @@ export default function Today() {
           })}
         </Card>
       ) : (
-        <Card onPress={() => router.push('/plan')} accessibilityLabel="Make a study plan">
-          <Row>
-            <ToneIcon icon="map-outline" tone="moss" />
-            <View style={{ flex: 1 }}>
-              <Txt variant="h3">Make a study plan</Txt>
-              <Txt variant="muted">Daily steps that fit your time.</Txt>
-            </View>
-          </Row>
-        </Card>
+        // The same row as the study modes below it, so one kind of thing
+        // looks one way on the page.
+        <ListGroup>
+          <ListRow icon="map-outline" tone="moss" title="Make a study plan" detail="Daily steps that fit your time." onPress={() => router.push('/plan')} />
+        </ListGroup>
       )}
 
       <ListGroup header="Study modes">
