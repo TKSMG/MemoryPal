@@ -172,7 +172,7 @@ export default function TalkLive() {
       : 'This copy of MemoryPal isn’t connected to the MemoryPal cloud.');
     return (
       <Screen narrow>
-        <Txt variant="h2">Live tutor</Txt>
+        {/* The bar already says "Live tutor"; the page opens on what to do. */}
         <Txt variant="body">{message}</Txt>
         {snap.results.length ? <Txt variant="muted">{`${snap.results.length} card${snap.results.length === 1 ? '' : 's'} saved before it stopped.`}</Txt> : null}
         {gate === 'consent' ? <Button kind="primary" label="Turn on AI" icon="sparkles-outline" onPress={() => router.push('/ai-consent')} /> : null}

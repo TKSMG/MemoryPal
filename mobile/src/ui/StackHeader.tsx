@@ -16,6 +16,7 @@
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackHeaderProps } from 'expo-router/build/react-navigation/native-stack';
+import { router } from 'expo-router';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,7 +33,10 @@ export function StackHeader({ back, options, route, navigation }: NativeStackHea
   const c = theme.colors;
   const insets = useSafeAreaInsets();
   const title = typeof options.title === 'string' ? options.title : route.name;
-  const showBack = !!back && options.headerBackVisible !== false;
+  // A page opened with nothing under it (a link on the web) still gets a
+  // way out: back to Today.
+  const showBack = options.headerBackVisible !== false;
+  const goBack = () => (back && navigation.canGoBack() ? navigation.goBack() : router.replace('/'));
   const right = options.headerRight?.({ tintColor: c.link, canGoBack: !!back });
   return (
     <View
@@ -58,9 +62,9 @@ export function StackHeader({ back, options, route, navigation }: NativeStackHea
         <View style={styles.side}>
           {showBack ? (
             <Pressable
-              onPress={() => navigation.goBack()}
+              onPress={goBack}
               accessibilityRole="button"
-              accessibilityLabel={back?.title ? `Back to ${back.title}` : 'Back'}
+              accessibilityLabel={back?.title ? `Back to ${back.title}` : back ? 'Back' : 'Back to Today'}
               hitSlop={8}
               style={({ pressed }) => [styles.back, { opacity: pressed ? 0.5 : 1 }]}
             >

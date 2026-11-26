@@ -252,7 +252,9 @@ export default function Review() {
               );
             })}
           </View>
-          <Button compact kind="ghost" label="Undo last rating" icon="arrow-undo-outline" onPress={undo} disabled={!results.length} />
+          {/* Only once there is a rating to take back: a greyed-out link on
+              the first card read as broken. */}
+          {results.length ? <Button compact kind="ghost" label="Undo last rating" icon="arrow-undo-outline" onPress={undo} /> : null}
         </>
       )}
     </Screen>
