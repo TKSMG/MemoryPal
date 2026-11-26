@@ -276,6 +276,15 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
     });
   };
 
+  // Text links start on the same edge as the words above them (inline), side
+  // by side while they fit.
+  const legalRow = (
+    <Row wrap gap={20}>
+      {links.terms ? <Button kind="ghost" compact inline label="Terms of Use" accessibilityLabel="Read the Terms of Use" onPress={() => Linking.openURL(links.terms).catch(() => undefined)} /> : null}
+      {links.privacy ? <Button kind="ghost" compact inline label="Privacy Policy" accessibilityLabel="Read the Privacy Policy" onPress={() => Linking.openURL(links.privacy).catch(() => undefined)} /> : null}
+    </Row>
+  );
+
   const errorBox = error ? (
     <View accessibilityLiveRegion="assertive" style={{ backgroundColor: c.again[0], borderRadius: 12, padding: 12 }}>
       <Txt variant="body" color={c.again[1]}>{error}</Txt>
@@ -515,19 +524,13 @@ export function AccountScreen({ intro = false }: { intro?: boolean }) {
           <>
             <ToggleRow label="I agree to the Terms of Use and Privacy Policy, including AI features" value={agreed} onChange={setAgreed} />
             <Txt variant="small">{AI_TERMS_NOTE}</Txt>
-            <Row wrap>
-              {links.terms ? <Button kind="ghost" compact label="Read the Terms of Use" onPress={() => Linking.openURL(links.terms).catch(() => undefined)} /> : null}
-              {links.privacy ? <Button kind="ghost" compact label="Read the Privacy Policy" onPress={() => Linking.openURL(links.privacy).catch(() => undefined)} /> : null}
-            </Row>
+            {legalRow}
           </>
         ) : null}
         {mode === 'signin' ? (
           <>
             <Txt variant="small">{`By signing in you agree to the Terms of Use and Privacy Policy, including AI features. ${AI_TERMS_NOTE}`}</Txt>
-            <Row wrap>
-              {links.terms ? <Button kind="ghost" compact label="Read the Terms of Use" onPress={() => Linking.openURL(links.terms).catch(() => undefined)} /> : null}
-              {links.privacy ? <Button kind="ghost" compact label="Read the Privacy Policy" onPress={() => Linking.openURL(links.privacy).catch(() => undefined)} /> : null}
-            </Row>
+            {legalRow}
           </>
         ) : null}
 

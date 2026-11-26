@@ -9,7 +9,7 @@ import { isAiCard } from '../../core/questions';
 import { daysUntil, deckCards, deleteDeck, examCountdown, renameDeck } from '../../features/decks';
 import { AI_TAG } from '../../features/aiHelpers';
 import { useStore } from '../../state/AppState';
-import { AiTag, Button, EmptyState, Field, ListGroup, ListRow, ProgressBar, Screen, Txt } from '../../ui/components';
+import { AiTag, Button, EmptyState, Field, ListGroup, ListRow, ProgressBar, Screen, SectionTitle, Txt } from '../../ui/components';
 import { confirm, notify } from '../../ui/feedback';
 import { useTheme } from '../../ui/theme';
 import { savedLabel } from '../../ui/dates';
@@ -101,8 +101,7 @@ export default function Deck() {
       ) : null}
 
       <View style={{ gap: 10 }}>
-        <Txt variant="h2" accessibilityRole="header">About this set</Txt>
-        <Txt variant="muted">Saved with the set and synced to your other devices.</Txt>
+        <SectionTitle detail="Saved with the set and synced to your other devices.">About this set</SectionTitle>
         <Field label="About (optional)" value={about} onChangeText={setAbout} placeholder="Year 2 cardiology, Dr Shah’s lectures" maxLength={1000} />
         <Field label="Exam date (optional)" hint="Year-month-day, for example 2026-12-05. The set shows a countdown and can plan up to it." value={examDate} onChangeText={setExamDate} placeholder="2026-12-05" keyboardType="numbers-and-punctuation" maxLength={10} />
         <Field label="How should AI notes look? (optional)" value={style} onChangeText={setStyle} placeholder="One line per drug: class, use, side effect" maxLength={500} />

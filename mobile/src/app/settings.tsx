@@ -11,7 +11,7 @@ import { BEST_TIME, KIND_LABELS, KINDS, NotificationKind, QUIET_CHOICES, quietLa
 import { exportBackup, pickBackup } from '../state/backup';
 import { ThemeChoice, usePrefs, useStore, useSync } from '../state/AppState';
 import { askForNotifications } from '../state/reminders';
-import { Button, Card, Pills, Row, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
+import { Button, Card, ListGroup, ListRow, Pills, Row, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
 import { confirm, notify, speak } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
@@ -91,18 +91,23 @@ export default function Settings() {
   return (
     <Screen>
       <SectionTitle>Account & sync</SectionTitle>
-      <Card onPress={() => router.push('/account')} accessibilityLabel="Account and sync" accessibilityHint="Sign in to keep your cards on all your devices">
-        <Txt variant="h3">{sync.account.canSync ? sync.account.syncEmail : 'Use MemoryPal on all your devices'}</Txt>
-        <Txt variant="muted">
-          {!sync.configured && !sync.account.usesDrive
+      {/* A row with a chevron, so it shows it opens the account page. */}
+      <ListGroup>
+        <ListRow
+          icon="cloud-outline"
+          title={sync.account.canSync ? sync.account.syncEmail : 'Use MemoryPal on all your devices'}
+          detail={!sync.configured && !sync.account.usesDrive
             ? "Sync isn't set up in this copy yet."
             : sync.account.canSync
               ? sync.syncing ? 'Syncing…' : sync.error || (sync.account.state.last_synced ? `Last synced ${sync.account.state.last_synced}` : 'Not synced yet')
               : sync.account.usesDrive
                 ? 'Connect Google Drive to keep your cards, reviews and settings in step with your computer.'
                 : 'Sign in or create an account to keep your cards, reviews and settings in step with your computer.'}
-        </Txt>
-      </Card>
+          onPress={() => router.push('/account')}
+          accessibilityLabel="Account and sync"
+          accessibilityHint="Sign in to keep your cards on all your devices"
+        />
+      </ListGroup>
 
       <SectionTitle>Comfort</SectionTitle>
       <Card>
@@ -178,9 +183,9 @@ export default function Settings() {
       <Card>
         <Txt variant="muted">How many reviews make a completed day.</Txt>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Button label="−" accessibilityLabel="Lower daily goal" onPress={() => store.setDailyGoal(store.dailyGoal - 5)} hint="Five fewer reviews" style={{ width: 64 }} />
+          <Button label="" icon="remove" accessibilityLabel="Lower daily goal" onPress={() => store.setDailyGoal(store.dailyGoal - 5)} hint="Five fewer reviews" style={{ width: 64 }} />
           <Txt variant="big" accessibilityRole="text" accessibilityLiveRegion="polite" accessibilityLabel={`Daily goal ${store.dailyGoal} reviews`}>{String(store.dailyGoal)}</Txt>
-          <Button label="+" accessibilityLabel="Raise daily goal" onPress={() => store.setDailyGoal(store.dailyGoal + 5)} hint="Five more reviews" style={{ width: 64 }} />
+          <Button label="" icon="add" accessibilityLabel="Raise daily goal" onPress={() => store.setDailyGoal(store.dailyGoal + 5)} hint="Five more reviews" style={{ width: 64 }} />
         </Row>
       </Card>
 

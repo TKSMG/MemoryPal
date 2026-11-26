@@ -158,7 +158,7 @@ export default function RepetitionPath() {
 
   return (
     <Screen>
-      <Txt variant="muted">Recall a list in growing runs: 5, then 5-4, then 5-4-3, then back down to 1. Saying a run in order, again and again, makes it stick.</Txt>
+      <Txt variant="muted">Recall a list in growing runs: 5, then 5‑4, then 5‑4‑3, then back down to 1. Saying a run in order, again and again, makes it stick.</Txt>
       <Card>
         <Pills label="Practise" value={source} onChange={setSource} options={sources} />
         {source === OWN ? (
@@ -180,7 +180,7 @@ export default function RepetitionPath() {
             <Field label="Loop range (optional)" value={range} onChangeText={setRange} keyboardType="number-pad" placeholder="All the way" />
           </View>
         </Row>
-        <Txt variant="muted">Example: start 5 with range 3 gives 5, 5-4, 5-4-3, then 3-2-1.</Txt>
+        <Txt variant="muted">Example: start 5 with range 3 gives 5, 5‑4, 5‑4‑3, then 3‑2‑1.</Txt>
         {preview.length ? <Txt variant="small">{`Rounds: ${preview.map(([label]) => label).join(', ')}`}</Txt> : null}
         <Button kind="primary" label="Start the path" icon="play" onPress={build} disabled={!items.length} />
       </Card>

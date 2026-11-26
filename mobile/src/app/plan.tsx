@@ -24,7 +24,8 @@ function StepList({ steps }: { steps: PlanStep[] }) {
     <View style={{ gap: 10 }}>
       {steps.map((step, i) => (
         <Row key={`${step.title}-${i}`} style={{ alignItems: 'flex-start' }}>
-          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: step.view === 'break' ? theme.colors.alt : theme.colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+          {/* Centred on the title's line, not on the top of the block. */}
+          <View style={{ width: 30, height: 30, borderRadius: 15, marginTop: Math.round((theme.font(22) - 30) / 2), backgroundColor: step.view === 'break' ? theme.colors.alt : theme.colors.primary, alignItems: 'center', justifyContent: 'center' }}>
             {step.view === 'break'
               ? <Ionicons name="cafe-outline" size={theme.icon(16)} color={theme.colors.ink} />
               : <Txt variant="small" color={theme.colors.onPrimary}>{String(i + 1)}</Txt>}

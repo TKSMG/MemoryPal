@@ -1,7 +1,7 @@
 /** Building blocks shared by every screen: calm, large, and accessible by default. */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
-import { ReactElement, ReactNode, Ref, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { isValidElement, ReactElement, ReactNode, Ref, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Animated,
   Easing,
@@ -302,6 +302,7 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
   const [bg, fg, pressedBg] = buttonColors(theme, kind);
   const press = usePress(0.97, theme.reduceMotion, disabled);
   const pressed = press.pressed;
+  const lead = !!icon && !!sublabel;
   return (
     <AnimatedPressable
       onPress={onPress}
@@ -317,19 +318,23 @@ export function Button({ label, onPress, kind = 'secondary', icon, disabled, hin
         styles.button,
         { backgroundColor: pressed ? pressedBg : bg, minHeight: compact ? MIN_TOUCH : 52, opacity: disabled ? 0.45 : 1 },
         sublabel ? { paddingVertical: 14 } : null,
+        lead ? { justifyContent: 'flex-start', alignItems: 'flex-start', paddingHorizontal: 16 } : null,
         inline && styles.inlineButton,
         // A press answers the moment the finger lands, not on release.
         press.scaleStyle,
         style,
       ]}
     >
-      {icon ? <Ionicons name={icon} size={theme.font(20)} color={fg} /> : null}
-      <View style={{ alignItems: 'center', flexShrink: 1 }}>
-        <Text maxFontSizeMultiplier={1.8} style={{ color: fg, fontSize: theme.font(compact ? 15 : 17), fontWeight: '600', textAlign: 'center' }}>{label}</Text>
-        {/* Centred under the label like the label itself, with room to breathe: a
-            left-aligned 12pt line under a centred title read as a cramped footnote. */}
-        {sublabel ? <Text maxFontSizeMultiplier={1.6} style={{ color: fg, fontSize: theme.font(13), lineHeight: theme.font(18), fontWeight: '500', textAlign: 'center', opacity: 0.9, marginTop: 2 }}>{sublabel}</Text> : null}
-      </View>
+      {icon ? <Ionicons name={icon} size={theme.font(20)} color={fg} style={lead ? { marginTop: Math.round((theme.font(22) - theme.font(20)) / 2) } : undefined} /> : null}
+      {/* An icon-only button (a stepper's minus and plus) has no text column. */}
+      {label || sublabel ? <View style={{ alignItems: lead ? 'flex-start' : 'center', flexShrink: 1 }}>
+        <Text maxFontSizeMultiplier={1.8} style={{ color: fg, fontSize: theme.font(compact ? 15 : 17), lineHeight: lead ? theme.font(22) : undefined, fontWeight: '600', textAlign: lead ? 'left' : 'center' }}>{label}</Text>
+        {/* A short line (a rating's "in 3 days") centres under its label. A
+            longer description with an icon reads as a small card instead:
+            icon on the title's line, both lines on one left edge, since two
+            centred lines left the icon floating off to one side. */}
+        {sublabel ? <Text maxFontSizeMultiplier={1.6} style={{ color: fg, fontSize: theme.font(13), lineHeight: theme.font(18), fontWeight: '500', textAlign: lead ? 'left' : 'center', opacity: 0.9, marginTop: 2 }}>{sublabel}</Text> : null}
+      </View> : null}
     </AnimatedPressable>
   );
 }
@@ -611,12 +616,24 @@ export function Row({ children, gap = 12, wrap, style }: { children: ReactNode; 
   return <View style={[{ flexDirection: 'row', alignItems: 'center', gap, flexWrap: wrap ? 'wrap' : 'nowrap' }, style]}>{children}</View>;
 }
 
-export function SectionTitle({ children, action }: { children: string; action?: ReactNode }) {
-  return (
-    <Row style={{ justifyContent: 'space-between', marginTop: 12 }}>
+/**
+ * A section's heading, with more room above it than below, and an optional
+ * line about it set tight underneath (not the page's 16pt gap, which left a
+ * description floating halfway between its heading and what it describes).
+ */
+export function SectionTitle({ children, action, detail }: { children: string; action?: ReactNode; detail?: string }) {
+  const title = (
+    <Row style={{ justifyContent: 'space-between', marginTop: detail ? 0 : 12 }}>
       <Txt variant="section" style={{ flexShrink: 1 }}>{children}</Txt>
       {action}
     </Row>
+  );
+  if (!detail) return title;
+  return (
+    <View style={{ marginTop: 12, gap: 4 }}>
+      {title}
+      <Txt variant="muted">{detail}</Txt>
+    </View>
   );
 }
 
@@ -658,14 +675,20 @@ export function ListGroup({ children, header, footer }: { children: ReactNode; h
       <View style={[styles.group, { backgroundColor: theme.colors.surface }]}>
         {items.map((child, i) => (
           <View key={i}>
-            {i ? <View style={[styles.separator, { backgroundColor: theme.colors.line }]} /> : null}
+            {/* The hairline starts where the row's words start, past its icon. */}
+            {i ? <View style={[styles.separator, { backgroundColor: theme.colors.line, marginLeft: rowHasIcon(child) ? 16 + theme.icon(36) + 12 : 16 }]} /> : null}
             {child}
           </View>
         ))}
       </View>
-      {footer ? <Txt variant="small" style={{ paddingHorizontal: 4 }}>{footer}</Txt> : null}
+      {/* On the rows' inner edge, as iOS sets a group's footnote. */}
+      {footer ? <Txt variant="small" style={{ paddingHorizontal: 16 }}>{footer}</Txt> : null}
     </View>
   );
+}
+
+function rowHasIcon(child: ReactNode) {
+  return isValidElement(child) && !!(child.props as { icon?: unknown }).icon;
 }
 
 /** One row of a ListGroup: icon, title, optional detail and value, and a chevron when it opens something. */

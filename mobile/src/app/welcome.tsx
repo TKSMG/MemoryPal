@@ -7,7 +7,7 @@ import { Image, View } from 'react-native';
 import { MANAGED_SETTINGS, PERSONAS, persona as personaFor } from '../core/personas';
 import { defaultAccessibility, PersonaKey, TextSize } from '../core/store';
 import { useStore } from '../state/AppState';
-import { Button, Card, Pills, Row, Screen, ToggleRow, Txt } from '../ui/components';
+import { Button, Card, Pills, Row, Screen, SectionTitle, ToggleRow, Txt } from '../ui/components';
 import { speak } from '../ui/feedback';
 import { useTheme } from '../ui/theme';
 
@@ -84,7 +84,7 @@ export default function Welcome() {
       </Row>
       <Txt variant="muted">Three quick questions so MemoryPal fits you. You can change any of this later in Settings.</Txt>
 
-      <Txt variant="h2">1. Who will be using MemoryPal?</Txt>
+      <SectionTitle>1. Who will be using MemoryPal?</SectionTitle>
       <View accessibilityRole="radiogroup" accessibilityLabel="Who will be using MemoryPal?" style={{ gap: 16 }}>
         {PERSONAS.map((item) => {
           const selected = chosen === item.key;
@@ -95,7 +95,9 @@ export default function Welcome() {
               accessibilityLabel={`${item.title}. ${item.body}`}
               accessibilityRole="radio"
               accessibilityState={{ selected, checked: selected }}
-              style={selected ? { borderColor: theme.colors.primary, borderWidth: 2 } : undefined}
+              // Every choice keeps a 2pt edge (clear until picked) inside the
+              // usual 16pt, so picking one doesn't nudge its words.
+              style={{ borderWidth: 2, padding: 14, borderColor: selected ? theme.colors.primary : 'transparent' }}
             >
               <Row>
                 <Ionicons name={ICONS[item.key]} size={theme.icon(28)} color={selected ? theme.colors.link : theme.colors.muted} />
@@ -117,7 +119,7 @@ export default function Welcome() {
         </Row>
       ) : null}
 
-      <Txt variant="h2">2. How big should the text be?</Txt>
+      <SectionTitle>2. How big should the text be?</SectionTitle>
       <Card>
         <Txt variant="muted">The whole app changes size as you pick, so you can see it straight away.</Txt>
         <Pills<TextSize>
@@ -132,7 +134,7 @@ export default function Welcome() {
         </View>
       </Card>
 
-      <Txt variant="h2">3. Read questions aloud?</Txt>
+      <SectionTitle>3. Read questions aloud?</SectionTitle>
       <Card>
         <ToggleRow
           label="Read questions and answers aloud"
