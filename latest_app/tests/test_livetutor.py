@@ -177,6 +177,46 @@ class LiveTutorTests(unittest.TestCase):
         talk.server({"toolCall": {"functionCalls": [{"id": "2", "name": "record_answer", "args": {"card": "c1", "result": "right"}}]}})
         self.assertEqual([(card.id, outcome) for card, outcome in talk.tutor.take_ratings()], [("a", "right")])
 
+    def test_a_late_transcript_of_the_last_answer_is_not_an_answer_to_the_next_card(self):
+        talk = Conversation(gate=speechgate.SpeechGate())
+        talk.server({"setupComplete": {}})
+        for _ in range(40):
+            talk.audio.on_mic(tone(0.02, -60))
+        for _ in range(30):
+            talk.audio.on_mic(tone(0.02, -20))
+        talk.server({"toolCall": {"functionCalls": [{"id": "1", "name": "record_answer", "args": {"card": "c1", "result": "right"}}]}})
+        self.assertEqual(len(talk.tutor.take_ratings()), 1)
+        # The words for that answer only now arrive; the learner then stays quiet.
+        talk.heard("Paris")
+        for _ in range(100):
+            talk.audio.on_mic(tone(0.02, -60))
+        talk.server({"toolCall": {"functionCalls": [{"id": "2", "name": "record_answer", "args": {"card": "c2", "result": "wrong", "said": "Paris"}}]}})
+        self.assertEqual(talk.tutor.take_ratings(), [])
+
+    def test_cut_off_mid_question_the_tutor_is_told_how_much_was_heard(self):
+        talk = Conversation()
+        talk.server({"setupComplete": {}})
+
+        def notes():
+            return [m for m in talk.socket.sent if "clientContent" in m and m["clientContent"]["turnComplete"] is False]
+
+        talk.server({"serverContent": {"outputTranscription": {"text": "Next one: what is two plus two, do you think?"}}})
+        for _ in range(20):
+            talk.server(audio_message(0.1))
+        talk.advance(0.5)
+        talk.server({"serverContent": {"interrupted": True}})
+        self.assertEqual(len(notes()), 1)
+        self.assertEqual(notes()[0]["clientContent"]["turns"][0]["parts"][0]["text"], livetutor.cut_off_note("Next one:"))
+        # Nearly finished when the learner cut in: nothing to say.
+        talk.server({"serverContent": {"outputTranscription": {"text": "Right, well done."}}})
+        for _ in range(10):
+            talk.server(audio_message(0.1))
+        talk.advance(0.8)
+        talk.server({"serverContent": {"interrupted": True}})
+        self.assertEqual(len(notes()), 1)
+        self.assertEqual(livetutor.heard_part("a b c d", 0.5), "a b")
+        self.assertIn("heard none", livetutor.cut_off_note(""))
+
     def test_the_greeting_waits_for_the_microphone_and_speakers(self):
         talk = Conversation()
         order = []
