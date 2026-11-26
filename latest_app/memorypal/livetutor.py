@@ -16,6 +16,7 @@ ratings to save (take_ratings), so the store is only touched on the UI thread.
 """
 
 import json
+import math
 import re
 import threading
 import time
@@ -35,7 +36,25 @@ OUTCOMES = ("right", "close", "wrong", "skipped")
 # transcript hasn't caught up yet; shorter is a cough or a click.
 ANSWER_SPEECH_MS = 200
 # record_answer's reply when the learner hasn't said anything since the last card. Same text on the phone.
-NOT_ANSWERED = "not saved: the learner has not answered this card yet. Ask it if you have not, then wait quietly for their own answer. Never answer for them or reuse an earlier answer."
+NOT_ANSWERED = "not saved: the learner has not answered this card yet. If you have asked it, do not ask it again: stay quiet and wait for their own answer (repeat it only if they ask). Never answer for them or reuse an earlier answer."
+# Cut off with at least this much of its turn unplayed, the tutor is told what the learner actually heard.
+CUT_OFF_MS = 500
+
+
+def cut_off_note(heard):
+    """What the tutor is told when the learner talked over it. Gemini writes a
+    whole turn long before it has played, so it believed the learner had heard
+    every word: a question cut off halfway counted as asked, and it went on to
+    the next card, or judged the learner's "sorry?" (or their last answer) as
+    the answer. Same text on the phone."""
+    said = f'the learner only heard "{heard}\u2026" and none of the rest' if heard else "the learner heard none of what you just said"
+    return f"(You were cut off: {said}. If what they say now answers the card, judge it; otherwise ask that card again.)"
+
+
+def heard_part(line, played):
+    """The start of `line`, in proportion to how much of the turn played."""
+    words = [word for word in line.split(" ") if word]
+    return " ".join(words[: math.floor(len(words) * max(0.0, min(1.0, played)))])
 
 
 def live_assessment(outcome):
@@ -137,6 +156,9 @@ class LiveTutor:
         # next card with the previous answer while the learner is quiet.
         self.heard_ms = 0.0
         self.heard_words = False
+        # The current tutor turn on the playback timeline: when its first words play and how long all of it lasts.
+        self.turn_start = None
+        self.turn_ms = 0.0
         self.muted = False
         self.results = []
         self.pending = []
@@ -286,6 +308,7 @@ class LiveTutor:
         if self.phase != "live":
             return
         clear = False
+        note = None
         with self.lock:
             heard = (content.get("inputTranscription") or {}).get("text") if isinstance(content.get("inputTranscription"), dict) else None
             if isinstance(heard, str) and heard:
@@ -303,17 +326,31 @@ class LiveTutor:
                 if isinstance(audio, str) and audio:
                     self.open_tutor_turn()
                     self.audio.play(audio)
-                    self.speech_until = max(self.speech_until, self.now()) + pcm_seconds(audio, MODEL_RATE)
+                    seconds = pcm_seconds(audio, MODEL_RATE)
+                    start = max(self.speech_until, self.now())
+                    if self.turn_start is None:
+                        self.turn_start = start
+                    self.turn_ms += seconds * 1000
+                    self.speech_until = start + seconds
             said = (content.get("outputTranscription") or {}).get("text") if isinstance(content.get("outputTranscription"), dict) else None
             if isinstance(said, str) and said:
                 self.open_tutor_turn()
                 self.tutor_line = tidy(self.tutor_line + said).lstrip()
             if content.get("interrupted"):
-                # The learner spoke over the tutor: drop what hasn't been played.
+                # The learner spoke over the tutor: drop what hasn't been played,
+                # and say how much they heard (read with their words, not a turn of its own).
                 clear = True
+                if self.turn_start is None:
+                    played = self.turn_ms
+                else:
+                    played = max(0.0, min(self.turn_ms, (self.now() - self.turn_start) * 1000))
+                if self.tutor_turn_open and self.turn_ms - played >= CUT_OFF_MS:
+                    note = cut_off_note(heard_part(self.tutor_line, played / self.turn_ms if self.turn_ms else 0.0))
                 self.speech_until = min(self.speech_until, self.now())
             if content.get("turnComplete") or content.get("interrupted"):
                 self.tutor_turn_open = False
+        if note:
+            self.send({"clientContent": {"turns": [{"role": "user", "parts": [{"text": note}]}], "turnComplete": False}})
         if clear:
             self.audio.clear()
 
@@ -323,6 +360,8 @@ class LiveTutor:
         self.tutor_turn_open = True
         self.you_fresh = True
         self.tutor_line = ""
+        self.turn_start = None
+        self.turn_ms = 0.0
 
     def tool_call(self, call):
         responses = []
@@ -370,8 +409,13 @@ class LiveTutor:
         return {"result": "saved", "next": next_card(self.cards, done)}
 
     def learner_answered(self):
-        """True once the learner has said something since the last saved card."""
-        return self.heard_words or self.heard_ms >= ANSWER_SPEECH_MS
+        """True once the learner has said something since the last saved card.
+        With the gate, only speech it let through counts: that is all the tutor
+        heard, and the transcript of the previous answer often arrives after
+        that card was saved, which made the next card look answered."""
+        if self.gate is not None:
+            return self.heard_ms >= ANSWER_SPEECH_MS
+        return self.heard_words
 
     # -------------------------------------------------------------- timing
     def seconds_left(self):

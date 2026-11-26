@@ -23,8 +23,14 @@
 export const GATE = {
   /** The starting guess for the room's noise, in dBFS. */
   floorStartDb: -60,
-  /** The noise estimate never goes above this (a loud room still needs real speech). */
-  floorMaxDb: -45,
+  /**
+   * The noise estimate never goes above this, so the bar for speech never
+   * rises past -38 dBFS: in a noisy room, or after the estimate crept up,
+   * quieter words still count instead of being cut out of the answer.
+   */
+  floorMaxDb: -50,
+  /** Sounds this close above the noise estimate move it at the normal pace; louder ones (soft speech) barely do. */
+  floorNearDb: 6,
   floorMinDb: -75,
   /** Speech while the tutor is quiet: this far above the noise, and at least talkMinDb. */
   talkAboveFloorDb: 12,
@@ -35,7 +41,8 @@ export const GATE = {
   bargeMinDb: -36,
   /** How long speech must last to open the gate. */
   openMs: 150,
-  bargeMs: 350,
+  // A "mm" or "okay" while the tutor talks is shorter than this; someone who means to cut in keeps going.
+  bargeMs: 600,
   /** Stays open through pauses this long (shorter once the tutor talks again). */
   // Long enough that a pause between words never cuts into an answer.
   hangMs: 1200,
@@ -181,8 +188,11 @@ export class SpeechGate {
   }
 
   private learn(db: number, ms: number) {
-    // Quick to follow the noise down, slow to follow it up.
-    const weight = db < this.floor ? Math.min(1, ms / 300) : Math.min(1, ms / 4000);
+    // Quick to follow the noise down, slow to follow it up, and very slow for
+    // sounds well above it: those are mostly soft speech, and learning from
+    // them raised the bar until the learner's quieter words were cut out.
+    const rise = db - this.floor;
+    const weight = rise < 0 ? Math.min(1, ms / 300) : rise <= GATE.floorNearDb ? Math.min(1, ms / 4000) : Math.min(1, ms / 30000);
     this.floor = Math.min(GATE.floorMaxDb, Math.max(GATE.floorMinDb, this.floor + (db - this.floor) * weight));
   }
 }

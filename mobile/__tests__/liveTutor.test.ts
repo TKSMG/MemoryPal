@@ -1,6 +1,6 @@
 /** Live Talk-back: audio helpers and the Gemini Live conversation flow, with a fake socket and fake audio. */
 import { base64Length, pcmMs, utf8 } from '../src/features/pcm';
-import { liveAssessment, LiveAudio, LiveSocket, LiveTutor, NOT_ANSWERED } from '../src/features/liveTutor';
+import { cutOffNote, heardPart, liveAssessment, LiveAudio, LiveSocket, LiveTutor, NOT_ANSWERED } from '../src/features/liveTutor';
 import type { Outcome, TalkCard } from '../src/features/talkback';
 import { startLive } from '../src/cloud/ai';
 import { decodeBase64, GATE, levelDb, silenceBase64, SpeechGate } from '../src/features/speechGate';
@@ -187,6 +187,47 @@ describe('live tutor conversation', () => {
     ws.server({ toolCall: { functionCalls: [{ id: '6', name: 'record_answer', args: { card: 'c2', result: 'right' } }] } });
     expect(rated).toEqual([['a', 'right'], ['b', 'right']]);
     expect(tutor.getSnapshot().results.map((r) => r.outcome)).toEqual(['right', 'right']);
+  });
+
+  test('a late transcript of the last answer does not count as an answer to the next card', async () => {
+    const { ws, mic, rated } = setup(10, new SpeechGate());
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    for (let i = 0; i < 40; i++) mic(tone(20, -60));
+    for (let i = 0; i < 30; i++) mic(tone(20, -20));
+    ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c1', result: 'right' } }] } });
+    expect(rated).toEqual([['a', 'right']]);
+    // The words for that answer only now arrive; the learner then stays quiet.
+    ws.server(heard('Paris'));
+    for (let i = 0; i < 100; i++) mic(tone(20, -60));
+    ws.server({ toolCall: { functionCalls: [{ id: '2', name: 'record_answer', args: { card: 'c2', result: 'wrong', said: 'Paris' } }] } });
+    expect(rated).toEqual([['a', 'right']]);
+  });
+
+  test('cut off mid-question, the tutor is told how much the learner heard', () => {
+    const { ws, advance } = setup();
+    ws.server({ setupComplete: {} });
+    const notes = () => ws.sent.filter((m) => m.clientContent && (m.clientContent as { turnComplete: boolean }).turnComplete === false);
+    ws.server({ serverContent: { outputTranscription: { text: 'Next one: what is two plus two, do you think?' } } });
+    for (let i = 0; i < 20; i++) ws.server(audioMessage(100)); // two seconds of speech
+    advance(500);
+    ws.server({ serverContent: { interrupted: true } });
+    expect(notes()).toHaveLength(1);
+    const note = notes()[0].clientContent as { turns: { parts: { text: string }[] }[] };
+    expect(note.turns[0].parts[0].text).toBe(cutOffNote('Next one:'));
+    // Nearly finished when the learner cut in: nothing to say.
+    ws.server({ serverContent: { outputTranscription: { text: 'Right, well done.' } } });
+    for (let i = 0; i < 10; i++) ws.server(audioMessage(100));
+    advance(800);
+    ws.server({ serverContent: { interrupted: true } });
+    expect(notes()).toHaveLength(1);
+  });
+
+  test('cut-off wording', () => {
+    expect(heardPart('a b c d', 0.5)).toBe('a b');
+    expect(heardPart('a b c d', 0.1)).toBe('');
+    expect(cutOffNote('')).toContain('heard none');
+    expect(cutOffNote('What is')).toContain('only heard "What is…"');
   });
 
   test('clear speech the gate lets through counts as an answer before its transcript arrives', async () => {
@@ -384,6 +425,24 @@ describe('speech gate', () => {
     expect(gate.isOpen).toBe(false);
     // Really talking over it opens the gate.
     for (let i = 0; i < 30 && !gate.isOpen; i++) gate.process(tone(20, -20), true);
+    expect(gate.isOpen).toBe(true);
+  });
+
+  test('a short "mm" while the tutor talks does not cut it off', () => {
+    const gate = new SpeechGate();
+    for (let i = 0; i < 40; i++) gate.process(tone(20, -60), false);
+    for (let i = 0; i < 20; i++) gate.process(tone(20, -20), true); // 400 ms
+    for (let i = 0; i < 20; i++) gate.process(tone(20, -60), true);
+    expect(gate.isOpen).toBe(false);
+  });
+
+  test('talking softly for a long time does not raise the bar until quieter words are lost', () => {
+    const gate = new SpeechGate();
+    for (let i = 0; i < 40; i++) gate.process(tone(20, -62), false);
+    // Ten seconds of soft sounds just under the bar (trailing syllables, a quiet voice).
+    for (let i = 0; i < 500; i++) gate.process(tone(20, -51), false);
+    expect(gate.noiseDb).toBeLessThan(-55);
+    for (let i = 0; i < 20 && !gate.isOpen; i++) gate.process(tone(20, -45), false);
     expect(gate.isOpen).toBe(true);
   });
 
