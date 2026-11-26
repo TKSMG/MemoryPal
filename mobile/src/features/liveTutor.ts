@@ -26,6 +26,8 @@ const LAST_MINUTE_LINE = '(About one minute is left. After the current card, giv
  * transcript hasn't caught up yet. Shorter is a cough or a click.
  */
 export const ANSWER_SPEECH_MS = 200;
+/** Cut off with at least this much of its turn unplayed, the tutor is told what the learner actually heard. */
+export const CUT_OFF_MS = 500;
 
 export interface LiveSocket {
   send(data: string): void;
@@ -117,7 +119,25 @@ export function closeText(code?: number, reason?: string): string {
 const RESULT_SET = new Set<Outcome>(['right', 'close', 'wrong', 'skipped']);
 
 /** record_answer's reply when the learner hasn't said anything since the last card. Same text on desktop. */
-export const NOT_ANSWERED = 'not saved: the learner has not answered this card yet. Ask it if you have not, then wait quietly for their own answer. Never answer for them or reuse an earlier answer.';
+export const NOT_ANSWERED = 'not saved: the learner has not answered this card yet. If you have asked it, do not ask it again: stay quiet and wait for their own answer (repeat it only if they ask). Never answer for them or reuse an earlier answer.';
+
+/**
+ * What the tutor is told when the learner talked over it. Gemini writes a
+ * whole turn long before it has played, so it believed the learner had heard
+ * every word: a question cut off halfway counted as asked, and it went on to
+ * the next card, or judged the learner's "sorry?" (or their last answer) as
+ * the answer. Same text on desktop.
+ */
+export function cutOffNote(heard: string): string {
+  const said = heard ? `the learner only heard "${heard}…" and none of the rest` : 'the learner heard none of what you just said';
+  return `(You were cut off: ${said}. If what they say now answers the card, judge it; otherwise ask that card again.)`;
+}
+
+/** The start of `line`, in proportion to how much of the turn played. */
+export function heardPart(line: string, played: number): string {
+  const words = line.split(' ').filter(Boolean);
+  return words.slice(0, Math.floor(words.length * Math.max(0, Math.min(1, played)))).join(' ');
+}
 
 export class LiveTutor {
   private phase: LivePhase = 'connecting';
@@ -150,6 +170,9 @@ export class LiveTutor {
    */
   private heardMs = 0;
   private heardWords = false;
+  /** The current tutor turn on the playback timeline: when its first words play and how long all of it lasts. */
+  private turnStart: number | null = null;
+  private turnMs = 0;
 
   constructor(private options: LiveTutorOptions) {
     this.now = options.now ?? (() => Date.now());
@@ -278,7 +301,10 @@ export class LiveTutor {
       if (typeof audio === 'string' && audio) {
         this.openTutorTurn();
         this.options.audio.play(audio);
+        const ms = pcmMs(audio, MODEL_RATE);
         this.speechUntil = this.meter.speech(audio, this.now());
+        if (this.turnStart === null) this.turnStart = this.speechUntil - ms;
+        this.turnMs += ms;
       }
     }
     const output = (content.outputTranscription as { text?: unknown } | undefined)?.text;
@@ -287,7 +313,13 @@ export class LiveTutor {
       this.tutorLine = (this.tutorLine + output).replace(/\s+/g, ' ').trimStart();
     }
     if (content.interrupted) {
-      // The learner spoke over the tutor: drop what hasn't been played.
+      // The learner spoke over the tutor: drop what hasn't been played, and
+      // say how much they heard (read with their words, not a turn of its own).
+      const played = this.turnStart === null ? this.turnMs : Math.max(0, Math.min(this.turnMs, this.now() - this.turnStart));
+      if (this.tutorTurnOpen && this.turnMs - played >= CUT_OFF_MS) {
+        const note = cutOffNote(heardPart(this.tutorLine, this.turnMs ? played / this.turnMs : 0));
+        this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: note }] }], turnComplete: false } });
+      }
       this.options.audio.clear();
       this.meter.clearSpeech(this.now());
       this.speechUntil = Math.min(this.speechUntil, this.now());
@@ -301,6 +333,8 @@ export class LiveTutor {
     this.tutorTurnOpen = true;
     this.youFresh = true;
     this.tutorLine = '';
+    this.turnStart = null;
+    this.turnMs = 0;
   }
 
   private toolCall(call: { functionCalls?: { id?: string; name?: string; args?: Record<string, unknown> }[] }) {
@@ -344,9 +378,14 @@ export class LiveTutor {
   }
 
   // ---------------------------------------------------------------- timing
-  /** True once the learner has said something since the last saved card. */
+  /**
+   * True once the learner has said something since the last saved card. With
+   * the gate, only speech it let through counts: that is all the tutor heard,
+   * and the transcript of the previous answer often arrives after that card
+   * was saved, which made the next card look answered.
+   */
   private learnerAnswered(): boolean {
-    return this.heardWords || this.heardMs >= ANSWER_SPEECH_MS;
+    return this.gate ? this.heardMs >= ANSWER_SPEECH_MS : this.heardWords;
   }
 
   /** Who is talking and how loud, right now, for the picture (poll it each frame or so). */

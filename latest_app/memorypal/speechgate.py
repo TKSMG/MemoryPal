@@ -25,14 +25,15 @@ import sys
 from array import array
 
 FLOOR_START_DB = -60.0
-FLOOR_MAX_DB = -45.0
+FLOOR_MAX_DB = -50.0  # so the bar for speech never rises past -38 dBFS and quieter words still count
+FLOOR_NEAR_DB = 6.0  # sounds this close above the noise move it at the normal pace; louder ones (soft speech) barely do
 FLOOR_MIN_DB = -75.0
 TALK_ABOVE_FLOOR_DB = 12.0
 TALK_MIN_DB = -52.0  # low enough for someone speaking softly or a little away from the microphone
 BARGE_ABOVE_FLOOR_DB = 22.0
 BARGE_MIN_DB = -36.0
 OPEN_MS = 150.0
-BARGE_MS = 350.0
+BARGE_MS = 600.0  # a "mm" or "okay" while the tutor talks is shorter; someone who means to cut in keeps going
 HANG_MS = 1200.0  # a pause between words never cuts into an answer
 BARGE_HANG_MS = 250.0
 PREROLL_MS = 500.0
@@ -132,6 +133,14 @@ class SpeechGate:
         return [silence_b64(len(pcm))]
 
     def _learn(self, db, ms):
-        # Quick to follow the noise down, slow to follow it up.
-        weight = min(1.0, ms / 300) if db < self.floor else min(1.0, ms / 4000)
+        # Quick to follow the noise down, slow to follow it up, and very slow for
+        # sounds well above it: those are mostly soft speech, and learning from
+        # them raised the bar until the learner's quieter words were cut out.
+        rise = db - self.floor
+        if rise < 0:
+            weight = min(1.0, ms / 300)
+        elif rise <= FLOOR_NEAR_DB:
+            weight = min(1.0, ms / 4000)
+        else:
+            weight = min(1.0, ms / 30000)
         self.floor = min(FLOOR_MAX_DB, max(FLOOR_MIN_DB, self.floor + (db - self.floor) * weight))
