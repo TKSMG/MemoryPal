@@ -65,7 +65,8 @@ def run(label, data_dir, seconds=float(os.environ.get("LAUNCH_PROBE_SECONDS", "9
         cols = len(range(0, before.width, STEP))
         env = dict(os.environ, MEMORYPAL_DATA_DIR=data_dir, MEMORYPAL_CAPTCHA_URL="", **(env_extra or {}))
         started = time.perf_counter()
-        child = subprocess.Popen([sys.executable, APP], env=env)
+        exe = os.environ.get("LAUNCH_PROBE_EXE")
+        child = subprocess.Popen([exe] if exe else [sys.executable, APP], env=env)
         frames = []
         while time.perf_counter() - started < seconds:
             shot = grabber.grab(monitor)
