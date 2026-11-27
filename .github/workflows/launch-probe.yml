@@ -2,7 +2,8 @@ name: Launch probe
 
 # Watches the whole screen while the desktop app starts on a real Windows
 # machine (tools/render_check/launch_probe.py) and reports any white flash,
-# on a first start (new data folder) and a later one.
+# on a first start (new data folder) and a later one. Run it by hand
+# (Actions > Launch probe) after changing how the window first opens.
 on:
   workflow_dispatch:
     inputs:
@@ -10,9 +11,6 @@ on:
         description: "Environment switches for the app (KEY=1,KEY2=1)"
         type: string
         default: ""
-  push:
-    branches: ["claude/**"]
-    paths: ["tools/render_check/launch_probe.py", ".github/workflows/launch-probe.yml"]
 
 permissions:
   contents: read
