@@ -1,6 +1,6 @@
 # MemoryPal Testing Checklist
 
-This checklist is for getting MemoryPal ready to show and eventually turn into a real packaged app.
+The full manual test pass, desktop and phone. I run through it before each release.
 
 ## Automated Tests
 

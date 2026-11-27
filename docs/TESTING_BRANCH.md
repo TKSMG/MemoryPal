@@ -30,13 +30,11 @@ python latest_app/MemoryPalDesktop.py
 
 ## What is in it right now
 
-Keep this list up to date whenever a branch is added or taken out.
+Update this whenever a branch goes in or comes out.
 
-| Branch | PR | What it does |
-| --- | --- | --- |
-| `window-glitches` | #41 | Full screen fades instead of showing half-switched frames; scroll probes for every page |
-| `claude/project-thread-5t33jk` | #42 | Live AI tutor for phone Talk-back, AI on by default |
-| `claude/project-thread-5khaoy` | #46 | This branch's own set-up (the Testing Builds workflow and this guide) |
+| PR | What it does |
+| --- | --- |
+| (none) | Everything that was in here has been merged into main |
 
 ## Adding new work
 
@@ -70,7 +68,7 @@ Then update the table above.
 ## Rules
 
 - Never merge `testing` into main or into another branch. Work reaches main
-  only through its own PR, after "merge it".
+  only through its own PR, once it has been reviewed.
 - If two branches clash, fix the clash in `testing` only and note it on the
   PR, so the real fix is made on the branch itself.
 - Version numbers in `testing` are whatever the merged branches say; the

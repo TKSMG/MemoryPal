@@ -9,7 +9,7 @@ CAPTCHA page or the `ai` server function), please **don't open a public issue**.
 - email **memorypal09@gmail.com** with "Security" in the subject.
 
 Say what you found, how to reproduce it, and which version you used (the bottom of Settings on the phone, Settings →
-Storage and backups on the computer). You'll get a reply within 7 days. Please give us a reasonable time to fix it before you
+Storage and backups on the computer). You'll get a reply within 7 days. Please give me a reasonable time to fix it before you
 share it publicly.
 
 ## Supported versions

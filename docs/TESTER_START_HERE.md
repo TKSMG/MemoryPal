@@ -47,7 +47,7 @@ Use `TESTING_CHECKLIST.md` if you want the full list. The short version:
 ## 4. Send feedback
 
 - In the app, press **Feedback** at the top right while you're on the page you want to talk about. Give a rating and say what happened; the page is noted for you.
-- Press **Send** to send it straight to the MemoryPal team (needs internet). If that doesn't work, use **Email it** or **Save as file** instead. Notes you don't send yet are kept and go with the next one you send.
+- Press **Send** to send it straight to me (needs internet). If that doesn't work, use **Email it** or **Save as file** instead. Notes you don't send yet are kept and go with the next one you send.
 - Only your notes plus your Windows version, text size, and theme are sent. Your profile name and study cards are never included.
 - For crashes or odd behaviour, a screenshot and one sentence about what you clicked is very helpful.
 - Please also mention your Windows version and screen scaling (for example 100%, 125%, or 150%).
