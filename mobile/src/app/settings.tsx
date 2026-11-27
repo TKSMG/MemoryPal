@@ -208,7 +208,7 @@ export default function Settings() {
           <SectionTitle>Start over</SectionTitle>
           <Card>
             <Txt variant="muted">Deletes every card and all progress on this phone. Save a backup first if you might want them back.</Txt>
-            <Button kind="danger" label="Delete everything and start over" icon="trash-outline" onPress={doReset} />
+            <Button kind="danger" label="Delete everything" icon="trash-outline" onPress={doReset} />
           </Card>
         </>
       ) : null}

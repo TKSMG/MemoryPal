@@ -13,7 +13,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { ReactNode, useEffect, useState } from 'react';
-import { AccessibilityInfo, Pressable, View } from 'react-native';
+import { AccessibilityInfo, Pressable, Text, View } from 'react-native';
 
 import { todayIso } from '../core/dates';
 import {
@@ -38,6 +38,31 @@ const MATERIAL_KINDS: PuzzleKind[] = ['pairs', 'words', 'missing', 'search', 'nb
 /** A fresh seed for a round, clue or praise line. */
 const nextSeed = () => Math.floor(Math.random() * 2_000_000_000);
 const AVATAR_TONES = ['#c8553d', '#2a7f62', '#3d5a80', '#9a6fb0', '#b5838d', '#6b8f71'];
+
+/**
+ * A person's first letter on a coloured circle (Names and faces).
+ * The circle grows with the in-app text size and the letter's own growth from
+ * the phone's text setting is capped, so the letter always fits inside. The
+ * line is exactly one letter tall and Android's extra font padding is off, so
+ * the letter sits in the middle instead of a point or two low (as it did on
+ * Android, and as the desktop's profile circles did).
+ */
+function Initial({ letter, tone }: { letter: string; tone: string }) {
+  const theme = useTheme();
+  const box = theme.icon(52);
+  const size = theme.font(22);
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ width: box, height: box, borderRadius: box / 2, backgroundColor: tone, alignItems: 'center', justifyContent: 'center' }}
+    >
+      <Text maxFontSizeMultiplier={1.3} style={{ color: '#ffffff', fontSize: size, lineHeight: size, fontWeight: '700', textAlign: 'center', includeFontPadding: false, textAlignVertical: 'center' }}>
+        {letter}
+      </Text>
+    </View>
+  );
+}
 
 /** The bar that empties while a round is on show; only it redraws as the time passes. */
 function ShowCountdown({ startedAt, showFor }: { startedAt: number; showFor: number }) {
@@ -339,9 +364,7 @@ export default function Puzzle() {
           ) : round.kind === 'names' ? (
             (round.people ?? []).map(([name, detail], index) => (
               <Row key={name} gap={14}>
-                <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: AVATAR_TONES[index % AVATAR_TONES.length], alignItems: 'center', justifyContent: 'center' }}>
-                  <Txt variant="h2" color="#ffffff">{name[0]}</Txt>
-                </View>
+                <Initial letter={name[0]} tone={AVATAR_TONES[index % AVATAR_TONES.length]} />
                 <View style={{ flex: 1 }}>
                   <Txt variant="h2">{name}</Txt>
                   <Txt variant="body">{detail}</Txt>

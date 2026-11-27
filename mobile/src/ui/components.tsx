@@ -644,7 +644,8 @@ export function EmptyState({ icon, title, body, action }: { icon: IconName; titl
       <Ionicons name={icon} size={theme.icon(40)} color={theme.colors.muted} />
       <Txt variant="section" center>{title}</Txt>
       <Txt variant="muted" center>{body}</Txt>
-      {action ? <View style={{ alignSelf: 'stretch', marginTop: 8 }}>{action}</View> : null}
+      {/* The action spans the full content width like every other page's buttons, not the text's inset. */}
+      {action ? <View style={{ alignSelf: 'stretch', marginTop: 8, marginHorizontal: -8 }}>{action}</View> : null}
     </View>
   );
 }
@@ -692,12 +693,17 @@ function rowHasIcon(child: ReactNode) {
 }
 
 /** One row of a ListGroup: icon, title, optional detail and value, and a chevron when it opens something. */
+/** About where a row's small description runs past two lines on a phone. */
+const LONG_DETAIL = 100;
+
 export function ListRow({ icon, title, detail, value, onPress, accessibilityLabel, accessibilityHint, tint, tone, right, below, chevron = !!onPress }: { icon?: IconName; title: string; detail?: string; value?: string; onPress?: () => void; accessibilityLabel?: string; accessibilityHint?: string; tint?: string; /** The icon tile's tone; by default the icon's own (ICON_TONES), else pine. */ tone?: Tone; right?: ReactNode; /** Shown under the detail, such as an AI tag. */ below?: ReactNode; chevron?: boolean }) {
   const theme = useTheme();
   const c = theme.colors;
   const body = (
     <>
-      {icon ? <ToneIcon icon={icon} tone={tone ?? ICON_TONES[icon] ?? 'pine'} color={tint} /> : null}
+      {/* Beside a long description (three lines or more) the icon stays by
+          the title instead of floating halfway down the text. */}
+      {icon ? <View style={detail && detail.length > LONG_DETAIL ? { alignSelf: 'flex-start' } : null}><ToneIcon icon={icon} tone={tone ?? ICON_TONES[icon] ?? 'pine'} color={tint} /></View> : null}
       <View style={{ flex: 1, gap: 2, paddingVertical: 2 }}>
         <Txt variant="body" color={tint && !icon ? tint : c.ink} style={{ fontWeight: '500' }}>{title}</Txt>
         {detail ? <Txt variant="small">{detail}</Txt> : null}
