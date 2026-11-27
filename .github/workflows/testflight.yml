@@ -62,12 +62,12 @@ jobs:
           case "$BUILD_NUMBER" in (*[!0-9]*|'') echo "::error::build_number must be a whole number"; exit 1;; esac
 
       - name: Check out
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm

@@ -22,14 +22,14 @@ jobs:
     # main is only the before picture; its lag is expected.
     continue-on-error: ${{ matrix.app == 'main' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Use main's app
         if: matrix.app == 'main'
         shell: bash
         run: git checkout origin/main -- latest_app
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install app packages

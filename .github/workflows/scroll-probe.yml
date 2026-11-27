@@ -50,8 +50,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install app packages
@@ -68,8 +68,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Hear spoken answers from sound files
@@ -80,8 +80,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install app packages
@@ -101,7 +101,7 @@ jobs:
           done
           cat modes.txt
           python -c "import sys; t=open('modes.txt').read()[-3900:]; print('::notice title=Resize modes::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: resize-modes
@@ -121,7 +121,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: ${{ !matrix.compare || inputs.compare }}
       - name: Use main's app with this branch's probes
         if: ${{ matrix.variant == 'main' && inputs.compare }}
@@ -129,7 +129,7 @@ jobs:
         run: |
           git fetch --depth=1 origin main
           git checkout FETCH_HEAD -- latest_app
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: ${{ !matrix.compare || inputs.compare }}
         with:
           python-version: "3.12"
@@ -157,7 +157,7 @@ jobs:
           grep '^SERIES ' render.txt >> probe.txt 2>/dev/null || true
           cat probe.txt
           python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Scroll probe ${{ matrix.os }} ${{ matrix.variant }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: ${{ always() && (!matrix.compare || inputs.compare) }}
         with:
           name: probe-${{ matrix.os }}-${{ matrix.variant }}
