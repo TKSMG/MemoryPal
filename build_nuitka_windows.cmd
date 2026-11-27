@@ -24,7 +24,6 @@ if not defined PYTHON_EXE call :try_python "%LOCALAPPDATA%\Python\pythoncore-3.1
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python313\python.exe"
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python312\python.exe"
 if not defined PYTHON_EXE call :try_python "C:\Program Files\Python311\python.exe"
-if not defined PYTHON_EXE call :try_python "%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 
 if not defined PYTHON_EXE (
   echo No usable desktop Python with Tkinter was found.

@@ -90,8 +90,7 @@ Run `supabase/migrations/2026-10-20-move-to-drive.sql` once in the SQL editor (i
 - **Google consent screen**: press **Publish app** under Audience, then submit the free branding
   check. Until then only the listed test users can connect, and Google ends each connection
   after 7 days.
-- **Play Data safety / App Store privacy / Microsoft Store**: the answers are in the project's
-  launch notes (`launch/store-forms-and-rules.md`); synced cards go to the person's own Google
+- **Play Data safety / App Store privacy / Microsoft Store**: synced cards go to the person's own Google
   account, so they are not "collected" by MemoryPal.
 - **Store screenshots**: the Account & sync screens now show "Connect Google Drive". Retake them
   only if a store shows that screen.

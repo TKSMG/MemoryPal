@@ -6,13 +6,6 @@ name: Dropdown probe
 # The "main" leg runs the same probe against main's app, for comparison.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - claude/project-thread-gfw13o
-    paths:
-      - tools/render_check/dropdown_probe.py
-      - .github/workflows/dropdown-probe.yml
-      - latest_app/MemoryPalDesktop.py
 
 permissions:
   contents: read

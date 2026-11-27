@@ -1,26 +1,12 @@
 # MemoryPal Development Versions
 
-This folder contains standalone milestone versions of MemoryPal. Each `MemoryPal_vXX_*.py` file is an independent Python/Tkinter program and can be run by itself.
+Standalone milestone versions of MemoryPal. Each `MemoryPal_vXX_*.py` file is an independent Python/Tkinter program and can be run by itself.
 
-The versions are reconstructed from the project history. They are not exact saved snapshots from every edit, because the earliest states were not preserved as separate files, but each one represents a meaningful development stage.
+I rebuilt these from the project history, since I didn't save the early versions as separate files at the time. They aren't exact snapshots, but each one is a real stage the app went through.
 
 ## Current Full App
 
-The current full recovered app is:
-
-`../latest_app/MemoryPalDesktop.py`
-
-It includes DPI-aware scaling, chunk-based capture, prompt-answer modes, smart checking, repetition paths, text/image/audio/video file imports, and on-demand text/audio/video capture controls.
-It also includes profiles, study planning, stats, dark/light themes, review repair controls, and a focused Repetition round player.
-The newest build keeps the navigation rail expanded, adds document-note importing, resource strips on study pages, and improved scaling on Study Plan and shared button rows.
-The release-prep build adds testing notes, Windows build instructions, and a mobile prototype path.
-The latest desktop UI uses steady same-theme covers for page switches, fullscreen, focus, and resize release, while the fixed navigation rail avoids collapse-related redraw glitches.
-The newest polish pass changes transition fades from whole-window opacity to content/root overlay reveals, keeping the app shell solid while elements appear.
-The current project structure moves paths, models, storage, planning, and study helpers into `../latest_app/memorypal/` so the desktop entry point is no longer responsible for every layer of the app.
-The newest stability pass keeps newer saved review progress when two open windows save at different times.
-The latest header pass separates status chips from actions and turns the active profile into a numbered avatar control.
-The newest packaging pass keeps Mac window behavior native, adds a macOS build script, and adds a GitHub workflow for Mac tester artifacts.
-The newest accessibility pass adds an Everyday Memory section and profile-level accessibility preferences for older adults and caregiver-supported use.
+The current app is `../latest_app/MemoryPalDesktop.py`, with its logic in `../latest_app/memorypal/`. The files in this folder are the milestones on the way there; [VERSION_JOURNAL.md](VERSION_JOURNAL.md) says what each one changed.
 
 ## How to Run a Version
 
@@ -102,7 +88,7 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 ### v14 Test - Final walk-back repetition rule
 
 - Implemented the clarified pattern: start `5`, range `3` gives `5`, `5-4`, `5-4-3`, then `3-2-1`.
-- The version focuses on the exact repetition behavior requested.
+- Repetition now works exactly the way I wanted it to.
 
 ### v15 Beta - Modernized dashboard and shell
 
@@ -195,7 +181,7 @@ If `python` is not on PATH, use the Python interpreter installed on the PC and p
 
 - Changed Repetition Path output from a long generated stack into a focused round-by-round player.
 - Added round progress, previous/next controls, current-prompt grouping, Smart Check, reveal, and bucket feedback inside the player.
-- Kept the requested start/range behavior while making the exercise easier to use on smaller screens.
+- Kept the start/range behavior while making the exercise easier to use on smaller screens.
 
 ### v32 Beta - Collapsible navigation and document notes
 

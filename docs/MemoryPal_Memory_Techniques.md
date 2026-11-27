@@ -8,7 +8,7 @@ I designed MemoryPal around the idea that memory practice should feel calm, prac
 
 MemoryPal breaks information into small study bits, shows prompts, accepts recall attempts, and gives gentle ways to check or repeat answers.
 
-The design is aimed at learners and older adults, so each method should stay simple, predictable, and low-pressure. The goal is not to make studying feel gamified for no reason; the goal is to make it easier to start and easier to come back.
+The design is aimed at learners and older adults, so each method should stay simple, predictable, and low-pressure. The point isn't to gamify studying, it's to make it easier to start and easier to come back to.
 
 ## Study Bits
 
@@ -37,7 +37,7 @@ Prompt: What is photosynthesis?
 
 Answer: The process plants use to turn light, water, and carbon dioxide into food.
 
-This method supports active recall instead of rereading.
+That's active recall rather than rereading.
 
 Exact prompt-answer material can be entered with separate question and answer boxes. This is clearer than forcing every card into one pasted field.
 
@@ -140,7 +140,7 @@ The section works best with real cues:
 - A picture of where an item belongs.
 - A routine written in two to four steps.
 
-The goal is confidence and orientation, not pressure.
+It's about confidence and knowing where you are, not pressure.
 
 ## Accessibility Features
 
@@ -250,7 +250,7 @@ Examples:
 - Link chains.
 - Unusual images or actions.
 
-The goal is not perfect memorization. The goal is to give the brain a useful hook.
+It doesn't have to be perfect memorisation, just a hook to hang the idea on.
 
 Every idea gets its own hook. If two ideas share the same peg, room, or scene, they compete and blur together (interference). When a list is longer than ten pegs, twenty palace spots, or twelve story scenes, MemoryPal continues with a clearly different version, such as a giant golden sun or the garden front door, instead of reusing the first one.
 
@@ -370,7 +370,7 @@ These signals should guide the next study action without making the learner feel
 
 Weekly pace, active days, best-day count, and weak-card count give more context than a streak alone.
 
-The goal is to show momentum without making the learner feel punished for missing a day.
+It should show momentum without punishing anyone for missing a day.
 
 ## Helpful Interface Cues
 
@@ -445,38 +445,6 @@ Images, text notes, audio, and video work best when visible during testing.
 MemoryPal shows text previews, image previews when possible, and clear play buttons for audio or video.
 
 This makes each cue part of the study activity instead of just a saved file.
-
-## Calm Visual Design
-
-The interface should feel modern, fast, and easy to understand.
-
-A softer app header, clear status chips, clean buttons, and subtle hover feedback help the app feel less plain without becoming distracting. This matters because the app is supposed to support memory, not compete for attention.
-
-Dark and light themes should share the same calm personality: soft surfaces, readable contrast, gentle borders, and vivid accents only where they help the user act.
-
-Page changes should hide redraw flashes with a same-theme cover. The transition should feel quiet and steady, not like the page is disappearing after it has already loaded.
-
-Custom rounded controls can look jagged in Tkinter. Optional antialiased drawing helps the app feel softer while keeping the normal Tk fallback for computers without image extras installed.
-
-Fast startup matters because a memory tool should not make the user wait before a short practice session. The desktop launcher should stay focused on the interface while models, storage, planning, and study helpers live in smaller support files.
-
-Optional media tools should load only when the user actually records audio, records video, or generates speech. Importing large media packages during normal launch makes the app feel heavier than it is.
-
-Packaged startup should use the icon files already shipped with the app. Generating a fresh `.ico` is useful for build scripts, but it is too much work to do while a tester is waiting for the first screen.
-
-Small cached UI assets matter in a Tkinter app. Reusing generated logo images and rounded-control images keeps redraws lighter while preserving the smoother visual style.
-
-The MemoryPal logo is a connected "memory path" M with three recall nodes, which mirrors how the app works: small ideas linked in a path are easier to recall than loose facts. The generated MemoryPal logo should be used anywhere the app needs a main mark. The connected-dot M now has exported `.ico`, PNG, and SVG versions, so the project can use the same identity in the window, titlebar, build output, and documentation.
-
-The startup fade feels calm, but page and layout changes should not dim the whole app. A same-color overlay can fade away over the changed area while the shell stays solid. Page changes use the smoother overlay; sidebar changes keep compact rail content visible so labels do not get squeezed during the animation.
-
-Navigation collapse should feel like a layout adjustment, not a page change. The active work should stay in place while the rail opens or closes.
-
-Capture can become wide because it has both a builder and a saved-material panel. Horizontal scrolling keeps those tools reachable without making every box cramped.
-
-Resize should wait until release when using custom grips. Constant resizing can make a Tkinter app feel jittery, especially with larger text and media previews.
-
-Dialog boxes should follow the same design language as the rest of the app. Recording prompts, profile names, warnings, and confirmations should feel calm and readable instead of looking like old system popups.
 
 ## Preserving Work
 

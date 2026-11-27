@@ -1,286 +1,286 @@
 # MemoryPal Version Journal
 
-Each version gets two short sentences. This is meant to read like a simple development journal, not a formal changelog.
+A short note on what each version changed, oldest first.
 
 ## v01 Alpha - Initial Runnable PC App
 
-This version made MemoryPal real as a runnable desktop program. It set up the first memory trainer structure with capture, review, quiz, associations, puzzles, and library ideas.
+Made MemoryPal real as a runnable desktop program. It set up the first memory trainer structure with capture, review, quiz, associations, puzzles, and library ideas.
 
 ## v02 Alpha - Scaled UI Resolution
 
-This version made the app larger and easier to read. It also added early DPI handling so the UI would look better on Windows display scaling.
+Made the app larger and easier to read. It also added early DPI handling so the UI would look better on Windows display scaling.
 
 ## v03 Alpha - Multiple Study Bits
 
-This version stopped treating pasted notes as one big block. It split `/n`, newlines, numbered lists, and separators into separate study bits.
+Stopped treating pasted notes as one big block. It split `/n`, newlines, numbered lists, and separators into separate study bits.
 
 ## v04 Alpha - Multimedia Capture
 
-This version moved media cues into the wider capture flow. Image and audio imports became part of study material instead of only flashcard attachments.
+Moved media cues into the wider capture flow. Image and audio imports became part of study material instead of only flashcard attachments.
 
 ## v05 Beta - Modern UI Pass
 
-This version moved the app away from a plain form layout. The dashboard cards, color, and spacing made it feel more like a modern study tool.
+Moved the app away from a plain form layout. The dashboard cards, color, and spacing made it feel more like a modern study tool.
 
 ## v06 Beta - Removed Animation
 
-This version removed the distracting top-right animation. The app became calmer and more suitable for learners and elderly users.
+Removed the top-right animation. It was distracting, especially for older users.
 
 ## v07 Beta - Structured Revision
 
-This version changed shuffle into an intentional practice order. The user could revise recent items while pulling older items back into memory.
+Changed shuffle into an intentional practice order. The user could revise recent items while pulling older items back into memory.
 
 ## v08 Beta - Notes And Design
 
-This version added project notes for the memory techniques. It also started recording the design direction alongside the code.
+Added project notes for the memory techniques. It also started recording the design direction alongside the code.
 
 ## v09 Test - Button Scaling
 
-This version fixed the awkward dashboard button clipping. The buttons now behave more predictably when the window is not fullscreen.
+Fixed the awkward dashboard button clipping. The buttons now behave more predictably when the window is not fullscreen.
 
 ## v10 Test - Repetition And Smart Check
 
-This version introduced start/range repetition and close-enough answer checking. The app could begin suggesting how much repetition a user might need.
+Introduced start/range repetition and close-enough answer checking. The app could begin suggesting how much repetition a user might need.
 
 ## v11 Test - Native Multimedia
 
-This version made text, image, audio, and video part of the study system. Media cues could travel with the material through different modes.
+Made text, image, audio, and video part of the study system. Media cues could travel with the material through different modes.
 
 ## v12 Test - Chunk Cards
 
-This version changed capture into a study-set builder. Each study bit could become its own separate practice card.
+Changed capture into a study-set builder. Each study bit could become its own separate practice card.
 
 ## v13 Test - Scrollable Forms
 
-This version made long screens scrollable. It fixed the problem where buttons could get pushed under the window.
+Made long screens scrollable. It fixed the problem where buttons could get pushed under the window.
 
 ## v14 Test - Walk-Back Repetition
 
-This version matched the requested repetition example exactly. Start 5 and range 3 gives 5, 5-4, 5-4-3, then 3-2-1.
+Fixed the repetition example to work the way I meant it. Start 5 and range 3 gives 5, 5-4, 5-4-3, then 3-2-1.
 
 ## v15 Beta - Polished Dashboard
 
-This version made the dashboard and shell feel more intentional. The app became easier to scan and less like a generated interface.
+Made the dashboard and shell feel more intentional. The app became easier to scan and less like a generated interface.
 
 ## v16 Test - Prompt Answer Modes
 
-This version changed practice around prompts, answers, reveal, and Smart Check. Repetition became open-ended instead of tied to fixed rounds.
+Changed practice around prompts, answers, reveal, and Smart Check. Repetition became open-ended instead of tied to fixed rounds.
 
 ## v17 Test - Import And Record Inputs
 
-This version added import and recording paths for text, audio, and video. It also marks the point where a future mobile version became important for native microphone and camera recording.
+Added import and recording paths for text, audio, and video. It also marks the point where a future mobile version became important for native microphone and camera recording.
 
 ## v18 Beta - Study App Polish
 
-This version compared MemoryPal against the everyday workflow of a typical study app. It added a Focus queue, next-step dashboard guidance, direct Q/A card creation, and library filters so the app feels more useful in daily practice.
+Compared MemoryPal against the everyday workflow of a typical study app. It added a Focus queue, next-step dashboard guidance, direct Q/A card creation, and library filters so the app feels more useful in daily practice.
 
 ## v19 Beta - Interaction And Capture Polish
 
-This version made the prompt-answer workflow feel more like a real app by separating question and answer entry. It also cleaned up answer panels and added a small transition when moving between sections.
+Made the prompt-answer workflow feel more like a real app by separating question and answer entry. It also cleaned up answer panels and added a small transition when moving between sections.
 
 ## v20 Beta - Review Testing And Q/A Polish
 
-This version made question cards more flexible by allowing optional saved answers. It also added a separate Test Lab page, visual Smart Check bucket highlights, and automatic mini-story generation.
+Made question cards more flexible by allowing optional saved answers. It also added a separate Test Lab page, visual Smart Check bucket highlights, and automatic mini-story generation.
 
 ## v21 Test - Pointer-Aware Page Scrolling
 
-This version made scrolling feel more natural. The mouse wheel now follows the section under the pointer instead of expecting the user to hover over the scrollbar.
+Made scrolling feel more natural. The mouse wheel now follows the section under the pointer instead of expecting the user to hover over the scrollbar.
 
 ## v22 Beta - Test Lab Review Flow
 
-This version made Test Lab the main place for focused review. Review and self-check quiz cards now use the separate test page instead of placing all answer controls below the prompt.
+Made Test Lab the main place for focused review. Review and self-check quiz cards now use the separate test page instead of placing all answer controls below the prompt.
 
 ## v23 Beta - Learning App Polish
 
-This version made MemoryPal feel closer to a complete study product. The dashboard now shows the next best action, mastery progress, daily practice guidance, hover hints, and a gentler Test Lab guide while keeping the requested feature set intact.
+Made MemoryPal feel closer to a complete study product. The dashboard now shows the next best action, mastery progress, daily practice guidance, hover hints, and a gentler Test Lab guide without dropping any features.
 
 ## v24 Beta - Accessible Repetition And Media Polish
 
-This version made Repetition Path match the clearer Set Builder pattern by separating question/title and answer entry. It also cleaned up audio/video capture, added more practice hints, and made page changes feel smoother.
+Made Repetition Path match the clearer Set Builder pattern by separating question/title and answer entry. It also cleaned up audio/video capture, added more practice hints, and made page changes feel smoother.
 
 ## v25 Test - Final Scroll And UX Polish
 
-This version fixed the Repetition screen scaling problem by making it one continuous scrollable page. It also stacked the prompt and answer fields and added keyboard scrolling so the interface feels more forgiving on smaller windows.
+Fixed the Repetition screen scaling problem by making it one continuous scrollable page. It also stacked the prompt and answer fields and added keyboard scrolling so the interface feels more forgiving on smaller windows.
 
 ## v26 Beta - Puzzles And Cue Menus
 
-This version made Puzzles feel more like a real practice area by adding pair recall and missing-item recall. It also made Set Builder calmer by turning media cues into compact menu buttons instead of separate audio/video chooser dialogs.
+Made Puzzles feel more like a real practice area by adding pair recall and missing-item recall. It also made Set Builder calmer by turning media cues into compact menu buttons instead of separate audio/video chooser dialogs.
 
 ## v27 Beta - Cue Previews, Associations, And Skeleton Loading
 
-This version made media cues visible during testing instead of leaving them as plain file links. It also expanded Associations into a fuller memory-toolbox and replaced the page wipe with a calmer skeleton loader.
+Made media cues visible during testing instead of leaving them as plain file links. It also expanded Associations into a fuller memory-toolbox and replaced the page wipe with a calmer skeleton loader.
 
 ## v28 Beta - App Feel Visual Polish
 
-This version focused on making MemoryPal feel more like a real desktop app without slowing it down. It softened the palette, improved the header, restyled controls, and added subtle hover feedback to important cards.
+Worked on making MemoryPal feel more like a real desktop app without slowing it down. It softened the palette, improved the header, restyled controls, and added subtle hover feedback to important cards.
 
 ## v29 Beta - Page Draft Preservation
 
-This version fixed the problem where switching pages could wipe unsaved work. It keeps page drafts in memory for capture, repetition, testing, quiz, associations, and puzzles.
+Fixed the problem where switching pages could wipe unsaved work. It keeps page drafts in memory for capture, repetition, testing, quiz, associations, and puzzles.
 
 ## v30 Beta - Profiles, Planning, And Stats
 
-This version made MemoryPal feel more complete as a study app instead of one local deck. It added separate profiles, study planning, progress stats, streaks, and stronger daily guidance.
+Made MemoryPal feel more complete as a study app instead of one local deck. It added separate profiles, study planning, progress stats, streaks, and stronger daily guidance.
 
 ## v31 Beta - Repetition Player Polish
 
-This version made Repetition Path calmer by replacing the long generated stack with a round-by-round player. It keeps the requested 5, 5-4, 5-4-3, 3-2-1 pattern while adding progress, navigation, reveal, and Smart Check in one focused exercise.
+Made Repetition Path calmer by replacing the long generated stack with a round-by-round player. It keeps the same 5, 5-4, 5-4-3, 3-2-1 pattern while adding progress, navigation, reveal, and Smart Check in one focused exercise.
 
 ## v32 Beta - Collapsible Navigation And Document Notes
 
-This version made the interface easier to focus on by adding a collapsible left navigation rail and stronger scaling behavior. It also added document-note imports so PDFs, Word files, and text notes can become study bits and stay accessible as resources across study pages.
+Made the interface easier to focus on by adding a collapsible left navigation rail and stronger scaling behavior. It also added document-note imports so PDFs, Word files, and text notes can become study bits and stay accessible as resources across study pages.
 
 ## v33 Release Candidate - Testing, Build, And Mobile Start
 
-This version moved MemoryPal closer to something that can be tested like a real app. It added release notes, a testing checklist, Windows build files, a mobile prototype, and a few useful comments in the main desktop code.
+Moved MemoryPal closer to something that can be tested like a real app. It added release notes, a testing checklist, Windows build files, a mobile prototype, and a few useful comments in the main desktop code.
 
 ## v34 Beta - Modern Dialogs
 
-This version removed the remaining old-looking prompt and warning boxes from the desktop app. Profile names, recording lengths, confirmations, errors, mobile capture feedback, and applicable milestone notices now use a MemoryPal-styled modal surface.
+Removed the remaining old-looking prompt and warning boxes from the desktop app. Profile names, recording lengths, confirmations, errors, mobile capture feedback, and applicable milestone notices now use a MemoryPal-styled modal surface.
 
 ## v35 Test - Speech-To-Text Capture
 
-This version added a desktop speech-to-text prototype for spoken study capture. It lets dictated or transcribed text become editable question and answer cards while keeping the speech packages optional.
+Added a desktop speech-to-text prototype for spoken study capture. It lets dictated or transcribed text become editable question and answer cards while keeping the speech packages optional.
 
 ## v36 Beta - Modular Project Structure
 
-This version responded to code review feedback by moving core paths, models, storage, planning, and study helpers into a small `memorypal` package. It also added platform-correct app data storage, `pyproject.toml`, Taskfile build notes, and a GitHub Actions Windows build workflow.
+Split the app up by moving core paths, models, storage, planning, and study helpers into a small `memorypal` package. It also added platform-correct app data storage, `pyproject.toml`, Taskfile build notes, and a GitHub Actions Windows build workflow.
 
 ## v37 Beta - Custom Window Chrome And Flash Polish
 
-This version replaced the old native-looking title bars with MemoryPal-styled window chrome on the main app and in-app popups. It also added fade-in startup, popup fade-ins, fullscreen/rebuild covers, and a custom resize grip so the app keeps a modern feel without losing normal desktop usability.
+Replaced the old native-looking title bars with MemoryPal-styled window chrome on the main app and in-app popups. It also added fade-in startup, popup fade-ins, fullscreen/rebuild covers, and a custom resize grip so the app keeps a modern feel without losing normal desktop usability.
 
 ## v38 Beta - Settings And Window Controls
 
-This version added a real Settings page for theme, navigation, profile, daily-goal, storage, backup, and reset controls. It also separated true fullscreen from borderless focus mode, restored normal resizable-window behavior, and nudged Windows to show MemoryPal as its own app in the taskbar.
+Added a real Settings page for theme, navigation, profile, daily-goal, storage, backup, and reset controls. It also separated true fullscreen from borderless focus mode, restored normal resizable-window behavior, and nudged Windows to show MemoryPal as its own app in the taskbar.
 
 ## v39 Beta - Settings Access And Fade Polish
 
-This version made Settings easier to find with a floating bottom-right cog and replaced the plain navigation collapse button with a cleaner capsule control. It also restored same-color fade covers around focus, fullscreen, resize, popup, and page transitions, with extra scaling attention for the title bar and floating controls.
+Made Settings easier to find with a floating bottom-right cog and replaced the plain navigation collapse button with a cleaner capsule control. It also restored same-color fade covers around focus, fullscreen, resize, popup, and page transitions, with extra scaling attention for the title bar and floating controls.
 
 ## v40 Beta - Stable Fullscreen Polish
 
-This version simplified fullscreen and focus transitions so they use an in-window blocker instead of a separate cover window. It also cleaned up the settings cog into a simpler scaled circle and kept fade protection around resize, fullscreen, focus, page, and popup changes.
+Simplified fullscreen and focus transitions so they use an in-window blocker instead of a separate cover window. It also cleaned up the settings cog into a simpler scaled circle and kept fade protection around resize, fullscreen, focus, page, and popup changes.
 
 ## v41 Beta - Softer Transition Pass
 
-This version removed the floating Settings cog after it created an unavoidable square artifact in Tkinter. Settings now appears in the header and as a pinned bottom navigation item, while page, fullscreen, focus, resize, and rebuild transitions use in-window covers instead of fading the entire app window.
+Removed the floating Settings cog after it created an unavoidable square artifact in Tkinter. Settings now appears in the header and as a pinned bottom navigation item, while page, fullscreen, focus, resize, and rebuild transitions use in-window covers instead of fading the entire app window.
 
 ## v42 Beta - Fade Cover Balance
 
-This version brought back real fading covers for normal windowed page switches and interface rebuilds. Fullscreen and borderless focus still use simpler in-window blockers, which keeps those modes steadier while hiding the white flash.
+Brought back real fading covers for normal windowed page switches and interface rebuilds. Fullscreen and borderless focus still use simpler in-window blockers, which keeps those modes steadier while hiding the white flash.
 
 ## v43 Beta - Page Flash Fix
 
-This version removed the separate page-transition overlay window that could still flash during navigation. Page switches now use an in-app same-color veil with a quick strip reveal, so fast navigation stays hidden and the whole app window does not blink.
+Removed the separate page-transition overlay window that could still flash during navigation. Page switches now use an in-app same-color veil with a quick strip reveal, so fast navigation stays hidden and the whole app window does not blink.
 
 ## v44 Beta - Memory Gym And Softer Fades
 
-This version removed the strip-opening page transition and brought back a calmer fade cover for normal page switches. It also added Memory Gym, technique planning, Visual Search, and N-Back Lite so the app better supports both students and older adults practicing memory skills.
+Removed the strip-opening page transition and brought back a calmer fade cover for normal page switches. It also added Memory Gym, technique planning, Visual Search, and N-Back Lite so the app better supports both students and older adults practicing memory skills.
 
 ## v45 Beta - Everyday Memory Games
 
-This version kept the Memory Gym direction going by adding Category Sort and Routine Recall. It also let page transitions use fading covers while already in fullscreen or focus mode, while fullscreen enter and exit still use the steadier resize blocker.
+Kept the Memory Gym direction going by adding Category Sort and Routine Recall. It also let page transitions use fading covers while already in fullscreen or focus mode, while fullscreen enter and exit still use the steadier resize blocker.
 
 ## v46 Beta - Fullscreen And Icon Polish
 
-This version made fullscreen and focus changes less buggy by debouncing window transitions and removing stacked covers during shell rebuilds. It also added a generated MemoryPal icon for the running app, custom title strip, Windows build scripts, and GitHub Actions packaging.
+Made fullscreen and focus changes less buggy by debouncing window transitions and removing stacked covers during shell rebuilds. It also added a generated MemoryPal icon for the running app, custom title strip, Windows build scripts, and GitHub Actions packaging.
 
 ## v47 Beta - Custom Navigation And Stats Rhythm
 
-This version made page transitions more consistent by forcing the cover to render before rebuilding each page and removing the color-flash fallback. It also added per-profile page ordering in Settings, a less cramped two-row header, and stronger Stats rhythm cards for weekly practice, active days, best day, and weak-card attention.
+Made page transitions more consistent by forcing the cover to render before rebuilding each page and removing the color-flash fallback. It also added per-profile page ordering in Settings, a less cramped two-row header, and stronger Stats rhythm cards for weekly practice, active days, best day, and weak-card attention.
 
 ## v48 Beta - Stable Transitions And Soft Themes
 
-This version replaced the fragile page fade overlay with a steadier in-window cover that stays above the old and new page until the rebuild is ready. It also removed the duplicate Settings button from the header and softened both themes so light mode and dark mode feel more like the same finished app.
+Replaced the fragile page fade overlay with a steadier in-window cover that stays above the old and new page until the rebuild is ready. It also removed the duplicate Settings button from the header and softened both themes so light mode and dark mode feel more like the same finished app.
 
 ## v49 Beta - No-Reload Focus And Navigation
 
-This version made the app feel less jumpy by keeping the current page alive while the sidebar collapses or the window enters focus/fullscreen. It keeps the clean no-flash page switches, but avoids rebuilding the interface when the user only wants more screen space.
+Made the app feel less jumpy by keeping the current page alive while the sidebar collapses or the window enters focus/fullscreen. It keeps the clean no-flash page switches, but avoids rebuilding the interface when the user only wants more screen space.
 
 ## v50 Beta - Navigation Alignment And Softer Edges
 
-This version centered the expanded navigation collapse control and made the hand-drawn titlebar/nav shapes smoother when Pillow is installed. The app still falls back to normal Tk drawing, but polished installs can use the optional image preview dependency for softer rounded edges.
+Centered the expanded navigation collapse control and made the hand-drawn titlebar/nav shapes smoother when Pillow is installed. The app still falls back to normal Tk drawing, but polished installs can use the optional image preview dependency for softer rounded edges.
 
 ## v51 Beta - Soft Fade And Logo Polish
 
-This version brought back the pleasant startup-style fade for page switches and layout changes without returning to the buggy overlay-window transition. It also changed the large rail mark to use the generated MemoryPal logo art when Pillow is available, with the hand-drawn logo as a fallback.
+Brought back the pleasant startup-style fade for page switches and layout changes without returning to the buggy overlay-window transition. It also changed the large rail mark to use the generated MemoryPal logo art when Pillow is available, with the hand-drawn logo as a fallback.
 
 ## v52 Beta - Capture Scroll, Resize Release, And Fade Tuning
 
-This version fixed the Capture page when the two-column builder is wider than the window by adding horizontal scrolling. It also changed custom resizing to happen on mouse release, made the fade visible after the transition cover drops away, removed the unnecessary navigation-collapse notification, and matched the titlebar and rail logo artwork.
+Fixed the Capture page when the two-column builder is wider than the window by adding horizontal scrolling. It also changed custom resizing to happen on mouse release, made the fade visible after the transition cover drops away, removed the unnecessary navigation-collapse notification, and matched the titlebar and rail logo artwork.
 
 ## v53 Beta - Element Fade And Logo Fix
 
-This version corrected the fade approach so page and layout changes no longer dim the entire app window. The app now keeps the shell background solid and fades away a same-color overlay over the changed area, while the generated MemoryPal logo renders consistently in both the titlebar and navigation rail.
+Corrected the fade approach so page and layout changes no longer dim the entire app window. The app now keeps the shell background solid and fades away a same-color overlay over the changed area, while the generated MemoryPal logo renders consistently in both the titlebar and navigation rail.
 
 ## v54 Beta - Logo Assets
 
-This version settled the current MemoryPal logo into reusable project assets. It kept the sharper connected-dot M, exported `.ico`, PNG, and SVG versions, and made the desktop app prefer the checked-in icon before falling back to generated files.
+Settled the current MemoryPal logo into reusable project assets. It kept the sharper connected-dot M, exported `.ico`, PNG, and SVG versions, and made the desktop app prefer the checked-in icon before falling back to generated files.
 
 ## v55 Beta - Testing Feedback And Installer
 
-This version prepared MemoryPal for longer testing by adding a local Feedback Log with ratings, categories, affected pages, notes, and CSV export. It also made legacy data migration non-destructive and added an Inno Setup installer path so the Windows build can become a tester-friendly setup file once the EXE is built.
+Prepared MemoryPal for longer testing by adding a local Feedback Log with ratings, categories, affected pages, notes, and CSV export. It also made legacy data migration non-destructive and added an Inno Setup installer path so the Windows build can become a tester-friendly setup file once the EXE is built.
 
 ## v56 Beta - Safe Saves And Fast Build
 
-This version made local data safer when two MemoryPal windows are open at the same time. It also changed the Windows build toward a normal app folder so installed copies launch faster, and it removed blank/fade covers from fullscreen, focus mode, sidebar collapse, and manual resize.
+Made local data safer when two MemoryPal windows are open at the same time. It also changed the Windows build toward a normal app folder so installed copies launch faster, and it removed blank/fade covers from fullscreen, focus mode, sidebar collapse, and manual resize.
 
 ## v57 Beta - Motion, Startup, And Icon Polish
 
-This version made the split project cleaner by removing old duplicated support code from the desktop launcher. It also kept fades inside the changed content area, animated the navigation rail width, excluded optional media stacks from the fast tester build, and refreshed the connected-dot MemoryPal icon.
+Made the split project cleaner by removing old duplicated support code from the desktop launcher. It also kept fades inside the changed content area, animated the navigation rail width, excluded optional media stacks from the fast tester build, and refreshed the connected-dot MemoryPal icon.
 
 ## v58 Beta - Clean Startup And Release Prep
 
-This version added a clean-build script and removed old project/temp build leftovers so new packages can start fresh. It also made startup lighter by caching profile config and generated UI images, and by delaying file dialog, CSV, browser, audio, video, and speech imports until those features are used.
+Added a clean-build script and removed old project/temp build leftovers so new packages can start fresh. It also made startup lighter by caching profile config and generated UI images, and by delaying file dialog, CSV, browser, audio, video, and speech imports until those features are used.
 
 ## v59 Beta - Transition And Launch Polish
 
-This version made the installed app launch path lighter by bundling the checked-in icon assets instead of regenerating them on startup. It also smoothed page changes with a real content-only fade, made fullscreen/resize settling less blank, and cleaned up sidebar collapse so labels do not crush during the motion.
+Made the installed app launch path lighter by bundling the checked-in icon assets instead of regenerating them on startup. It also smoothed page changes with a real content-only fade, made fullscreen/resize settling less blank, and cleaned up sidebar collapse so labels do not crush during the motion.
 
 ## v60 Beta - Stable Motion Follow-Up
 
-This version tightened the remaining transition bugs by covering the full page panel before a new page is built, then fading the same-window cover away after the page has painted. It also moved fullscreen and focus protection to same-window reveal covers, and changed sidebar collapse to a clean width snap with a small rail reveal so the current page no longer reflows repeatedly.
+Tightened the remaining transition bugs by covering the full page panel before a new page is built, then fading the same-window cover away after the page has painted. It also moved fullscreen and focus protection to same-window reveal covers, and changed sidebar collapse to a clean width snap with a small rail reveal so the current page no longer reflows repeatedly.
 
 ## v61 Beta - Fixed Rail And Fullscreen Stability
 
-This version removed the collapsible navigation rail from the live desktop app so the study page no longer shifts sideways during use. It also removed root-window opacity fades from fullscreen and focus changes, keeping same-window covers for redraw protection without the freeze-prone whole-app alpha transition.
+Removed the collapsible navigation rail from the live desktop app so the study page no longer shifts sideways during use. It also removed root-window opacity fades from fullscreen and focus changes, keeping same-window covers for redraw protection without the freeze-prone whole-app alpha transition.
 
 ## v62 Beta - Concurrent Save Stability
 
-This version made two-window saving safer by keeping newer saved review progress when a stale window saves later. It also cleaned up Smart Check cue wording and added a tester-package helper so the built installer/app folder and notes can be zipped together cleanly.
+Made two-window saving safer by keeping newer saved review progress when a stale window saves later. It also cleaned up Smart Check cue wording and added a tester-package helper so the built installer/app folder and notes can be zipped together cleanly.
 
 ## v63 Beta - Header Release Polish
 
-This version spread out the top header by separating status chips from action buttons and replacing the long profile control with a numbered profile chip. It kept true fullscreen available through F11 and Settings, kept borderless focus on the titlebar square and Settings, and sped up startup by loading the packaged logo asset first.
+Spread out the top header by separating status chips from action buttons and replacing the long profile control with a numbered profile chip. It kept true fullscreen available through F11 and Settings, kept borderless focus on the titlebar square and Settings, and sped up startup by loading the packaged logo asset first.
 
 ## v64 Beta - Low-End Readiness
 
-This version focused on keeping MemoryPal comfortable on slower Windows PCs and future Mac builds. It reduced repeated custom-titlebar redraw work, cached optional graphics checks, kept the packaged-logo startup path light, and moved the default Windows tester build to the stable PyInstaller path after a fresh Nuitka package failed launch testing.
+Focused on keeping MemoryPal comfortable on slower Windows PCs and future Mac builds. It reduced repeated custom-titlebar redraw work, cached optional graphics checks, kept the packaged-logo startup path light, and moved the default Windows tester build to the stable PyInstaller path after a fresh Nuitka package failed launch testing.
 
 ## v65 Beta - macOS Packaging
 
-This version made Mac testing more realistic without disturbing the current Windows release path. It added a macOS build script, Intel and Apple Silicon GitHub Actions artifacts, native Mac window chrome handling, and clearer notes about signing before wider release.
+Made Mac testing more realistic without disturbing the current Windows release path. It added a macOS build script, Intel and Apple Silicon GitHub Actions artifacts, native Mac window chrome handling, and clearer notes about signing before wider release.
 
 ## v66 Beta - Accessibility And Elder Support
 
-This version made MemoryPal more directly useful for older adults, people with memory changes, and caregiver-supported setup. It added Everyday Memory, persistent accessibility preferences, a senior-friendly layout preset, and simple person/routine/place/reminder cards that flow into normal review.
+Made MemoryPal more directly useful for older adults, people with memory changes, and caregiver-supported setup. It added Everyday Memory, persistent accessibility preferences, a senior-friendly layout preset, and simple person/routine/place/reminder cards that flow into normal review.
 
 ## v67 Beta - Onboarding, Read Aloud, And Smarter Planning
 
-This version made the first launch friendlier and the study engine more accurate. New profiles open on a Welcome screen that sets the page order and comfort settings for a student, an everyday-memory user, a caregiver, or someone just exploring, followed by a short guided tour. Read aloud now works offline through the computer's built-in voice, and a More time setting slows timed displays and speech. Behind the scenes, review scheduling gained separate hard/good/easy steps, overdue credit, and load spreading; the Study Plan can look ahead over several days; Smart Check stopped penalizing answers that do not repeat the question; and the memory-technique generators no longer reuse pegs or palace spots on long lists. The support package also gained its first unit test suite. A follow-up fix hides the white flashes after the Welcome screen and between tour steps by building the new layout under a screen snapshot and swapping it in a single frame. This build is packaged as tester release 0.43.0.
+Made the first launch friendlier and the study engine more accurate. New profiles open on a Welcome screen that sets the page order and comfort settings for a student, an everyday-memory user, a caregiver, or someone just exploring, followed by a short guided tour. Read aloud now works offline through the computer's built-in voice, and a More time setting slows timed displays and speech. Behind the scenes, review scheduling gained separate hard/good/easy steps, overdue credit, and load spreading; the Study Plan can look ahead over several days; Smart Check stopped penalizing answers that do not repeat the question; and the memory-technique generators no longer reuse pegs or palace spots on long lists. The support package also gained its first unit test suite. A follow-up fix hides the white flashes after the Welcome screen and between tour steps by building the new layout under a screen snapshot and swapping it in a single frame. This build is packaged as tester release 0.43.0.
 
 ## v68 Beta - Dashboard, Charts, Navigation, Media, And New Logo
 
-This version made MemoryPal quicker to move around and more rewarding to come back to. The Dashboard now centres on today's saved study plan with tick-off steps, a progress strip with streak, level and XP, study modes picked for each persona, and the next badge to earn. Stats gained real charts and achievements. Navigation got a Ctrl+K page finder, a Back button, and app-styled dropdowns, and theme or text-size changes now rebuild out of sight and swap in one frame while popups appear already finished. Study Plans can be saved and followed day by day, with rest breaks, explain-it-back practice, and paced new cards. Media works without extra packages: audio recording and playback, Windows Camera video, image previews through Windows, and saved spoken cues, and document import now covers RTF, text encodings, and ordinary PDFs with a built-in reader. Saves skip merging when no other window has written, and the logo is cached on disk for a lighter startup. Finally, the logo was redesigned as a cleaner connected "memory path" M with mint and amber recall nodes and a small spark, updated everywhere it appears. This build is packaged as tester release 0.44.0.
+Made MemoryPal quicker to move around and more rewarding to come back to. The Dashboard now centres on today's saved study plan with tick-off steps, a progress strip with streak, level and XP, study modes picked for each persona, and the next badge to earn. Stats gained real charts and achievements. Navigation got a Ctrl+K page finder, a Back button, and app-styled dropdowns, and theme or text-size changes now rebuild out of sight and swap in one frame while popups appear already finished. Study Plans can be saved and followed day by day, with rest breaks, explain-it-back practice, and paced new cards. Media works without extra packages: audio recording and playback, Windows Camera video, image previews through Windows, and saved spoken cues, and document import now covers RTF, text encodings, and ordinary PDFs with a built-in reader. Saves skip merging when no other window has written, and the logo is cached on disk for a lighter startup. Finally, the logo was redesigned as a cleaner connected "memory path" M with mint and amber recall nodes and a small spark, updated everywhere it appears. This build is packaged as tester release 0.44.0.
 
 ## v69 Beta - In-App Feedback, Resize Outline, And Smoothness
 
-This version made it easy for testers to get feedback back to the team and polished how the app feels. The Feedback Log can now send notes straight from the app, open them in the tester's email app or Gmail, or save them as a file, and it remembers which notes were already sent. Reports include only the notes and basic system details, never profile names or cards. Resizing now shows a Windows-style outline while dragging, in-page updates swap in finished in one frame, popups take keyboard focus properly and give it back when closed, flat buttons stop shifting their text when pressed, and text in labels can be selected and copied. Several small bugs were fixed along the way. This build is packaged as tester release 0.45.0.
+Made it easy for testers to get feedback back to me and polished how the app feels. The Feedback Log can now send notes straight from the app, open them in the tester's email app or Gmail, or save them as a file, and it remembers which notes were already sent. Reports include only the notes and basic system details, never profile names or cards. Resizing now shows a Windows-style outline while dragging, in-page updates swap in finished in one frame, popups take keyboard focus properly and give it back when closed, flat buttons stop shifting their text when pressed, and text in labels can be selected and copied. Several small bugs were fixed along the way. This build is packaged as tester release 0.45.0.
 
 ## v70 Beta - Design System, Data Safety, And A New Logo
 
-This version came from a full review against Khan Academy, Duolingo, and NeuroNation, aimed at making MemoryPal look professional rather than improvised.
+Came out of comparing MemoryPal side by side with Khan Academy, Duolingo and NeuroNation. A lot of it looked improvised next to them.
 
 Design:
 
@@ -313,7 +313,7 @@ Rendering, measured with a new frame-recording check:
 - Rounded controls use opaque tiles, keeping the app as fast as before they were added.
 - The navigation rail spaces its pages evenly and pins Settings at the bottom.
 
-This version also starts the phone app: a React Native + Expo port in `mobile/` with five tabs, full review, quizzes, puzzles, plans, progress, and backups in the desktop's file format. Parity tests check its study logic against the desktop's.
+Also starts the phone app: a React Native + Expo port in `mobile/` with five tabs, full review, quizzes, puzzles, plans, progress, and backups in the desktop's file format. Parity tests check its study logic against the desktop's.
 
 Accounts and cloud sync arrive on both apps through Supabase: email codes, automatic field-by-field merging between devices, optional two-step sign-in, password strength and breach checks, and a growing wait after repeated wrong tries. Sign-in tokens stay in DPAPI or the phone's Keychain/Keystore, all access rules are enforced by the database, and `CLOUD_SYNC_SETUP.md` explains the project set-up.
 
