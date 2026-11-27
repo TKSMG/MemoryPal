@@ -119,9 +119,10 @@ export default function Progress() {
         <View style={{ flexDirection: 'row', height: 18, borderRadius: 9, overflow: 'hidden', backgroundColor: c.alt }} accessible accessibilityLabel={segments.map(([name, count]) => `${count} ${name.toLowerCase()}`).join(', ')}>
           {segments.map(([name, count, color]) => (count ? <View key={name} style={{ flex: count / total, backgroundColor: color }} /> : null))}
         </View>
-        <Row wrap gap={14}>
+        {/* Two by two, so one label never ends up alone on a second line. */}
+        <Row wrap gap={0} style={{ rowGap: 8 }}>
           {segments.map(([name, count, color]) => (
-            <Row key={name} gap={6}>
+            <Row key={name} gap={6} style={{ width: '50%' }}>
               <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: color }} />
               <Txt variant="small">{`${name} ${count}`}</Txt>
             </Row>
