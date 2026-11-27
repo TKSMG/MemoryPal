@@ -12,7 +12,7 @@
 // -> 200 { "ok": true, "action", "result": Notes | { "questions": Question[] }, "remaining": number }
 // -> 4xx/5xx { "ok": false, "error": code, "message": text }
 //
-//   { "action": "live", "cards": [{ "key": "c1", "front", "back" }], "deck"?, "voice"? }
+//   { "action": "live", "cards": [{ "key": "c1", "front", "back" }], "deck"?, "voice"?, "turns"?: "app" }
 // -> 200 { "ok": true, "action": "live", "result": { "token", "model", "setup", "minutes" }, "remaining" }
 //   A one-use Live API token for a spoken Talk-back conversation (see live.ts).
 //   One conversation counts as one AI request.

@@ -64,12 +64,15 @@ def audio_message(seconds):
     return {"serverContent": {"modelTurn": {"parts": [{"inlineData": {"data": b64(int(seconds * 48000)), "mimeType": "audio/pcm;rate=24000"}}]}}}
 
 
+APP_SETUP = {"model": "models/gemini-3.8-live", "realtimeInputConfig": {"automaticActivityDetection": {"disabled": True}}}
+
+
 class Conversation:
-    def __init__(self, minutes=10, gate=None):
+    def __init__(self, minutes=10, gate=None, setup=None):
         self.clock = 1000.0
         self.audio = FakeAudio()
         self.cards = {"c1": SimpleNamespace(id="a", front="Capital of France?", back="Paris"), "c2": SimpleNamespace(id="b", front="2 + 2?", back="4")}
-        self.tutor = livetutor.LiveTutor("auth_tokens/xyz", {"model": "models/gemini-3.8-live"}, self.cards, minutes, self.open, self.audio, now=lambda: self.clock, threaded=False, gate=gate)
+        self.tutor = livetutor.LiveTutor("auth_tokens/xyz", setup or {"model": "models/gemini-3.8-live"}, self.cards, minutes, self.open, self.audio, now=lambda: self.clock, threaded=False, gate=gate)
         self.tutor.start()
 
     def open(self, url):
@@ -156,7 +159,7 @@ class LiveTutorTests(unittest.TestCase):
         self.assertEqual(call("c1", "right")["result"], "saved")
         # Quiet now: the tutor tries to judge the next card from the last answer.
         self.assertEqual(call("c2", "wrong"), {"result": livetutor.NOT_ANSWERED, "next": "c2", "scheduling": "SILENT"})
-        self.assertEqual(call("c1", "wrong"), {"result": "already saved", "next": "c2", "scheduling": "SILENT"})
+        self.assertEqual(call("c1", "wrong"), {"result": "already saved", "next": "c2", "question": "2 + 2?", "scheduling": "SILENT"})
         talk.heard(" … ")
         self.assertEqual(call("c2", "wrong")["result"], livetutor.NOT_ANSWERED)
         talk.heard("four")
@@ -216,6 +219,106 @@ class LiveTutorTests(unittest.TestCase):
         self.assertEqual(len(notes()), 1)
         self.assertEqual(livetutor.heard_part("a b c d", 0.5), "a b")
         self.assertIn("heard none", livetutor.cut_off_note(""))
+
+    def test_app_turns_send_only_the_learners_speech_between_start_and_end(self):
+        talk = Conversation(gate=speechgate.SpeechGate(), setup=APP_SETUP)
+        self.assertTrue(talk.tutor.app_turns)
+        talk.server({"setupComplete": {}})
+        sent = len(talk.socket.sent)
+        for _ in range(40):
+            talk.audio.on_mic(tone(0.02, -60))
+        # Room noise: nothing at all goes to the tutor.
+        self.assertEqual(talk.socket.sent[sent:], [])
+        for _ in range(30):
+            talk.audio.on_mic(tone(0.02, -20))
+        for _ in range(80):
+            talk.audio.on_mic(tone(0.02, -60))
+        kinds = [next(iter(m["realtimeInput"])) for m in talk.socket.sent[sent:]]
+        self.assertEqual(kinds[0], "activityStart")
+        self.assertEqual(kinds[-1], "activityEnd")
+        self.assertEqual(set(kinds[1:-1]), {"audio"})
+        # The half second before the gate opened went too, so first words aren't lost.
+        self.assertGreater(len(kinds), 30)
+        self.assertEqual(kinds.count("activityStart"), 1)
+
+    def test_app_turns_echo_while_the_tutor_talks_is_not_sent(self):
+        talk = Conversation(gate=speechgate.SpeechGate(), setup=APP_SETUP)
+        talk.server({"setupComplete": {}})
+        for _ in range(20):
+            talk.server(audio_message(0.1))
+        sent = len(talk.socket.sent)
+        # Echo as loud as normal speech, but short: not a barge-in.
+        for _ in range(20):
+            talk.audio.on_mic(tone(0.02, -30))
+        self.assertEqual(talk.socket.sent[sent:], [])
+
+    def test_muting_mid_answer_ends_the_learners_turn(self):
+        talk = Conversation(gate=speechgate.SpeechGate(), setup=APP_SETUP)
+        talk.server({"setupComplete": {}})
+        for _ in range(30):
+            talk.audio.on_mic(tone(0.02, -20))
+        talk.tutor.set_muted(True)
+        self.assertEqual(talk.socket.sent[-1], {"realtimeInput": {"activityEnd": {}}})
+
+    def test_a_quiet_learner_gets_one_nudge(self):
+        talk = Conversation(gate=speechgate.SpeechGate(), setup=APP_SETUP)
+        talk.server({"setupComplete": {}})
+
+        def nudges():
+            return [m for m in talk.socket.sent if "clientContent" in m and m["clientContent"]["turns"][0]["parts"][0]["text"] == livetutor.QUIET_LINE]
+
+        talk.advance(30)
+        self.assertEqual(nudges(), [])  # the tutor hasn't spoken yet
+        talk.server(audio_message(2))
+        talk.advance(2 + livetutor.QUIET_NUDGE_S - 1)
+        self.assertEqual(nudges(), [])
+        talk.advance(1.5)
+        self.assertEqual(len(nudges()), 1)
+        self.assertTrue(nudges()[0]["clientContent"]["turnComplete"])
+        talk.advance(60)
+        self.assertEqual(len(nudges()), 1)
+        # After the learner speaks, a later silence can be nudged again.
+        for _ in range(30):
+            talk.audio.on_mic(tone(0.02, -20))
+        talk.advance(livetutor.QUIET_NUDGE_S + 2)
+        self.assertEqual(len(nudges()), 1)  # still talking: the gate hasn't closed
+        for _ in range(80):
+            talk.audio.on_mic(tone(0.02, -60))
+        talk.advance(livetutor.QUIET_NUDGE_S + 2)
+        self.assertEqual(len(nudges()), 2)
+
+    def test_older_setups_keep_googles_voice_detection(self):
+        talk = Conversation(gate=speechgate.SpeechGate())
+        self.assertFalse(talk.tutor.app_turns)
+        talk.server({"setupComplete": {}})
+        talk.audio.on_mic(tone(0.02, -60))
+        self.assertIn("audio", talk.socket.sent[-1]["realtimeInput"])
+        talk.advance(60)
+        self.assertFalse(any("clientContent" in m and m["clientContent"]["turns"][0]["parts"][0]["text"] == livetutor.QUIET_LINE for m in talk.socket.sent))
+
+    def test_notes_the_tutor_wasnt_meant_to_say_are_kept_off_the_caption(self):
+        talk = Conversation()
+        talk.server({"setupComplete": {}})
+        talk.server({"serverContent": {"outputTranscription": {"text": "What is 2 + 2?"}}})
+        talk.server({"serverContent": {"turnComplete": True}})
+        talk.server({"serverContent": {"outputTranscription": {"text": "<!-- Silence, waiting "}}})
+        self.assertEqual(talk.tutor.snapshot().tutor_line, "What is 2 + 2?")
+        talk.server({"serverContent": {"outputTranscription": {"text": "for learner --> Take your time."}}})
+        self.assertEqual(talk.tutor.snapshot().tutor_line, "Take your time.")
+        self.assertEqual(livetutor.spoken("Nice [laughs] one (pause) *smiles* <b>ok</b>"), "Nice one ok")
+
+    def test_speech_before_the_next_question_is_not_its_answer(self):
+        talk = Conversation()
+        talk.server({"setupComplete": {}})
+        talk.heard("Paris")
+        talk.server({"toolCall": {"functionCalls": [{"id": "1", "name": "record_answer", "args": {"card": "c1", "result": "right"}}]}})
+        talk.heard("cool thanks")  # after the verdict, before the next card
+        talk.server(audio_message(1))  # the tutor asks the next card
+        talk.server({"toolCall": {"functionCalls": [{"id": "2", "name": "record_answer", "args": {"card": "c2", "result": "wrong"}}]}})
+        self.assertEqual(len(talk.tutor.take_ratings()), 1)
+        talk.heard("four")
+        talk.server({"toolCall": {"functionCalls": [{"id": "3", "name": "record_answer", "args": {"card": "c2", "result": "right"}}]}})
+        self.assertEqual(len(talk.tutor.take_ratings()), 1)
 
     def test_the_greeting_waits_for_the_microphone_and_speakers(self):
         talk = Conversation()
@@ -301,7 +404,7 @@ class StartLiveTests(unittest.TestCase):
         cards[1] = SimpleNamespace(front="No answer", back=" ")
         started = ai.start_live("token", cards, "Bio", opener=opener)
         sent = opener.sent()
-        self.assertEqual(sent["action"], "live")
+        self.assertEqual((sent["action"], sent["turns"]), ("live", "app"))
         self.assertEqual(len(sent["cards"]), 40)
         self.assertEqual(sent["cards"][:2], [{"key": "c1", "front": "Q0", "back": "A0"}, {"key": "c2", "front": "Q2", "back": "A2"}])
         self.assertEqual(started["keys"]["c2"], 2)

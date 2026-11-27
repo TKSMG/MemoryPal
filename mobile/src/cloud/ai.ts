@@ -358,7 +358,7 @@ export interface LiveStart {
 export async function startLive(auth: AiAuth, cards: { front: string; back: string }[], deck = '', options: AiOptions = {}): Promise<LiveStart> {
   const list = cards.slice(0, MAX_LIVE_CARDS).map((card, i) => ({ key: `c${i + 1}`, front: clip(card.front, 300), back: clip(card.back, 300) }));
   if (!list.length) throw new AiError('bad_request', 'Talk-back needs cards with answers.');
-  const data = await callAi(auth, { action: 'live', cards: list, deck: clip(deck, 120) }, { timeoutMs: 30000, ...options });
+  const data = await callAi(auth, { action: 'live', cards: list, deck: clip(deck, 120), turns: 'app' }, { timeoutMs: 30000, ...options });
   const result = asObject(data.result);
   const token = typeof result.token === 'string' ? result.token : '';
   const setup = asObject(result.setup);

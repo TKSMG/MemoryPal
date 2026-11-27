@@ -22,6 +22,9 @@ the apps.
   13 minutes to talk). The phone then opens the Gemini Live WebSocket itself, so voice audio
   never passes through Supabase. One conversation counts as one request. The model is
   `GEMINI_LIVE_MODEL` (default `gemini-3.8-live`, free on the free tier).
+  Apps from 0.54.0 send `"turns": "app"`: Google's voice detection is turned off and the
+  app's speech gate says when the learner starts and stops talking, with rules to match.
+  Older apps leave it out and keep the earlier set-up.
 
 ## 1. Run the migration
 
