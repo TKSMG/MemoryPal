@@ -1,0 +1,70 @@
+name: Launch probe
+
+# Watches the whole screen while the desktop app starts on a real Windows
+# machine (tools/render_check/launch_probe.py) and reports any white flash,
+# on a first start (new data folder) and a later one. Run it by hand
+# (Actions > Launch probe) after changing how the window first opens.
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Environment switches for the app (KEY=1,KEY2=1)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [branch, main, installed]
+        load: ["0", "2"]
+    runs-on: windows-latest
+    timeout-minutes: 25
+    continue-on-error: ${{ matrix.app == 'main' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Use main's app
+        if: matrix.app == 'main'
+        shell: bash
+        run: git checkout origin/main -- latest_app
+      - name: Install the testing build
+        if: matrix.app == 'installed'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download testing-build --repo "$GITHUB_REPOSITORY" --pattern MemoryPal-Windows-Setup.exe
+          ./MemoryPal-Windows-Setup.exe //VERYSILENT //SUPPRESSMSGBOXES //NORESTART //DIR="C:\\mp"
+          sleep 5
+          ls /c/mp | head
+          echo "LAUNCH_PROBE_EXE=C:\\mp\\MemoryPal.exe" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install app packages
+        run: python -m pip install platformdirs pypdf Pillow mss
+      - name: Watch the app start
+        shell: bash
+        env:
+          LAUNCH_PROBE_ENV: ${{ inputs.env }}
+          LAUNCH_PROBE_OUT: launch-probe
+          LAUNCH_PROBE_BUSY: ${{ matrix.load }}
+          LAUNCH_PROBE_SECONDS: ${{ matrix.load == '0' && '9' || '25' }}
+        run: |
+          set +e
+          python tools/render_check/launch_probe.py 3 > probe.txt 2>&1
+          code=$?
+          cat probe.txt
+          python -c "import sys; t=open('probe.txt').read()[-3900:]; print('::notice title=Launch probe ${{ matrix.app }} load ${{ matrix.load }}::' + t.replace('%','%25').replace('\r','').replace('\n','%0A'))"
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: launch-probe-${{ matrix.app }}-${{ matrix.load }}
+          path: launch-probe

@@ -3118,13 +3118,18 @@ class MemoryPalApp(tk.Tk):
             ctypes.windll.dwmapi.DwmFlush()
         except (AttributeError, OSError):
             pass
-        if not (cloaked and windowtheme.cloak(self.window_handle(top), False)):
+        hwnd = self.window_handle(top)
+        if not (cloaked and windowtheme.cloak(hwnd, False)):
             try:
                 top.attributes("-alpha", 1.0)
             except tk.TclError:
                 pass
-            windowtheme.drop_layered(self.window_handle(top))
+            windowtheme.drop_layered(hwnd)
         top._mp_cloaked = False
+        if IS_WINDOWS and hwnd:
+            # Minimise, maximise and restore animate as usual again once the
+            # window is on screen (map_hidden left its opening one out).
+            top.after(600, lambda: top.winfo_exists() and winfullscreen.set_transitions(hwnd, True))
 
     def map_hidden(self, top):
         """Map a window without showing it yet. Returns True if it is cloaked.
@@ -3141,7 +3146,25 @@ class MemoryPalApp(tk.Tk):
         except tk.TclError:
             pass
         top.deiconify()
-        cloaked = windowtheme.cloak(self.window_handle(top), True)
+        hwnd = self.window_handle(top)
+        cloaked = windowtheme.cloak(hwnd, True)
+        if IS_WINDOWS and hwnd:
+            # Before anything else touches the new window: its first surface
+            # is erased with the class brush (none yet, so white), and making
+            # it an ordinary window again below gives it a fresh surface.
+            # Fill both with the page colour, and leave out Windows' own
+            # opening animation, which could start from that white surface:
+            # it showed as a white box for a moment on a first start.
+            try:
+                fill = top.cget("bg") if top is not self else COLORS["bg"]
+                red, green, blue = (value // 257 for value in self.winfo_rgb(fill))
+                fill = f"#{red:02x}{green:02x}{blue:02x}"
+            except tk.TclError:
+                fill = COLORS["bg"]
+            windowtheme.set_background_brush(hwnd, COLORS["bg"])
+            if not os.environ.get("MEMORYPAL_PROBE_NO_ERASE"):
+                windowtheme.fill_on_erase(top.winfo_id(), fill)
+            winfullscreen.set_transitions(hwnd, False)
         if cloaked:
             try:
                 top.attributes("-alpha", 1.0)
