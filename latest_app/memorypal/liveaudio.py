@@ -99,8 +99,28 @@ def permission_hint():
     return ""
 
 
+def lowpass_taps(factor, count=31):
+    """A windowed-sinc low-pass for dropping to 1/factor of the rate: it keeps
+    speech below the new rate's limit and removes what is above it."""
+    cutoff = 0.9 / (2 * factor)  # of the source rate, a little under the new limit
+    middle = (count - 1) / 2
+    taps = []
+    for n in range(count):
+        x = n - middle
+        sinc = 2 * cutoff if x == 0 else math.sin(2 * math.pi * cutoff * x) / (math.pi * x)
+        window = 0.54 - 0.46 * math.cos(2 * math.pi * n / (count - 1))  # Hamming
+        taps.append(sinc * window)
+    total = sum(taps)
+    return [tap / total for tap in taps]
+
+
 class Resampler:
-    """16-bit mono PCM from one rate to another, keeping state between chunks."""
+    """16-bit mono PCM from one rate to another, keeping state between chunks.
+
+    Dropping the microphone from 48 kHz to 16 kHz by whole steps filters out
+    everything above 8 kHz first. audioop.ratecv only interpolates, so "s",
+    "f" and "th" sounds folded back into the speech as hiss and the tutor (and
+    its transcript) misheard words."""
 
     def __init__(self, source, target):
         self.source = source
@@ -108,14 +128,36 @@ class Resampler:
         self.state = None
         self.position = 0.0
         self.last = 0
+        self.factor = source // target if audioop is not None and target < source and source % target == 0 else 0
+        if self.factor:
+            self.taps = lowpass_taps(self.factor)
+            self.history = bytes(2 * (len(self.taps) - 1))
+            self.phase = 0
 
     def convert(self, data):
         if self.source == self.target or not data:
             return bytes(data)
+        if self.factor:
+            return self._decimate(bytes(data))
         if audioop is not None:
             out, self.state = audioop.ratecv(bytes(data), 2, 1, self.source, self.target, self.state)
             return out
         return self._linear(data)
+
+    def _decimate(self, data):
+        """Low-pass with the taps (in C, one audioop pass per tap), then keep every factor-th sample."""
+        data = data[: len(data) // 2 * 2]
+        buffer = self.history + data
+        count = len(data) // 2
+        filtered = bytes(2 * count)
+        for index, tap in enumerate(reversed(self.taps)):
+            filtered = audioop.add(filtered, audioop.mul(buffer[2 * index : 2 * (index + count)], 2, tap), 2)
+        self.history = buffer[len(buffer) - len(self.history) :]
+        samples = array("h")
+        samples.frombytes(filtered)
+        out = samples[self.phase :: self.factor]
+        self.phase = (self.phase - count) % self.factor
+        return out.tobytes()
 
     def _linear(self, data):
         samples = array("h")

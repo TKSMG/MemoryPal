@@ -133,7 +133,7 @@ export const NOT_ANSWERED = 'not saved: the learner has not answered this card y
  * the tutor offers (once) to repeat it, give a hint or skip.
  */
 export const QUIET_NUDGE_MS = 15000;
-export const QUIET_LINE = '(The learner has gone quiet. In one short, kind line, offer to repeat the question, give a hint, or skip it. Then wait.)';
+export const QUIET_LINE = "(The learner has gone quiet and hasn't answered this card yet, so don't judge or record it. In one short, kind line, offer to repeat the question, give a hint, or skip it. Then wait.)";
 
 /**
  * True when the set-up turns Google's voice detection off, so the app says
@@ -144,11 +144,12 @@ export function appTurns(setup: Record<string, unknown>): boolean {
   return config?.automaticActivityDetection?.disabled === true;
 }
 
-const NOT_SPOKEN = /<!--[\s\S]*?(?:-->|$)|<[^>]*(?:>|$)|\[[^\]]*(?:\]|$)|\([^)]*(?:\)|$)|\*[^*]*(?:\*|$)/g;
+const NOT_SPOKEN = /<!--[\s\S]*?(?:-->|$)|<[^>]*(?:>|$)|\[[^\]]*(?:\]|$)|\([^)]*(?:\)|$)|\{[^}]*(?:\}|$)|\*[^*]*(?:\*|$)/g;
 
 /**
- * The tutor's caption without notes it wasn't meant to say aloud, such as
- * "<!-- Silence, waiting for learner -->" or "(pause)"; unclosed ones are
+ * A caption without notes that aren't words, such as the tutor's
+ * "<!-- Silence, waiting for learner -->" or "(pause)", or markers like
+ * "{cont}" or "<noise>" in the transcript of the learner; unclosed ones are
  * dropped too, since the rest may still be on its way. Same as spoken() on desktop.
  */
 export function spoken(text: string): string {
@@ -211,6 +212,11 @@ export class LiveTutor {
   private lastTutorLine = '';
   /** Speech before the tutor starts asking the next card doesn't count as its answer. */
   private freshCard = false;
+  /**
+   * A learner turn ended after the last save: that was an answer, even if the
+   * tutor asked the next card before saving the last one.
+   */
+  private turnSinceSave = false;
   /**
    * App turns (Google's voice detection off): the gate's opening and closing
    * are the learner's turns, sent as activityStart and activityEnd.
@@ -339,6 +345,7 @@ export class LiveTutor {
       // start a turn or cut the tutor off.
       start = open && !wasOpen;
       end = wasOpen && !open;
+      if (end) this.turnSinceSave = true;
       this.learnerTalking = open;
       if (!open && !end) chunks = [];
     }
@@ -371,9 +378,13 @@ export class LiveTutor {
       if (typeof audio === 'string' && audio) {
         if (this.freshCard) {
           // The tutor is starting on the next card: only what the learner says from here answers it.
+          // Unless they already finished a turn since the save: then the tutor had asked the card
+          // before saving the last one, and this is its verdict on their answer.
           this.freshCard = false;
-          this.heardMs = 0;
-          this.heardWords = false;
+          if (!this.turnSinceSave) {
+            this.heardMs = 0;
+            this.heardWords = false;
+          }
         }
         this.openTutorTurn();
         this.options.audio.play(audio);
@@ -443,7 +454,13 @@ export class LiveTutor {
     this.heardMs = 0;
     this.heardWords = false;
     this.freshCard = true;
+    this.turnSinceSave = false;
     const said = typeof args.said === 'string' ? args.said.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+    if (said) {
+      // Show what the tutor understood rather than the raw transcript, which mishears more than the tutor does.
+      this.youLine = said;
+      this.youFresh = true;
+    }
     const result = { card, outcome, said };
     // A card the tutor comes back to keeps its latest result, and is rated once.
     if (at >= 0) this.results[at] = result;
@@ -565,7 +582,7 @@ export class LiveTutor {
       phase: this.phase,
       speaking: tutorTalking ? 'tutor' : youTalking ? 'you' : null,
       tutorLine: spoken(this.tutorLine) || this.lastTutorLine,
-      youLine: this.youLine,
+      youLine: spoken(this.youLine),
       muted: this.muted,
       results: [...this.results],
       total: Object.keys(this.options.cards).length,

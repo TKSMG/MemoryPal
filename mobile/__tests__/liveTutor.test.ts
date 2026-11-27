@@ -317,6 +317,31 @@ describe('live tutor conversation', () => {
     expect(spoken('Nice [laughs] one (pause) *smiles* <b>ok</b>')).toBe('Nice one ok');
   });
 
+  test('the caption shows what the tutor understood, without markers', () => {
+    const { ws, tutor } = setup();
+    ws.server({ setupComplete: {} });
+    ws.server(heard('the capital is {cont} pear is'));
+    expect(tutor.getSnapshot().youLine).toBe('the capital is pear is');
+    ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c1', result: 'right', said: 'Paris' } }] } });
+    expect(tutor.getSnapshot().youLine).toBe('Paris');
+    ws.server(heard('four'));
+    expect(tutor.getSnapshot().youLine).toBe('four');
+  });
+
+  test('an answer given before the last card was saved still counts', async () => {
+    const { ws, mic, rated } = setup(10, new SpeechGate(), APP_SETUP);
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    for (let i = 0; i < 30; i++) mic(tone(20, -20));
+    for (let i = 0; i < 80; i++) mic(tone(20, -60));
+    ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c1', result: 'right' } }] } });
+    for (let i = 0; i < 30; i++) mic(tone(20, -20));
+    for (let i = 0; i < 80; i++) mic(tone(20, -60));
+    ws.server(audioMessage(1000)); // the verdict on c2
+    ws.server({ toolCall: { functionCalls: [{ id: '2', name: 'record_answer', args: { card: 'c2', result: 'right' } }] } });
+    expect(rated).toEqual([['a', 'right'], ['b', 'right']]);
+  });
+
   test('speech before the next question starts is not its answer', () => {
     const { ws, rated } = setup();
     ws.server({ setupComplete: {} });
