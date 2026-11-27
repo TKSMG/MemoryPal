@@ -30,7 +30,7 @@ For testing builds, the app should also answer one project question quickly:
 
 The desktop app should stay fast and lightweight, but it should not feel unfinished. The visual style uses soft dark and light themes, clear cards, hover hints, a fixed tab bar across the top, and quiet page reveals.
 
-The goal is not to add decoration everywhere. The goal is to make the app feel intentional and easy to trust.
+No decoration for its own sake: it should look intentional and easy to trust.
 
 Dialogs should feel like part of the app. Stock system prompts are still useful for file picking, but app decisions such as profile names, reset confirmation, recording length, and error messages should use MemoryPal's own modal style.
 

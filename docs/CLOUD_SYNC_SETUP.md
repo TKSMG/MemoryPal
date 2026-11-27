@@ -113,8 +113,8 @@ tier, update both.
 ## Before launch
 
 - **Custom SMTP** (Authentication → Emails → SMTP Settings), so codes arrive reliably and aren't
-  capped at 2 an hour. MemoryPal uses Gmail SMTP for now, with the plan to move to Brevo with its
-  own domain: see `launch/supabase/auth-email-provider.md` in the project files.
+  capped at 2 an hour. MemoryPal uses Gmail SMTP for now; the plan is to move to Brevo with its own
+  domain.
 - **A privacy policy and terms** page on that domain. App stores require one for any app with
   accounts. They are [`PRIVACY_POLICY.md`](../PRIVACY_POLICY.md) and
   [`TERMS_OF_USE.md`](../TERMS_OF_USE.md) (linked from the apps on GitHub). If they move to a

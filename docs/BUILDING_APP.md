@@ -1,6 +1,6 @@
 # Building MemoryPal
 
-MemoryPal is currently a Python/Tkinter desktop app. The current recommended Windows tester build path uses PyInstaller in app-folder mode because it opens reliably on this machine. Nuitka remains available as an alternate path until the current local runtime issue is resolved.
+The desktop app is Python/Tkinter. Windows builds use PyInstaller in app-folder mode. Nuitka is still there as a fallback, but its builds have a runtime problem I haven't tracked down.
 
 ## Desktop Requirements
 
@@ -24,7 +24,7 @@ Talk-back study does not use those packages. On Windows it listens through the s
 
 AI notes and questions need no extra Python packages either: `latest_app\memorypal\ai.py` uses only the standard library to call the Supabase `ai` function. When AI questions come from a PDF, the desktop uses `pypdf` (the `documents` extra) and `Pillow` to save the picture on that page for the card. Both are already in `requirements-build.txt` and the build scripts, and without them the card says which page it came from instead. The AI function itself is deployed to Supabase, not built with the app (see `CLOUD_SYNC_SETUP.md`).
 
-The default tester build intentionally stays lighter than the full optional desktop setup. File imports, document notes, image previews, and the main memory tools are kept in the normal package path; desktop audio recording, webcam recording, speech recognition, and offline text-to-speech should be treated as optional extras unless a media-enabled build is made on purpose.
+The default tester build stays lighter than the full optional desktop setup. File imports, document notes, image previews, and the main memory tools are kept in the normal package path; desktop audio recording, webcam recording, speech recognition, and offline text-to-speech should be treated as optional extras unless a media-enabled build is made on purpose.
 
 For low-end tester machines, keep using the normal app-folder build instead of a self-extracting one-file EXE. The app-folder build avoids unpacking work on every launch, keeps optional media libraries out of startup, and lets MemoryPal load its checked-in icon/logo assets directly.
 
@@ -248,17 +248,17 @@ The current Mac packages are beta tester builds. They are not fully Apple Develo
 
 ## Alternate Nuitka Build
 
-The Nuitka build is still available for future testing:
+The Nuitka build:
 
 ```powershell
 .\build_nuitka_windows.cmd
 ```
 
-Use it only as an alternate path until its local runtime issue is understood. It keeps the same Tkinter preflight check and writes the finished app folder to `release\MemoryPal\MemoryPal.exe` when successful.
+Only use it as a fallback for now. It keeps the same Tkinter preflight check and writes the finished app folder to `release\MemoryPal\MemoryPal.exe` when successful.
 
 ## Why The EXE Might Not Build Locally
 
-The Codex workspace can compile the source, but the bundled Python environment may not always be a full desktop Python install with working Tkinter packaging support. The build scripts test Tkinter before packaging so they do not create a broken EXE.
+Some Python installs (embedded or stripped-down ones) can run the source but can't package Tkinter. The build scripts check Tkinter before packaging so they don't produce a broken EXE.
 
 If the script says no usable desktop Python was found, install Python 3.11 or newer from python.org, keep Tcl/Tk selected, and enable the PATH option during setup. Then run the build command again from a normal Command Prompt or PowerShell window opened inside the project folder.
 
