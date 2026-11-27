@@ -4,13 +4,14 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { AppState as RNAppState, Platform, Pressable, Text } from 'react-native';
 
 import { normalizeSettings } from '../features/notifications';
 import { AppStateProvider, usePrefs, useStore, useSync } from '../state/AppState';
 import { onReminderTapped, refreshReminders, setUpNotifications } from '../state/reminders';
 import { StackHeader } from '../ui/StackHeader';
+import { onPageDrawn, pageDrawn } from '../ui/launch';
 import { ThemeProvider, useTheme } from '../ui/theme';
 
 // The launch screen stays up until the first page can be drawn whole (see
@@ -139,14 +140,17 @@ function RootStack() {
 const SPLASH_LIMIT_MS = 2500;
 
 /**
- * Hides the launch screen once the first page is ready to show as it will
- * stay: the icon font is loaded (until then every icon drew as nothing and
- * popped in a moment later, pushing titles and rows sideways) and the
- * remembered sign-in is read (until then the tabs show a blank page).
+ * Hides the launch screen once the first page is on screen as it will stay:
+ * the icon font is loaded (until then every icon drew as nothing and popped
+ * in a moment later, pushing titles and rows sideways), the remembered
+ * sign-in is read (until then the tabs show a blank page), and a page has
+ * been laid out behind it (before that, the bare window showed through for
+ * an instant on a cold start, as a white flash).
  */
 function LaunchScreen({ fontsReady, late }: { fontsReady: boolean; late: boolean }) {
   const sync = useSync();
-  const ready = late || (fontsReady && (!sync.configured || sync.account.restored));
+  const drawn = useSyncExternalStore(onPageDrawn, pageDrawn);
+  const ready = late || (fontsReady && drawn && (!sync.configured || sync.account.restored));
   useEffect(() => {
     if (!ready) return;
     // One frame later, so the page is on screen before the launch screen goes.

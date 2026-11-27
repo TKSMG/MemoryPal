@@ -28,6 +28,7 @@ import { HeaderHeightContext, HeaderShownContext } from 'expo-router/build/react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useStore } from '../state/AppState';
+import { markPageDrawn } from './launch';
 import { onSpeakingChange, speak, speakingOwner, stopSpeaking } from './feedback';
 import { hasMarks, plain, spans, Style, toggle } from '../core/richtext';
 import { ICON_TONES, pressedShade, Theme, Tone, toneColors, useTheme } from './theme';
@@ -143,7 +144,7 @@ export function Screen({ title, subtitle, right, children, scroll = true, padded
   // (known up front, so the page isn't measured and drawn a second time).
   const topOffset = useContext(HeaderHeightContext) ?? 0;
   return (
-    <View style={[{ flex: 1, backgroundColor: theme.colors.bg }, frame]}>
+    <View style={[{ flex: 1, backgroundColor: theme.colors.bg }, frame]} onLayout={markPageDrawn}>
       {scroll ? (
         <KeyboardAvoidingView style={{ flex: 1 }} enabled={Platform.OS === 'android'} behavior="padding" keyboardVerticalOffset={topOffset}>
         <ScrollView
@@ -178,7 +179,7 @@ export function ScreenList<T>({ title, subtitle, right, header, data, renderItem
   const gutter = useGutter();
   const column = [styles.readable, { paddingHorizontal: gutter }];
   return (
-    <View style={[{ flex: 1, backgroundColor: theme.colors.bg }, frame]}>
+    <View style={[{ flex: 1, backgroundColor: theme.colors.bg }, frame]} onLayout={markPageDrawn}>
       <FlatList
         style={{ flex: 1 }}
         data={data}
