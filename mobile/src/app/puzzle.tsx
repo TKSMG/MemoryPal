@@ -39,6 +39,17 @@ const MATERIAL_KINDS: PuzzleKind[] = ['pairs', 'words', 'missing', 'search', 'nb
 const nextSeed = () => Math.floor(Math.random() * 2_000_000_000);
 const AVATAR_TONES = ['#c8553d', '#2a7f62', '#3d5a80', '#9a6fb0', '#b5838d', '#6b8f71'];
 
+/** The bar that empties while a round is on show; only it redraws as the time passes. */
+function ShowCountdown({ startedAt, showFor }: { startedAt: number; showFor: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(timer);
+  }, []);
+  const left = Math.max(0, showFor - (now - startedAt));
+  return <ProgressBar value={left / (showFor || 1)} label={`${Math.ceil(left / 1000)} seconds left`} />;
+}
+
 export default function Puzzle() {
   const store = useStore();
   const theme = useTheme();
@@ -93,9 +104,7 @@ export default function Puzzle() {
 
   // The countdown while things are on show.
   const [startedAt, setStartedAt] = useState(() => Date.now());
-  const [tick, setTick] = useState(startedAt);
   const showFor = showMs(round, moreTime);
-  const left = Math.max(0, showFor - (tick - startedAt));
   // A screen reader takes far longer to read things out than the timer
   // allows, so with one on, they stay until "I'm ready" is pressed.
   const [screenReader, setScreenReader] = useState(false);
@@ -110,15 +119,10 @@ export default function Puzzle() {
   }, []);
   useEffect(() => {
     if (phase !== 'show' || screenReader) return undefined;
-    const timer = setInterval(() => {
-      const now = Date.now();
-      setTick(now);
-      if (now - startedAt >= showFor) {
-        clearInterval(timer);
-        setPhase('answer');
-      }
-    }, 200);
-    return () => clearInterval(timer);
+    // One timer for the end of the showing. The bar below counts down on its
+    // own, so this whole page isn't redrawn five times a second to move it.
+    const timer = setTimeout(() => setPhase('answer'), Math.max(0, startedAt + showFor - Date.now()));
+    return () => clearTimeout(timer);
   }, [phase, startedAt, showFor, screenReader]);
 
   const resetAnswers = () => {
@@ -147,7 +151,6 @@ export default function Puzzle() {
     const now = Date.now();
     setRound(made);
     setStartedAt(now);
-    setTick(now);
     resetAnswers();
     setPhase(showMs(made) > 0 ? 'show' : 'answer');
   };
@@ -352,7 +355,7 @@ export default function Puzzle() {
         {screenReader ? (
           <Txt variant="muted">Take your time. Press “I’m ready” when you have them.</Txt>
         ) : (
-          <ProgressBar value={left / (showFor || 1)} label={`${Math.ceil(left / 1000)} seconds left`} />
+          <ShowCountdown startedAt={startedAt} showFor={showFor} />
         )}
         <Button kind="primary" label="I'm ready" icon="arrow-forward" onPress={() => setPhase('answer')} />
       </Screen>

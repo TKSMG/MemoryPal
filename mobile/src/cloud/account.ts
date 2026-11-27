@@ -53,6 +53,18 @@ export interface DriveLink {
   email: string;
 }
 
+/** Two records hold the same values (key order aside: the server may reorder them). */
+function sameData(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  return keys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && sameData(left[key], right[key]));
+}
+
 /** Pull from two minutes before the last position (see cloud.pull_since). */
 export function pullSince(cursor: string | null): string | null {
   if (!cursor) return null;
@@ -274,8 +286,10 @@ export class CloudAccount {
     store: MemoryStore,
     applying: (apply: () => void) => void = (apply) => apply(),
     mode?: 'merge' | 'replace',
+    /** Nothing on this phone changed since the last sync (only what other devices did is fetched). */
+    unchanged = false,
   ): Promise<{ pulled: number; pushed: number; applied: number }> {
-    if (!this.usesDrive) return this.syncCloud(store, applying, mode);
+    if (!this.usesDrive) return this.syncCloud(store, applying, mode, unchanged);
     if (!this.drive) throw driveError('drive_not_linked');
     const accountUser = this.session?.userId ?? this.saved?.user_id ?? '';
     const moving = cloudConfigured() && this.signedIn && accountUser !== this.state.moved_user;
@@ -287,7 +301,7 @@ export class CloudAccount {
       this.state = { ...this.state, base: {} };
       mode = undefined; // an account choice above was about the MemoryPal cloud
     }
-    const result = await this.syncDrive(store, applying, mode);
+    const result = await this.syncDrive(store, applying, mode, unchanged && !moving);
     if (moving || this.state.cloud_cleanup) {
       // The records are in the drive now: remove them from the MemoryPal cloud
       // (tried again after later syncs until it works).
@@ -315,13 +329,19 @@ export class CloudAccount {
   }
 
   /** One sync through Google Drive (as drive.sync_files on the desktop). */
-  private async syncDrive(store: MemoryStore, applying: (apply: () => void) => void, mode?: 'merge' | 'replace') {
+  private async syncDrive(store: MemoryStore, applying: (apply: () => void) => void, mode?: 'merge' | 'replace', unchanged = false) {
     const link = this.drive as DriveLink;
     if (this.state.drive_user && this.state.drive_user !== link.user_id && !mode) {
       throw new CloudError(friendly('other_account'), 'other_account');
     }
     this.useDrive(link.user_id);
-    const { state, plan, remote } = await syncFiles(this.files(), this.state, (remote) => this.mergeInto(store, remote, applying, mode));
+    const synced = await syncFiles(this.files(), this.state, (remote) => this.mergeInto(store, remote, applying, mode), Date.now(), unchanged && !mode);
+    if (!synced) {
+      // No device changed anything (see syncCloud): nothing to compare or save.
+      this.state = { ...this.state, last_synced: nowLabel() };
+      return { pulled: 0, pushed: 0, applied: 0 };
+    }
+    const { state, plan, remote } = synced;
     this.state = { ...this.state, ...state, base: plan.final, last_synced: nowLabel() };
     this.saveState();
     return { pulled: Object.keys(remote).length, pushed: Object.keys(plan.push).length, applied: Object.keys(plan.apply).length };
@@ -332,6 +352,7 @@ export class CloudAccount {
     store: MemoryStore,
     applying: (apply: () => void) => void,
     mode?: 'merge' | 'replace',
+    unchanged = false,
   ): Promise<{ pulled: number; pushed: number; applied: number }> {
     const session = await this.activeSession();
     if (this.state.user_id && this.state.user_id !== session.userId && !mode) {
@@ -344,6 +365,15 @@ export class CloudAccount {
     for (const [key, data, updatedAt] of rows) {
       remote[key] = data;
       if (updatedAt && (cursor === null || updatedAt > cursor)) cursor = updatedAt;
+    }
+    if (unchanged && !mode && rows.every(([key, data]) => sameData(data, this.state.base[key] ?? null))) {
+      // Nothing new either way (the every-few-minutes check, coming back to
+      // the app): skip comparing and re-saving every record. Both copy the
+      // whole profile on the phone's main thread and showed as a hitch in a
+      // scrolling list or a tap that answered late. The time of the check is
+      // kept with the next sync that saves.
+      this.state = { ...this.state, last_synced: nowLabel() };
+      return { pulled: 0, pushed: 0, applied: 0 };
     }
     const plan = this.mergeInto(store, remote, applying, mode);
     if (Object.keys(plan.push).length) await this.client.push(session, plan.push);

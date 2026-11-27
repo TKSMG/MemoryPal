@@ -189,3 +189,24 @@ describe('the Drive API', () => {
     expect(full.code).toBe('drive_full');
   });
 });
+
+test('a quiet Drive check reads nothing when no file changed, and reads a changed one', async () => {
+  const drive = new MemoryFiles();
+  const a = phone(drive);
+  const b = phone(drive);
+  await a.account.connectDrive();
+  await b.account.connectDrive();
+  await a.account.sync(a.store);
+  await b.account.sync(b.store);
+  await a.account.sync(a.store);
+  const reads = jest.spyOn(drive, 'read');
+  const writes = jest.spyOn(drive, 'write');
+  expect(await a.account.sync(a.store, undefined, undefined, true)).toEqual({ pulled: 0, pushed: 0, applied: 0 });
+  expect(reads).not.toHaveBeenCalled();
+  expect(writes).not.toHaveBeenCalled();
+
+  b.store.addCard(newCard({ id: 'later-b', deck: 'Mine', front: 'Later', back: 'b' }));
+  await b.account.sync(b.store);
+  await a.account.sync(a.store, undefined, undefined, true);
+  expect(cardIds(a.store)).toContain('later-b');
+});

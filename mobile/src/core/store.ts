@@ -169,8 +169,14 @@ export class MemoryAdapter implements StorageAdapter {
   }
 }
 
-/** How long a change waits to be written with any that follow it. */
-export const WRITE_DELAY_MS = 400;
+/**
+ * A change is written once changes have paused this long, so a run of quick
+ * ratings is one write while the person reads the next card, instead of one
+ * whole-profile write (a long pause on a big library) after every tap.
+ */
+export const WRITE_DELAY_MS = 1_500;
+/** ...but never later than this after the first unsaved change. */
+export const WRITE_MAX_DELAY_MS = 5_000;
 
 export const MAX_DAILY_GOAL = 500;
 export const MAX_INTERVAL = 365;
@@ -373,6 +379,7 @@ export class MemoryStore {
 
   private listeners = new Set<() => void>();
   private writeTimer: ReturnType<typeof setTimeout> | null = null;
+  private firstUnsaved = 0;
 
   /**
    * With `deferWrites` (the app), a change updates the screens straight away
@@ -467,8 +474,11 @@ export class MemoryStore {
   }
 
   private queueWrite() {
-    if (this.writeTimer) return;
-    this.writeTimer = setTimeout(() => this.write(), WRITE_DELAY_MS);
+    const now = Date.now();
+    if (this.writeTimer) clearTimeout(this.writeTimer);
+    else this.firstUnsaved = now;
+    const wait = Math.max(0, Math.min(WRITE_DELAY_MS, this.firstUnsaved + WRITE_MAX_DELAY_MS - now));
+    this.writeTimer = setTimeout(() => this.write(), wait);
   }
 
   private write() {
