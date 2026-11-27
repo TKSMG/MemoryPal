@@ -57,7 +57,7 @@ def dark_page_share(shot, colour=(0x14, 0x14, 0x13), tolerance=10):
     return hits / max(1, total)
 
 
-def run(label, data_dir, seconds=9.0, env_extra=None):
+def run(label, data_dir, seconds=float(os.environ.get("LAUNCH_PROBE_SECONDS", "9")), env_extra=None):
     with mss.mss() as grabber:
         monitor = grabber.monitors[1]
         before = grabber.grab(monitor)
@@ -107,7 +107,20 @@ def run(label, data_dir, seconds=9.0, env_extra=None):
     return flashed
 
 
+def hog():
+    while True:
+        pass
+
+
 def main():
+    busy = int(os.environ.get("LAUNCH_PROBE_BUSY", "0") or 0)
+    if busy:
+        # Keep every core busy, as a slow or freshly booted PC is, so the
+        # app's start stretches out the way it does there.
+        import multiprocessing
+
+        for _ in range(busy * (os.cpu_count() or 2)):
+            multiprocessing.Process(target=hog, daemon=True).start()
     rounds = int(sys.argv[1]) if len(sys.argv) > 1 else 3
     env_extra = {}
     for item in os.environ.get("LAUNCH_PROBE_ENV", "").split(","):
