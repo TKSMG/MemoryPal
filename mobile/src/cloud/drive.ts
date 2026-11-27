@@ -163,11 +163,14 @@ export async function syncFiles(
   state: DriveState,
   merge: (remote: Remote) => SyncPlan,
   nowMs = Date.now(),
-): Promise<{ state: DriveState; plan: SyncPlan; remote: Remote }> {
+  /** Nothing changed on this device since the last sync: with no other device's file changed either, stop here. */
+  unchanged = false,
+): Promise<{ state: DriveState; plan: SyncPlan; remote: Remote } | null> {
   const listing = await files.list();
   const ownName = fileName(state.device_id);
   let ownFile = listing.some((item) => item.id === state.drive_file) ? state.drive_file : '';
   if (!ownFile) ownFile = listing.find((item) => item.name === ownName)?.id ?? '';
+  if (unchanged && ownFile && listing.every((item) => item.id === ownFile || state.drive_seen[item.id] === item.version)) return null;
   const seen: Record<string, string> = { ...state.drive_seen };
   const all: Entries[] = [state.entries];
   for (const item of listing) {
