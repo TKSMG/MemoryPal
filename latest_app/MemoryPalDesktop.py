@@ -5279,17 +5279,18 @@ class MemoryPalApp(tk.Tk):
                 initials_font = self.font("Segoe UI Semibold", 10 if len(initials) <= 1 else 9)
                 if not self.draw_badge_text(avatar, size, size, initials, initials_ink, initials_font):
                     self.create_centered_canvas_text(avatar, size / 2, size / 2, initials, fill=initials_ink, font=initials_font)
-                # The avatar starts on the same left edge as the title and
-                # the hairlines; the name (and "In use now") sit centred on
-                # it as one tight block, so every row's letters line up with
-                # its avatar and buttons.
+                # Every row has the same shape whichever profile is in use:
+                # avatar, a one-line name, then the Switch column and More.
+                # The profile in use shows "In use" where Switch would be,
+                # instead of a second line under its name, which made its
+                # row sit differently from the others.
                 avatar.grid(row=line, column=0, padx=(0, self.px(12)), pady=self.px(10))
                 lines = [(name, self.font("Segoe UI Semibold", 12), COLORS["ink"])]
-                if current:
-                    lines.append(("In use now", self.font("Segoe UI", 10), COLORS["muted"]))
                 self.text_stack(rows, lines, max_width=self.px(220)).grid(row=line, column=1, sticky="ew")
-                if not current:
-                    ttk.Button(rows, text="Switch", style="Primary.TButton", cursor="hand2", width=-7, command=lambda n=name: (top.destroy(), self.switch_profile(n))).grid(row=line, column=2, sticky="e", padx=(self.px(12), 0))
+                if current:
+                    tk.Label(rows, text="In use", bg=COLORS["surface"], fg=COLORS["primary"], font=self.font("Segoe UI Semibold", 11), anchor="center").grid(row=line, column=2, sticky="ew", padx=(self.px(12), 0))
+                else:
+                    ttk.Button(rows, text="Switch", style="Primary.TButton", cursor="hand2", width=-7, command=lambda n=name: (top.destroy(), self.switch_profile(n))).grid(row=line, column=2, sticky="ew", padx=(self.px(12), 0))
                 actions = [("Rename…", lambda n=name: do_rename(n))]
                 if len(names) > 1:
                     actions.append(("Delete…", lambda n=name: do_delete(n)))
