@@ -13,7 +13,7 @@ a parent or guardian should agree to these terms with you.
 
 ## 2. Not medical advice
 
-MemoryPal helps people practise remembering. **It is not a medical device.** It does not
+MemoryPal helps people practice remembering. **It is not a medical device.** It does not
 diagnose, treat or monitor any condition, including dementia or other memory problems.
 Talk to a doctor about any concern about your memory or health.
 

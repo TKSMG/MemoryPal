@@ -67,7 +67,7 @@ export default function RepetitionPath() {
 
   const build = () => {
     if (!items.length) {
-      notify('Nothing to practise yet', source === OWN ? 'Type a few things to remember, one per line.' : 'This choice has no cards with answers yet.');
+      notify('Nothing to practice yet', source === OWN ? 'Type a few things to remember, one per line.' : 'This choice has no cards with answers yet.');
       return;
     }
     if (Number.isNaN(startNumber) || Number.isNaN(rangeNumber)) {
@@ -160,7 +160,7 @@ export default function RepetitionPath() {
     <Screen>
       <Txt variant="muted">Recall a list in growing runs: 5, then 5‑4, then 5‑4‑3, then back down to 1. Saying a run in order, again and again, makes it stick.</Txt>
       <Card>
-        <Pills label="Practise" value={source} onChange={setSource} options={sources} />
+        <Pills label="Practice" value={source} onChange={setSource} options={sources} />
         {source === OWN ? (
           <Field
             label="Things to remember"
