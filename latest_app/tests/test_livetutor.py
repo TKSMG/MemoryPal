@@ -307,6 +307,34 @@ class LiveTutorTests(unittest.TestCase):
         self.assertEqual(talk.tutor.snapshot().tutor_line, "Take your time.")
         self.assertEqual(livetutor.spoken("Nice [laughs] one (pause) *smiles* <b>ok</b>"), "Nice one ok")
 
+    def test_the_caption_shows_what_the_tutor_understood_without_markers(self):
+        talk = Conversation()
+        talk.server({"setupComplete": {}})
+        talk.heard("the capital is {cont} pear is")
+        self.assertEqual(talk.tutor.snapshot().you_line, "the capital is pear is")
+        talk.server({"toolCall": {"functionCalls": [{"id": "1", "name": "record_answer", "args": {"card": "c1", "result": "right", "said": "Paris"}}]}})
+        self.assertEqual(talk.tutor.snapshot().you_line, "Paris")
+        talk.heard("four")
+        self.assertEqual(talk.tutor.snapshot().you_line, "four")
+
+    def test_an_answer_given_before_the_last_card_was_saved_still_counts(self):
+        # The tutor asks c2, the learner answers it, and only then does the
+        # tutor save c1 and give its verdict on c2: that answer still counts.
+        talk = Conversation(gate=speechgate.SpeechGate(), setup=APP_SETUP)
+        talk.server({"setupComplete": {}})
+        for _ in range(30):
+            talk.audio.on_mic(tone(0.02, -20))
+        for _ in range(80):
+            talk.audio.on_mic(tone(0.02, -60))
+        talk.server({"toolCall": {"functionCalls": [{"id": "1", "name": "record_answer", "args": {"card": "c1", "result": "right"}}]}})
+        for _ in range(30):
+            talk.audio.on_mic(tone(0.02, -20))
+        for _ in range(80):
+            talk.audio.on_mic(tone(0.02, -60))
+        talk.server(audio_message(1))  # the verdict on c2
+        talk.server({"toolCall": {"functionCalls": [{"id": "2", "name": "record_answer", "args": {"card": "c2", "result": "right"}}]}})
+        self.assertEqual(len(talk.tutor.take_ratings()), 2)
+
     def test_speech_before_the_next_question_is_not_its_answer(self):
         talk = Conversation()
         talk.server({"setupComplete": {}})
@@ -423,6 +451,25 @@ class AudioHelperTests(unittest.TestCase):
             converter = liveaudio.Resampler(source, target)
             total = sum(len(converter.convert(bytes(source // 100 * 2))) for _ in range(100))
             self.assertAlmostEqual(total / 2, target, delta=target * 0.01)
+
+    @unittest.skipIf(liveaudio.audioop is None, "needs audioop")
+    def test_dropping_to_16_khz_filters_out_hiss_and_keeps_speech(self):
+        import math
+        import struct
+
+        def tone(freq, seconds=0.5):
+            count = int(48000 * seconds)
+            return struct.pack(f"<{count}h", *[round(8000 * math.sin(2 * math.pi * freq * i / 48000)) for i in range(count)])
+
+        def loudness(freq):
+            converter = liveaudio.Resampler(48000, 16000)
+            data = tone(freq)
+            out = b"".join(converter.convert(data[i : i + 960]) for i in range(0, len(data), 960))
+            return liveaudio.level(out[3200:])  # past the filter's first few samples
+
+        self.assertGreater(loudness(1000), 0.15)
+        # 12 kHz can't be shown at 16 kHz; unfiltered it folds back to 4 kHz.
+        self.assertLess(loudness(12000), loudness(1000) / 30)
 
     def test_pure_python_resampling_matches_lengths_too(self):
         with mock.patch.object(liveaudio, "audioop", None):

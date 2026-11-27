@@ -40,7 +40,7 @@ NOT_ANSWERED = "not saved: the learner has not answered this card yet. Say nothi
 # With app turns, how long the learner can stay quiet after a question before
 # the tutor offers (once) to repeat it, give a hint or skip.
 QUIET_NUDGE_S = 15.0
-QUIET_LINE = "(The learner has gone quiet. In one short, kind line, offer to repeat the question, give a hint, or skip it. Then wait.)"
+QUIET_LINE = "(The learner has gone quiet and hasn't answered this card yet, so don't judge or record it. In one short, kind line, offer to repeat the question, give a hint, or skip it. Then wait.)"
 # Cut off with at least this much of its turn unplayed, the tutor is told what the learner actually heard.
 CUT_OFF_MS = 500
 
@@ -63,12 +63,13 @@ def app_turns(setup):
     return isinstance(detection, dict) and detection.get("disabled") is True
 
 
-_NOT_SPOKEN = re.compile(r"<!--.*?(?:-->|$)|<[^>]*(?:>|$)|\[[^\]]*(?:\]|$)|\([^)]*(?:\)|$)|\*[^*]*(?:\*|$)", re.S)
+_NOT_SPOKEN = re.compile(r"<!--.*?(?:-->|$)|<[^>]*(?:>|$)|\[[^\]]*(?:\]|$)|\([^)]*(?:\)|$)|\{[^}]*(?:\}|$)|\*[^*]*(?:\*|$)", re.S)
 
 
 def spoken(text):
-    """The tutor's caption without notes it wasn't meant to say aloud, such as
-    "<!-- Silence, waiting for learner -->" or "(pause)"; unclosed ones are
+    """A caption without notes that aren't words, such as the tutor's
+    "<!-- Silence, waiting for learner -->" or "(pause)", or markers like
+    "{cont}" or "<noise>" in the transcript of the learner; unclosed ones are
     dropped too, since the rest may still be on its way."""
     return tidy(_NOT_SPOKEN.sub(" ", text)).strip()
 
@@ -195,6 +196,9 @@ class LiveTutor:
         self.last_tutor_line = ""
         # Speech before the tutor starts asking the next card doesn't count as its answer.
         self.fresh_card = False
+        # A learner turn ended after the last save: that was an answer, even if
+        # the tutor asked the next card before saving the last one.
+        self.turn_since_save = False
         # App turns (Google's voice detection off): the gate's opening and
         # closing are the learner's turns, sent as activityStart and activityEnd.
         self.app_turns = app_turns(setup)
@@ -371,6 +375,8 @@ class LiveTutor:
                 start = is_open and not was_open
                 end = was_open and not is_open
                 self.learner_talking = is_open
+                if end:
+                    self.turn_since_save = True
                 if not (is_open or end):
                     chunks = []
         if start:
@@ -406,9 +412,12 @@ class LiveTutor:
                 if isinstance(audio, str) and audio:
                     if self.fresh_card:
                         # The tutor is starting on the next card: only what the learner says from here answers it.
+                        # Unless they already finished a turn since the save: then the tutor had asked the
+                        # card before saving the last one, and this is its verdict on their answer.
                         self.fresh_card = False
-                        self.heard_ms = 0.0
-                        self.heard_words = False
+                        if not self.turn_since_save:
+                            self.heard_ms = 0.0
+                            self.heard_words = False
                     self.open_tutor_turn()
                     self.audio.play(audio)
                     seconds = pcm_seconds(audio, MODEL_RATE)
@@ -483,6 +492,12 @@ class LiveTutor:
             self.heard_ms = 0.0
             self.heard_words = False
             self.fresh_card = True
+            self.turn_since_save = False
+            if said:
+                # Show what the tutor understood rather than the raw transcript,
+                # which mishears more than the tutor does.
+                self.you_line = said
+                self.you_fresh = True
             # A card the tutor comes back to keeps its latest result, and is rated once.
             for index, item in enumerate(self.results):
                 if item.key == key:
@@ -577,7 +592,7 @@ class LiveTutor:
                 phase=self.phase,
                 speaking="tutor" if tutor else "you" if you else "",
                 tutor_line=spoken(self.tutor_line) or self.last_tutor_line,
-                you_line=self.you_line,
+                you_line=spoken(self.you_line),
                 muted=self.muted,
                 results=list(self.results),
                 total=len(self.cards),
