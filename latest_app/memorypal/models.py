@@ -231,7 +231,7 @@ def sample_cards():
             id="sample-chunking",
             deck="Memory Techniques",
             front="What is chunking?",
-            back="Breaking information into smaller meaningful pieces so each part is easier to practise.",
+            back="Breaking information into smaller meaningful pieces so each part is easier to practice.",
             pathway="Capture > study bits",
             association="One shelf per idea.",
         ),

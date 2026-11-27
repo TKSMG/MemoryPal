@@ -172,7 +172,7 @@ def default_payload():
 
 
 # The practice log: one line per answer on this device (never synced), so the
-# study plan can learn the person's real pace, which ways of practising work
+# study plan can learn the person's real pace, which ways of practicing work
 # for them and when in the day they remember best.
 PRACTICE_LOG_MAX = 500
 # A gap longer than this between two answers is a pause, not time on a card.

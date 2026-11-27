@@ -79,7 +79,7 @@ export default function Review() {
           body={mode === 'due' ? 'Everything is scheduled for later. A quick quiz or your weaker cards are good extra practice.' : 'Add a few cards first, then come back.'}
           action={
             <View style={{ gap: 10, alignSelf: 'stretch' }}>
-              {mode === 'due' && store.weakCards().length ? <Button kind="primary" label="Practise weaker cards" onPress={() => router.replace('/review?mode=weak')} /> : null}
+              {mode === 'due' && store.weakCards().length ? <Button kind="primary" label="Practice weaker cards" onPress={() => router.replace('/review?mode=weak')} /> : null}
               <Button label="Add cards" onPress={() => router.replace('/add')} />
             </View>
           }
@@ -99,7 +99,7 @@ export default function Review() {
           {([
             [results.length, 'cards reviewed', c.ink],
             [remembered, 'remembered well', c.green],
-            [missed.length, 'to practise again', missed.length ? c.again[1] : c.muted],
+            [missed.length, 'to practice again', missed.length ? c.again[1] : c.muted],
           ] as [number, string, string][]).map(([value, label, color]) => (
             <Row key={label} gap={14} style={{ alignItems: 'baseline' }}>
               <Txt variant="big" color={color} style={{ minWidth: 56 }}>{String(value)}</Txt>
@@ -128,7 +128,7 @@ export default function Review() {
           </Card>
         ) : null}
         <Button kind="primary" label="Done" icon="checkmark" onPress={() => router.back()} />
-        {missed.length ? <Button label="Practise the missed ones now" onPress={() => router.replace('/review?mode=weak')} /> : null}
+        {missed.length ? <Button label="Practice the missed ones now" onPress={() => router.replace('/review?mode=weak')} /> : null}
       </Screen>
     );
   }

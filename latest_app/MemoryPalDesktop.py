@@ -4726,7 +4726,7 @@ class MemoryPalApp(tk.Tk):
             "library": "Search, filter, import, export, and review saved material.",
             "feedback": "Rate the app, report a problem, or suggest an idea.",
             "settings": "Personalize appearance, profiles, storage, backups, and focus behavior.",
-            "study": "Every way to practise your cards: due review, weak and new cards, talk-back and quizzes.",
+            "study": "Every way to practice your cards: due review, weak and new cards, talk-back and quizzes.",
             "create": "Make sets, add cards, and find any card or saved notes.",
             "practice": "Memory techniques, short recall puzzles and everyday memory support.",
         }.get(key, "")
@@ -5077,7 +5077,7 @@ class MemoryPalApp(tk.Tk):
         entries += [
             ("Quick 10", "Due cards first, then shaky ones. About five minutes.", self.quick_session),
             ("Start today's review", "Go through the cards that are due now.", lambda: self.show_view("review")),
-            ("Practise weak cards", "Cards you have missed, found hard or not studied yet, hardest first.", lambda: self.start_review("weak")),
+            ("Practice weak cards", "Cards you have missed, found hard or not studied yet, hardest first.", lambda: self.start_review("weak")),
             ("Learn new cards", "Cards you haven't studied yet, up to 20.", lambda: self.start_review("new")),
             ("Send feedback", self.nav_hint("feedback"), self.open_feedback),
             ("Make a study plan", "Choose your time and goal and get a step-by-step path.", lambda: self.show_view("plan")),
@@ -7534,7 +7534,7 @@ class MemoryPalApp(tk.Tk):
             "Different": "Mark the current item as different from the previous item.",
             "New Round": "Start a fresh short puzzle round.",
             "Build Sort": "Turn saved or pasted items into a simple category-sorting exercise.",
-            "Use Sample": "Load a small everyday sample to practise with.",
+            "Use Sample": "Load a small everyday sample to practice with.",
             "Show Routine": "Briefly show the routine steps before recall.",
             "Check Routine": "Compare the typed routine with the shown steps.",
             "Move Up": "Move the selected page earlier in its section.",
@@ -7860,17 +7860,17 @@ class MemoryPalApp(tk.Tk):
         tk.Label(hero, text=title, bg=bg, fg=COLORS["hero_ink"], font=self.font("Segoe UI Bold", 22), anchor="w").pack(fill="x")
         tk.Label(hero, text=self.plain(self.HUB_INTROS["study"], "Try to remember each answer, then say how it went."), bg=bg, fg=COLORS["hero_muted"], font=self.font("Segoe UI", 12), anchor="w", justify="left", wraplength=self.px(900)).pack(fill="x", pady=(self.px(4), self.px(16)))
         if store.cards:
-            self.hero_button(hero, "Start review" if due else "Practise anyway", lambda: self.start_review("due") if due else self.quick_session()).pack(anchor="w")
+            self.hero_button(hero, "Start review" if due else "Practice anyway", lambda: self.start_review("due") if due else self.quick_session()).pack(anchor="w")
         else:
             self.hero_button(hero, "Make a set", lambda: self.start_new_set()).pack(anchor="w")
 
         def count(number):
             return str(number) if number else ""
 
-        self.hub_heading(page.inner, "More ways to practise")
+        self.hub_heading(page.inner, "More ways to practice")
         rows = [
             ("focus", "Quick 10", "Due cards first, then shaky ones. About five minutes.", "", self.quick_session),
-            ("testing", self.plain("Weak cards", "Cards to practise more"), "Cards you have missed, found hard or not studied yet, hardest first.", count(weak), lambda: self.start_review("weak")),
+            ("testing", self.plain("Weak cards", "Cards to practice more"), "Cards you have missed, found hard or not studied yet, hardest first.", count(weak), lambda: self.start_review("weak")),
             ("capture", "New cards", "Cards you haven't studied yet, up to 20.", count(fresh), lambda: self.start_review("new")),
             ("talkback", "Talk-back study", self.nav_hint("talkback"), self.hub_page_note("talkback"), lambda: self.show_view("talkback")),
             ("quiz", "Quick quiz", self.nav_hint("quiz"), "", lambda: self.show_view("quiz")),
@@ -8116,7 +8116,7 @@ class MemoryPalApp(tk.Tk):
         ideas = [
             ("People & names", "Use one photo, one name, one relationship, and one warm detail. Keep the answer short.", "elder"),
             ("Routine practice", "Use Routine Recall for two to four steps. Missing a step means the routine needs another calm pass.", "games"),
-            ("Where things belong", "Practise common places: keys, glasses, medicine list, phone charger, appointment card.", "decks"),
+            ("Where things belong", "Practice common places: keys, glasses, medicine list, phone charger, appointment card.", "decks"),
             ("Caregiver support", "Add cues with a familiar voice, a real photo, or plain words (Edit card in Library). Avoid surprise sounds or clutter.", "capture"),
         ]
         # Plain tips in one list: no icon tiles or hover cards for text
@@ -8551,7 +8551,7 @@ class MemoryPalApp(tk.Tk):
 
         tk.Label(streak_panel, text=f" {streak}", image=self.line_icon_flush_left("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 28), anchor="w", padx=0).pack(fill="x")
         tk.Label(streak_panel, text="day in a row" if streak == 1 else "days in a row", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
-        message = "Practise today to start one." if streak == 0 else ("Practise today to keep it going." if today == 0 else "Kept alive today.")
+        message = "Practice today to start one." if streak == 0 else ("Practice today to keep it going." if today == 0 else "Kept alive today.")
         tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}." if best else message, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
 
         tk.Label(goal_panel, text="Daily goal", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 15), anchor="w").pack(fill="x")
@@ -8600,11 +8600,11 @@ class MemoryPalApp(tk.Tk):
             ]),
             "caregiver": ("Picked for caregivers", [
                 ("decks", "Add a memory card", "A person, routine, place, or reminder in plain words.", lambda: self.show_view("elder"), COLORS["cyan"]),
-                ("review", "Practise together", "Sit together for a short review.", lambda: self.show_view("review"), COLORS["primary"]),
+                ("review", "Practice together", "Sit together for a short review.", lambda: self.show_view("review"), COLORS["primary"]),
                 ("capture", "Photos and voices", "Open a card in Library and add a familiar photo or recording.", lambda: self.show_view("library"), COLORS["orange"]),
                 ("stats", "Check progress", "See how practice is going this week.", lambda: self.show_view("stats"), COLORS["green"]),
             ]),
-            "general": ("Pick a way to practise", [
+            "general": ("Pick a way to practice", [
                 quick,
                 ("tools", "Try a technique", "Memory palaces, stories, peg lists and more.", lambda: self.show_view("tools"), COLORS["violet"]),
                 ("games", "Play a puzzle", "A quick recall game for a warm-up or break.", lambda: self.show_view("games"), COLORS["pink"]),
@@ -8772,7 +8772,7 @@ class MemoryPalApp(tk.Tk):
         month = progress.daily_series(store.activity, 30)
         month_total = sum(count for _day, count in month)
         active = [count for _day, count in month if count > 0]
-        self.panel_title(month_panel, "Last 30 days", f"{month_total} reviews on {len(active)} days" + (f"  \u2022  about {round(month_total / len(active))} on a day you practise" if active else "  \u2022  your practice will show up here"))
+        self.panel_title(month_panel, "Last 30 days", f"{month_total} reviews on {len(active)} days" + (f"  \u2022  about {round(month_total / len(active))} on a day you practice" if active else "  \u2022  your practice will show up here"))
         self.bar_chart(
             month_panel, [count for _day, count in month], [day.strftime("%d %b").lstrip("0") for day, _count in month], COLORS["primary"],
             height=170, highlight=len(month) - 1, tips=[f"{day.strftime('%a %d %b')}: {count} review{'s' if count != 1 else ''}" for day, count in month],
@@ -10326,7 +10326,7 @@ class MemoryPalApp(tk.Tk):
             ttk.Label(panel, text="You're all caught up" if self.store.cards else "No cards yet", style="H2.TLabel").pack(anchor="w")
             ttk.Label(panel, text=("Nothing is due right now. Weaker cards or a quick quiz are good extra practice." if self.store.cards else "Make a set first, then come back to review it."), style="CardMuted.TLabel", wraplength=1040).pack(anchor="w", pady=(8, 16))
             if self.store.cards:
-                self.button_row(panel, [("Practise weak cards", lambda: self.start_review("weak"), "Primary.TButton"), ("Quick quiz", lambda: self.show_view("quiz"), "TButton")])
+                self.button_row(panel, [("Practice weak cards", lambda: self.start_review("weak"), "Primary.TButton"), ("Quick quiz", lambda: self.show_view("quiz"), "TButton")])
             else:
                 self.button_row(panel, [("Make a set", lambda: self.start_new_set(), "Primary.TButton")])
             return
@@ -11372,12 +11372,12 @@ class MemoryPalApp(tk.Tk):
         """This copy has the audio packages and a cloud to ask for the conversation."""
         return liveaudio.available() and cloud.configured()
 
-    def talkback_choice(self, panel, queue, practising):
+    def talkback_choice(self, panel, queue, practicing):
         """Talk-back's first screen: the live AI tutor, or classic Talk-back (offline)."""
         surface = COLORS["surface"]
-        ttk.Label(panel, text="How would you like to practise?", style="H2.TLabel").pack(anchor="w")
+        ttk.Label(panel, text="How would you like to practice?", style="H2.TLabel").pack(anchor="w")
         count = len(queue)
-        lead = "Nothing is due right now, so this uses cards that need more practice. " if practising else ""
+        lead = "Nothing is due right now, so this uses cards that need more practice. " if practicing else ""
         self.fit_wrap(tk.Label(panel, text=f"{lead}{count} card{'s' if count != 1 else ''} ready.", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 12), justify="left", anchor="w", wraplength=self.px(760)), pady=(self.px(6), self.px(18)))
 
         def option(title, body, icon, command, primary):
@@ -11652,9 +11652,9 @@ class MemoryPalApp(tk.Tk):
         panel = self.card(page.inner)
         panel.pack(fill="both", expand=True, padx=(0, self.px(8)))
         surface = COLORS["surface"]
-        queue, practising = self.talkback_queue()
+        queue, practicing = self.talkback_queue()
         if not queue:
-            ttk.Label(panel, text="Nothing to practise yet", style="H2.TLabel").pack(anchor="w")
+            ttk.Label(panel, text="Nothing to practice yet", style="H2.TLabel").pack(anchor="w")
             self.fit_wrap(ttk.Label(panel, text="Talk-back study needs cards with saved answers. Make a study set with questions and answers, then come back.", style="CardMuted.TLabel", wraplength=self.px(640)), pady=(self.px(6), self.px(16)))
             ttk.Button(panel, text="Make a study set", style="Primary.TButton", command=self.start_new_set).pack(anchor="w")
             return
@@ -11663,7 +11663,7 @@ class MemoryPalApp(tk.Tk):
             self.view_live_tutor(panel, queue)
             return
         if not mode and self.live_tutor_possible():
-            self.talkback_choice(panel, queue, practising)
+            self.talkback_choice(panel, queue, practicing)
             return
         voice_wanted = bool(self.accessibility.get("listen_answers", True))
         state = {
@@ -11680,7 +11680,7 @@ class MemoryPalApp(tk.Tk):
         progress.pack(side="left")
         score = tk.Label(top, text="", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11))
         score.pack(side="right")
-        if practising:
+        if practicing:
             self.fit_wrap(tk.Label(panel, text="Nothing is due right now, so this round uses cards that need more practice.", bg=surface, fg=COLORS["muted"], font=self.font("Segoe UI", 11), justify="left", wraplength=self.px(640)), pady=(self.px(4), 0))
 
         question = tk.Label(panel, text="", bg=surface, fg=COLORS["ink"], font=self.font("Segoe UI Bold", 24), justify="left", anchor="w", wraplength=self.px(900))
@@ -12078,7 +12078,7 @@ class MemoryPalApp(tk.Tk):
         return card.front or card.deck or "Saved card", card.back
 
     def material_bits(self, deck=None):
-        """Words to practise with: saved notes and cards, or one set's when `deck` is given."""
+        """Words to practice with: saved notes and cards, or one set's when `deck` is given."""
         bits = []
         for capture in self.store.notes_for_deck(deck) if deck else self.store.captures:
             bits.extend(richtext.plain(bit) for bit in capture.chunks or split_study_bits(capture.notes))
@@ -12149,7 +12149,7 @@ class MemoryPalApp(tk.Tk):
         panel.pack(fill="x", padx=(0, 8))
         source_row = ttk.Frame(panel, style="Card.TFrame")
         source_row.pack(fill="x", pady=(0, self.px(12)))
-        ttk.Label(source_row, text="Practise", style="CardMuted.TLabel").pack(side="left", padx=(0, self.px(8)))
+        ttk.Label(source_row, text="Practice", style="CardMuted.TLabel").pack(side="left", padx=(0, self.px(8)))
         source_var = tk.StringVar(value=source)
         own_frame = ttk.Frame(panel, style="Card.TFrame")
         own_box = self.answer_area(own_frame, "Things to remember", 'One per line. Write "prompt - answer" to give an item its own question.', 5)

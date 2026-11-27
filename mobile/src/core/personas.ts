@@ -14,7 +14,7 @@ export const PERSONAS: Persona[] = [
   {
     key: 'student',
     title: "I'm studying",
-    body: 'School, university, exams, or learning a language. Turn notes into cards and practise on a schedule.',
+    body: 'School, university, exams, or learning a language. Turn notes into cards and practice on a schedule.',
     accessibility: {},
     modes: ['quick10', 'deep', 'cram', 'notes'],
   },

@@ -379,7 +379,7 @@ def build_study_plan(store, minutes, deck_choice, habits, goal, on=None, since=N
         if fresh and minutes > SHORT_SESSION_MINUTES:
             add("Meet a few new cards", 0.1, "review", f"Look at {plural(min(3, len(fresh)), 'new card')}, no more. A few at a time is plenty.", review_mode="new")
         if minutes >= 20:
-            add("See how you did", 0.06, "stats", "A quick look at what you practised today.")
+            add("See how you did", 0.06, "stats", "A quick look at what you practiced today.")
     elif minutes <= SHORT_SESSION_MINUTES:
         # Too short to split usefully: one review block and one quick check.
         add("Quick review", 0.7, review_view, "Clear the most important cards first. " + review_detail(len(due), minutes, per_card))

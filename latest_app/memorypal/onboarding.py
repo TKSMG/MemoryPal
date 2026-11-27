@@ -8,7 +8,7 @@ pages that person will use most.
 PERSONAS = {
     "student": {
         "title": "I'm studying",
-        "body": "School, university, exams, or learning a language. Turn notes into cards and practise on a schedule.",
+        "body": "School, university, exams, or learning a language. Turn notes into cards and practice on a schedule.",
         "nav": ["dashboard", "plan", "capture", "review", "quiz", "decks", "tools", "stats"],
         "accessibility": {},
         "tour": [
@@ -27,8 +27,8 @@ PERSONAS = {
         "accessibility": {"text_size": "Large", "simple_language": True, "more_time": True, "reduce_motion": True},
         "tour": [
             ("dashboard", "Your home page", "Start here each day. Pick Gentle review or Daily puzzles, and watch your streak grow."),
-            ("elder", "Everyday Memory", "Make cards for people, routines, and places. Press Start Gentle Review to practise."),
-            ("review", "Practise your cards", "Read the question, try to remember, then check. Use Read aloud to hear it."),
+            ("elder", "Everyday Memory", "Make cards for people, routines, and places. Press Start Gentle Review to practice."),
+            ("review", "Practice your cards", "Read the question, try to remember, then check. Use Read aloud to hear it."),
             ("games", "Gentle puzzles", "Short, calm memory games. There is no rush and no score to worry about."),
             ("settings", "Make it comfortable", "Change the text size, turn on reading aloud, or give yourself more time."),
         ],
@@ -42,7 +42,7 @@ PERSONAS = {
             ("elder", "Build their cards", "Add people, routines, places, and reminders in plain words. Try Create Starter Set."),
             ("capture", "Add photos and voices", "Attach a real photo or a familiar voice recording. These make strong memory cues."),
             ("library", "Check and tidy", "See every card and note in one place. Reset is hidden in caregiver mode."),
-            ("review", "Practise together", "Sit together for a short review. Answers can be read aloud."),
+            ("review", "Practice together", "Sit together for a short review. Answers can be read aloud."),
             ("settings", "Adjust for them", "Text size, reading aloud, and more time are all here."),
         ],
     },
@@ -55,7 +55,7 @@ PERSONAS = {
             ("dashboard", "Your home page", "What to do today, your streak and level, and quick study modes. Press Ctrl+K any time to jump to a page."),
             ("tools", "Memory techniques", "Turn a list into an acronym, a story, a peg list or a memory palace route."),
             ("capture", "Add something to learn", "Type or paste anything you want to remember."),
-            ("review", "Practise on a schedule", "Answer, check, and rate. MemoryPal decides when to show each card again."),
+            ("review", "Practice on a schedule", "Answer, check, and rate. MemoryPal decides when to show each card again."),
             ("games", "Quick puzzles", "Short recall games for a warm-up or a break."),
         ],
     },

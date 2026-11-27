@@ -106,7 +106,7 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Confirm every card, question, answer and note has one read-aloud button: Review, Quick Quiz, Library, the set builder and AI notes on the desktop; review, quiz and AI notes on the phone. Pressing it again while speaking stops the voice.
 - Phone and desktop: open Study > Talk-back study and confirm the same two choices on both: "Talk with the AI tutor" and "Classic Talk-back". The AI tutor choice shows even when signed out; pressing it then asks you to sign in (or to turn AI on).
 - Classic Talk-back (both): each question is read aloud and you type the answer, then press Enter or Check. It never opens the microphone. Confirm the result is spoken and the card is rated.
-- Desktop: with no due cards, confirm Talk-back uses cards that need more practice and says so. With no cards that have answers, confirm "Nothing to practise yet".
+- Desktop: with no due cards, confirm Talk-back uses cards that need more practice and says so. With no cards that have answers, confirm "Nothing to practice yet".
 - Desktop: finish a round and confirm "Round finished" with your score read aloud, plus Study again and Back to Study.
 - AI tutor (both, signed in): the microphone permission is asked the first time; talk, interrupt, ask for a hint, and confirm the cards are rated afterwards.
 - Phone: with a screen reader (VoiceOver or TalkBack) on, confirm the screen reader announces the questions, the app's own voice stays quiet, and the answer box appears.
@@ -252,7 +252,7 @@ Needs a 0.51.0 or newer build and a Google account listed as a test user on the 
 - Start review and confirm the line above the card reads "Due cards · N left" and goes down by one after each rating; after the last card you are back on Study.
 - Start Weak cards and New cards and confirm each shows its own name and count, and ends after its cards (at most 20).
 - Start Quick 10 with nothing due and no weak cards and confirm a fast quiz opens instead.
-- Open Review from the page finder (Ctrl+K) with nothing due and confirm "You're all caught up" with Practise weak cards and Quick quiz.
+- Open Review from the page finder (Ctrl+K) with nothing due and confirm "You're all caught up" with Practice weak cards and Quick quiz.
 - Open a study plan step that drills weak cards (or one saved before v97 that named Focus or Test Lab) and confirm weak-card review starts.
 - Make a plan with "I like structured repetition drilling", open its Repetition drilling step and confirm the Repetition path opens on the weakest cards (of the plan's set, if it has one).
 - Make a plan with "mnemonics", "explain" and "games" ticked. Confirm the hook step names a technique (for example "Strengthen weak hooks: memory palace") and opens Memory techniques with that set loaded and that technique made; "Explain it back" opens Talk-back; the game step opens Pair recall from the set (phone and desktop).

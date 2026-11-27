@@ -54,13 +54,13 @@ export default function Today() {
     hero = { title: 'Add something to learn', body: 'Type a question and answer, or paste your notes.', action: 'Add cards', go: () => router.push('/add') };
   } else if (due.length) {
     hero = {
-      title: theme.plain("Start today's review", 'Practise your cards'),
+      title: theme.plain("Start today's review", 'Practice your cards'),
       body: `${due.length} card${due.length === 1 ? ' is' : 's are'} ready for you.`,
       action: 'Start review',
       go: () => router.push('/review?mode=due'),
     };
   } else if (weak.length) {
-    hero = { title: 'Strengthen shaky cards', body: `Nothing is due. ${weak.length} card${weak.length === 1 ? '' : 's'} could use a confidence pass.`, action: 'Practise weak cards', go: () => router.push('/review?mode=weak') };
+    hero = { title: 'Strengthen shaky cards', body: `Nothing is due. ${weak.length} card${weak.length === 1 ? '' : 's'} could use a confidence pass.`, action: 'Practice weak cards', go: () => router.push('/review?mode=weak') };
   } else {
     hero = { title: "You're all caught up", body: 'A short quiz keeps recall fresh.', action: 'Quick quiz', go: () => router.push('/quiz') };
   }

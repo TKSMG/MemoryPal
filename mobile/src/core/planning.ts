@@ -421,7 +421,7 @@ export function buildStudyPlan(
     }
     addPuzzle("Today's puzzles", short ? 0.3 : 0.2, 'Three short, friendly games picked for you, everyday memory first, getting a little harder as you improve.', true);
     if (fresh.length && !short) add('Meet a few new cards', 0.1, 'review', `Look at ${plural(Math.min(3, fresh.length), 'new card')}, no more. A few at a time is plenty.`, { review_mode: 'new' });
-    if (minutes >= 20) add('See how you did', 0.06, 'stats', 'A quick look at what you practised today.');
+    if (minutes >= 20) add('See how you did', 0.06, 'stats', 'A quick look at what you practiced today.');
   } else if (minutes <= SHORT_SESSION_MINUTES) {
     // Too short to split usefully: one review block and one quick check.
     add('Quick review', 0.7, reviewView, 'Clear the most important cards first. ' + reviewDetail(due.length, minutes, perCard));

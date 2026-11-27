@@ -23,7 +23,7 @@ Examples:
 - A step in a process.
 - A sentence from a lesson.
 
-One study bit should not be a full page of notes. Smaller chunks are easier to practise, repeat, and turn into cards.
+One study bit should not be a full page of notes. Smaller chunks are easier to practice, repeat, and turn into cards.
 
 ## Prompt And Answer Practice
 
@@ -501,7 +501,7 @@ For older adults and caregivers:
 
 9. **Medication and appointment reminders** that are reminders, not quiz cards, with a big "Done" button.
 10. **Photo-first "Who is this?" practice** built from a folder of family photos.
-11. **Caregiver summary.** A simple weekly page showing what was practised and what was hard, which can be printed or shared.
+11. **Caregiver summary.** A simple weekly page showing what was practiced and what was hard, which can be printed or shared.
 12. **A large-button kiosk mode** that shows only Everyday Memory, with the rail hidden and a caregiver PIN to leave it.
 
 For accessibility:
