@@ -2,7 +2,7 @@ import { addDays, todayIso } from '../src/core/dates';
 import { Capture, newCard } from '../src/core/models';
 import { addTechniqueHooks, deleteDeck, renameDeck, techniqueItems } from '../src/features/decks';
 import { buildMultiDayPlan, MAX_PLAN_DAYS, planForToday } from '../src/core/planning';
-import { MemoryAdapter, MemoryStore, WRITE_DELAY_MS } from '../src/core/store';
+import { MemoryAdapter, MemoryStore, WRITE_DELAY_MS, WRITE_MAX_DELAY_MS } from '../src/core/store';
 
 function fresh() {
   const adapter = new MemoryAdapter();
@@ -261,5 +261,43 @@ describe('deferred writes', () => {
     store.addCards([newCard({ deck: 'A', front: 'kept', back: 'yes' })]);
     store.flush();
     expect(new MemoryStore(adapter).cards.some((card) => card.front === 'kept')).toBe(true);
+  });
+});
+
+describe('deferred writes', () => {
+  afterEach(() => jest.useRealTimers());
+
+  test('quick changes are one write after they pause, and never later than the limit', () => {
+    jest.useFakeTimers();
+    const adapter = new MemoryAdapter();
+    const save = jest.spyOn(adapter, 'save');
+    const store = new MemoryStore(adapter, { deferWrites: true });
+    save.mockClear();
+    const card = store.cards[0];
+    store.schedule(card, 4);
+    jest.advanceTimersByTime(WRITE_DELAY_MS - 100);
+    store.schedule(card, 4);
+    jest.advanceTimersByTime(WRITE_DELAY_MS - 100);
+    expect(save).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(100);
+    expect(save).toHaveBeenCalledTimes(1);
+
+    // Changes that never pause still reach storage by the limit.
+    save.mockClear();
+    for (let elapsed = 0; elapsed <= WRITE_MAX_DELAY_MS; elapsed += 500) {
+      store.schedule(card, 4);
+      jest.advanceTimersByTime(500);
+    }
+    expect(save).toHaveBeenCalled();
+    expect(new MemoryStore(adapter).findCard(card.id)?.repetitions).toBeGreaterThan(0);
+  });
+
+  test('flush writes a waiting change at once', () => {
+    jest.useFakeTimers();
+    const adapter = new MemoryAdapter();
+    const store = new MemoryStore(adapter, { deferWrites: true });
+    store.schedule(store.cards[0], 5);
+    store.flush();
+    expect(new MemoryStore(adapter).practiced).toBe(1);
   });
 });

@@ -99,3 +99,24 @@ describe('rate limits', () => {
     expect(CloudClient.errorFrom(429, {}).code).toBe('rate_limited');
   });
 });
+
+test('a quiet check with nothing new skips the merge, and still brings in another device’s change', async () => {
+  const cloud = fakeCloud();
+  const account = new CloudAccount(cloud.client);
+  const store = storeWith('mine');
+  await account.remember(cloud.session('quiet'));
+  await account.sync(store, undefined, 'merge');
+  const merge = jest.spyOn(store, 'payload');
+  const version = store.version;
+  expect(await account.sync(store, undefined, undefined, true)).toEqual({ pulled: 0, pushed: 0, applied: 0 });
+  expect(merge).not.toHaveBeenCalled();
+  expect(store.version).toBe(version);
+
+  // Another device adds a card: the same quiet check merges it in.
+  const rows = cloud.rows.quiet;
+  const mineKey = Object.keys(rows).find((key) => (rows[key] as { id?: string } | null)?.id === 'mine') as string;
+  rows[mineKey.replace('mine', 'theirs')] = { ...(rows[mineKey] as Record<string, unknown>), id: 'theirs', front: 'Theirs' };
+  await account.sync(store, undefined, undefined, true);
+  expect(store.cards.map((card) => card.id)).toContain('theirs');
+  merge.mockRestore();
+});

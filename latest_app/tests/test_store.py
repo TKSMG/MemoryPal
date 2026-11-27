@@ -264,3 +264,19 @@ class RevisionTests(StoreTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FastRecordTests(unittest.TestCase):
+    def test_record_matches_asdict_and_copies_lists(self):
+        from dataclasses import asdict
+
+        from memorypal.models import Capture, DeckInfo, FeedbackEntry
+        from memorypal.store import record
+
+        for item in (Card(front="Q", back="A"), Capture(title="Notes", chunks=["one", "two"]), DeckInfo(id="Set"), FeedbackEntry()):
+            self.assertEqual(record(item), asdict(item))
+            self.assertEqual(list(record(item)), list(asdict(item)))
+        capture = Capture(chunks=["one"])
+        copied = record(capture)
+        copied["chunks"].append("two")
+        self.assertEqual(capture.chunks, ["one"])

@@ -2,14 +2,42 @@ import json
 import os
 import re
 import shutil
+import copy
 import time
-from dataclasses import asdict
+from dataclasses import asdict, fields, is_dataclass
 from datetime import date, datetime, timedelta
 
 from . import paths, techniques
 from .aiflow import normalize_preferences
 from .core import add_days, now_label, split_study_bits, today_iso
 from .models import Card, Capture, DeckInfo, FeedbackEntry, deck_name, iso_day, sample_cards
+
+
+_FIELD_NAMES = {}
+_PLAIN = frozenset({str, int, float, bool, type(None)})
+
+
+def record(item):
+    """The same dict as dataclasses.asdict(item), several times faster.
+
+    asdict walks and copies every value through a generic recursive path;
+    every save runs it for every card (about 85% of a save's time with a few
+    thousand cards, on the window's thread after each rating). These records
+    hold plain values, so only lists, dicts and nested records need copying.
+    """
+    cls = type(item)
+    names = _FIELD_NAMES.get(cls)
+    if names is None:
+        names = _FIELD_NAMES[cls] = tuple(f.name for f in fields(cls))
+    own = getattr(item, "__dict__", None)
+    if own is not None and len(own) == len(names) and tuple(own) == names:
+        out = own.copy()  # the fields alone, in order: copy them in one go
+    else:
+        out = {name: getattr(item, name) for name in names}
+    for name, value in out.items():
+        if type(value) not in _PLAIN:
+            out[name] = asdict(value) if is_dataclass(value) else copy.deepcopy(value)
+    return out
 
 
 def safe_int(value, default):
@@ -357,14 +385,23 @@ def atomic_write_json(path, payload, keep_backup=False):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     with open(temp_path, "w", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, indent=2))
+        # Compact: this runs on the window's thread after every rating, and
+        # indenting made the text about a third bigger and slower to build
+        # (the phone app saves compact too). It still reads as JSON.
+        handle.write(json.dumps(payload, separators=(",", ":")))
         handle.flush()
         os.fsync(handle.fileno())
     if keep_backup and path.exists():
+        # The previous file becomes the backup by renaming it, instead of
+        # copying every byte of it again on each save. Between the two
+        # renames only the backup exists, and load() falls back to it.
         try:
-            shutil.copy2(path, backup_path(path))
+            os.replace(path, backup_path(path))
         except OSError:
-            pass
+            try:
+                shutil.copy2(path, backup_path(path))  # renaming was refused (file in use)
+            except OSError:
+                pass
     os.replace(temp_path, path)
 
 
@@ -539,7 +576,7 @@ class MemoryStore:
     def item_snapshot(items):
         snapshot = {}
         for item in items:
-            raw = asdict(item)
+            raw = record(item)
             item_id = raw.get("id")
             if item_id:
                 snapshot[item_id] = raw
@@ -547,15 +584,15 @@ class MemoryStore:
 
     def payload(self):
         return {
-            "cards": [asdict(card) for card in self.cards],
-            "captures": [asdict(capture) for capture in self.captures],
-            "decks": [asdict(info) for info in self.deck_infos],
+            "cards": [record(card) for card in self.cards],
+            "captures": [record(capture) for capture in self.captures],
+            "decks": [record(info) for info in self.deck_infos],
             "practiced": self.practiced,
             "activity": self.activity,
             "daily_goal": self.daily_goal,
             "nav_order": self.nav_order,
             "accessibility": dict(self.accessibility),
-            "feedback": [asdict(entry) for entry in self.feedback],
+            "feedback": [record(entry) for entry in self.feedback],
             "onboarding": dict(self.onboarding),
             "study_plan": normalize_study_plan(self.study_plan),
             "preferences": normalize_preferences(self.preferences),
@@ -1158,7 +1195,7 @@ class MemoryStore:
             self.save()
 
     def schedule(self, card, quality, assessment=None, method="review"):
-        snapshot = asdict(card)
+        snapshot = record(card)
         logged = len(self.practice_log)
         # The answer's hook is the one the card had while it was being recalled.
         self.log_practice(method, quality >= 3, card)

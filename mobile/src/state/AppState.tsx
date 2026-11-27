@@ -92,7 +92,13 @@ class PrefsStore {
   };
 }
 
-const SYNC_AFTER_CHANGE_MS = 5_000;
+/**
+ * A change goes up once changes have paused this long. A study session
+ * changes something every few seconds, and each sync compares the whole
+ * profile on the main thread, so it waits for a pause instead of running
+ * between every pair of cards. Leaving the app still sends it straight away.
+ */
+const SYNC_AFTER_CHANGE_MS = 15_000;
 const SYNC_EVERY_MS = 5 * 60_000;
 const RETURN_SYNC_GAP_MS = 60_000;
 /** An automatic sync shows "Syncing…" only once it has taken this long. */
@@ -115,6 +121,8 @@ export class SyncController {
   private applying = false;
   private changedDuringSync = false;
   private lastReturnSync = 0;
+  /** The store's version when it was last fully in step with the cloud, or -1. */
+  private syncedVersion = -1;
   private listeners = new Set<() => void>();
 
   constructor(private store: MemoryStore) {
@@ -214,6 +222,7 @@ export class SyncController {
     }
     this.running = true;
     this.changedDuringSync = false;
+    const unchanged = quiet && !mode && !this.error && this.syncedVersion === this.store.version;
     const errorBefore = this.error;
     const lastBefore = this.account.state.last_synced;
     const show = () => {
@@ -235,9 +244,12 @@ export class SyncController {
           }
         },
         mode,
+        unchanged,
       );
       this.error = '';
+      if (!this.changedDuringSync) this.syncedVersion = this.store.version;
     } catch (error) {
+      this.syncedVersion = -1;
       this.error = error instanceof CloudError ? error.message : `Sync stopped: ${String(error)}`;
       if (error instanceof CloudError && error.code === 'other_account') this.askAboutOtherAccount();
     } finally {

@@ -1,6 +1,6 @@
 /** One set: study it, add to it, describe it (exam date, AI style), read its notes, rename or delete it, and see its cards. */
 import { Href, router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { isoDay } from '../../core/models';
@@ -13,6 +13,26 @@ import { AiTag, Button, EmptyState, Field, ListGroup, ListRow, ProgressBar, Scre
 import { confirm, notify } from '../../ui/feedback';
 import { useTheme } from '../../ui/theme';
 import { savedLabel } from '../../ui/dates';
+
+/** Cards the page opens with, how many each "Show more" adds, and the most it lists. */
+const CARDS_AT_FIRST = 30;
+const MORE_CARDS = 50;
+const MAX_CARDS = 200;
+
+/** One card in the set's list; skipped on re-render (typing in the fields above) unless what it shows changed. */
+const DeckCardRow = memo(function DeckCardRow({ id, front, back, ai }: { id: string; front: string; back: string; ai: boolean }) {
+  const answer = back || 'No answer (self-check)';
+  return (
+    <ListRow
+      title={front}
+      detail={answer}
+      below={ai ? <AiTag /> : null}
+      accessibilityLabel={[front, answer, ai ? AI_TAG : ''].filter(Boolean).join(', ')}
+      onPress={() => router.push(`/card/${id}`)}
+      accessibilityHint="Opens the card to edit"
+    />
+  );
+});
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
@@ -27,9 +47,14 @@ export default function Deck() {
   const [examDate, setExamDate] = useState(details.exam_date);
   const [style, setStyle] = useState(details.ai_style);
   const [examples, setExamples] = useState(details.ai_examples);
-  const cards = deckCards(store, name);
-  const notes = store.notesForDeck(name);
-  const info = store.deckSummary()[name];
+  // Worked out once per change to the cards, not on every key typed in the
+  // fields below (the counts walk every card of every set).
+  const cards = useMemo(() => deckCards(store, name), [store, store.version, name]); // eslint-disable-line react-hooks/exhaustive-deps
+  const notes = useMemo(() => store.notesForDeck(name), [store, store.version, name]); // eslint-disable-line react-hooks/exhaustive-deps
+  const info = useMemo(() => store.deckSummary()[name], [store, store.version, name]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A long set opens with its first cards; the rest come in on request, so
+  // the page is ready to slide in without building hundreds of rows first.
+  const [shown, setShown] = useState(CARDS_AT_FIRST);
   const q = encodeURIComponent(name);
 
   if (!cards.length || !info) {
@@ -115,19 +140,14 @@ export default function Deck() {
       </View>
 
       <ListGroup header="Cards">
-        {cards.slice(0, 200).map((card) => (
-          <ListRow
-            key={card.id}
-            title={card.front}
-            detail={card.back || 'No answer (self-check)'}
-            below={isAiCard(card) ? <AiTag /> : null}
-            accessibilityLabel={[card.front, card.back || 'No answer (self-check)', isAiCard(card) ? AI_TAG : ''].filter(Boolean).join(', ')}
-            onPress={() => router.push(`/card/${card.id}`)}
-            accessibilityHint="Opens the card to edit"
-          />
+        {cards.slice(0, Math.min(shown, MAX_CARDS)).map((card) => (
+          <DeckCardRow key={card.id} id={card.id} front={card.front} back={card.back} ai={isAiCard(card)} />
         ))}
       </ListGroup>
-      {cards.length > 200 ? <Txt variant="small">{`Showing the first 200 of ${cards.length}. Search in Create to find the rest.`}</Txt> : null}
+      {cards.length > shown && shown < MAX_CARDS ? (
+        <Button label={`Show ${Math.min(MORE_CARDS, cards.length - shown, MAX_CARDS - shown)} more cards`} icon="chevron-down" onPress={() => setShown((count) => count + MORE_CARDS)} />
+      ) : null}
+      {cards.length > MAX_CARDS && shown >= MAX_CARDS ? <Txt variant="small">{`Showing the first ${MAX_CARDS} of ${cards.length}. Search in Create to find the rest.`}</Txt> : null}
 
       <Button kind="dangerGhost" label="Delete set" icon="trash-outline" onPress={remove} />
     </Screen>

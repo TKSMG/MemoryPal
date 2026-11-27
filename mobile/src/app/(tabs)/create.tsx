@@ -18,8 +18,9 @@ export default function Create() {
   const store = useStore();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
-  const summary = store.deckSummary();
   const today = todayIso();
+  // The set counts walk every card: once per change, not on every key typed in Search.
+  const summary = useMemo(() => store.deckSummary(), [store, store.version, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Typing in Search re-filters on the next idle moment, not on every key,
   // and nothing is re-filtered unless the cards or the filters changed.
