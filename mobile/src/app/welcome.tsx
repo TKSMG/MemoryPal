@@ -100,7 +100,8 @@ export default function Welcome() {
               style={{ borderWidth: 2, padding: 14, borderColor: selected ? theme.colors.primary : 'transparent' }}
             >
               <Row>
-                <Ionicons name={ICONS[item.key]} size={theme.icon(28)} color={selected ? theme.colors.link : theme.colors.muted} />
+                {/* On the title's line, not halfway down a three-line description. */}
+                <Ionicons name={ICONS[item.key]} size={theme.icon(28)} color={selected ? theme.colors.link : theme.colors.muted} style={{ alignSelf: 'flex-start' }} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Txt variant="h3">{item.title}</Txt>
                   <Txt variant="muted">{item.body}</Txt>
