@@ -1,6 +1,6 @@
 /** Live Talk-back: audio helpers and the Gemini Live conversation flow, with a fake socket and fake audio. */
 import { base64Length, pcmMs, utf8 } from '../src/features/pcm';
-import { cutOffNote, heardPart, liveAssessment, LiveAudio, LiveSocket, LiveTutor, NOT_ANSWERED } from '../src/features/liveTutor';
+import { cutOffNote, heardPart, liveAssessment, LiveAudio, LiveSocket, LiveTutor, NOT_ANSWERED, QUIET_LINE, QUIET_NUDGE_MS, spoken } from '../src/features/liveTutor';
 import type { Outcome, TalkCard } from '../src/features/talkback';
 import { startLive } from '../src/cloud/ai';
 import { decodeBase64, GATE, levelDb, silenceBase64, SpeechGate } from '../src/features/speechGate';
@@ -41,7 +41,9 @@ class FakeSocket implements LiveSocket {
   }
 }
 
-function setup(minutes = 10, gate: SpeechGate | null = null) {
+const APP_SETUP = { model: 'models/gemini-3.8-live', realtimeInputConfig: { automaticActivityDetection: { disabled: true } } };
+
+function setup(minutes = 10, gate: SpeechGate | null = null, liveSetup: Record<string, unknown> = { model: 'models/gemini-3.8-live' }) {
   let now = 1_000_000;
   const played: string[] = [];
   let mic: ((data: string) => void) | null = null;
@@ -70,7 +72,7 @@ function setup(minutes = 10, gate: SpeechGate | null = null) {
   let socket: FakeSocket | null = null;
   const tutor = new LiveTutor({
     token: 'auth_tokens/xyz',
-    setup: { model: 'models/gemini-3.8-live' },
+    setup: liveSetup,
     cards,
     minutes,
     audio,
@@ -178,7 +180,7 @@ describe('live tutor conversation', () => {
     expect(reply()).toEqual({ result: NOT_ANSWERED, next: 'c2', scheduling: 'SILENT' });
     // A repeat for a saved card, with nothing new said, keeps the saved result.
     ws.server({ toolCall: { functionCalls: [{ id: '4', name: 'record_answer', args: { card: 'c1', result: 'wrong' } }] } });
-    expect(reply()).toEqual({ result: 'already saved', next: 'c2', scheduling: 'SILENT' });
+    expect(reply()).toEqual({ result: 'already saved', next: 'c2', question: '2 + 2?', scheduling: 'SILENT' });
     // A sound with no words isn't an answer either.
     ws.server(heard(' … '));
     ws.server({ toolCall: { functionCalls: [{ id: '5', name: 'record_answer', args: { card: 'c2', result: 'wrong' } }] } });
@@ -240,6 +242,93 @@ describe('live tutor conversation', () => {
     for (let i = 0; i < 30; i++) mic(tone(20, -20));
     ws.server({ toolCall: { functionCalls: [{ id: '2', name: 'record_answer', args: { card: 'c1', result: 'right' } }] } });
     expect(rated).toEqual([['a', 'right']]);
+  });
+
+  test("app turns send only the learner's speech, between activityStart and activityEnd", async () => {
+    const { ws, mic } = setup(10, new SpeechGate(), APP_SETUP);
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    const from = ws.sent.length;
+    for (let i = 0; i < 40; i++) mic(tone(20, -60));
+    expect(ws.sent.slice(from)).toEqual([]); // room noise: nothing goes to the tutor
+    for (let i = 0; i < 30; i++) mic(tone(20, -20));
+    for (let i = 0; i < 80; i++) mic(tone(20, -60));
+    const kinds = ws.sent.slice(from).map((m) => Object.keys(m.realtimeInput as object)[0]);
+    expect(kinds[0]).toBe('activityStart');
+    expect(kinds[kinds.length - 1]).toBe('activityEnd');
+    expect(new Set(kinds.slice(1, -1))).toEqual(new Set(['audio']));
+    expect(kinds.length).toBeGreaterThan(30); // the half second before the gate opened went too
+    expect(kinds.filter((k) => k === 'activityStart').length).toBe(1);
+  });
+
+  test('app turns: echo while the tutor talks is not sent, and muting mid-answer ends the turn', async () => {
+    const { ws, mic, tutor } = setup(10, new SpeechGate(), APP_SETUP);
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    for (let i = 0; i < 20; i++) ws.server(audioMessage(100));
+    const from = ws.sent.length;
+    for (let i = 0; i < 20; i++) mic(tone(20, -30));
+    expect(ws.sent.slice(from)).toEqual([]);
+    const { ws: ws2, mic: mic2, tutor: tutor2 } = setup(10, new SpeechGate(), APP_SETUP);
+    ws2.server({ setupComplete: {} });
+    await Promise.resolve();
+    for (let i = 0; i < 30; i++) mic2(tone(20, -20));
+    tutor2.setMuted(true);
+    expect(ws2.sent[ws2.sent.length - 1]).toEqual({ realtimeInput: { activityEnd: {} } });
+    tutor.stop();
+    tutor2.stop();
+  });
+
+  test('a quiet learner gets one nudge; older set-ups get none', async () => {
+    const { ws, mic, advance } = setup(10, new SpeechGate(), APP_SETUP);
+    const nudges = () => ws.sent.filter((m) => (m.clientContent as { turns?: { parts: { text: string }[] }[] } | undefined)?.turns?.[0].parts[0].text === QUIET_LINE);
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    advance(30000);
+    expect(nudges()).toEqual([]); // the tutor hasn't spoken yet
+    ws.server(audioMessage(2000));
+    advance(2000 + QUIET_NUDGE_MS - 1000);
+    expect(nudges()).toEqual([]);
+    advance(1500);
+    expect(nudges().length).toBe(1);
+    advance(60000);
+    expect(nudges().length).toBe(1);
+    for (let i = 0; i < 30; i++) mic(tone(20, -20));
+    for (let i = 0; i < 80; i++) mic(tone(20, -60));
+    advance(QUIET_NUDGE_MS + 2000);
+    expect(nudges().length).toBe(2);
+    const old = setup(10, new SpeechGate());
+    old.ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    old.ws.server(audioMessage(1000));
+    old.advance(60000);
+    expect(old.ws.sent.some((m) => JSON.stringify(m).includes('gone quiet'))).toBe(false);
+  });
+
+  test("notes the tutor wasn't meant to say are kept off the caption", () => {
+    const { ws, tutor } = setup();
+    ws.server({ setupComplete: {} });
+    ws.server({ serverContent: { outputTranscription: { text: 'What is 2 + 2?' } } });
+    ws.server({ serverContent: { turnComplete: true } });
+    ws.server({ serverContent: { outputTranscription: { text: '<!-- Silence, waiting ' } } });
+    expect(tutor.getSnapshot().tutorLine).toBe('What is 2 + 2?');
+    ws.server({ serverContent: { outputTranscription: { text: 'for learner --> Take your time.' } } });
+    expect(tutor.getSnapshot().tutorLine).toBe('Take your time.');
+    expect(spoken('Nice [laughs] one (pause) *smiles* <b>ok</b>')).toBe('Nice one ok');
+  });
+
+  test('speech before the next question starts is not its answer', () => {
+    const { ws, rated } = setup();
+    ws.server({ setupComplete: {} });
+    ws.server(heard('Paris'));
+    ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c1', result: 'right' } }] } });
+    ws.server(heard('cool thanks'));
+    ws.server(audioMessage(1000));
+    ws.server({ toolCall: { functionCalls: [{ id: '2', name: 'record_answer', args: { card: 'c2', result: 'wrong' } }] } });
+    expect(rated.length).toBe(1);
+    ws.server(heard('four'));
+    ws.server({ toolCall: { functionCalls: [{ id: '3', name: 'record_answer', args: { card: 'c2', result: 'right' } }] } });
+    expect(rated).toEqual([['a', 'right'], ['b', 'right']]);
   });
 
   test('the greeting is asked for only once the microphone and player are up', async () => {
@@ -343,7 +432,7 @@ describe('starting a live conversation', () => {
     }) as unknown as typeof fetch;
     const cards = Array.from({ length: 45 }, (_, i) => ({ front: ` Q${i} `, back: `A${i}` }));
     const started = await startLive('token', cards, 'Bio', { fetcher });
-    expect(body.action).toBe('live');
+    expect([body.action, body.turns]).toEqual(['live', 'app']);
     expect((body.cards as { key: string; front: string }[]).length).toBe(40);
     expect((body.cards as { key: string; front: string }[])[0]).toEqual({ key: 'c1', front: 'Q0', back: 'A0' });
     expect(started).toEqual({ token: 'auth_tokens/t', setup: { model: 'models/m' }, minutes: 10, remaining: 7 });

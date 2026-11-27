@@ -100,6 +100,13 @@ export function nextCard(cards: Record<string, TalkCard>, results: { card: TalkC
   return 'none: every card is done, so give the summary';
 }
 
+/** record_answer's reply: the result, the next card's key and its question. */
+export function nextReply(cards: Record<string, TalkCard>, results: { card: TalkCard }[], result: string): Record<string, unknown> {
+  const next = nextCard(cards, results);
+  const question = cards[next]?.front;
+  return question ? { result, next, question } : { result, next };
+}
+
 /** The schedule rating for a tutor's verdict (skipped cards aren't rated). */
 export function liveAssessment(outcome: Outcome): Assessment | null {
   if (outcome === 'right') return { score: 80, quality: 4, label: 'Right (AI tutor)', bucket: 'Good', repetitions: 2, detail: 'Judged by the live AI tutor.' };
@@ -118,8 +125,35 @@ export function closeText(code?: number, reason?: string): string {
 
 const RESULT_SET = new Set<Outcome>(['right', 'close', 'wrong', 'skipped']);
 
-/** record_answer's reply when the learner hasn't said anything since the last card. Same text on desktop. */
-export const NOT_ANSWERED = 'not saved: the learner has not answered this card yet. If you have asked it, do not ask it again: stay quiet and wait for their own answer (repeat it only if they ask). Never answer for them or reuse an earlier answer.';
+/** record_answer's reply when the learner hasn't said anything since the card was asked. Same text on desktop. */
+export const NOT_ANSWERED = 'not saved: the learner has not answered this card yet. Say nothing more now and wait for their answer. Don\'t ask the card again, and never answer for them or reuse an earlier answer.';
+
+/**
+ * With app turns, how long the learner can stay quiet after a question before
+ * the tutor offers (once) to repeat it, give a hint or skip.
+ */
+export const QUIET_NUDGE_MS = 15000;
+export const QUIET_LINE = '(The learner has gone quiet. In one short, kind line, offer to repeat the question, give a hint, or skip it. Then wait.)';
+
+/**
+ * True when the set-up turns Google's voice detection off, so the app says
+ * when the learner starts and stops talking (live.ts APP_TURNS).
+ */
+export function appTurns(setup: Record<string, unknown>): boolean {
+  const config = setup.realtimeInputConfig as { automaticActivityDetection?: { disabled?: unknown } } | undefined;
+  return config?.automaticActivityDetection?.disabled === true;
+}
+
+const NOT_SPOKEN = /<!--[\s\S]*?(?:-->|$)|<[^>]*(?:>|$)|\[[^\]]*(?:\]|$)|\([^)]*(?:\)|$)|\*[^*]*(?:\*|$)/g;
+
+/**
+ * The tutor's caption without notes it wasn't meant to say aloud, such as
+ * "<!-- Silence, waiting for learner -->" or "(pause)"; unclosed ones are
+ * dropped too, since the rest may still be on its way. Same as spoken() on desktop.
+ */
+export function spoken(text: string): string {
+  return text.replace(NOT_SPOKEN, ' ').replace(/\s+/g, ' ').trim();
+}
 
 /**
  * What the tutor is told when the learner talked over it. Gemini writes a
@@ -130,7 +164,7 @@ export const NOT_ANSWERED = 'not saved: the learner has not answered this card y
  */
 export function cutOffNote(heard: string): string {
   const said = heard ? `the learner only heard "${heard}…" and none of the rest` : 'the learner heard none of what you just said';
-  return `(You were cut off: ${said}. If what they say now answers the card, judge it; otherwise ask that card again.)`;
+  return `(You were cut off: ${said}. Respond to what they say now. Judge it only if it is a real answer to the card you were asking; if they didn't hear the question, ask it again.)`;
 }
 
 /** The start of `line`, in proportion to how much of the turn played. */
@@ -173,10 +207,23 @@ export class LiveTutor {
   /** The current tutor turn on the playback timeline: when its first words play and how long all of it lasts. */
   private turnStart: number | null = null;
   private turnMs = 0;
+  /** The last caption with words in it, shown while a new turn has none yet. */
+  private lastTutorLine = '';
+  /** Speech before the tutor starts asking the next card doesn't count as its answer. */
+  private freshCard = false;
+  /**
+   * App turns (Google's voice detection off): the gate's opening and closing
+   * are the learner's turns, sent as activityStart and activityEnd.
+   */
+  private appTurns: boolean;
+  private learnerTalking = false;
+  private learnerAt = 0;
+  private nudged = false;
 
   constructor(private options: LiveTutorOptions) {
     this.now = options.now ?? (() => Date.now());
     this.gate = options.gate === undefined ? new SpeechGate(MIC_RATE) : options.gate;
+    this.appTurns = appTurns(options.setup);
     this.snapshot = this.makeSnapshot();
   }
 
@@ -218,8 +265,12 @@ export class LiveTutor {
     this.options.audio.setMuted(muted);
     this.gate?.reset();
     this.meter.micOff();
-    // Tells the voice detector the speaker went quiet, so a half-said answer is still heard.
-    if (muted) this.send({ realtimeInput: { audioStreamEnd: true } });
+    const talking = this.learnerTalking;
+    this.learnerTalking = false;
+    // Tells the tutor the speaker went quiet, so a half-said answer is still heard.
+    if (muted && this.appTurns) {
+      if (talking) this.send({ realtimeInput: { activityEnd: {} } });
+    } else if (muted) this.send({ realtimeInput: { audioStreamEnd: true } });
     this.emit();
   }
 
@@ -266,15 +317,34 @@ export class LiveTutor {
   private mic(data: string) {
     if (this.phase !== 'live' || this.muted) return;
     const now = this.now();
-    const chunks = this.gate ? this.gate.process(data, this.tutorAudible()) : [data];
+    const wasOpen = this.gate?.isOpen ?? false;
+    let chunks = this.gate ? this.gate.process(data, this.tutorAudible()) : [data];
+    const open = this.gate?.isOpen ?? false;
     if (this.gate) {
-      const open = this.gate.isOpen;
       if (open && this.gate.lastLoud) this.heardMs += pcmMs(data, MIC_RATE);
       this.meter.mic(this.gate.lastDb, open, now);
     } else {
       this.meter.mic(levelDb(decodeBase64(data)), true, now);
     }
+    if (open) {
+      this.learnerAt = now;
+      this.nudged = false;
+    }
+    let start = false;
+    let end = false;
+    if (this.appTurns && this.gate) {
+      // Only the learner's own turns go to the tutor: a turn starts when the
+      // gate opens (with the half second before it) and ends once they have
+      // been quiet for a moment. Nothing else is sent, so noise and echo can't
+      // start a turn or cut the tutor off.
+      start = open && !wasOpen;
+      end = wasOpen && !open;
+      this.learnerTalking = open;
+      if (!open && !end) chunks = [];
+    }
+    if (start) this.send({ realtimeInput: { activityStart: {} } });
     for (const chunk of chunks) this.send({ realtimeInput: { audio: { data: chunk, mimeType: `audio/pcm;rate=${MIC_RATE}` } } });
+    if (end) this.send({ realtimeInput: { activityEnd: {} } });
   }
 
   /** True while the tutor's voice (or its echo) may still be on the microphone. */
@@ -299,6 +369,12 @@ export class LiveTutor {
     for (const part of turn?.parts ?? []) {
       const audio = part?.inlineData?.data;
       if (typeof audio === 'string' && audio) {
+        if (this.freshCard) {
+          // The tutor is starting on the next card: only what the learner says from here answers it.
+          this.freshCard = false;
+          this.heardMs = 0;
+          this.heardWords = false;
+        }
         this.openTutorTurn();
         this.options.audio.play(audio);
         const ms = pcmMs(audio, MODEL_RATE);
@@ -317,7 +393,7 @@ export class LiveTutor {
       // say how much they heard (read with their words, not a turn of its own).
       const played = this.turnStart === null ? this.turnMs : Math.max(0, Math.min(this.turnMs, this.now() - this.turnStart));
       if (this.tutorTurnOpen && this.turnMs - played >= CUT_OFF_MS) {
-        const note = cutOffNote(heardPart(this.tutorLine, this.turnMs ? played / this.turnMs : 0));
+        const note = cutOffNote(heardPart(spoken(this.tutorLine), this.turnMs ? played / this.turnMs : 0));
         this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: note }] }], turnComplete: false } });
       }
       this.options.audio.clear();
@@ -332,6 +408,7 @@ export class LiveTutor {
     if (this.tutorTurnOpen) return;
     this.tutorTurnOpen = true;
     this.youFresh = true;
+    this.lastTutorLine = spoken(this.tutorLine) || this.lastTutorLine;
     this.tutorLine = '';
     this.turnStart = null;
     this.turnMs = 0;
@@ -360,11 +437,12 @@ export class LiveTutor {
     if (!this.learnerAnswered()) {
       // Nothing said since the last saved card: the tutor is guessing, often
       // from the previous answer. Keep the card open and have it wait.
-      if (at >= 0) return { result: 'already saved', next: nextCard(this.options.cards, this.results) };
+      if (at >= 0) return nextReply(this.options.cards, this.results, 'already saved');
       return { result: NOT_ANSWERED, next: String(args.card).trim() };
     }
     this.heardMs = 0;
     this.heardWords = false;
+    this.freshCard = true;
     const said = typeof args.said === 'string' ? args.said.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
     const result = { card, outcome, said };
     // A card the tutor comes back to keeps its latest result, and is rated once.
@@ -374,7 +452,7 @@ export class LiveTutor {
       if (outcome !== 'skipped') this.options.onRate?.(card, outcome);
     }
     this.emit();
-    return { result: 'saved', next: nextCard(this.options.cards, this.results) };
+    return nextReply(this.options.cards, this.results, 'saved');
   }
 
   // ---------------------------------------------------------------- timing
@@ -403,8 +481,21 @@ export class LiveTutor {
     if (this.phase !== 'live') return;
     const left = this.secondsLeft();
     if (left <= 60 && !this.warned) this.wrapUp(LAST_MINUTE_LINE);
-    if (left <= 0) this.finish();
-    else this.emit();
+    if (left <= 0) return this.finish();
+    this.nudgeIfQuiet();
+    this.emit();
+  }
+
+  /**
+   * With app turns, the tutor only speaks after the learner does, so a
+   * learner who is stuck would sit in silence: after a while, have it offer
+   * (once) to repeat the question, give a hint or skip.
+   */
+  private nudgeIfQuiet() {
+    if (!this.appTurns || this.nudged || this.muted || this.ending || this.learnerTalking || this.speechUntil <= 0) return;
+    if (this.now() - Math.max(this.speechUntil, this.learnerAt) < QUIET_NUDGE_MS) return;
+    this.nudged = true;
+    this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: QUIET_LINE }] }], turnComplete: true } });
   }
 
   private secondsLeft(): number {
@@ -473,7 +564,7 @@ export class LiveTutor {
     return {
       phase: this.phase,
       speaking: tutorTalking ? 'tutor' : youTalking ? 'you' : null,
-      tutorLine: this.tutorLine,
+      tutorLine: spoken(this.tutorLine) || this.lastTutorLine,
       youLine: this.youLine,
       muted: this.muted,
       results: [...this.results],

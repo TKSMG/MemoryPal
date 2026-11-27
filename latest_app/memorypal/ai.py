@@ -309,7 +309,8 @@ def start_live(auth, cards, deck="", opener=None, timeout=LIVE_TIMEOUT):
     listed = [{"key": f"c{n + 1}", "front": clip(pairs[index][0], 300), "back": clip(pairs[index][1], 300)} for n, index in enumerate(usable)]
     if not listed:
         raise AIError("bad_request", "Talk-back needs cards with answers.")
-    data = call(auth, {"action": "live", "cards": listed, "deck": clip(deck, 120)}, opener, timeout)
+    # turns "app": this app says when the learner starts and stops talking (livetutor.py).
+    data = call(auth, {"action": "live", "cards": listed, "deck": clip(deck, 120), "turns": "app"}, opener, timeout)
     result = data.get("result") if isinstance(data.get("result"), dict) else {}
     token = result.get("token") if isinstance(result.get("token"), str) else ""
     setup = result.get("setup") if isinstance(result.get("setup"), dict) else {}

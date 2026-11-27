@@ -1,6 +1,6 @@
 // deno test supabase/functions/ai/live_test.ts
 import { AiError } from "./logic.ts";
-import { LIVE_TOKEN_MINUTES, liveInstruction, liveSetup, liveTokenBody, MAX_LIVE_CARDS, parseLiveRequest, tokenFrom } from "./live.ts";
+import { LIVE_APP_RULES, LIVE_RULES, LIVE_TOKEN_MINUTES, liveInstruction, liveSetup, liveTokenBody, MAX_LIVE_CARDS, parseLiveRequest, tokenFrom } from "./live.ts";
 
 function assertEquals(actual: unknown, expected: unknown) {
   const a = JSON.stringify(actual);
@@ -59,6 +59,21 @@ Deno.test("the tutor set-up holds the cards fenced, the tools and audio settings
   const text = liveInstruction(request);
   if (!text.includes('"""\nc1: Q: Capital of France? | A: Paris\n"""')) throw new Error(text);
   if (!text.includes('The study set is "Geo".')) throw new Error(text);
+});
+
+Deno.test("apps that decide turns get Google's voice detection off and their own rules; older apps keep theirs", () => {
+  const cards = [{ key: "c1", front: "Q", back: "A" }];
+  const listening = (request: ReturnType<typeof parseLiveRequest>) =>
+    (liveSetup(request, "gemini-3.8-live") as { realtimeInputConfig: { automaticActivityDetection: Record<string, unknown>; activityHandling: string } }).realtimeInputConfig;
+  const app = parseLiveRequest({ cards, turns: "app" });
+  const old = parseLiveRequest({ cards });
+  assertEquals([app.appTurns, old.appTurns, parseLiveRequest({ cards, turns: "yes" }).appTurns], [true, false, false]);
+  assertEquals(listening(app), { automaticActivityDetection: { disabled: true }, activityHandling: "START_OF_ACTIVITY_INTERRUPTS" });
+  assertEquals(listening(old).automaticActivityDetection.silenceDurationMs, 1200);
+  if (!liveInstruction(app).startsWith(LIVE_APP_RULES) || liveInstruction(app).includes("stay quiet and keep waiting")) throw new Error("app rules");
+  if (!liveInstruction(old).startsWith(LIVE_RULES)) throw new Error("older rules");
+  const body = liveTokenBody(liveSetup(app, "gemini-3.8-live"), new Date(0)) as { fieldMask: string };
+  if (!body.fieldMask.includes("realtimeInputConfig.automaticActivityDetection")) throw new Error(body.fieldMask);
 });
 
 Deno.test("the token is one use, short-lived and locked to the set-up", () => {
