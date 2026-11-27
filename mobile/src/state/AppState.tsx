@@ -95,6 +95,8 @@ class PrefsStore {
 const SYNC_AFTER_CHANGE_MS = 5_000;
 const SYNC_EVERY_MS = 5 * 60_000;
 const RETURN_SYNC_GAP_MS = 60_000;
+/** An automatic sync shows "Syncing…" only once it has taken this long. */
+const QUIET_SYNC_MS = 1_500;
 
 /**
  * Keeps the signed-in profile in sync on its own: on launch, a few seconds
@@ -104,7 +106,9 @@ const RETURN_SYNC_GAP_MS = 60_000;
  */
 export class SyncController {
   account = new CloudAccount();
+  /** "Syncing…" is showing (straight away for one asked for, after a moment for an automatic one). */
   syncing = false;
+  private running = false;
   error = '';
   version = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -117,7 +121,7 @@ export class SyncController {
     store.subscribe(() => {
       if (this.applying || !this.autoReady) return;
       // A change made while a sync is on the network goes up right after it.
-      if (this.syncing) this.changedDuringSync = true;
+      if (this.running) this.changedDuringSync = true;
       else this.syncSoon(SYNC_AFTER_CHANGE_MS);
     });
     this.account.restore().then(() => {
@@ -191,20 +195,34 @@ export class SyncController {
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.timer = null;
-      this.syncNow().catch(() => undefined);
+      this.syncNow(undefined, true).catch(() => undefined);
     }, delay);
   }
 
-  /** Sync now; resolves to an error message, or '' when everything is in step. */
-  async syncNow(mode?: 'merge' | 'replace'): Promise<string> {
-    if (this.syncing || !this.account.canSync) return this.error;
+  /**
+   * Sync now; resolves to an error message, or '' when everything is in step.
+   * A `quiet` one (the automatic ones: on return to the app, after a change,
+   * every few minutes) leaves the screens alone unless it takes a while, finds
+   * something or fails, so coming back to the app doesn't flick the status
+   * icon and redraw Today each time.
+   */
+  async syncNow(mode?: 'merge' | 'replace', quiet = false): Promise<string> {
+    if (this.running || !this.account.canSync) return this.error;
     if (mode === 'replace') {
       // Keep a copy of this phone's data before it's swapped for the account's.
       keyAdapter('memorypal-before-account-switch').save(JSON.stringify(this.store.payload()));
     }
-    this.syncing = true;
+    this.running = true;
     this.changedDuringSync = false;
-    this.changed();
+    const errorBefore = this.error;
+    const lastBefore = this.account.state.last_synced;
+    const show = () => {
+      if (!this.running || this.syncing) return;
+      this.syncing = true;
+      this.changed();
+    };
+    const showTimer = quiet ? setTimeout(show, QUIET_SYNC_MS) : null;
+    if (!quiet) show();
     try {
       await this.account.sync(
         this.store,
@@ -223,8 +241,13 @@ export class SyncController {
       this.error = error instanceof CloudError ? error.message : `Sync stopped: ${String(error)}`;
       if (error instanceof CloudError && error.code === 'other_account') this.askAboutOtherAccount();
     } finally {
+      if (showTimer) clearTimeout(showTimer);
+      this.running = false;
+      const shown = this.syncing;
       this.syncing = false;
-      this.changed();
+      // Screens that show the time of the last sync (Account & sync, Settings)
+      // still update; with nothing to show, nothing redraws.
+      if (shown || !quiet || this.error !== errorBefore || this.account.state.last_synced !== lastBefore) this.changed();
     }
     if (this.changedDuringSync && !this.error) this.syncSoon(SYNC_AFTER_CHANGE_MS);
     return this.error;

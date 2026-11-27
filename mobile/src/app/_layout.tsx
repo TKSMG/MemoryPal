@@ -10,6 +10,7 @@ import { AppState as RNAppState, Platform, Pressable, Text } from 'react-native'
 import { normalizeSettings } from '../features/notifications';
 import { AppStateProvider, usePrefs, useStore, useSync } from '../state/AppState';
 import { onReminderTapped, refreshReminders, setUpNotifications } from '../state/reminders';
+import { StackHeader } from '../ui/StackHeader';
 import { ThemeProvider, useTheme } from '../ui/theme';
 
 // The launch screen stays up until the first page can be drawn whole (see
@@ -36,6 +37,15 @@ function sheetButton(label: string, bold?: boolean) {
   if (Platform.OS !== 'ios') return undefined;
   return () => [{ type: 'custom' as const, element: <SheetButton label={label} bold={bold} />, hidesSharedBackground: true }];
 }
+
+/** Pages shown as sheets keep the phone's own bar (see StackHeader). */
+const SHEETS = new Set(['add', 'card/[id]', 'ai-consent']);
+
+/**
+ * Today's tabs sit under every page, even one opened straight from a reminder
+ * or a link, so its bar always has a way back instead of a dead end.
+ */
+export const unstable_settings = { anchor: '(tabs)' };
 
 /**
  * Keeps the next week of study reminders and the icon badge up to date:
@@ -81,7 +91,11 @@ function RootStack() {
       <StatusBar style={theme.dark ? 'light' : 'dark'} />
       <Reminders />
       <Stack
-        screenOptions={{
+        screenOptions={({ route }) => ({
+          // Pushed pages get the app's own bar, laid out with the page before
+          // it slides in, instead of the phone's bar settling into place
+          // after the slide (see StackHeader).
+          header: SHEETS.has(route.name) ? undefined : StackHeader,
           headerStyle: { backgroundColor: c.bg },
           headerTintColor: c.link,
           headerTitleStyle: { color: c.ink, fontWeight: '600' },
@@ -95,7 +109,7 @@ function RootStack() {
           // Reduce Motion swaps the slide for a cross-fade, so a change of
           // screen is still visible without the movement.
           animation: theme.reduceMotion ? 'fade' : 'default',
-        }}
+        })}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="start" options={{ headerShown: false, gestureEnabled: false }} />

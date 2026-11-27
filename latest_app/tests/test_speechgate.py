@@ -84,6 +84,30 @@ class SpeechGateTest(unittest.TestCase):
                 break
         self.assertTrue(gate.open)
 
+    def test_a_short_mm_while_the_tutor_talks_does_not_cut_it_off(self):
+        gate = speechgate.SpeechGate()
+        for _ in range(40):
+            gate.process(tone(20, -60), False)
+        for _ in range(20):  # 400 ms
+            gate.process(tone(20, -20), True)
+        for _ in range(20):
+            gate.process(tone(20, -60), True)
+        self.assertFalse(gate.open)
+
+    def test_talking_softly_does_not_raise_the_bar_until_quieter_words_are_lost(self):
+        gate = speechgate.SpeechGate()
+        for _ in range(40):
+            gate.process(tone(20, -62), False)
+        # Ten seconds of soft sounds just under the bar (trailing syllables, a quiet voice).
+        for _ in range(500):
+            gate.process(tone(20, -51), False)
+        self.assertLess(gate.floor, -55)
+        for _ in range(20):
+            if gate.open:
+                break
+            gate.process(tone(20, -45), False)
+        self.assertTrue(gate.open)
+
     def test_desktop_sized_chunks(self):
         # The desktop sends about 100 ms at a time: one loud chunk isn't enough, two are.
         gate = speechgate.SpeechGate()

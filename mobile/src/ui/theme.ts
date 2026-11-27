@@ -4,8 +4,8 @@
  * colour by contrast, and sizes respect both the in-app text size and the
  * phone's own font-size setting.
  */
-import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, Appearance, useColorScheme } from 'react-native';
+import { createContext, createElement, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { AccessibilityInfo, Appearance, AppState as RNAppState } from 'react-native';
 
 import { useStore, usePrefs } from '../state/AppState';
 
@@ -277,6 +277,78 @@ function useSystemReduceMotion(): boolean {
   return reduce;
 }
 
+/** How long after coming back before Light/Dark changes count again. */
+const RETURN_SETTLE_MS = 400;
+
+type Scheme = ReturnType<typeof Appearance.getColorScheme>;
+
+/**
+ * The phone's Light/Dark setting, but only as seen while MemoryPal is on
+ * screen. When an iPhone app goes to the background, iOS draws its
+ * app-switcher pictures in both Light and Dark, and React Native passes each
+ * flip on (useColorScheme went dark, light, dark). Those changes queued up and
+ * played out when the app came back, so the whole app redrew in the other
+ * look for a moment. Changes while away (and just after coming back) are
+ * skipped, and the setting is read once things settle, so only a real change
+ * (the person switched the phone's setting meanwhile) redraws anything.
+ */
+const shownScheme = {
+  value: Appearance.getColorScheme() as Scheme,
+  listeners: new Set<() => void>(),
+  set(value: Scheme) {
+    if (value === this.value) return;
+    this.value = value;
+    this.listeners.forEach((listener) => listener());
+  },
+  started: false,
+  start() {
+    if (this.started) return;
+    this.started = true;
+    let active = RNAppState.currentState !== 'background' && RNAppState.currentState !== 'inactive';
+    let settle: ReturnType<typeof setTimeout> | null = null;
+    Appearance.addChangeListener(({ colorScheme }) => {
+      if (active) this.set(colorScheme);
+    });
+    RNAppState.addEventListener('change', (state) => {
+      if (settle) clearTimeout(settle);
+      settle = null;
+      if (state !== 'active') {
+        active = false;
+        return;
+      }
+      // Flips still on their way in when the app comes back land in this
+      // pause and are skipped; the settled setting is read after it.
+      settle = setTimeout(() => {
+        settle = null;
+        active = true;
+        this.set(Appearance.getColorScheme());
+      }, RETURN_SETTLE_MS);
+    });
+  },
+};
+
+function useSystemScheme(chosen: 'light' | 'dark' | 'unspecified'): Scheme {
+  const scheme = useSyncExternalStore(
+    (listener) => {
+      shownScheme.start();
+      shownScheme.listeners.add(listener);
+      return () => {
+        shownScheme.listeners.delete(listener);
+      };
+    },
+    () => shownScheme.value,
+  );
+  // Tell the phone which look the app chose, so its own parts (sheet and bar
+  // buttons, the keyboard, alerts, pickers) match a Light or Dark choice in
+  // Settings instead of following the phone's setting.
+  useEffect(() => {
+    // Not on the web build (used for store screenshots).
+    Appearance.setColorScheme?.(chosen);
+    shownScheme.set(Appearance.getColorScheme());
+  }, [chosen]);
+  return scheme;
+}
+
 /**
  * Works the theme out once for the whole app. Every label and button reads it
  * from context, so a store change (a sync, a rating) re-renders only the
@@ -285,7 +357,8 @@ function useSystemReduceMotion(): boolean {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const store = useStore();
   const [prefs] = usePrefs();
-  const system = useColorScheme();
+  const chosen = prefs.theme === 'light' || prefs.theme === 'dark' ? prefs.theme : 'unspecified';
+  const system = useSystemScheme(chosen);
   const systemReduceMotion = useSystemReduceMotion();
   const dark = prefs.theme === 'dark' || (prefs.theme === 'system' && system === 'dark');
   const a = store.accessibility;
@@ -294,14 +367,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     () => makeTheme(dark, a.text_size, a.high_contrast, reduceMotion, a.simple_language),
     [dark, a.text_size, a.high_contrast, reduceMotion, a.simple_language],
   );
-  // Tell the phone which look the app chose, so its own parts (sheet and bar
-  // buttons, the keyboard, alerts, pickers) match a Light or Dark choice in
-  // Settings instead of following the phone's setting.
-  const chosen = prefs.theme === 'light' || prefs.theme === 'dark' ? prefs.theme : 'unspecified';
-  useEffect(() => {
-    // Not on the web build (used for store screenshots).
-    Appearance.setColorScheme?.(chosen);
-  }, [chosen]);
   return createElement(ThemeContext.Provider, { value: theme }, children);
 }
 

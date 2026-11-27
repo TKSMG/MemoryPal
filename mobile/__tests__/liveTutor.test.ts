@@ -1,6 +1,6 @@
 /** Live Talk-back: audio helpers and the Gemini Live conversation flow, with a fake socket and fake audio. */
 import { base64Length, pcmMs, utf8 } from '../src/features/pcm';
-import { liveAssessment, LiveAudio, LiveSocket, LiveTutor } from '../src/features/liveTutor';
+import { cutOffNote, heardPart, liveAssessment, LiveAudio, LiveSocket, LiveTutor, NOT_ANSWERED } from '../src/features/liveTutor';
 import type { Outcome, TalkCard } from '../src/features/talkback';
 import { startLive } from '../src/cloud/ai';
 import { decodeBase64, GATE, levelDb, silenceBase64, SpeechGate } from '../src/features/speechGate';
@@ -95,6 +95,7 @@ function setup(minutes = 10, gate: SpeechGate | null = null) {
   };
 }
 
+const heard = (text: string) => ({ serverContent: { inputTranscription: { text } } });
 const audioMessage = (ms: number) => ({ serverContent: { modelTurn: { parts: [{ inlineData: { data: b64(ms * 48), mimeType: 'audio/pcm;rate=24000' } }] } } });
 
 describe('live tutor conversation', () => {
@@ -146,14 +147,138 @@ describe('live tutor conversation', () => {
   test('record_answer rates each card once and always answers the tool call', () => {
     const { tutor, ws, rated } = setup();
     ws.server({ setupComplete: {} });
+    ws.server(heard('Paris'));
     ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c1', result: 'right', said: 'Paris' } }] } });
+    ws.server(heard('No wait, Lyon'));
     ws.server({ toolCall: { functionCalls: [{ id: '2', name: 'record_answer', args: { card: 'c1', result: 'wrong' } }, { id: '3', name: 'record_answer', args: { card: 'c9', result: 'right' } }] } });
+    ws.server(heard('skip'));
     ws.server({ toolCall: { functionCalls: [{ id: '4', name: 'record_answer', args: { card: 'c2', result: 'skipped' } }] } });
     expect(rated).toEqual([['a', 'right']]);
     const responses = ws.sent.filter((m) => m.toolResponse).flatMap((m) => (m.toolResponse as { functionResponses: { id: string; response: { result: string } }[] }).functionResponses);
     expect(responses.map((r) => [r.id, r.response.result])).toEqual([['1', 'saved'], ['2', 'saved'], ['3', 'error: unknown card key or result'], ['4', 'saved']]);
     expect(responses.map((r) => (r.response as { next?: string }).next)).toEqual(['c2', 'c2', undefined, 'none: every card is done, so give the summary']);
     expect(tutor.getSnapshot().results.map((r) => [r.card.id, r.outcome])).toEqual([['a', 'wrong'], ['b', 'skipped']]);
+  });
+
+  test('a card is only saved once the learner has said something, so silence never reuses the last answer', () => {
+    const { tutor, ws, rated } = setup();
+    ws.server({ setupComplete: {} });
+    const reply = () => {
+      const last = ws.sent.filter((m) => m.toolResponse).pop() as { toolResponse: { functionResponses: { response: { result: string; next?: string } }[] } };
+      return last.toolResponse.functionResponses[0].response;
+    };
+    // Nothing said yet: the first card isn't saved.
+    ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c1', result: 'wrong' } }] } });
+    expect(reply()).toEqual({ result: NOT_ANSWERED, next: 'c1', scheduling: 'SILENT' });
+    ws.server(heard('Paris'));
+    ws.server({ toolCall: { functionCalls: [{ id: '2', name: 'record_answer', args: { card: 'c1', result: 'right', said: 'Paris' } }] } });
+    expect(reply().result).toBe('saved');
+    // The learner goes quiet; the tutor tries to judge the next card from the last answer.
+    ws.server({ toolCall: { functionCalls: [{ id: '3', name: 'record_answer', args: { card: 'c2', result: 'wrong', said: 'Paris' } }] } });
+    expect(reply()).toEqual({ result: NOT_ANSWERED, next: 'c2', scheduling: 'SILENT' });
+    // A repeat for a saved card, with nothing new said, keeps the saved result.
+    ws.server({ toolCall: { functionCalls: [{ id: '4', name: 'record_answer', args: { card: 'c1', result: 'wrong' } }] } });
+    expect(reply()).toEqual({ result: 'already saved', next: 'c2', scheduling: 'SILENT' });
+    // A sound with no words isn't an answer either.
+    ws.server(heard(' … '));
+    ws.server({ toolCall: { functionCalls: [{ id: '5', name: 'record_answer', args: { card: 'c2', result: 'wrong' } }] } });
+    expect(reply().result).toBe(NOT_ANSWERED);
+    ws.server(heard('four'));
+    ws.server({ toolCall: { functionCalls: [{ id: '6', name: 'record_answer', args: { card: 'c2', result: 'right' } }] } });
+    expect(rated).toEqual([['a', 'right'], ['b', 'right']]);
+    expect(tutor.getSnapshot().results.map((r) => r.outcome)).toEqual(['right', 'right']);
+  });
+
+  test('a late transcript of the last answer does not count as an answer to the next card', async () => {
+    const { ws, mic, rated } = setup(10, new SpeechGate());
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    for (let i = 0; i < 40; i++) mic(tone(20, -60));
+    for (let i = 0; i < 30; i++) mic(tone(20, -20));
+    ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c1', result: 'right' } }] } });
+    expect(rated).toEqual([['a', 'right']]);
+    // The words for that answer only now arrive; the learner then stays quiet.
+    ws.server(heard('Paris'));
+    for (let i = 0; i < 100; i++) mic(tone(20, -60));
+    ws.server({ toolCall: { functionCalls: [{ id: '2', name: 'record_answer', args: { card: 'c2', result: 'wrong', said: 'Paris' } }] } });
+    expect(rated).toEqual([['a', 'right']]);
+  });
+
+  test('cut off mid-question, the tutor is told how much the learner heard', () => {
+    const { ws, advance } = setup();
+    ws.server({ setupComplete: {} });
+    const notes = () => ws.sent.filter((m) => m.clientContent && (m.clientContent as { turnComplete: boolean }).turnComplete === false);
+    ws.server({ serverContent: { outputTranscription: { text: 'Next one: what is two plus two, do you think?' } } });
+    for (let i = 0; i < 20; i++) ws.server(audioMessage(100)); // two seconds of speech
+    advance(500);
+    ws.server({ serverContent: { interrupted: true } });
+    expect(notes()).toHaveLength(1);
+    const note = notes()[0].clientContent as { turns: { parts: { text: string }[] }[] };
+    expect(note.turns[0].parts[0].text).toBe(cutOffNote('Next one:'));
+    // Nearly finished when the learner cut in: nothing to say.
+    ws.server({ serverContent: { outputTranscription: { text: 'Right, well done.' } } });
+    for (let i = 0; i < 10; i++) ws.server(audioMessage(100));
+    advance(800);
+    ws.server({ serverContent: { interrupted: true } });
+    expect(notes()).toHaveLength(1);
+  });
+
+  test('cut-off wording', () => {
+    expect(heardPart('a b c d', 0.5)).toBe('a b');
+    expect(heardPart('a b c d', 0.1)).toBe('');
+    expect(cutOffNote('')).toContain('heard none');
+    expect(cutOffNote('What is')).toContain('only heard "What is…"');
+  });
+
+  test('clear speech the gate lets through counts as an answer before its transcript arrives', async () => {
+    const { ws, mic, rated } = setup(10, new SpeechGate());
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    for (let i = 0; i < 40; i++) mic(tone(20, -60));
+    ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c1', result: 'right' } }] } });
+    expect(rated).toEqual([]);
+    for (let i = 0; i < 30; i++) mic(tone(20, -20));
+    ws.server({ toolCall: { functionCalls: [{ id: '2', name: 'record_answer', args: { card: 'c1', result: 'right' } }] } });
+    expect(rated).toEqual([['a', 'right']]);
+  });
+
+  test('the greeting is asked for only once the microphone and player are up', async () => {
+    let ready: () => void = () => undefined;
+    const { ws, audio } = setup();
+    audio.start = () => new Promise<void>((done) => (ready = done));
+    ws.server({ setupComplete: {} });
+    await Promise.resolve();
+    expect(ws.sent.some((m) => m.clientContent)).toBe(false);
+    ready();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(JSON.stringify(ws.sent.find((m) => m.clientContent))).toContain('Greet them');
+  });
+
+  test('the picture follows the tutor as its speech plays, not as it arrives', () => {
+    const { tutor, ws, advance } = setup();
+    ws.server({ setupComplete: {} });
+    // 300 ms of silence, then 300 ms of loud speech, arriving all at once.
+    const quiet = new Uint8Array(300 * 48);
+    const loud = new Uint8Array(300 * 48);
+    for (let i = 0; i < loud.length / 2; i++) {
+      const v = Math.round(12000 * Math.sin(i / 3));
+      const u = v < 0 ? v + 0x10000 : v;
+      loud[2 * i] = u & 0xff;
+      loud[2 * i + 1] = u >> 8;
+    }
+    const pcm = new Uint8Array([...quiet, ...loud]);
+    let text = '';
+    for (let i = 0; i < pcm.length; i++) text += String.fromCharCode(pcm[i]);
+    ws.server({ serverContent: { modelTurn: { parts: [{ inlineData: { data: btoa(text) } }] } } });
+    expect(tutor.voice()).toEqual({ who: 'tutor', level: 0 });
+    advance(150);
+    expect(tutor.voice().level).toBe(0);
+    advance(300);
+    expect(tutor.voice().who).toBe('tutor');
+    expect(tutor.voice().level).toBeGreaterThan(0.5);
+    advance(200);
+    expect(tutor.voice()).toEqual({ who: null, level: 0 });
   });
 
   test('end_session lets the goodbye play, then hangs up', () => {
@@ -181,6 +306,7 @@ describe('live tutor conversation', () => {
   test('mute stops sending and tells the voice detector; a dropped line is an error with results kept', () => {
     const { tutor, ws, audio, mic, rated } = setup();
     ws.server({ setupComplete: {} });
+    ws.server(heard('five'));
     ws.server({ toolCall: { functionCalls: [{ id: '1', name: 'record_answer', args: { card: 'c2', result: 'close' } }] } });
     tutor.setMuted(true);
     expect(audio.muted).toBe(true);
@@ -299,6 +425,24 @@ describe('speech gate', () => {
     expect(gate.isOpen).toBe(false);
     // Really talking over it opens the gate.
     for (let i = 0; i < 30 && !gate.isOpen; i++) gate.process(tone(20, -20), true);
+    expect(gate.isOpen).toBe(true);
+  });
+
+  test('a short "mm" while the tutor talks does not cut it off', () => {
+    const gate = new SpeechGate();
+    for (let i = 0; i < 40; i++) gate.process(tone(20, -60), false);
+    for (let i = 0; i < 20; i++) gate.process(tone(20, -20), true); // 400 ms
+    for (let i = 0; i < 20; i++) gate.process(tone(20, -60), true);
+    expect(gate.isOpen).toBe(false);
+  });
+
+  test('talking softly for a long time does not raise the bar until quieter words are lost', () => {
+    const gate = new SpeechGate();
+    for (let i = 0; i < 40; i++) gate.process(tone(20, -62), false);
+    // Ten seconds of soft sounds just under the bar (trailing syllables, a quiet voice).
+    for (let i = 0; i < 500; i++) gate.process(tone(20, -51), false);
+    expect(gate.noiseDb).toBeLessThan(-55);
+    for (let i = 0; i < 20 && !gate.isOpen; i++) gate.process(tone(20, -45), false);
     expect(gate.isOpen).toBe(true);
   });
 

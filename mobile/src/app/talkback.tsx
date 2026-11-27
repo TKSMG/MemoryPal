@@ -163,8 +163,10 @@ export default function Talkback() {
   if (!session) {
     return (
       <Screen narrow>
-        <Txt variant="h2">Study out loud</Txt>
-        <Txt variant="muted">{`${queue.length} card${queue.length === 1 ? '' : 's'} ready.`}</Txt>
+        <View style={{ gap: 4 }}>
+          <Txt variant="h2">Study out loud</Txt>
+          <Txt variant="muted">{`${queue.length} card${queue.length === 1 ? '' : 's'} ready.`}</Txt>
+        </View>
         {live ? (
           <Button kind="primary" label="Talk with the AI tutor" icon="chatbubble-ellipses-outline" onPress={openLive} sublabel="A real conversation, like a voice call: answer in your own words, interrupt, ask for a hint or why. Needs the internet and an account." />
         ) : null}

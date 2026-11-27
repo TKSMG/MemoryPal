@@ -1,0 +1,129 @@
+name: iPhone Test Build (TestFlight)
+
+# Builds the iPhone app on Expo's servers (EAS) and uploads it to App Store
+# Connect for TestFlight internal testing. It is never sent for App Review.
+# Needs the repository secret EXPO_TOKEN (expo.dev > Account settings >
+# Access tokens). Apple signing and the App Store Connect key are the ones
+# EAS already stores for this project from earlier builds.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or commit to build"
+        default: main
+        required: true
+      version:
+        description: "App version shown in TestFlight (must be newer than the last approved one)"
+        default: "0.54.0"
+        required: true
+      build_number:
+        description: "iOS build number (must be higher than every earlier upload)"
+        required: true
+      submit_build_id:
+        description: "Optional: an EAS build id to send to TestFlight instead of building again"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Build and upload to TestFlight
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      GOOGLE_IOS_CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
+      VERSION: ${{ inputs.version }}
+      SUBMIT_BUILD_ID: ${{ inputs.submit_build_id }}
+      # App Store Connect's Apple ID for the app (App Information page). If the
+      # variable is empty, it is looked up from the bundle id on the App Store.
+      ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+      BUILD_NUMBER: ${{ inputs.build_number }}
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Check the Expo token is set
+        working-directory: .
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Add the EXPO_TOKEN repository secret first (expo.dev > Account settings > Access tokens)."
+            exit 1
+          fi
+          case "$SUBMIT_BUILD_ID" in (*[!0-9a-f-]*) echo "::error::submit_build_id must be an EAS build id"; exit 1;; esac
+          case "$BUILD_NUMBER" in (*[!0-9]*|'') echo "::error::build_number must be a whole number"; exit 1;; esac
+
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Set version and build number (this run only, not committed)
+        run: |
+          node -e '
+            const fs = require("fs");
+            const a = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            a.expo.version = process.env.VERSION;
+            a.expo.ios.buildNumber = String(process.env.BUILD_NUMBER);
+            fs.writeFileSync("app.json", JSON.stringify(a, null, 2) + "\n");
+            console.log("version", a.expo.version, "iOS build", a.expo.ios.buildNumber);
+          '
+
+      # Non-interactive submits need the app's App Store Connect id in eas.json.
+      - name: Find the App Store Connect app id
+        run: |
+          if [ -z "$ASC_APP_ID" ]; then
+            ASC_APP_ID=$(curl -fsS "https://itunes.apple.com/lookup?bundleId=app.memorypal.mobile" \
+              | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s).results||[];console.log(r[0]?r[0].trackId:"")})')
+          fi
+          case "$ASC_APP_ID" in (''|*[!0-9]*)
+            echo "::error::Could not find the App Store Connect app id. Add it as the repository variable ASC_APP_ID (App Store Connect > MemoryPal > App Information > Apple ID)."
+            exit 1;;
+          esac
+          echo "App Store Connect app id: $ASC_APP_ID"
+          node -e '
+            const fs = require("fs");
+            const e = JSON.parse(fs.readFileSync("eas.json", "utf8"));
+            e.submit = e.submit || {};
+            e.submit.production = { ...(e.submit.production || {}), ios: { ...((e.submit.production || {}).ios || {}), ascAppId: process.argv[1] } };
+            fs.writeFileSync("eas.json", JSON.stringify(e, null, 2) + "\n");
+          ' "$ASC_APP_ID"
+
+      # The build runs on Expo's servers, which read app.config.js there too,
+      # so the Google Drive client id must also be in the EAS environment.
+      - name: Put the Google iOS client id in the EAS environment
+        if: env.GOOGLE_IOS_CLIENT_ID != ''
+        run: |
+          npx --yes eas-cli@latest env:create --name GOOGLE_IOS_CLIENT_ID \
+            --value "$GOOGLE_IOS_CLIENT_ID" --environment production \
+            --visibility plaintext --force --non-interactive
+
+      - name: Send an existing EAS build to TestFlight
+        if: env.SUBMIT_BUILD_ID != ''
+        run: |
+          npx --yes eas-cli@latest submit --platform ios --profile production \
+            --id "$SUBMIT_BUILD_ID" --non-interactive
+
+      - name: Build on EAS and submit to TestFlight
+        if: env.SUBMIT_BUILD_ID == ''
+        run: |
+          npx --yes eas-cli@latest build --platform ios --profile production \
+            --auto-submit --non-interactive

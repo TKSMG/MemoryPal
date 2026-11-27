@@ -25,15 +25,16 @@ import sys
 from array import array
 
 FLOOR_START_DB = -60.0
-FLOOR_MAX_DB = -45.0
+FLOOR_MAX_DB = -50.0  # so the bar for speech never rises past -38 dBFS and quieter words still count
+FLOOR_NEAR_DB = 6.0  # sounds this close above the noise move it at the normal pace; louder ones (soft speech) barely do
 FLOOR_MIN_DB = -75.0
 TALK_ABOVE_FLOOR_DB = 12.0
-TALK_MIN_DB = -48.0
+TALK_MIN_DB = -52.0  # low enough for someone speaking softly or a little away from the microphone
 BARGE_ABOVE_FLOOR_DB = 22.0
 BARGE_MIN_DB = -36.0
 OPEN_MS = 150.0
-BARGE_MS = 350.0
-HANG_MS = 900.0
+BARGE_MS = 600.0  # a "mm" or "okay" while the tutor talks is shorter; someone who means to cut in keeps going
+HANG_MS = 1200.0  # a pause between words never cuts into an answer
 BARGE_HANG_MS = 250.0
 PREROLL_MS = 500.0
 ECHO_TAIL_MS = 500.0
@@ -76,6 +77,9 @@ class SpeechGate:
         self.quiet_ms = 0.0
         self.preroll = []
         self.preroll_ms = 0.0
+        # The last chunk's loudness, and whether it counted as speech (for the tutor's checks).
+        self.last_db = -100.0
+        self.last_loud = False
 
     def reset(self):
         """Back to closed (muted, or a fresh start); the noise estimate is kept."""
@@ -100,6 +104,8 @@ class SpeechGate:
         talk = max(TALK_MIN_DB, self.floor + TALK_ABOVE_FLOOR_DB)
         barge = max(BARGE_MIN_DB, self.floor + BARGE_ABOVE_FLOOR_DB)
         threshold = barge if tutor_talking else talk
+        self.last_db = db
+        self.last_loud = db >= threshold
         if self.open:
             # Once the tutor talks again, only real speech keeps the gate open, so its echo can't.
             self.quiet_ms = 0.0 if db >= threshold else self.quiet_ms + ms
@@ -127,6 +133,14 @@ class SpeechGate:
         return [silence_b64(len(pcm))]
 
     def _learn(self, db, ms):
-        # Quick to follow the noise down, slow to follow it up.
-        weight = min(1.0, ms / 300) if db < self.floor else min(1.0, ms / 4000)
+        # Quick to follow the noise down, slow to follow it up, and very slow for
+        # sounds well above it: those are mostly soft speech, and learning from
+        # them raised the bar until the learner's quieter words were cut out.
+        rise = db - self.floor
+        if rise < 0:
+            weight = min(1.0, ms / 300)
+        elif rise <= FLOOR_NEAR_DB:
+            weight = min(1.0, ms / 4000)
+        else:
+            weight = min(1.0, ms / 30000)
         self.floor = min(FLOOR_MAX_DB, max(FLOOR_MIN_DB, self.floor + (db - self.floor) * weight))

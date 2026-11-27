@@ -8,7 +8,7 @@ MemoryPal now comes as a Python/Tkinter desktop app for Windows and macOS and a 
 
 ## Download
 
-On Windows, get it from the [Microsoft Store](https://apps.microsoft.com/detail/9N22T06CGQJG). Installers for every platform are on the [latest release](https://github.com/TKSMG/MemoryPal/releases/latest). [installers/README.md](installers/README.md) explains how to install each one.
+On iPhone and iPad, get it from the [App Store](https://apps.apple.com/app/id6837875867). On Windows, get it from the [Microsoft Store](https://apps.microsoft.com/detail/9N22T06CGQJG). Installers for every platform are on the [latest release](https://github.com/TKSMG/MemoryPal/releases/latest). [installers/README.md](installers/README.md) explains how to install each one.
 
 ## What it does
 
@@ -90,3 +90,7 @@ npx expo start
 ```
 
 The live AI tutor in Talk-back needs a development build (`npx expo run:android` or `run:ios`) because Expo Go doesn't include its audio and speech modules. [mobile/README.md](mobile/README.md) covers tests, structure and the parity checks.
+
+## Licence
+
+Copyright (c) 2026 Kirthik Sai Mouli Parthiban. All rights reserved. The code is public to read, but it may not be copied, reused or republished without permission; see [LICENSE](LICENSE). Third-party parts keep their own licences.
