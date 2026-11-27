@@ -2449,6 +2449,29 @@ class MemoryPalApp(tk.Tk):
         cache[key] = photo
         return photo
 
+    def line_icon_flush_left(self, name, size, color):
+        """line_icon with its empty left columns cut off, so the drawn line
+        starts on the same edge as the text under it (the icon's square has
+        room around the glyph, which pushed the Today flame ~5px in)."""
+        cache = self.__dict__.setdefault("_icon_photo_cache", {})
+        key = ("flush_left", name, size, color)
+        if key in cache:
+            return cache[key]
+        photo = self.line_icon(name, size, color)
+        coverage = self.icon_coverage(name, size) if photo else None
+        if not coverage:
+            return photo
+        inset = next((x for x in range(size) if any(coverage[y * size + x] > 40 for y in range(size))), 0)
+        if not inset:
+            return photo
+        try:
+            trimmed = tk.PhotoImage(master=self, width=size - inset, height=size)
+            trimmed.tk.call(trimmed, "copy", photo, "-from", inset, 0, size, size)
+        except tk.TclError:
+            return photo
+        cache[key] = trimmed
+        return trimmed
+
     def tone_color(self, tone):
         """The text-strength colour of a tone ("pine", "amber", ...)."""
         return COLORS.get(TONE_KEYS.get(tone, "primary"), COLORS["primary"])
@@ -3304,9 +3327,13 @@ class MemoryPalApp(tk.Tk):
         return COLORS.get("focus", "#f2c14e")
 
     def keyboard_link(self, widget, handler):
-        """Make a clickable label reachable with Tab and work with Enter or Space."""
+        """Make a clickable label reachable with Tab and work with Enter or Space.
+
+        No inner padding: the focus ring already sits around the text, and
+        the extra pixel put links to the right of the text above them."""
         widget.configure(
             takefocus=1,
+            padx=0,
             highlightthickness=self.focus_thickness(),
             highlightbackground=widget.cget("bg"),
             highlightcolor=self.focus_color(),
@@ -8521,7 +8548,7 @@ class MemoryPalApp(tk.Tk):
         week = progress.daily_series(self.store.activity, 7)
         streak_panel, goal_panel, level_panel, week_panel = self.panel_row(parent, 4)
 
-        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 28), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon_flush_left("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 28), anchor="w", padx=0).pack(fill="x")
         tk.Label(streak_panel, text="day in a row" if streak == 1 else "days in a row", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Semibold", 13), anchor="w").pack(fill="x")
         message = "Practise today to start one." if streak == 0 else ("Practise today to keep it going." if today == 0 else "Kept alive today.")
         tk.Label(streak_panel, text=f"{message} Best: {best} day{'s' if best != 1 else ''}." if best else message, bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), wraplength=self.px(220), justify="left").pack(anchor="w", pady=(self.px(8), 0))
@@ -8531,7 +8558,8 @@ class MemoryPalApp(tk.Tk):
         ring.pack(anchor="w", pady=(self.px(6), 0))
         self.render_goal_ring(ring, today, goal, size=96, color=COLORS["primary"]).pack()
         left = max(0, goal - today)
-        tk.Label(goal_panel, text="Goal reached" if not left else f"{left} more to go", bg=COLORS["surface"], fg=COLORS["primary"] if not left else COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(6), 0))
+        # In the ring's own frame, so the line sits centred under the ring.
+        tk.Label(ring, text="Goal reached" if not left else f"{left} more to go", bg=COLORS["surface"], fg=COLORS["primary"] if not left else COLORS["muted"], font=self.font("Segoe UI Semibold", 10)).pack(pady=(self.px(6), 0))
 
         tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 26), anchor="w").pack(fill="x")
         tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 10), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
@@ -8723,7 +8751,7 @@ class MemoryPalApp(tk.Tk):
         mastery, mastered, learning = self.mastery_summary()
 
         streak_panel, level_panel, goal_panel, mastery_panel = self.panel_row(page.inner, 4)
-        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 28), anchor="w").pack(fill="x")
+        tk.Label(streak_panel, text=f" {streak}", image=self.line_icon_flush_left("flame", self.px(34), COLORS["warm_text"]) or "", compound="left", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 28), anchor="w", padx=0).pack(fill="x")
         tk.Label(streak_panel, text=f"current streak  \u2022  best {best}", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI Semibold", 11), anchor="w").pack(fill="x")
         tk.Label(level_panel, text=f"Level {level['level']}", bg=COLORS["surface"], fg=COLORS["ink"], font=self.font("Segoe UI Bold", 26), anchor="w").pack(fill="x")
         tk.Label(level_panel, text=f"{level['xp']} / {level['need']} XP  \u2022  {store.practiced} reviews", bg=COLORS["surface"], fg=COLORS["muted"], font=self.font("Segoe UI", 11), anchor="w").pack(fill="x", pady=(self.px(2), self.px(8)))
